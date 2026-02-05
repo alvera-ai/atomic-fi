@@ -94,5 +94,14 @@ config :phoenix, :plug_init_mode, :runtime
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
 
+# OpenAPI Generator configuration for Watchman client (dev-only dependency)
+config :oapi_generator,
+  watchman: [
+    output: [
+      base_module: PaymentCompliancePlatform.Watchman,
+      location: "lib/payment_compliance_platform/watchman"
+    ]
+  ]
+
 # Import OpenAPI server configuration
 import_config "openapi_servers.#{config_env()}.exs"

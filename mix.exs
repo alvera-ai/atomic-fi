@@ -82,6 +82,9 @@ defmodule PaymentCompliancePlatform.MixProject do
       # Petal components and framework
       {:petal_components, "~> 3.0"},
 
+      # HTTP client
+      {:req, "~> 0.5"},
+
       # Utils
       {:slugify, "~> 1.3"},
       {:timex, "~> 3.7", override: true},

@@ -7,8 +7,8 @@ defmodule PaymentCompliancePlatform.Watchman.Client do
 
   ## Configuration
 
-      config :payment_compliance_platform, PaymentCompliancePlatform.Watchman.Client,
-        base_url: "http://localhost:8084"
+      # config/runtime.exs
+      config :payment_compliance_platform, :watchman_base_url, System.get_env("WATCHMAN_URL")
 
   ## Usage
 
@@ -23,7 +23,7 @@ defmodule PaymentCompliancePlatform.Watchman.Client do
       info.lists  # => %{"us_ofac" => 18598, "us_csl" => 6682, ...}
   """
 
-  @default_base_url "http://localhost:8084"
+  alias PaymentCompliancePlatform.Config
 
   @doc """
   Execute an API request. Called by the generated Operations module.
@@ -38,7 +38,7 @@ defmodule PaymentCompliancePlatform.Watchman.Client do
       |> maybe_add_body(operation)
 
     case Req.request(req, request_opts) do
-      {:ok, %Req.Response{status: status, body: body}} ->
+      {:ok, %{status: status, body: body}} ->
         decode_response(status, body, operation)
 
       {:error, reason} ->
@@ -47,10 +47,19 @@ defmodule PaymentCompliancePlatform.Watchman.Client do
   end
 
   defp build_request do
-    Req.new(
+    opts = [
       base_url: base_url(),
       headers: [{"accept", "application/json"}]
-    )
+    ]
+
+    opts =
+      if Config.get(:env) == :test do
+        Keyword.put(opts, :plug, {Req.Test, __MODULE__})
+      else
+        opts
+      end
+
+    Req.new(opts)
   end
 
   defp maybe_add_query(opts, %{query: query}) when query != [] do
@@ -122,7 +131,6 @@ defmodule PaymentCompliancePlatform.Watchman.Client do
   defp decode_field(value, _type), do: value
 
   defp base_url do
-    Application.get_env(:payment_compliance_platform, __MODULE__, [])
-    |> Keyword.get(:base_url, @default_base_url)
+    Config.fetch!(:watchman_base_url)
   end
 end

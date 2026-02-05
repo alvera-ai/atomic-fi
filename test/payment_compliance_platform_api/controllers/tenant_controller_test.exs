@@ -416,8 +416,6 @@ defmodule PaymentCompliancePlatformApi.TenantControllerTest do
              } = response
     end
 
-
-
     test "renders errors when data is invalid", %{conn: conn, tenant: tenant} do
       conn = put(conn, ~p"/api/tenants/#{tenant.id}", @invalid_attrs)
 
