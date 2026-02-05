@@ -1,98 +1,111 @@
 # Introduction
 
-Welcome to the Alvera Phoenix Template Server - a production-ready Phoenix application template that combines best practices from Alvera's internal projects.
+Welcome to the Payment Compliance Platform - a specialized system for screening payments and account holders against international sanctions lists with manual review and override capabilities.
 
 ## Overview
 
-This template provides a solid foundation for building Phoenix applications with:
+This platform provides comprehensive sanctions screening and compliance management for financial institutions:
 
-- **Multi-Tenancy**: Tenant-scoped data with row-level security
-- **Authentication**: Email/password auth with 2FA support
-- **REST API**: OpenAPI-documented endpoints
-- **LiveView UI**: Real-time interfaces with Petal Components
-- **Testing**: Comprehensive test suite with high coverage
-- **CI/CD**: GitHub Actions workflows for quality and deployment
-- **Documentation**: ExDoc with extensive guides
+- **Sanctions Screening**: Automated screening against US OFAC, CSL, and other watchlists
+- **Onboarding Compliance**: Screen new account holders (individuals and businesses) during onboarding
+- **Payment Monitoring**: Verify transactions against sanctioned entities
+- **Manual Review**: Human oversight with review workflows and override capabilities
+- **Multi-Tenancy**: Isolated data and compliance decisions per financial institution
+- **Audit Trail**: Complete history of screening decisions and manual overrides
+- **REST API**: OpenAPI-documented endpoints for integration with existing systems
 
 ## Project Goals
 
-This template aims to:
+This platform aims to:
 
-1. **Reduce boilerplate**: Start new projects faster with proven patterns
-2. **Enforce best practices**: Built-in code quality and security checks
-3. **Enable rapid development**: Custom generators for common patterns
-4. **Maintain consistency**: Standardized structure across Alvera projects
-5. **Support scaling**: Multi-tenancy and background jobs from day one
+1. **Automate compliance**: Reduce manual screening workload with intelligent automation
+2. **Prevent violations**: Block transactions involving sanctioned individuals or entities
+3. **Enable oversight**: Provide compliance officers with tools for manual review and overrides
+4. **Ensure auditability**: Maintain complete records of all screening decisions
+5. **Scale efficiently**: Multi-tenant architecture supporting multiple financial institutions
 
 ## What's Included
 
-### Core Features
+### Compliance Features
+
+- **Sanctions Screening**: Integration with Watchman screening service
+- **Onboarding Screening**: Screen account holders (individuals and businesses) during sign-up
+- **Match Scoring**: Configurable match thresholds (default: 70% similarity)
+- **Entity Screening**: Screen individuals, companies, addresses, and contacts
+- **Decision Management**: Track screening results (pass, potential_match, blocked)
+- **Manual Override**: Compliance officer review and approval workflows
+- **Audit Logging**: Complete history of screening decisions and overrides
+
+### Sanctions Data Sources
+
+- **US OFAC** (Office of Foreign Assets Control) - ~18,598 entities
+- **US CSL** (Consolidated Screening List) - ~6,482 entities
+- **US Non-SDN** (Non-Specially Designated Nationals) - ~462 entities
+- **US FinCEN 311** (Section 311 Special Measures) - ~35 entities
+- **Real-time Updates**: Automatic synchronization with latest sanctions data
+
+### Technical Stack
 
 - Phoenix 1.8.3 with LiveView 1.0+
-- PostgreSQL with Ecto 3.12+
-- Multi-tenant architecture with row-level security
-- User authentication with bcrypt
-- Two-factor authentication (TOTP)
-- OAuth placeholders (Auth0/Keycloak)
-
-### API & Documentation
-
-- OpenAPI 3.0 specification
-- Automatic schema validation
-- TypeScript SDK generation
-- ExDoc documentation
-
-### UI Components
-
-- Petal Components 3.0
-- TailwindCSS styling
-- Heroicons
-- Phoenix Storybook (dev only)
+- PostgreSQL with Ecto 3.12+ (multi-tenant with RLS)
+- Watchman API integration for sanctions screening
+- OpenAPI 3.0 specification with auto-generated schemas
+- User authentication with 2FA support
+- Oban for background screening jobs
 
 ### Development Tools
 
 - Custom Alvera generators (alvera.gen.*)
 - Tidewave MCP for AI-assisted development
 - Code quality tools (Credo, Sobelow, Dialyxir)
-- Comprehensive testing (ExUnit, Wallaby, Vitest)
+- Comprehensive testing (ExUnit with 100% coverage goal)
+- ExDoc documentation with guides
 
 ### DevOps
 
 - Docker multi-arch builds (amd64/arm64)
 - GitHub Actions CI/CD
 - Structured logging with logger_json
-- Oban background jobs
+- Multi-environment configuration (dev/test/prod)
 
 ## What's NOT Included
 
-This template intentionally excludes:
+This platform currently excludes (but may be added in future versions):
 
-- Multiple datalakes (single DB only)
-- AI/ML integrations (can be added as needed)
-- FHIR healthcare resources
-- Complex org memberships
-- Oban Pro (using free version)
+- **Transaction Monitoring**: Real-time payment screening (coming soon)
+- **Risk Scoring**: ML-based risk assessment algorithms
+- **Case Management**: Full workflow system for compliance investigations
+- **Reporting Dashboard**: Analytics and compliance reporting UI
+- **Bulk Screening**: Batch screening of existing customer databases
+- **Custom Watchlists**: Institution-specific screening lists
+- **Oban Pro**: Using free version (can be upgraded for better performance)
 
-These features are available in the full `platform` project but are optional for most applications.
+These features are planned for future releases as the platform matures.
 
 ## Architecture
 
-The template follows a layered architecture:
+The platform follows a compliance-focused layered architecture:
 
 ```
 ┌─────────────────────────────────────┐
 │         Web Layer (Phoenix)          │
 │  ┌──────────────┬─────────────────┐ │
 │  │  LiveView    │   REST API      │ │
-│  │  (Browser)   │  (JSON/OpenAPI) │ │
+│  │  (Reviews)   │  (Screening)    │ │
 │  └──────────────┴─────────────────┘ │
 └─────────────────────────────────────┘
               ↓
 ┌─────────────────────────────────────┐
 │       Context Layer (Business)       │
 │  ┌──────────┬──────────┬──────────┐ │
-│  │  Users   │ Tenants  │  Roles   │ │
+│  │ Account  │ Decision │  Manual  │ │
+│  │ Holders  │ Context  │ Override │ │
 │  └──────────┴──────────┴──────────┘ │
+└─────────────────────────────────────┘
+              ↓
+┌─────────────────────────────────────┐
+│  External Services (Watchman API)    │
+│    US OFAC, CSL, Non-SDN, FinCEN    │
 └─────────────────────────────────────┘
               ↓
 ┌─────────────────────────────────────┐
@@ -101,34 +114,68 @@ The template follows a layered architecture:
 └─────────────────────────────────────┘
 ```
 
-## Multi-Tenancy Model
-
-All data is scoped by `owner_id` (tenant):
+## Screening Workflow
 
 ```
-Tenant (root entity)
-  └── User (belongs_to :owner, Tenant)
-       ├── UserRole
-       └── UserToken
+Onboarding Request (Individual/Business)
+              ↓
+    Screen Interested Parties
+    (Individuals + Companies)
+              ↓
+    Watchman API Search
+    (minMatch: 0.7 threshold)
+              ↓
+    Decision Generation
+    ┌─────────┬─────────┬─────────┐
+    │  Pass   │ Potential│ Blocked │
+    │         │  Match   │         │
+    └─────────┴─────────┴─────────┘
+              ↓
+    Manual Review (if needed)
+              ↓
+    Override/Approve/Reject
+```
+
+## Multi-Tenancy Model
+
+All screening data is scoped by `tenant_id` (financial institution):
+
+```
+Tenant (financial institution)
+  ├── User (compliance officers)
+  ├── AccountHolder (customers)
+  ├── Decision (screening results)
+  └── Override (manual reviews)
 ```
 
 See [Multi-Tenancy Guide](multi-tenancy.md) for details.
 
 ## Getting Started
 
-New to this template? Start here:
+New to this platform? Start here:
 
 1. [Getting Started](getting-started.md) - Setup and configuration
 2. [Architecture](architecture.md) - Understanding the structure
-3. [Generators](generators.md) - Using alvera.gen.* tasks
-4. [Testing](testing.md) - Running and writing tests
+3. [Onboarding Screening](onboarding.md) - Screen account holders during sign-up
+4. [Manual Override](override.md) - Review and override screening decisions
+5. [Testing](testing.md) - Running and writing tests
+
+## API Endpoints
+
+Key endpoints for integration:
+
+- **POST /api/onboarding/screen** - Screen account holder during onboarding
+- **GET /api/decisions** - List screening decisions
+- **POST /api/overrides** - Create manual override for a decision
+
+See the [OpenAPI documentation](http://localhost:4000/api/docs) for complete API reference.
 
 ## Need Help?
 
 - Check the guides in this documentation
-- Review the `.claude/commands/` for code generation patterns
-- See CLAUDE.md for development conventions
+- Review the CLAUDE.md for development conventions
+- See the OpenAPI docs at http://localhost:4000/api/docs
 
 ## Next Steps
 
-Continue to [Getting Started](getting-started.md) to set up your development environment.
+Continue to [Getting Started](getting-started.md) to set up your development environment and configure Watchman API access.

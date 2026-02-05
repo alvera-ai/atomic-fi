@@ -38,6 +38,9 @@ defmodule PaymentCompliancePlatformApi.Routes do
         put "/tenants/:id", TenantController, :update
         delete "/tenants/:id", TenantController, :delete
 
+        # Onboarding screening endpoint
+        post "/onboarding/screen", OnboardingController, :screen
+
         # Future: Add more authenticated resources here
         # resources "/users", UserController, except: [:new, :edit]
       end

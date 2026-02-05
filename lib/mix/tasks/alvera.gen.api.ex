@@ -429,7 +429,7 @@ defmodule Mix.Tasks.Alvera.Gen.Api do
   end
 
   defp print_instructions(context, schema, web_namespace) do
-    web_namespace = web_namespace || "Api"
+    _namespace = web_namespace || "Api"
 
     Mix.shell().info("""
 

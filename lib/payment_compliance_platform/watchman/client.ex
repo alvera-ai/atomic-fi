@@ -52,13 +52,7 @@ defmodule PaymentCompliancePlatform.Watchman.Client do
       headers: [{"accept", "application/json"}]
     ]
 
-    opts =
-      if Config.get(:env) == :test do
-        Keyword.put(opts, :plug, {Req.Test, __MODULE__})
-      else
-        opts
-      end
-
+    # Use real HTTP client even in test environment to hit local Watchman
     Req.new(opts)
   end
 

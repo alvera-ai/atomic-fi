@@ -1,18 +1,41 @@
 defmodule PaymentCompliancePlatform.Watchman.Address do
   @moduledoc """
-  Provides struct and type for a Address
+  Embedded schema for address data (Watchman API format).
   """
+  use PaymentCompliancePlatform.Schema
 
-  @type t :: %__MODULE__{
-          city: String.t() | nil,
-          country: String.t() | nil,
-          line1: String.t() | nil,
-          line2: String.t() | nil,
-          postalCode: String.t() | nil,
-          state: String.t() | nil
-        }
+  @primary_key false
+  typed_embedded_schema do
+    open_api_property(schema: %Schema{type: :string}, key: :city)
+    field :city, :string
 
-  defstruct [:city, :country, :line1, :line2, :postalCode, :state]
+    open_api_property(schema: %Schema{type: :string}, key: :country)
+    field :country, :string
+
+    open_api_property(schema: %Schema{type: :string}, key: :line1)
+    field :line1, :string
+
+    open_api_property(schema: %Schema{type: :string}, key: :line2)
+    field :line2, :string
+
+    open_api_property(schema: %Schema{type: :string}, key: :postalCode)
+    field :postalCode, :string
+
+    open_api_property(schema: %Schema{type: :string}, key: :state)
+    field :state, :string
+
+    open_api_schema(
+      title: "Address",
+      description: "Address information (Watchman format)",
+      properties: [:city, :country, :line1, :line2, :postalCode, :state]
+    )
+  end
+
+  @doc false
+  def changeset(address, attrs) do
+    address
+    |> cast(attrs, [:city, :country, :line1, :line2, :postalCode, :state])
+  end
 
   @doc false
   @spec __fields__(atom) :: keyword

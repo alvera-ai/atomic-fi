@@ -13,4 +13,6 @@ defmodule PaymentCompliancePlatform.Factory do
   use PaymentCompliancePlatform.Factory.UserRoleMappingFactory
   use PaymentCompliancePlatform.Factory.SessionFactory
   use PaymentCompliancePlatform.Factory.CustomerFactory
+  use PaymentCompliancePlatform.Factory.AccountHolderFactory
+  use PaymentCompliancePlatform.Factory.DecisionFactory
 end

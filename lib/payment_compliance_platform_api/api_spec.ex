@@ -1,6 +1,6 @@
 defmodule PaymentCompliancePlatformApi.ApiSpec do
   @moduledoc """
-  OpenAPI specification for the Alvera Phoenix Template Server API.
+  OpenAPI specification for the Payment Compliance Platform API.
 
   This module defines the OpenAPI 3.1 specification for the API.
   It automatically generates API documentation from controller operations and schema definitions.
@@ -35,7 +35,7 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
     %OpenApi{
       openapi: "3.1.0",
       info: %Info{
-        title: "Alvera Phoenix Template API",
+        title: "Payment Compliance Platform API",
         version: "0.1.0",
         description: read_description()
       },
@@ -58,6 +58,27 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "TenantRequest" => OpenApiSchema.TenantRequest.schema(),
           "TenantResponse" => OpenApiSchema.TenantResponse.schema(),
           "TenantListResponse" => OpenApiSchema.TenantListResponse.schema(),
+          # Request/Response schemas for AccountHolder (Onboarding)
+          "AccountHolderRequest" => OpenApiSchema.AccountHolderRequest.schema(),
+          "AccountHolderResponse" => OpenApiSchema.AccountHolderResponse.schema(),
+          # Request/Response schemas for Decision (Onboarding)
+          "DecisionRequest" => OpenApiSchema.DecisionRequest.schema(),
+          "DecisionResponse" => OpenApiSchema.DecisionResponse.schema(),
+          # Nested schemas for AccountHolder
+          "InterestedCompanyRequest" => OpenApiSchema.InterestedCompanyRequest.schema(),
+          "InterestedCompanyResponse" => OpenApiSchema.InterestedCompanyResponse.schema(),
+          "InterestedIndividualRequest" => OpenApiSchema.InterestedIndividualRequest.schema(),
+          "InterestedIndividualResponse" => OpenApiSchema.InterestedIndividualResponse.schema(),
+          # Watchman nested schemas
+          "AddressRequest" => OpenApiSchema.AddressRequest.schema(),
+          "AddressResponse" => OpenApiSchema.AddressResponse.schema(),
+          "ContactRequest" => OpenApiSchema.ContactRequest.schema(),
+          "ContactResponse" => OpenApiSchema.ContactResponse.schema(),
+          # Nested schemas for Decision
+          "EntityDecisionRequest" => OpenApiSchema.EntityDecisionRequest.schema(),
+          "EntityDecisionResponse" => OpenApiSchema.EntityDecisionResponse.schema(),
+          "SanctionsMatchRequest" => OpenApiSchema.SanctionsMatchRequest.schema(),
+          "SanctionsMatchResponse" => OpenApiSchema.SanctionsMatchResponse.schema(),
           # Common schemas
           "ErrorResponse" => OpenApiSchema.ErrorResponse.schema(),
           "ChangesetErrors" => OpenApiSchema.ChangesetErrors.schema(),
@@ -67,14 +88,10 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
       tags: [
         %Tag{name: "Health", description: "System health and status"},
         %Tag{name: "Tenants", description: "Tenant management (requires API key)"},
-        %Tag{name: "Users", description: "User management (requires API key)"},
         %Tag{
-          name: "Customers",
-          description: "Customer organization management (requires API key)"
-        },
-        %Tag{name: "Roles", description: "Role-based access control (requires API key)"},
-        %Tag{name: "API Keys", description: "API key management (requires API key)"},
-        %Tag{name: "Sessions", description: "Session management (requires API key)"}
+          name: "Onboarding",
+          description: "Account holder onboarding and sanctions screening (requires API key)"
+        }
       ]
     }
   end
@@ -126,7 +143,7 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
 
       {:error, _} ->
         """
-        Alvera Phoenix Template Server - A bare-bones Elixir/Phoenix template with multi-tenancy, RLS, and API-key authentication.
+        Payment Compliance Platform - Screen payments and account holders against international sanctions lists with manual review and override capabilities.
 
         ## Authentication
 
@@ -138,7 +155,7 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
 
         ## Multi-Tenancy
 
-        All resources are scoped to a tenant. Requests automatically use the tenant associated with your API key.
+        All resources are scoped to a tenant (financial institution). Requests automatically use the tenant associated with your API key.
         """
     end
   end
