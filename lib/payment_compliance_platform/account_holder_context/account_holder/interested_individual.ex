@@ -28,7 +28,21 @@ defmodule PaymentCompliancePlatform.AccountHolderContext.AccountHolder.Intereste
     open_api_property(schema: %Schema{type: :array, items: %Schema{type: :string}}, key: :titles)
     field :titles, {:array, :string}, default: []
 
+    open_api_property(
+      schema: %Schema{
+        type: :array,
+        items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/AddressRequest"}
+      },
+      key: :addresses
+    )
+
     embeds_many :addresses, Address, on_replace: :delete
+
+    open_api_property(
+      schema: %OpenApiSpex.Reference{"$ref": "#/components/schemas/ContactRequest"},
+      key: :contact
+    )
+
     embeds_one :contact, Contact, on_replace: :update
 
     open_api_schema(

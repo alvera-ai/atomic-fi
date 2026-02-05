@@ -13,7 +13,7 @@ defmodule PaymentCompliancePlatform.DecisionContext.Decision.SanctionsMatch do
     open_api_property(schema: %Schema{type: :string}, key: :matched_name)
     field :matched_name, :string
 
-    open_api_property(schema: %Schema{type: :string}, key: :matched_entity_type)
+    open_api_property(schema: %Schema{type: :string, nullable: true}, key: :matched_entity_type)
     field :matched_entity_type, :string
 
     open_api_property(schema: %Schema{type: :number, format: :float}, key: :match_score)
@@ -22,7 +22,7 @@ defmodule PaymentCompliancePlatform.DecisionContext.Decision.SanctionsMatch do
     open_api_property(schema: %Schema{type: :string}, key: :source_list)
     field :source_list, :string
 
-    open_api_property(schema: %Schema{type: :string}, key: :source_id)
+    open_api_property(schema: %Schema{type: :string, nullable: true}, key: :source_id)
     field :source_id, :string
 
     # Complex Watchman data as maps
@@ -33,29 +33,37 @@ defmodule PaymentCompliancePlatform.DecisionContext.Decision.SanctionsMatch do
 
     field :addresses, {:array, :map}, default: []
 
-    open_api_property(schema: %Schema{type: :object}, key: :business_data)
+    open_api_property(schema: %Schema{type: :object, nullable: true}, key: :business_data)
     field :business_data, :map
 
-    open_api_property(schema: %Schema{type: :object}, key: :person_data)
+    open_api_property(schema: %Schema{type: :object, nullable: true}, key: :person_data)
     field :person_data, :map
 
-    open_api_property(schema: %Schema{type: :object}, key: :contact_data)
+    open_api_property(schema: %Schema{type: :object, nullable: true}, key: :contact_data)
     field :contact_data, :map
 
-    open_api_property(schema: %Schema{type: :object}, key: :source_data)
+    open_api_property(schema: %Schema{type: :object, nullable: true}, key: :source_data)
     field :source_data, :map
 
     # Manual review fields
     open_api_property(schema: %Schema{type: :boolean}, key: :false_positive)
     field :false_positive, :boolean, default: false
 
-    open_api_property(schema: %Schema{type: :string}, key: :comment)
+    open_api_property(schema: %Schema{type: :string, nullable: true}, key: :comment)
     field :comment, :string
 
-    open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :reviewed_by_user_id)
+    open_api_property(
+      schema: %Schema{type: :string, format: :uuid, nullable: true},
+      key: :reviewed_by_user_id
+    )
+
     field :reviewed_by_user_id, Ecto.UUID
 
-    open_api_property(schema: %Schema{type: :string, format: :"date-time"}, key: :reviewed_at)
+    open_api_property(
+      schema: %Schema{type: :string, format: :"date-time", nullable: true},
+      key: :reviewed_at
+    )
+
     field :reviewed_at, :utc_datetime_usec
 
     open_api_schema(

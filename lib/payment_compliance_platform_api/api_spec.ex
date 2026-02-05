@@ -58,6 +58,27 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "TenantRequest" => OpenApiSchema.TenantRequest.schema(),
           "TenantResponse" => OpenApiSchema.TenantResponse.schema(),
           "TenantListResponse" => OpenApiSchema.TenantListResponse.schema(),
+          # Request/Response schemas for AccountHolder (Onboarding)
+          "AccountHolderRequest" => OpenApiSchema.AccountHolderRequest.schema(),
+          "AccountHolderResponse" => OpenApiSchema.AccountHolderResponse.schema(),
+          # Request/Response schemas for Decision (Onboarding)
+          "DecisionRequest" => OpenApiSchema.DecisionRequest.schema(),
+          "DecisionResponse" => OpenApiSchema.DecisionResponse.schema(),
+          # Nested schemas for AccountHolder
+          "InterestedCompanyRequest" => OpenApiSchema.InterestedCompanyRequest.schema(),
+          "InterestedCompanyResponse" => OpenApiSchema.InterestedCompanyResponse.schema(),
+          "InterestedIndividualRequest" => OpenApiSchema.InterestedIndividualRequest.schema(),
+          "InterestedIndividualResponse" => OpenApiSchema.InterestedIndividualResponse.schema(),
+          # Watchman nested schemas
+          "AddressRequest" => OpenApiSchema.AddressRequest.schema(),
+          "AddressResponse" => OpenApiSchema.AddressResponse.schema(),
+          "ContactRequest" => OpenApiSchema.ContactRequest.schema(),
+          "ContactResponse" => OpenApiSchema.ContactResponse.schema(),
+          # Nested schemas for Decision
+          "EntityDecisionRequest" => OpenApiSchema.EntityDecisionRequest.schema(),
+          "EntityDecisionResponse" => OpenApiSchema.EntityDecisionResponse.schema(),
+          "SanctionsMatchRequest" => OpenApiSchema.SanctionsMatchRequest.schema(),
+          "SanctionsMatchResponse" => OpenApiSchema.SanctionsMatchResponse.schema(),
           # Common schemas
           "ErrorResponse" => OpenApiSchema.ErrorResponse.schema(),
           "ChangesetErrors" => OpenApiSchema.ChangesetErrors.schema(),
@@ -67,14 +88,10 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
       tags: [
         %Tag{name: "Health", description: "System health and status"},
         %Tag{name: "Tenants", description: "Tenant management (requires API key)"},
-        %Tag{name: "Users", description: "User management (requires API key)"},
         %Tag{
-          name: "Customers",
-          description: "Customer organization management (requires API key)"
-        },
-        %Tag{name: "Roles", description: "Role-based access control (requires API key)"},
-        %Tag{name: "API Keys", description: "API key management (requires API key)"},
-        %Tag{name: "Sessions", description: "Session management (requires API key)"}
+          name: "Onboarding",
+          description: "Account holder onboarding and sanctions screening (requires API key)"
+        }
       ]
     }
   end

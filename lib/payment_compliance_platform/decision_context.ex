@@ -109,6 +109,11 @@ defmodule PaymentCompliancePlatform.DecisionContext do
   Screens all interested individuals/companies against Watchman sanctions lists.
   Returns an in-memory Decision struct with screening results (no database persistence).
   """
+  @spec screen_account_holder(
+          Session.t(),
+          PaymentCompliancePlatform.OpenApiSchema.AccountHolderRequest.t()
+        ) ::
+          {:ok, Decision.t()} | {:error, term()}
   def screen_account_holder(session, request) do
     with {:ok, list_info} <- get_watchman_list_info(),
          {:ok, entity_decisions} <- screen_all_entities(request) do
@@ -127,9 +132,12 @@ defmodule PaymentCompliancePlatform.DecisionContext do
     end
   end
 
-  defp screen_all_entities(request) do
-    individuals = get_field(request, :interested_individuals) || []
-    companies = get_field(request, :interested_companies) || []
+  defp screen_all_entities(%{
+         interested_individuals: individuals,
+         interested_companies: companies
+       }) do
+    individuals = individuals || []
+    companies = companies || []
 
     individual_results = Enum.map(individuals, &screen_individual/1)
     company_results = Enum.map(companies, &screen_company/1)
@@ -143,34 +151,24 @@ defmodule PaymentCompliancePlatform.DecisionContext do
     end
   end
 
-  defp get_field(map, key) when is_map(map) do
-    Map.get(map, key) || Map.get(map, to_string(key))
-  end
-
-  defp get_field(_, _), do: nil
-
-  defp screen_individual(individual) do
-    first_name = Map.get(individual, :first_name) || individual["first_name"]
-    last_name = Map.get(individual, :last_name) || individual["last_name"]
+  defp screen_individual(%{first_name: first_name, last_name: last_name} = individual) do
     entity_name = "#{first_name} #{last_name}"
 
     search_params =
       [name: entity_name, minMatch: 0.7, type: "person"]
-      |> maybe_add(:birthDate, Map.get(individual, :birth_date) || individual["birth_date"])
-      |> maybe_add(:gender, Map.get(individual, :gender) || individual["gender"])
+      |> maybe_add(:birthDate, individual.birth_date)
+      |> maybe_add(:gender, individual.gender)
 
     perform_watchman_search(:interested_individual, entity_name, search_params)
   end
 
-  defp screen_company(company) do
-    entity_name = Map.get(company, :name) || company["name"]
-
+  defp screen_company(%{name: name} = company) do
     search_params =
-      [name: entity_name, minMatch: 0.7, type: "business"]
-      |> maybe_add(:created, Map.get(company, :created) || company["created"])
-      |> maybe_add(:dissolved, Map.get(company, :dissolved) || company["dissolved"])
+      [name: name, minMatch: 0.7, type: "business"]
+      |> maybe_add(:created, company.created)
+      |> maybe_add(:dissolved, company.dissolved)
 
-    perform_watchman_search(:interested_company, entity_name, search_params)
+    perform_watchman_search(:interested_company, name, search_params)
   end
 
   defp maybe_add(params, _key, nil), do: params

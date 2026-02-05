@@ -33,7 +33,11 @@ defmodule PaymentCompliancePlatform.DecisionContext.Decision.EntityDecision do
     open_api_property(schema: %Schema{type: :integer}, key: :match_count)
     field :match_count, :integer, default: 0
 
-    open_api_property(schema: %Schema{type: :number, format: :float}, key: :highest_match_score)
+    open_api_property(
+      schema: %Schema{type: :number, format: :float, nullable: true},
+      key: :highest_match_score
+    )
+
     field :highest_match_score, :float
 
     open_api_property(schema: %Schema{type: :string, format: :"date-time"}, key: :screened_at)
@@ -54,13 +58,21 @@ defmodule PaymentCompliancePlatform.DecisionContext.Decision.EntityDecision do
     open_api_property(schema: %Schema{type: :boolean}, key: :false_positive)
     field :false_positive, :boolean, default: false
 
-    open_api_property(schema: %Schema{type: :string}, key: :comment)
+    open_api_property(schema: %Schema{type: :string, nullable: true}, key: :comment)
     field :comment, :string
 
-    open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :reviewed_by_user_id)
+    open_api_property(
+      schema: %Schema{type: :string, format: :uuid, nullable: true},
+      key: :reviewed_by_user_id
+    )
+
     field :reviewed_by_user_id, Ecto.UUID
 
-    open_api_property(schema: %Schema{type: :string, format: :"date-time"}, key: :reviewed_at)
+    open_api_property(
+      schema: %Schema{type: :string, format: :"date-time", nullable: true},
+      key: :reviewed_at
+    )
+
     field :reviewed_at, :utc_datetime_usec
 
     open_api_schema(
