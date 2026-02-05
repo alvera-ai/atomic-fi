@@ -1,4 +1,7 @@
-containers:
-  - name: watchman
-    image: ghcr.io/alvera-ai/watchman
-    source: https://github.com/orgs/alvera-ai/packages/container/package/watchman
+services:
+  watchman:
+    image: ghcr.io/alvera-ai/watchman:latest
+    ports:
+      - "8084:8084"
+      - "9094:9094"
+    restart: unless-stopped
