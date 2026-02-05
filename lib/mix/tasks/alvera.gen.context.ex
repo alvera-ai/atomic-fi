@@ -347,8 +347,8 @@ defmodule Mix.Tasks.Alvera.Gen.Context do
         content =
           String.replace(
             content,
-            ~r/(end\s*\n\s*end)/,
-            "end\n\n#{indexes}  end"
+            ~r/(end)\s*\n\s*end\s*\n\s*end/,
+            "\\1\n\n#{indexes}  end\n"
           )
 
         File.write!(migration_file, content)

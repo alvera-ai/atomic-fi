@@ -86,8 +86,12 @@ defmodule PaymentCompliancePlatform.AccountHolderContext do
   """
   @spec update_account_holder(Session.t(), AccountHolder.t(), map()) ::
           {:ok, AccountHolder.t()} | {:error, Ecto.Changeset.t()}
-  def_with_rls_and_logging update_account_holder(session, %AccountHolder{} = account_holder, attrs),
-    log_fields: [:account_holder] do
+  def_with_rls_and_logging update_account_holder(
+                             session,
+                             %AccountHolder{} = account_holder,
+                             attrs
+                           ),
+                           log_fields: [:account_holder] do
     account_holder
     |> AccountHolder.changeset(attrs)
     |> Repo.update(session: session)

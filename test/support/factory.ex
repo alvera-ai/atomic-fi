@@ -15,4 +15,5 @@ defmodule PaymentCompliancePlatform.Factory do
   use PaymentCompliancePlatform.Factory.CustomerFactory
   use PaymentCompliancePlatform.Factory.AccountHolderFactory
   use PaymentCompliancePlatform.Factory.DecisionFactory
+  use PaymentCompliancePlatform.Factory.BlocklistEntryFactory
 end

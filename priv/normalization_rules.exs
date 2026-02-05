@@ -1,0 +1,46 @@
+%{
+  titles: [
+    "mr",
+    "mrs",
+    "ms",
+    "dr",
+    "prof",
+    "sir",
+    "madam",
+    "miss",
+    "mx"
+  ],
+  suffixes: [
+    "jr",
+    "sr",
+    "ii",
+    "iii",
+    "iv",
+    "v",
+    "vi",
+    "vii",
+    "viii",
+    "esq"
+  ],
+  entity_types: [
+    "llc",
+    "inc",
+    "corp",
+    "corporation",
+    "ltd",
+    "limited",
+    "llp",
+    "co",
+    "company",
+    "plc",
+    "gmbh",
+    "sa",
+    "nv",
+    "bv",
+    "ag",
+    "srl",
+    "sas",
+    "pty",
+    "pvt"
+  ]
+}

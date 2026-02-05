@@ -55,7 +55,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "create_decision/2 with invalid data returns error changeset", %{session: session} do
-      assert {:error, %Ecto.Changeset{}} = DecisionContext.create_decision(session, @invalid_attrs)
+      assert {:error, %Ecto.Changeset{}} =
+               DecisionContext.create_decision(session, @invalid_attrs)
     end
 
     test "update_decision/3 with valid data updates the decision", %{session: session} do

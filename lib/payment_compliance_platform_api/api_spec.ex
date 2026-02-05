@@ -54,6 +54,7 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           # Health & Info schemas (used by assert_schema in tests)
           "ApiInfoResponse" => OpenApiSchema.ApiInfoResponse.schema(),
           "ApiInfoErrorResponse" => OpenApiSchema.ApiInfoErrorResponse.schema(),
+          "NormalizationRulesResponse" => OpenApiSchema.NormalizationRulesResponse.schema(),
           # Request/Response schemas for Tenants
           "TenantRequest" => OpenApiSchema.TenantRequest.schema(),
           "TenantResponse" => OpenApiSchema.TenantResponse.schema(),

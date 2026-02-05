@@ -12,7 +12,9 @@ defmodule PaymentCompliancePlatform.AccountHolderContextTest do
 
     test "list_account_holders/2 returns all account_holders", %{session: session} do
       account_holder = account_holder_fixture()
-      assert {:ok, {[^account_holder], _meta}} = AccountHolderContext.list_account_holders(session)
+
+      assert {:ok, {[^account_holder], _meta}} =
+               AccountHolderContext.list_account_holders(session)
     end
 
     test "get_account_holder!/2 returns the account_holder with given id", %{session: session} do

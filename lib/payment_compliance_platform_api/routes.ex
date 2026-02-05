@@ -23,6 +23,9 @@ defmodule PaymentCompliancePlatformApi.Routes do
         # API info endpoint (version + database connectivity check)
         get "/info", ApiInfoController, :info
 
+        # Normalization rules endpoint (data quality rules)
+        get "/info/normalization-rules", ApiInfoController, :normalization_rules
+
         # OpenAPI spec endpoint (for Scalar and other tools)
         get "/openapi", OpenApiSpecController, :spec
       end

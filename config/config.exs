@@ -100,6 +100,14 @@ config :flop, repo: PaymentCompliancePlatform.Repo, default_limit: 20
 # Watchman sanctions screening service
 config :payment_compliance_platform, :watchman_base_url, "http://localhost:8084"
 
+# Quantum scheduler - cron-like job scheduling
+config :payment_compliance_platform, PaymentCompliancePlatform.Scheduler,
+  jobs: [
+    # Refresh blocklist cache every hour
+    {"0 * * * *",
+     {PaymentCompliancePlatform.DecisionContext.BlocklistCache, :refresh_all_caches, []}}
+  ]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

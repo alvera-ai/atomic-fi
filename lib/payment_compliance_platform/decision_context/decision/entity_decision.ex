@@ -8,6 +8,7 @@ defmodule PaymentCompliancePlatform.DecisionContext.Decision.EntityDecision do
   use PaymentCompliancePlatform.Schema
 
   alias PaymentCompliancePlatform.DecisionContext.Decision.SanctionsMatch
+  alias PaymentCompliancePlatform.DecisionContext.Decision.BlocklistMatch
 
   @primary_key false
   typed_embedded_schema do
@@ -54,6 +55,17 @@ defmodule PaymentCompliancePlatform.DecisionContext.Decision.EntityDecision do
 
     embeds_many :sanctions_matches, SanctionsMatch, on_replace: :delete
 
+    # All blocklist matches for this entity
+    open_api_property(
+      schema: %Schema{
+        type: :array,
+        items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/BlocklistMatchResponse"}
+      },
+      key: :blocklist_matches
+    )
+
+    embeds_many :blocklist_matches, BlocklistMatch, on_replace: :delete
+
     # Entity-level manual review
     open_api_property(schema: %Schema{type: :boolean}, key: :false_positive)
     field :false_positive, :boolean, default: false
@@ -78,7 +90,7 @@ defmodule PaymentCompliancePlatform.DecisionContext.Decision.EntityDecision do
     open_api_schema(
       title: "EntityDecision",
       description:
-        "Screening result for one entity (individual or company) with sanctions matches",
+        "Screening result for one entity (individual or company) with sanctions and blocklist matches",
       required: [:entity_type, :entity_name, :screening_result, :screened_at],
       properties: [
         :entity_type,
@@ -88,6 +100,7 @@ defmodule PaymentCompliancePlatform.DecisionContext.Decision.EntityDecision do
         :highest_match_score,
         :screened_at,
         :sanctions_matches,
+        :blocklist_matches,
         :false_positive,
         :comment,
         :reviewed_by_user_id,
@@ -113,5 +126,6 @@ defmodule PaymentCompliancePlatform.DecisionContext.Decision.EntityDecision do
     ])
     |> validate_required([:entity_type, :entity_name, :screening_result, :screened_at])
     |> cast_embed(:sanctions_matches)
+    |> cast_embed(:blocklist_matches)
   end
 end
