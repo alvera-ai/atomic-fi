@@ -97,6 +97,15 @@ config :phoenix, :json_library, Jason
 # Configure Flop for pagination
 config :flop, repo: PaymentCompliancePlatform.Repo, default_limit: 20
 
+# OpenAPI Generator configuration for Watchman client
+config :oapi_generator,
+  watchman: [
+    output: [
+      base_module: PaymentCompliancePlatform.Watchman,
+      location: "lib/payment_compliance_platform/watchman"
+    ]
+  ]
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

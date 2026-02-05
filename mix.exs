@@ -103,7 +103,10 @@ defmodule PaymentCompliancePlatform.MixProject do
       # Development tools
       {:tidewave, "~> 0.5.2", only: :dev},
       {:phoenix_storybook, github: "phenixdigital/phoenix_storybook", branch: "main", only: :dev},
-      {:ex_doc, "~> 0.39", runtime: false}
+      {:ex_doc, "~> 0.39", runtime: false},
+
+      # OpenAPI client generation
+      {:oapi_generator, "~> 0.2", only: :dev, runtime: false}
     ]
   end
 
