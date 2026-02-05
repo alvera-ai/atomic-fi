@@ -4,22 +4,33 @@ defmodule PaymentCompliancePlatform.DecisionContext do
   """
 
   import Ecto.Query, warn: false
-  alias PaymentCompliancePlatform.Repo
+  use PaymentCompliancePlatform.LoggerMacro
 
+  alias PaymentCompliancePlatform.Repo
   alias PaymentCompliancePlatform.DecisionContext.Decision
+  alias PaymentCompliancePlatform.SessionContext.Session
   alias PaymentCompliancePlatform.Watchman.Operations
 
   @doc """
-  Returns the list of decisions.
+  Returns the list of decisions with pagination and filtering.
+
+  Uses Flop for idiomatic filtering, sorting, and pagination.
 
   ## Examples
 
-      iex> list_decisions()
-      [%Decision{}, ...]
+      iex> list_decisions(session, %{page: 1, page_size: 20})
+      {:ok, {[%Decision{}, ...], %Flop.Meta{}}}
 
   """
-  def list_decisions do
-    Repo.all(Decision)
+  @spec list_decisions(Session.t(), map()) ::
+          {:ok, {list(Decision.t()), Flop.Meta.t()}} | {:error, Flop.Meta.t()}
+  def_with_rls_and_logging list_decisions(session, flop_params \\ %{}), log_fields: [:flop_params] do
+    Decision
+    |> Flop.validate_and_run(flop_params,
+      for: Decision,
+      repo: Repo,
+      query_opts: [session: session]
+    )
   end
 
   @doc """
@@ -29,31 +40,36 @@ defmodule PaymentCompliancePlatform.DecisionContext do
 
   ## Examples
 
-      iex> get_decision!(123)
+      iex> get_decision!(session, "123")
       %Decision{}
 
-      iex> get_decision!(456)
+      iex> get_decision!(session, "456")
       ** (Ecto.NoResultsError)
 
   """
-  def get_decision!(id), do: Repo.get!(Decision, id)
+  @spec get_decision!(Session.t(), Ecto.UUID.t()) :: Decision.t()
+  def_with_rls_and_logging get_decision!(session, id), log_fields: [:id] do
+    Repo.get!(Decision, id, session: session)
+  end
 
   @doc """
   Creates a decision.
 
   ## Examples
 
-      iex> create_decision(%{field: value})
+      iex> create_decision(session, %{field: value})
       {:ok, %Decision{}}
 
-      iex> create_decision(%{field: bad_value})
+      iex> create_decision(session, %{field: bad_value})
       {:error, %Ecto.Changeset{}}
 
   """
-  def create_decision(attrs) do
+  @spec create_decision(Session.t(), map()) ::
+          {:ok, Decision.t()} | {:error, Ecto.Changeset.t()}
+  def_with_rls_and_logging create_decision(session, attrs), log_fields: [] do
     %Decision{}
     |> Decision.changeset(attrs)
-    |> Repo.insert()
+    |> Repo.insert(session: session)
   end
 
   @doc """
@@ -61,17 +77,20 @@ defmodule PaymentCompliancePlatform.DecisionContext do
 
   ## Examples
 
-      iex> update_decision(decision, %{field: new_value})
+      iex> update_decision(session, decision, %{field: new_value})
       {:ok, %Decision{}}
 
-      iex> update_decision(decision, %{field: bad_value})
+      iex> update_decision(session, decision, %{field: bad_value})
       {:error, %Ecto.Changeset{}}
 
   """
-  def update_decision(%Decision{} = decision, attrs) do
+  @spec update_decision(Session.t(), Decision.t(), map()) ::
+          {:ok, Decision.t()} | {:error, Ecto.Changeset.t()}
+  def_with_rls_and_logging update_decision(session, %Decision{} = decision, attrs),
+    log_fields: [:decision] do
     decision
     |> Decision.changeset(attrs)
-    |> Repo.update()
+    |> Repo.update(session: session)
   end
 
   @doc """
@@ -79,15 +98,18 @@ defmodule PaymentCompliancePlatform.DecisionContext do
 
   ## Examples
 
-      iex> delete_decision(decision)
+      iex> delete_decision(session, decision)
       {:ok, %Decision{}}
 
-      iex> delete_decision(decision)
+      iex> delete_decision(session, decision)
       {:error, %Ecto.Changeset{}}
 
   """
-  def delete_decision(%Decision{} = decision) do
-    Repo.delete(decision)
+  @spec delete_decision(Session.t(), Decision.t()) ::
+          {:ok, Decision.t()} | {:error, Ecto.Changeset.t()}
+  def_with_rls_and_logging delete_decision(session, %Decision{} = decision),
+    log_fields: [:decision] do
+    Repo.delete(decision, session: session)
   end
 
   @doc """

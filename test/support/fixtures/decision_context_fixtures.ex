@@ -4,22 +4,28 @@ defmodule PaymentCompliancePlatform.DecisionContextFixtures do
   entities via the `PaymentCompliancePlatform.DecisionContext` context.
   """
 
+  import PaymentCompliancePlatform.DataCase, only: [system_session: 0]
+  import PaymentCompliancePlatform.AccountHolderContextFixtures
+
   @doc """
   Generate a decision.
   """
   def decision_fixture(attrs \\ %{}) do
+    session = system_session()
+    account_holder = account_holder_fixture()
+
     {:ok, decision} =
       attrs
       |> Enum.into(%{
-        account_holder_name: "some account_holder_name",
-        account_holder_type: "some account_holder_type",
-        entities_with_matches: 42,
+        account_holder_id: account_holder.id,
+        overall_status: "pass",
+        total_entities_screened: 42,
+        entities_with_matches: 0,
         list_synced_at: ~U[2026-02-04 17:51:00.000000Z],
-        list_version: "some list_version",
-        overall_status: "some overall_status",
-        total_entities_screened: 42
+        list_sources: %{lists: %{"us_ofac" => 100}, version: "1.0"},
+        tenant_id: session.tenant_id
       })
-      |> PaymentCompliancePlatform.DecisionContext.create_decision()
+      |> then(&PaymentCompliancePlatform.DecisionContext.create_decision(session, &1))
 
     decision
   end

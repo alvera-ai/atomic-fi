@@ -7,100 +7,96 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     alias PaymentCompliancePlatform.DecisionContext.Decision
 
     import PaymentCompliancePlatform.DecisionContextFixtures
+    import PaymentCompliancePlatform.AccountHolderContextFixtures
 
     @invalid_attrs %{
-      account_holder_name: nil,
-      account_holder_type: nil,
       overall_status: nil,
       total_entities_screened: nil,
       entities_with_matches: nil,
       list_synced_at: nil,
-      list_version: nil
+      list_sources: nil
     }
 
-    @tag :skip
-    test "list_decisions/0 returns all decisions" do
+    test "list_decisions/2 returns all decisions", %{session: session} do
       decision = decision_fixture()
-      assert DecisionContext.list_decisions() == [decision]
+      assert {:ok, {decisions, _meta}} = DecisionContext.list_decisions(session)
+      assert length(decisions) == 1
+      assert hd(decisions).id == decision.id
     end
 
-    @tag :skip
-    test "get_decision!/1 returns the decision with given id" do
+    test "get_decision!/2 returns the decision with given id", %{session: session} do
       decision = decision_fixture()
-      assert DecisionContext.get_decision!(decision.id) == decision
+      retrieved = DecisionContext.get_decision!(session, decision.id)
+      assert retrieved.id == decision.id
+      assert retrieved.overall_status == decision.overall_status
     end
 
-    @tag :skip
-    test "create_decision/1 with valid data creates a decision" do
+    test "create_decision/2 with valid data creates a decision", %{
+      session: session,
+      tenant: tenant
+    } do
+      account_holder = account_holder_fixture()
+
       valid_attrs = %{
-        account_holder_name: "some account_holder_name",
-        account_holder_type: "some account_holder_type",
-        overall_status: "some overall_status",
+        account_holder_id: account_holder.id,
+        overall_status: "pass",
         total_entities_screened: 42,
-        entities_with_matches: 42,
+        entities_with_matches: 0,
         list_synced_at: ~U[2026-02-04 17:51:00.000000Z],
-        list_version: "some list_version"
+        list_sources: %{lists: %{"us_ofac" => 100}, version: "1.0"},
+        tenant_id: tenant.id
       }
 
-      assert {:ok, %Decision{} = decision} = DecisionContext.create_decision(valid_attrs)
-      assert decision.account_holder_name == "some account_holder_name"
-      assert decision.account_holder_type == "some account_holder_type"
-      assert decision.overall_status == "some overall_status"
+      assert {:ok, %Decision{} = decision} = DecisionContext.create_decision(session, valid_attrs)
+      assert decision.overall_status == "pass"
       assert decision.total_entities_screened == 42
-      assert decision.entities_with_matches == 42
+      assert decision.entities_with_matches == 0
       assert decision.list_synced_at == ~U[2026-02-04 17:51:00.000000Z]
-      assert decision.list_version == "some list_version"
     end
 
-    @tag :skip
-    test "create_decision/1 with invalid data returns error changeset" do
-      assert {:error, %Ecto.Changeset{}} = DecisionContext.create_decision(@invalid_attrs)
+    test "create_decision/2 with invalid data returns error changeset", %{session: session} do
+      assert {:error, %Ecto.Changeset{}} = DecisionContext.create_decision(session, @invalid_attrs)
     end
 
-    @tag :skip
-    test "update_decision/2 with valid data updates the decision" do
+    test "update_decision/3 with valid data updates the decision", %{session: session} do
       decision = decision_fixture()
 
       update_attrs = %{
-        account_holder_name: "some updated account_holder_name",
-        account_holder_type: "some updated account_holder_type",
-        overall_status: "some updated overall_status",
+        overall_status: "blocked",
         total_entities_screened: 43,
-        entities_with_matches: 43,
-        list_synced_at: ~U[2026-02-05 17:51:00.000000Z],
-        list_version: "some updated list_version"
+        entities_with_matches: 2,
+        list_synced_at: ~U[2026-02-05 17:51:00.000000Z]
       }
 
       assert {:ok, %Decision{} = decision} =
-               DecisionContext.update_decision(decision, update_attrs)
+               DecisionContext.update_decision(session, decision, update_attrs)
 
-      assert decision.account_holder_name == "some updated account_holder_name"
-      assert decision.account_holder_type == "some updated account_holder_type"
-      assert decision.overall_status == "some updated overall_status"
+      assert decision.overall_status == "blocked"
       assert decision.total_entities_screened == 43
-      assert decision.entities_with_matches == 43
+      assert decision.entities_with_matches == 2
       assert decision.list_synced_at == ~U[2026-02-05 17:51:00.000000Z]
-      assert decision.list_version == "some updated list_version"
     end
 
-    @tag :skip
-    test "update_decision/2 with invalid data returns error changeset" do
+    test "update_decision/3 with invalid data returns error changeset", %{session: session} do
       decision = decision_fixture()
 
       assert {:error, %Ecto.Changeset{}} =
-               DecisionContext.update_decision(decision, @invalid_attrs)
+               DecisionContext.update_decision(session, decision, @invalid_attrs)
 
-      assert decision == DecisionContext.get_decision!(decision.id)
+      retrieved = DecisionContext.get_decision!(session, decision.id)
+      assert retrieved.id == decision.id
+      assert retrieved.overall_status == decision.overall_status
     end
 
-    @tag :skip
-    test "delete_decision/1 deletes the decision" do
+    test "delete_decision/2 deletes the decision", %{session: session} do
       decision = decision_fixture()
-      assert {:ok, %Decision{}} = DecisionContext.delete_decision(decision)
-      assert_raise Ecto.NoResultsError, fn -> DecisionContext.get_decision!(decision.id) end
+      assert {:ok, %Decision{}} = DecisionContext.delete_decision(session, decision)
+
+      assert_raise Ecto.NoResultsError, fn ->
+        DecisionContext.get_decision!(session, decision.id)
+      end
     end
 
-    @tag :skip
     test "change_decision/1 returns a decision changeset" do
       decision = decision_fixture()
       assert %Ecto.Changeset{} = DecisionContext.change_decision(decision)

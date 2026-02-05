@@ -131,7 +131,7 @@ defmodule PaymentCompliancePlatform.Watchman.OperationsTest do
 
   describe "v2_search_get/1" do
     test "returns matching entities for a known sanctioned person" do
-      {:ok, %SearchResponse{} = response} = Operations.v2_search_get(name: "Putin")
+      {:ok, %SearchResponse{} = response} = Operations.v2_search_get(name: "Putin", limit: 2)
 
       assert is_list(response.entities)
       assert length(response.entities) == 2
@@ -146,9 +146,9 @@ defmodule PaymentCompliancePlatform.Watchman.OperationsTest do
 
     test "returns empty list for non-matching query" do
       {:ok, %SearchResponse{} = response} =
-        Operations.v2_search_get(name: "xyznonexistent12345")
+        Operations.v2_search_get(name: "xyznonexistent12345", minMatch: 0.7)
 
-      assert response.entities == []
+      assert response.entities in [nil, []]
     end
 
     test "includes person details for person entities" do

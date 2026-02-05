@@ -4,7 +4,6 @@ defmodule PaymentCompliancePlatformApi.TenantControllerTest do
   import OpenApiSpex.TestAssertions
   import PaymentCompliancePlatform.Factory
 
-  alias PaymentCompliancePlatform.TenantContext
   alias PaymentCompliancePlatformApi.ApiSpec
 
   @create_attrs %{
