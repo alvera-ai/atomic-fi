@@ -10,7 +10,8 @@ defmodule PaymentCompliancePlatform.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
-      docs: docs()
+      docs: docs(),
+      listeners: [Phoenix.CodeReloader]
     ]
   end
 
