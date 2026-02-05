@@ -1,0 +1,4 @@
+containers:
+  - name: watchman
+    image: ghcr.io/alvera-ai/watchman
+    source: https://github.com/orgs/alvera-ai/packages/container/package/watchman
