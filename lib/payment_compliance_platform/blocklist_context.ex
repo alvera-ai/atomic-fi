@@ -8,6 +8,7 @@ defmodule PaymentCompliancePlatform.BlocklistContext do
 
   alias PaymentCompliancePlatform.Repo
   alias PaymentCompliancePlatform.BlocklistContext.BlocklistEntry
+  alias PaymentCompliancePlatform.DecisionContext.BlocklistCache
   alias PaymentCompliancePlatform.SessionContext.Session
 
   @doc """
@@ -67,9 +68,16 @@ defmodule PaymentCompliancePlatform.BlocklistContext do
   @spec create_blocklist_entry(Session.t(), map()) ::
           {:ok, BlocklistEntry.t()} | {:error, Ecto.Changeset.t()}
   def_with_rls_and_logging create_blocklist_entry(session, attrs), log_fields: [:attrs] do
-    %BlocklistEntry{}
-    |> BlocklistEntry.changeset(attrs)
-    |> Repo.insert(session: session)
+    result =
+      %BlocklistEntry{}
+      |> BlocklistEntry.changeset(attrs)
+      |> Repo.insert(session: session)
+
+    # Refresh cache on successful creation
+    with {:ok, entry} <- result do
+      BlocklistCache.refresh_tenant_cache(entry.tenant_id)
+      {:ok, entry}
+    end
   end
 
   @doc """
@@ -92,9 +100,16 @@ defmodule PaymentCompliancePlatform.BlocklistContext do
                              attrs
                            ),
                            log_fields: [:attrs] do
-    blocklist_entry
-    |> BlocklistEntry.changeset(attrs)
-    |> Repo.update(session: session)
+    result =
+      blocklist_entry
+      |> BlocklistEntry.changeset(attrs)
+      |> Repo.update(session: session)
+
+    # Refresh cache on successful update
+    with {:ok, entry} <- result do
+      BlocklistCache.refresh_tenant_cache(entry.tenant_id)
+      {:ok, entry}
+    end
   end
 
   @doc """
@@ -113,7 +128,14 @@ defmodule PaymentCompliancePlatform.BlocklistContext do
           {:ok, BlocklistEntry.t()} | {:error, Ecto.Changeset.t()}
   def_with_rls_and_logging delete_blocklist_entry(session, %BlocklistEntry{} = blocklist_entry),
     log_fields: [] do
-    Repo.delete(blocklist_entry, session: session)
+    tenant_id = blocklist_entry.tenant_id
+    result = Repo.delete(blocklist_entry, session: session)
+
+    # Refresh cache on successful deletion
+    with {:ok, entry} <- result do
+      BlocklistCache.refresh_tenant_cache(tenant_id)
+      {:ok, entry}
+    end
   end
 
   @doc """

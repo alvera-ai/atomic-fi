@@ -15,11 +15,13 @@ defmodule PaymentCompliancePlatform.DecisionContext.BlocklistCache do
 
   @doc """
   Initialize ETS table (called from Application.start)
+
+  Only creates the ETS table - does NOT load data.
+  Data is loaded by Quantum scheduler or explicit refresh_all_caches() calls.
   """
   def init do
     :ets.new(@table_name, [:set, :named_table, :public, read_concurrency: true])
-    refresh_all_caches()
-    Logger.info("BlocklistCache initialized with ETS table")
+    Logger.info("BlocklistCache ETS table created (data will be loaded by scheduler or explicit refresh)")
   end
 
   @doc """

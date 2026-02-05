@@ -8,6 +8,8 @@ defmodule PaymentCompliancePlatform.DecisionContext do
 
   alias PaymentCompliancePlatform.Repo
   alias PaymentCompliancePlatform.DecisionContext.Decision
+  alias PaymentCompliancePlatform.DecisionContext.BlocklistCache
+  alias PaymentCompliancePlatform.DecisionContext.BlocklistValidator
   alias PaymentCompliancePlatform.SessionContext.Session
   alias PaymentCompliancePlatform.Watchman.Operations
 
@@ -138,7 +140,7 @@ defmodule PaymentCompliancePlatform.DecisionContext do
           {:ok, Decision.t()} | {:error, term()}
   def screen_account_holder(session, request) do
     with {:ok, list_info} <- get_watchman_list_info(),
-         {:ok, entity_decisions} <- screen_all_entities(request) do
+         {:ok, entity_decisions} <- screen_all_entities(session.tenant_id, request) do
       decision = build_decision(session, list_info, entity_decisions, request)
       {:ok, decision}
     end
@@ -154,15 +156,15 @@ defmodule PaymentCompliancePlatform.DecisionContext do
     end
   end
 
-  defp screen_all_entities(%{
+  defp screen_all_entities(tenant_id, %{
          interested_individuals: individuals,
          interested_companies: companies
        }) do
     individuals = individuals || []
     companies = companies || []
 
-    individual_results = Enum.map(individuals, &screen_individual/1)
-    company_results = Enum.map(companies, &screen_company/1)
+    individual_results = Enum.map(individuals, &screen_individual(tenant_id, &1))
+    company_results = Enum.map(companies, &screen_company(tenant_id, &1))
 
     all_results = individual_results ++ company_results
 
@@ -173,24 +175,44 @@ defmodule PaymentCompliancePlatform.DecisionContext do
     end
   end
 
-  defp screen_individual(%{first_name: first_name, last_name: last_name} = individual) do
+  defp screen_individual(tenant_id, %{first_name: first_name, last_name: last_name} = individual) do
     entity_name = "#{first_name} #{last_name}"
 
-    search_params =
-      [name: entity_name, minMatch: 0.7, type: "person"]
-      |> maybe_add(:birthDate, individual.birth_date)
-      |> maybe_add(:gender, individual.gender)
+    # Check blocklist FIRST (fail fast)
+    blocklist_matches = check_individual_blocklist(tenant_id, first_name, last_name)
 
-    perform_watchman_search(:interested_individual, entity_name, search_params)
+    if blocklist_matches != [] do
+      # Blocked by blocklist - skip Watchman screening
+      entity_decision = build_blocklist_entity_decision(:interested_individual, entity_name, blocklist_matches)
+      {:ok, entity_decision}
+    else
+      # Passed blocklist - continue to Watchman screening
+      search_params =
+        [name: entity_name, minMatch: 0.7, type: "person"]
+        |> maybe_add(:birthDate, individual.birth_date)
+        |> maybe_add(:gender, individual.gender)
+
+      perform_watchman_search(:interested_individual, entity_name, search_params)
+    end
   end
 
-  defp screen_company(%{name: name} = company) do
-    search_params =
-      [name: name, minMatch: 0.7, type: "business"]
-      |> maybe_add(:created, company.created)
-      |> maybe_add(:dissolved, company.dissolved)
+  defp screen_company(tenant_id, %{name: name} = company) do
+    # Check blocklist FIRST (fail fast)
+    blocklist_matches = check_company_blocklist(tenant_id, name)
 
-    perform_watchman_search(:interested_company, name, search_params)
+    if blocklist_matches != [] do
+      # Blocked by blocklist - skip Watchman screening
+      entity_decision = build_blocklist_entity_decision(:interested_company, name, blocklist_matches)
+      {:ok, entity_decision}
+    else
+      # Passed blocklist - continue to Watchman screening
+      search_params =
+        [name: name, minMatch: 0.7, type: "business"]
+        |> maybe_add(:created, company.created)
+        |> maybe_add(:dissolved, company.dissolved)
+
+      perform_watchman_search(:interested_company, name, search_params)
+    end
   end
 
   defp maybe_add(params, _key, nil), do: params
@@ -262,7 +284,8 @@ defmodule PaymentCompliancePlatform.DecisionContext do
       match_count: match_count,
       highest_match_score: highest_match_score,
       screened_at: DateTime.utc_now(),
-      sanctions_matches: sanctions_matches
+      sanctions_matches: sanctions_matches,
+      blocklist_matches: []  # Empty - entity passed blocklist check
     }
   end
 
@@ -312,4 +335,59 @@ defmodule PaymentCompliancePlatform.DecisionContext do
   end
 
   defp parse_datetime(_), do: DateTime.utc_now()
+
+  # Blocklist validation helpers
+
+  defp check_individual_blocklist(tenant_id, first_name, last_name) do
+    matches = []
+
+    # Check first name
+    matches =
+      case BlocklistValidator.validate_first_name(tenant_id, first_name) do
+        {:error, :blocklisted, match_type, matched_term, reason} ->
+          matches ++ [build_blocklist_match(tenant_id, :first_name, match_type, matched_term, reason)]
+        {:ok, _} ->
+          matches
+      end
+
+    # Check last name
+    case BlocklistValidator.validate_last_name(tenant_id, last_name) do
+      {:error, :blocklisted, match_type, matched_term, reason} ->
+        matches ++ [build_blocklist_match(tenant_id, :last_name, match_type, matched_term, reason)]
+      {:ok, _} ->
+        matches
+    end
+  end
+
+  defp check_company_blocklist(tenant_id, company_name) do
+    case BlocklistValidator.validate_company_name(tenant_id, company_name) do
+      {:error, :blocklisted, match_type, matched_term, reason} ->
+        [build_blocklist_match(tenant_id, :company_name, match_type, matched_term, reason)]
+      {:ok, _} ->
+        []
+    end
+  end
+
+  defp build_blocklist_match(tenant_id, scope, match_type, matched_term, reason) do
+    %{
+      matched_term: matched_term,
+      match_type: match_type,
+      scope: scope,
+      reason: reason,
+      blocklist_updated_at: BlocklistCache.get_last_updated(tenant_id)
+    }
+  end
+
+  defp build_blocklist_entity_decision(entity_type, entity_name, blocklist_matches) do
+    %{
+      entity_type: entity_type,
+      entity_name: entity_name,
+      screening_result: :blocked,
+      match_count: 0,  # No Watchman matches
+      highest_match_score: nil,
+      screened_at: DateTime.utc_now(),
+      sanctions_matches: [],  # Empty - blocked by blocklist before Watchman
+      blocklist_matches: blocklist_matches
+    }
+  end
 end
