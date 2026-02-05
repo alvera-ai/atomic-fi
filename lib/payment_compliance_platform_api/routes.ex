@@ -41,6 +41,9 @@ defmodule PaymentCompliancePlatformApi.Routes do
         put "/tenants/:id", TenantController, :update
         delete "/tenants/:id", TenantController, :delete
 
+        # Tenant utility endpoints
+        post "/tenants/refresh-blocklist-cache", TenantController, :refresh_blocklist_cache
+
         # Onboarding screening endpoint
         post "/onboarding/screen", OnboardingController, :screen
 

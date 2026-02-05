@@ -2,6 +2,7 @@ defmodule PaymentCompliancePlatformApi.TenantController do
   use PaymentCompliancePlatformApi.Controller
   use OpenApiSpex.ControllerSpecs
 
+  alias PaymentCompliancePlatform.DecisionContext.BlocklistCache
   alias PaymentCompliancePlatform.OpenApiSchema
   alias PaymentCompliancePlatform.OpenApiSchema.TenantListResponse
   alias PaymentCompliancePlatform.OpenApiSchema.TenantRequest
@@ -232,5 +233,43 @@ defmodule PaymentCompliancePlatformApi.TenantController do
           {:error, changeset}
       end
     end
+  end
+
+  operation(:refresh_blocklist_cache,
+    summary: "Refresh blocklist cache",
+    description: """
+    Manually triggers a refresh of the blocklist cache for the authenticated tenant.
+
+    This reloads all active blocklist entries from the database and rebuilds
+    the ETS cache with optimized MapSets and combined regex patterns.
+
+    **Note**: Cache is also automatically refreshed:
+    - Every hour via Quantum scheduler
+    - After create/update/delete operations on blocklist entries
+
+    Use this endpoint when you need immediate cache refresh (e.g., after bulk imports).
+    """,
+    responses: [
+      ok:
+        {"Cache refreshed", "application/json",
+         %Schema{
+           type: :object,
+           properties: %{
+             message: %Schema{type: :string},
+             tenant_id: %Schema{type: :string, format: :uuid}
+           }
+         }}
+    ]
+  )
+
+  def refresh_blocklist_cache(conn, _params) do
+    session = conn.assigns.api_session
+
+    BlocklistCache.refresh_tenant_cache(session.tenant_id)
+
+    json(conn, %{
+      message: "Blocklist cache refreshed successfully",
+      tenant_id: session.tenant_id
+    })
   end
 end
