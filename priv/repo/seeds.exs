@@ -233,6 +233,87 @@ demo_blocklist_entries = [
     tenant_id: tenant.id,
     added_by_id: bot_user.id
   },
+  %{
+    scope: :first_name,
+    entry_type: :exact,
+    term: "dear",
+    reason: "Common placeholder salutation",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  %{
+    scope: :first_name,
+    entry_type: :exact,
+    term: "mom",
+    reason: "Family relation placeholder",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  %{
+    scope: :first_name,
+    entry_type: :exact,
+    term: "dad",
+    reason: "Family relation placeholder",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  %{
+    scope: :first_name,
+    entry_type: :exact,
+    term: "mother",
+    reason: "Family relation placeholder",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  %{
+    scope: :first_name,
+    entry_type: :exact,
+    term: "father",
+    reason: "Family relation placeholder",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  %{
+    scope: :first_name,
+    entry_type: :exact,
+    term: "brother",
+    reason: "Family relation placeholder",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  %{
+    scope: :first_name,
+    entry_type: :exact,
+    term: "sister",
+    reason: "Family relation placeholder",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  %{
+    scope: :first_name,
+    entry_type: :exact,
+    term: "uncle",
+    reason: "Family relation placeholder",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  %{
+    scope: :first_name,
+    entry_type: :exact,
+    term: "aunt",
+    reason: "Family relation placeholder",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
   # Exact matches - Last names
   %{
     scope: :last_name,
