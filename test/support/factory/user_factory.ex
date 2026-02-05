@@ -1,11 +1,11 @@
-defmodule AlveraPhoenixTemplateServer.Factory.UserFactory do
+defmodule PaymentCompliancePlatform.Factory.UserFactory do
   @moduledoc """
   Factory for User context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias AlveraPhoenixTemplateServer.UserContext.User
+      alias PaymentCompliancePlatform.UserContext.User
 
       def user_factory(attrs \\ %{}) do
         unique_suffix = String.slice(Ecto.UUID.generate(), 0, 8)

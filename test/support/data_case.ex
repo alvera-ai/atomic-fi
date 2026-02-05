@@ -1,4 +1,4 @@
-defmodule AlveraPhoenixTemplateServer.DataCase do
+defmodule PaymentCompliancePlatform.DataCase do
   @moduledoc """
   This module defines the setup for tests requiring
   access to the application's data layer.
@@ -10,7 +10,7 @@ defmodule AlveraPhoenixTemplateServer.DataCase do
   we enable the SQL sandbox, so changes done to the database
   are reverted at the end of every test. If you are using
   PostgreSQL, you can even run database tests asynchronously
-  by setting `use AlveraPhoenixTemplateServer.DataCase, async: true`, although
+  by setting `use PaymentCompliancePlatform.DataCase, async: true`, although
   this option is not recommended for other databases.
   """
 
@@ -18,26 +18,26 @@ defmodule AlveraPhoenixTemplateServer.DataCase do
 
   import Ecto.Query
 
-  alias AlveraPhoenixTemplateServer.{Config, Repo}
-  alias AlveraPhoenixTemplateServer.TenantContext.Tenant
-  alias AlveraPhoenixTemplateServer.UserContext.User
-  alias AlveraPhoenixTemplateServer.RoleContext.{Role, RoleConstants}
-  alias AlveraPhoenixTemplateServer.SessionContext.Session
+  alias PaymentCompliancePlatform.{Config, Repo}
+  alias PaymentCompliancePlatform.TenantContext.Tenant
+  alias PaymentCompliancePlatform.UserContext.User
+  alias PaymentCompliancePlatform.RoleContext.{Role, RoleConstants}
+  alias PaymentCompliancePlatform.SessionContext.Session
 
   using do
     quote do
-      alias AlveraPhoenixTemplateServer.Repo
+      alias PaymentCompliancePlatform.Repo
 
       import Ecto
       import Ecto.Changeset
       import Ecto.Query
-      import AlveraPhoenixTemplateServer.DataCase
-      import AlveraPhoenixTemplateServer.Factory
+      import PaymentCompliancePlatform.DataCase
+      import PaymentCompliancePlatform.Factory
     end
   end
 
   setup tags do
-    AlveraPhoenixTemplateServer.DataCase.setup_sandbox(tags)
+    PaymentCompliancePlatform.DataCase.setup_sandbox(tags)
     {:ok, tenant: system_tenant(), session: system_session()}
   end
 
@@ -46,7 +46,7 @@ defmodule AlveraPhoenixTemplateServer.DataCase do
   """
   def setup_sandbox(tags) do
     pid =
-      Ecto.Adapters.SQL.Sandbox.start_owner!(AlveraPhoenixTemplateServer.Repo,
+      Ecto.Adapters.SQL.Sandbox.start_owner!(PaymentCompliancePlatform.Repo,
         shared: not tags[:async]
       )
 

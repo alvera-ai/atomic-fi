@@ -7,8 +7,8 @@
 # General application configuration
 import Config
 
-config :alvera_phoenix_template_server,
-  ecto_repos: [AlveraPhoenixTemplateServer.Repo],
+config :payment_compliance_platform,
+  ecto_repos: [PaymentCompliancePlatform.Repo],
   # Generator defaults: binary IDs and microsecond timestamps
   generators: [binary_id: true, timestamp_type: :utc_datetime_usec],
   # Row-Level Security (RLS) hierarchy
@@ -19,27 +19,27 @@ config :alvera_phoenix_template_server,
     %{
       field: :tenant_id,
       table: :tenants,
-      module: AlveraPhoenixTemplateServer.TenantContext.Tenant
+      module: PaymentCompliancePlatform.TenantContext.Tenant
     },
     %{
       field: :customer_id,
       table: :customers,
-      module: AlveraPhoenixTemplateServer.CustomerContext.Customer
+      module: PaymentCompliancePlatform.CustomerContext.Customer
     }
   ]
 
 # Configures the endpoint
-config :alvera_phoenix_template_server, AlveraPhoenixTemplateServerWeb.Endpoint,
+config :payment_compliance_platform, PaymentCompliancePlatformWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [
-      html: AlveraPhoenixTemplateServerWeb.ErrorHTML,
-      json: AlveraPhoenixTemplateServerWeb.ErrorJSON
+      html: PaymentCompliancePlatformWeb.ErrorHTML,
+      json: PaymentCompliancePlatformWeb.ErrorJSON
     ],
     layout: false
   ],
-  pubsub_server: AlveraPhoenixTemplateServer.PubSub,
+  pubsub_server: PaymentCompliancePlatform.PubSub,
   live_view: [signing_salt: "Q6eC1J8a"]
 
 # Configures the mailer
@@ -49,7 +49,7 @@ config :alvera_phoenix_template_server, AlveraPhoenixTemplateServerWeb.Endpoint,
 #
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
-config :alvera_phoenix_template_server, AlveraPhoenixTemplateServer.Mailer,
+config :payment_compliance_platform, PaymentCompliancePlatform.Mailer,
   adapter: Swoosh.Adapters.Local
 
 # Configure esbuild (the version is required)
@@ -95,7 +95,7 @@ config :logger, :console,
 config :phoenix, :json_library, Jason
 
 # Configure Flop for pagination
-config :flop, repo: AlveraPhoenixTemplateServer.Repo, default_limit: 20
+config :flop, repo: PaymentCompliancePlatform.Repo, default_limit: 20
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

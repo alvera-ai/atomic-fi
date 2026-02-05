@@ -1,11 +1,11 @@
-defmodule AlveraPhoenixTemplateServer.Factory.UserRoleMappingFactory do
+defmodule PaymentCompliancePlatform.Factory.UserRoleMappingFactory do
   @moduledoc """
   Factory for UserRoleMapping join table schema.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias AlveraPhoenixTemplateServer.RoleContext.UserRoleMapping
+      alias PaymentCompliancePlatform.RoleContext.UserRoleMapping
 
       def user_role_mapping_factory(attrs \\ %{}) do
         # Only create user if neither :user nor :user_id is provided

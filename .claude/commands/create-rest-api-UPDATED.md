@@ -38,21 +38,21 @@ ApiHelpers.json_paginated_response(conn, users, meta, UserListResponse)
 ## Full Controller Example
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerApi.UserController do
-  use AlveraPhoenixTemplateServerApi.Controller
+defmodule PaymentCompliancePlatformApi.UserController do
+  use PaymentCompliancePlatformApi.Controller
   use OpenApiSpex.ControllerSpecs
 
-  alias AlveraPhoenixTemplateServer.Accounts
-  alias AlveraPhoenixTemplateServer.OpenApiSchema
-  alias AlveraPhoenixTemplateServer.OpenApiSchema.UserRequest
-  alias AlveraPhoenixTemplateServer.OpenApiSchema.UserResponse
-  alias AlveraPhoenixTemplateServer.OpenApiSchema.UserListResponse
-  alias AlveraPhoenixTemplateServerApi.Helpers.ApiHelpers
+  alias PaymentCompliancePlatform.Accounts
+  alias PaymentCompliancePlatform.OpenApiSchema
+  alias PaymentCompliancePlatform.OpenApiSchema.UserRequest
+  alias PaymentCompliancePlatform.OpenApiSchema.UserResponse
+  alias PaymentCompliancePlatform.OpenApiSchema.UserListResponse
+  alias PaymentCompliancePlatformApi.Helpers.ApiHelpers
   alias OpenApiSpex.Reference
   alias OpenApiSpex.Schema
 
   plug OpenApiSpex.Plug.CastAndValidate, json_render_error_v2: true
-  action_fallback AlveraPhoenixTemplateServerApi.FallbackController
+  action_fallback PaymentCompliancePlatformApi.FallbackController
 
   tags(["Users"])
 
@@ -161,7 +161,7 @@ end
 ## Common Mistakes to Avoid
 
 1. ❌ `request_body: {"...", "...", UserRequest}` → ✅ `UserRequest.schema()`
-2. ❌ `use AlveraPhoenixTemplateServerWeb, :controller` → ✅ `use AlveraPhoenixTemplateServerApi.Controller`
+2. ❌ `use PaymentCompliancePlatformWeb, :controller` → ✅ `use PaymentCompliancePlatformApi.Controller`
 3. ❌ `def create(conn, %{"user" => params})` → ✅ `def create(%{body_params: %UserRequest{}} = conn, %{})`
 4. ❌ `render(conn, :show, user: user)` → ✅ `ApiHelpers.json_response(conn, user, UserResponse)`
 5. ❌ Missing `plug OpenApiSpex.Plug.CastAndValidate`

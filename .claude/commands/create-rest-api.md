@@ -24,9 +24,9 @@ mix alvera.gen.api Accounts User users \
 
 ## Generated Files
 
-- `lib/alvera_phoenix_template_server_api/controllers/user_controller.ex`
-- `lib/alvera_phoenix_template_server_api/controllers/user_json.ex`
-- `test/alvera_phoenix_template_server_api/controllers/user_controller_test.exs`
+- `lib/payment_compliance_platform_api/controllers/user_controller.ex`
+- `lib/payment_compliance_platform_api/controllers/user_json.ex`
+- `test/payment_compliance_platform_api/controllers/user_controller_test.exs`
 - Schema with OpenAPI annotations (if not exists)
 - Context (if not exists)
 
@@ -35,14 +35,14 @@ mix alvera.gen.api Accounts User users \
 ### API Controller
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerApi.UserController do
-  use AlveraPhoenixTemplateServerWeb, :controller
+defmodule PaymentCompliancePlatformApi.UserController do
+  use PaymentCompliancePlatformWeb, :controller
   use OpenApiSpex.ControllerSpecs
 
-  alias AlveraPhoenixTemplateServer.Accounts
-  alias AlveraPhoenixTemplateServer.OpenApiSchema.UserRequest
-  alias AlveraPhoenixTemplateServer.OpenApiSchema.UserResponse
-  alias AlveraPhoenixTemplateServer.OpenApiSchema.UserListResponse
+  alias PaymentCompliancePlatform.Accounts
+  alias PaymentCompliancePlatform.OpenApiSchema.UserRequest
+  alias PaymentCompliancePlatform.OpenApiSchema.UserResponse
+  alias PaymentCompliancePlatform.OpenApiSchema.UserListResponse
 
   tags ["Users"]
 
@@ -145,8 +145,8 @@ end
 ### JSON View
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerApi.UserJSON do
-  alias AlveraPhoenixTemplateServer.Accounts.User
+defmodule PaymentCompliancePlatformApi.UserJSON do
+  alias PaymentCompliancePlatform.Accounts.User
 
   def index(%{users: users, meta: meta}) do
     %{
@@ -182,10 +182,10 @@ end
 
 ### Router Integration
 
-Add API routes to `lib/alvera_phoenix_template_server_web/router.ex`:
+Add API routes to `lib/payment_compliance_platform_web/router.ex`:
 
 ```elixir
-scope "/api", AlveraPhoenixTemplateServerApi do
+scope "/api", PaymentCompliancePlatformApi do
   pipe_through :api
 
   # OpenAPI spec
@@ -203,11 +203,11 @@ end
 ### Controller Tests (with OpenAPI validation)
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerApi.UserControllerTest do
-  use AlveraPhoenixTemplateServerWeb.ConnCase, async: true
+defmodule PaymentCompliancePlatformApi.UserControllerTest do
+  use PaymentCompliancePlatformWeb.ConnCase, async: true
 
   import OpenApiSpex.TestAssertions
-  import AlveraPhoenixTemplateServer.AccountsFixtures
+  import PaymentCompliancePlatform.AccountsFixtures
 
   setup :setup_api_auth
 

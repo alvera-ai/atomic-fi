@@ -25,12 +25,12 @@ test/
 │       ├── accounts_fixtures.ex
 │       └── ...
 │
-├── alvera_phoenix_template_server/
+├── payment_compliance_platform/
 │   ├── user_context_test.exs
 │   ├── tenant_context_test.exs
 │   └── ...
 │
-├── alvera_phoenix_template_server_web/
+├── payment_compliance_platform_web/
 │   ├── controllers/
 │   │   └── user_controller_test.exs
 │   ├── live/
@@ -48,23 +48,23 @@ test/
 **File**: `test/support/data_case.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServer.DataCase do
+defmodule PaymentCompliancePlatform.DataCase do
   use ExUnit.CaseTemplate
 
   using do
     quote do
-      alias AlveraPhoenixTemplateServer.Repo
+      alias PaymentCompliancePlatform.Repo
 
       import Ecto
       import Ecto.Changeset
       import Ecto.Query
-      import AlveraPhoenixTemplateServer.DataCase
-      import AlveraPhoenixTemplateServer.Factory
+      import PaymentCompliancePlatform.DataCase
+      import PaymentCompliancePlatform.Factory
     end
   end
 
   setup tags do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(AlveraPhoenixTemplateServer.Repo, shared: not tags[:async])
+    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(PaymentCompliancePlatform.Repo, shared: not tags[:async])
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
     :ok
   end
@@ -84,36 +84,36 @@ end
 **File**: `test/support/conn_case.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerWeb.ConnCase do
+defmodule PaymentCompliancePlatformWeb.ConnCase do
   use ExUnit.CaseTemplate
 
   using do
     quote do
       import Plug.Conn
       import Phoenix.ConnTest
-      import AlveraPhoenixTemplateServerWeb.ConnCase
-      import AlveraPhoenixTemplateServer.Factory
+      import PaymentCompliancePlatformWeb.ConnCase
+      import PaymentCompliancePlatform.Factory
 
-      alias AlveraPhoenixTemplateServerWeb.Router.Helpers, as: Routes
+      alias PaymentCompliancePlatformWeb.Router.Helpers, as: Routes
 
-      @endpoint AlveraPhoenixTemplateServerWeb.Endpoint
+      @endpoint PaymentCompliancePlatformWeb.Endpoint
     end
   end
 
   setup tags do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(AlveraPhoenixTemplateServer.Repo, shared: not tags[:async])
+    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(PaymentCompliancePlatform.Repo, shared: not tags[:async])
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
 
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
   def register_and_log_in_user(%{conn: conn}) do
-    user = AlveraPhoenixTemplateServer.Factory.insert(:user)
+    user = PaymentCompliancePlatform.Factory.insert(:user)
     %{conn: log_in_user(conn, user), user: user}
   end
 
   def log_in_user(conn, user) do
-    token = AlveraPhoenixTemplateServer.UserContext.generate_user_session_token(user)
+    token = PaymentCompliancePlatform.UserContext.generate_user_session_token(user)
 
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
@@ -127,11 +127,11 @@ end
 **File**: `test/support/factory.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServer.Factory do
-  use ExMachina.Ecto, repo: AlveraPhoenixTemplateServer.Repo
+defmodule PaymentCompliancePlatform.Factory do
+  use ExMachina.Ecto, repo: PaymentCompliancePlatform.Repo
 
   def tenant_factory do
-    %AlveraPhoenixTemplateServer.TenantContext.Tenant{
+    %PaymentCompliancePlatform.TenantContext.Tenant{
       name: sequence(:name, &"Tenant #{&1}"),
       slug: sequence(:slug, &"tenant-#{&1}"),
       status: "active"
@@ -141,7 +141,7 @@ defmodule AlveraPhoenixTemplateServer.Factory do
   def user_factory do
     tenant = insert(:tenant)
 
-    %AlveraPhoenixTemplateServer.UserContext.User{
+    %PaymentCompliancePlatform.UserContext.User{
       email: sequence(:email, &"user#{&1}@example.com"),
       hashed_password: Bcrypt.hash_pwd_salt("password123!"),
       confirmed_at: ~U[2024-01-01 00:00:00Z],
@@ -153,7 +153,7 @@ defmodule AlveraPhoenixTemplateServer.Factory do
   def role_factory do
     tenant = insert(:tenant)
 
-    %AlveraPhoenixTemplateServer.RoleContext.Role{
+    %PaymentCompliancePlatform.RoleContext.Role{
       name: sequence(:role_name, &"Role #{&1}"),
       description: "Test role",
       owner: tenant
@@ -167,12 +167,12 @@ end
 ### Basic Context Tests
 
 ```elixir
-defmodule AlveraPhoenixTemplateServer.UserContextTest do
-  use AlveraPhoenixTemplateServer.DataCase, async: true
+defmodule PaymentCompliancePlatform.UserContextTest do
+  use PaymentCompliancePlatform.DataCase, async: true
 
   @moduletag :refactored  # For coverage tracking
 
-  alias AlveraPhoenixTemplateServer.UserContext
+  alias PaymentCompliancePlatform.UserContext
 
   describe "list_users/2" do
     test "returns all users for a tenant" do
@@ -280,8 +280,8 @@ end
 ### HTTP Controller Tests
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerApi.UserControllerTest do
-  use AlveraPhoenixTemplateServerWeb.ConnCase, async: true
+defmodule PaymentCompliancePlatformApi.UserControllerTest do
+  use PaymentCompliancePlatformWeb.ConnCase, async: true
 
   import OpenApiSpex.TestAssertions
 
@@ -337,8 +337,8 @@ end
 ### Basic LiveView Tests
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerWeb.UserLiveTest do
-  use AlveraPhoenixTemplateServerWeb.ConnCase, async: true
+defmodule PaymentCompliancePlatformWeb.UserLiveTest do
+  use PaymentCompliancePlatformWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
 
@@ -408,26 +408,26 @@ end
 **File**: `test/support/feature_case.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerWeb.FeatureCase do
+defmodule PaymentCompliancePlatformWeb.FeatureCase do
   use ExUnit.CaseTemplate
 
   using do
     quote do
       use Wallaby.Feature
 
-      import AlveraPhoenixTemplateServer.Factory
-      import AlveraPhoenixTemplateServerWeb.FeatureCase
+      import PaymentCompliancePlatform.Factory
+      import PaymentCompliancePlatformWeb.FeatureCase
     end
   end
 
   setup tags do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(AlveraPhoenixTemplateServer.Repo)
+    :ok = Ecto.Adapters.SQL.Sandbox.checkout(PaymentCompliancePlatform.Repo)
 
     unless tags[:async] do
-      Ecto.Adapters.SQL.Sandbox.mode(AlveraPhoenixTemplateServer.Repo, {:shared, self()})
+      Ecto.Adapters.SQL.Sandbox.mode(PaymentCompliancePlatform.Repo, {:shared, self()})
     end
 
-    metadata = Phoenix.Ecto.SQL.Sandbox.metadata_for(AlveraPhoenixTemplateServer.Repo, self())
+    metadata = Phoenix.Ecto.SQL.Sandbox.metadata_for(PaymentCompliancePlatform.Repo, self())
     {:ok, session} = Wallaby.start_session(metadata: metadata)
     {:ok, session: session}
   end
@@ -437,8 +437,8 @@ end
 ### E2E Tests
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerWeb.UserRegistrationTest do
-  use AlveraPhoenixTemplateServerWeb.FeatureCase, async: true
+defmodule PaymentCompliancePlatformWeb.UserRegistrationTest do
+  use PaymentCompliancePlatformWeb.FeatureCase, async: true
 
   feature "user can register", %{session: session} do
     session
@@ -467,18 +467,18 @@ end
 **File**: `test/test_helper.exs`
 
 ```elixir
-Mimic.copy(AlveraPhoenixTemplateServer.Mailer)
+Mimic.copy(PaymentCompliancePlatform.Mailer)
 Mimic.copy(HTTPoison)  # For external API calls
 
 ExUnit.start()
-Ecto.Adapters.SQL.Sandbox.mode(AlveraPhoenixTemplateServer.Repo, :manual)
+Ecto.Adapters.SQL.Sandbox.mode(PaymentCompliancePlatform.Repo, :manual)
 ```
 
 ### Mocking in Tests
 
 ```elixir
-defmodule AlveraPhoenixTemplateServer.UserContextTest do
-  use AlveraPhoenixTemplateServer.DataCase, async: false
+defmodule PaymentCompliancePlatform.UserContextTest do
+  use PaymentCompliancePlatform.DataCase, async: false
 
   import Mimic
 
@@ -487,7 +487,7 @@ defmodule AlveraPhoenixTemplateServer.UserContextTest do
   describe "register_user/1" do
     test "sends confirmation email" do
       # Mock mailer
-      expect(AlveraPhoenixTemplateServer.Mailer, :deliver, fn email ->
+      expect(PaymentCompliancePlatform.Mailer, :deliver, fn email ->
         assert email.to == [{"", "test@example.com"}]
         {:ok, email}
       end)
@@ -582,7 +582,7 @@ mix coveralls --min-coverage 80
 
 ```elixir
 # Most tests can run async
-use AlveraPhoenixTemplateServer.DataCase, async: true
+use PaymentCompliancePlatform.DataCase, async: true
 
 # Only use async: false when:
 # - Using Mimic
@@ -634,10 +634,10 @@ test "test validation"
 mix test
 
 # Run specific file
-mix test test/alvera_phoenix_template_server/user_context_test.exs
+mix test test/payment_compliance_platform/user_context_test.exs
 
 # Run specific line
-mix test test/alvera_phoenix_template_server/user_context_test.exs:42
+mix test test/payment_compliance_platform/user_context_test.exs:42
 
 # Run with coverage
 mix coveralls

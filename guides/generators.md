@@ -33,10 +33,10 @@ mix alvera.gen.context Blog Post posts \
 
 ### Generated Files
 
-- `lib/alvera_phoenix_template_server/blog/post.ex` - Schema with TypedEctoSchema
-- `lib/alvera_phoenix_template_server/blog.ex` - Context with CRUD functions
+- `lib/payment_compliance_platform/blog/post.ex` - Schema with TypedEctoSchema
+- `lib/payment_compliance_platform/blog.ex` - Context with CRUD functions
 - `priv/repo/migrations/TIMESTAMP_create_posts.exs` - Migration
-- `test/alvera_phoenix_template_server/blog_test.exs` - Context tests
+- `test/payment_compliance_platform/blog_test.exs` - Context tests
 - `test/support/fixtures/blog_fixtures.ex` - Test fixtures
 
 ### Field Types
@@ -91,20 +91,20 @@ mix alvera.gen.live Blog Post posts \
 
 ### Generated Files
 
-- `lib/alvera_phoenix_template_server_web/live/post_live/index.ex`
-- `lib/alvera_phoenix_template_server_web/live/post_live/edit.ex`
-- `lib/alvera_phoenix_template_server_web/live/post_live/form_component.ex`
-- `lib/alvera_phoenix_template_server_web/live/post_live/index.html.heex`
-- `lib/alvera_phoenix_template_server_web/live/post_live/edit.html.heex`
-- `lib/alvera_phoenix_template_server_web/live/post_live/form_component.html.heex`
-- `test/alvera_phoenix_template_server_web/live/post_live_test.exs`
+- `lib/payment_compliance_platform_web/live/post_live/index.ex`
+- `lib/payment_compliance_platform_web/live/post_live/edit.ex`
+- `lib/payment_compliance_platform_web/live/post_live/form_component.ex`
+- `lib/payment_compliance_platform_web/live/post_live/index.html.heex`
+- `lib/payment_compliance_platform_web/live/post_live/edit.html.heex`
+- `lib/payment_compliance_platform_web/live/post_live/form_component.html.heex`
+- `test/payment_compliance_platform_web/live/post_live_test.exs`
 
 ### After Generation
 
 1. **Add routes** to `router.ex`:
 
 ```elixir
-scope "/admin", AlveraPhoenixTemplateServerWeb do
+scope "/admin", PaymentCompliancePlatformWeb do
   pipe_through [:browser, :require_authenticated_user]
 
   live "/posts", PostLive.Index, :index
@@ -116,7 +116,7 @@ end
 2. **Run tests**:
 
 ```bash
-mix test test/alvera_phoenix_template_server_web/live/post_live_test.exs
+mix test test/payment_compliance_platform_web/live/post_live_test.exs
 ```
 
 ## alvera.gen.api
@@ -144,16 +144,16 @@ mix alvera.gen.api Blog Post posts \
 
 ### Generated Files
 
-- `lib/alvera_phoenix_template_server_api/controllers/post_controller.ex`
-- `lib/alvera_phoenix_template_server_api/controllers/post_json.ex`
-- `test/alvera_phoenix_template_server_api/controllers/post_controller_test.exs`
+- `lib/payment_compliance_platform_api/controllers/post_controller.ex`
+- `lib/payment_compliance_platform_api/controllers/post_json.ex`
+- `test/payment_compliance_platform_api/controllers/post_controller_test.exs`
 
 ### After Generation
 
 1. **Add API routes** to `router.ex`:
 
 ```elixir
-scope "/api", AlveraPhoenixTemplateServerApi do
+scope "/api", PaymentCompliancePlatformApi do
   pipe_through :api
 
   scope "/" do
@@ -173,7 +173,7 @@ mix openapi.spec.yaml
 3. **Run tests**:
 
 ```bash
-mix test test/alvera_phoenix_template_server_api/controllers/post_controller_test.exs
+mix test test/payment_compliance_platform_api/controllers/post_controller_test.exs
 ```
 
 4. **View API docs**: http://localhost:4000/api/openapi
@@ -224,7 +224,7 @@ typed_schema "posts" do
   field :content, :text
 
   # Multi-tenancy
-  belongs_to :owner, AlveraPhoenixTemplateServer.TenantContext.Tenant
+  belongs_to :owner, PaymentCompliancePlatform.TenantContext.Tenant
 
   timestamps()
 end

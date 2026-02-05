@@ -1,11 +1,11 @@
-defmodule AlveraPhoenixTemplateServer.Factory.TenantFactory do
+defmodule PaymentCompliancePlatform.Factory.TenantFactory do
   @moduledoc """
   Factory for Tenant context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias AlveraPhoenixTemplateServer.TenantContext.Tenant
+      alias PaymentCompliancePlatform.TenantContext.Tenant
 
       def tenant_factory do
         unique_suffix = String.slice(Ecto.UUID.generate(), 0, 8)

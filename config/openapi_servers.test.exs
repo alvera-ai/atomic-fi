@@ -1,6 +1,6 @@
 import Config
 
-config :alvera_phoenix_template_server, :openapi_servers, [
+config :payment_compliance_platform, :openapi_servers, [
   %{
     url: "http://localhost:4002",
     description: "Test environment"

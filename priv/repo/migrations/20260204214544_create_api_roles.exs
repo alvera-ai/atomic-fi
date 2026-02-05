@@ -1,4 +1,4 @@
-defmodule AlveraPhoenixTemplateServer.Repo.Migrations.CreateApiRoles do
+defmodule PaymentCompliancePlatform.Repo.Migrations.CreateApiRoles do
   use Ecto.Migration
 
   def change do

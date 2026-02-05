@@ -1,12 +1,12 @@
-defmodule AlveraPhoenixTemplateServer.Factory.ApiKeyFactory do
+defmodule PaymentCompliancePlatform.Factory.ApiKeyFactory do
   @moduledoc """
   Factory for ApiKey context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias AlveraPhoenixTemplateServer.ApiKeyContext.ApiKey
-      alias AlveraPhoenixTemplateServer.Vault
+      alias PaymentCompliancePlatform.ApiKeyContext.ApiKey
+      alias PaymentCompliancePlatform.Vault
 
       def api_key_factory(attrs \\ %{}) do
         unique_suffix = String.slice(Ecto.UUID.generate(), 0, 8)

@@ -1,7 +1,7 @@
 import Config
 
 # System entities for seeding (CRM pattern - just names, not full configs)
-config :alvera_phoenix_template_server,
+config :payment_compliance_platform,
   tenant_name: "System",
   admin_user: "admin@system.local",
   admin_pass: "admin-password-test",
@@ -9,7 +9,7 @@ config :alvera_phoenix_template_server,
   root_api_key: "alvera_root_api_key_test"
 
 # Configure encryption vault
-config :alvera_phoenix_template_server, AlveraPhoenixTemplateServer.Vault,
+config :payment_compliance_platform, PaymentCompliancePlatform.Vault,
   ciphers: [
     default:
       {Cloak.Ciphers.AES.GCM,
@@ -21,23 +21,23 @@ config :alvera_phoenix_template_server, AlveraPhoenixTemplateServer.Vault,
 # The MIX_TEST_PARTITION environment variable can be used
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
-config :alvera_phoenix_template_server, AlveraPhoenixTemplateServer.Repo,
+config :payment_compliance_platform, PaymentCompliancePlatform.Repo,
   username: "postgres",
   password: "postgres",
   hostname: "localhost",
-  database: "alvera_phoenix_template_server_test#{System.get_env("MIX_TEST_PARTITION")}",
+  database: "payment_compliance_platform_test#{System.get_env("MIX_TEST_PARTITION")}",
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 10
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
-config :alvera_phoenix_template_server, AlveraPhoenixTemplateServerWeb.Endpoint,
+config :payment_compliance_platform, PaymentCompliancePlatformWeb.Endpoint,
   http: [ip: {127, 0, 0, 1}, port: 4002],
   secret_key_base: "Gmo/T2R4qAj3tgdRvXjkFTeDk9KK4iqI/DbGpWH/8zaCM2GojJ9j/AbMGv5dSMP1",
   server: false
 
 # In test we don't send emails.
-config :alvera_phoenix_template_server, AlveraPhoenixTemplateServer.Mailer,
+config :payment_compliance_platform, PaymentCompliancePlatform.Mailer,
   adapter: Swoosh.Adapters.Test
 
 # Disable swoosh api client as it is only required for production adapters.
@@ -53,6 +53,6 @@ config :phoenix, :plug_init_mode, :runtime
 import_config "openapi_servers.#{config_env()}.exs"
 
 # Override migration paths for test environment to include test_migrations
-config :alvera_phoenix_template_server, :migration_paths, %{
-  AlveraPhoenixTemplateServer.Repo => ["priv/repo/migrations", "priv/repo/test_migrations"]
+config :payment_compliance_platform, :migration_paths, %{
+  PaymentCompliancePlatform.Repo => ["priv/repo/migrations", "priv/repo/test_migrations"]
 }

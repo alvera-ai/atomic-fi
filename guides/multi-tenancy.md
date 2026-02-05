@@ -55,11 +55,11 @@ CREATE INDEX users_owner_id_index ON users (owner_id);
 
 ### 1. Tenant Schema
 
-**File**: `lib/alvera_phoenix_template_server/tenant_context/tenant.ex`
+**File**: `lib/payment_compliance_platform/tenant_context/tenant.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServer.TenantContext.Tenant do
-  use AlveraPhoenixTemplateServer.Schema
+defmodule PaymentCompliancePlatform.TenantContext.Tenant do
+  use PaymentCompliancePlatform.Schema
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -71,8 +71,8 @@ defmodule AlveraPhoenixTemplateServer.TenantContext.Tenant do
     field :metadata, :map
 
     # Associations
-    has_many :users, AlveraPhoenixTemplateServer.UserContext.User, foreign_key: :owner_id
-    has_many :roles, AlveraPhoenixTemplateServer.RoleContext.Role, foreign_key: :owner_id
+    has_many :users, PaymentCompliancePlatform.UserContext.User, foreign_key: :owner_id
+    has_many :roles, PaymentCompliancePlatform.RoleContext.Role, foreign_key: :owner_id
 
     timestamps(type: :utc_datetime)
   end
@@ -89,11 +89,11 @@ end
 
 ### 2. Tenant-Scoped Schema
 
-**File**: `lib/alvera_phoenix_template_server/user_context/user.ex`
+**File**: `lib/payment_compliance_platform/user_context/user.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServer.UserContext.User do
-  use AlveraPhoenixTemplateServer.Schema
+defmodule PaymentCompliancePlatform.UserContext.User do
+  use PaymentCompliancePlatform.Schema
 
   open_api_property(schema: %Schema{type: :string, format: :email}, key: :email)
 
@@ -113,7 +113,7 @@ defmodule AlveraPhoenixTemplateServer.UserContext.User do
     field :status, :string, default: "active"
 
     # Multi-tenancy: belongs to tenant via owner_id
-    belongs_to :owner, AlveraPhoenixTemplateServer.TenantContext.Tenant
+    belongs_to :owner, PaymentCompliancePlatform.TenantContext.Tenant
 
     timestamps(type: :utc_datetime)
   end
@@ -135,13 +135,13 @@ end
 
 ### 3. Tenant-Scoped Context
 
-**File**: `lib/alvera_phoenix_template_server/user_context.ex`
+**File**: `lib/payment_compliance_platform/user_context.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServer.UserContext do
+defmodule PaymentCompliancePlatform.UserContext do
   import Ecto.Query
-  alias AlveraPhoenixTemplateServer.Repo
-  alias AlveraPhoenixTemplateServer.UserContext.User
+  alias PaymentCompliancePlatform.Repo
+  alias PaymentCompliancePlatform.UserContext.User
 
   # List users - ALWAYS scoped by tenant_id
   def list_users(tenant_id, params \\ %{}) do
@@ -189,7 +189,7 @@ end
 **File**: `priv/repo/migrations/*_create_users.exs`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServer.Repo.Migrations.CreateUsers do
+defmodule PaymentCompliancePlatform.Repo.Migrations.CreateUsers do
   use Ecto.Migration
 
   def change do
@@ -232,7 +232,7 @@ end
 **In authentication plug**:
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerWeb.Auth do
+defmodule PaymentCompliancePlatformWeb.Auth do
   def fetch_current_user(conn, _opts) do
     user = get_user_from_session(conn)
 
@@ -246,10 +246,10 @@ end
 ### 2. LiveView Usage
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerWeb.UserLive.Index do
-  use AlveraPhoenixTemplateServerWeb, :live_view
+defmodule PaymentCompliancePlatformWeb.UserLive.Index do
+  use PaymentCompliancePlatformWeb, :live_view
 
-  on_mount {AlveraPhoenixTemplateServerWeb.UserOnMountHooks, :require_authenticated_user}
+  on_mount {PaymentCompliancePlatformWeb.UserOnMountHooks, :require_authenticated_user}
 
   def handle_params(params, _uri, socket) do
     # Get tenant from current user
@@ -276,8 +276,8 @@ end
 ### 3. API Controller Usage
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerApi.UserController do
-  use AlveraPhoenixTemplateServerWeb, :controller
+defmodule PaymentCompliancePlatformApi.UserController do
+  use PaymentCompliancePlatformWeb, :controller
 
   def index(conn, params) do
     # Get tenant from authenticated user
@@ -330,10 +330,10 @@ end
 ### Context Tests
 
 ```elixir
-defmodule AlveraPhoenixTemplateServer.UserContextTest do
-  use AlveraPhoenixTemplateServer.DataCase, async: true
+defmodule PaymentCompliancePlatform.UserContextTest do
+  use PaymentCompliancePlatform.DataCase, async: true
 
-  alias AlveraPhoenixTemplateServer.UserContext
+  alias PaymentCompliancePlatform.UserContext
 
   describe "list_users/2" do
     test "returns only users for specified tenant" do
@@ -368,8 +368,8 @@ end
 ### LiveView Tests
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerWeb.UserLiveTest do
-  use AlveraPhoenixTemplateServerWeb.ConnCase, async: true
+defmodule PaymentCompliancePlatformWeb.UserLiveTest do
+  use PaymentCompliancePlatformWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
 

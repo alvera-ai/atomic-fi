@@ -1,9 +1,9 @@
-defmodule AlveraPhoenixTemplateServer.MixProject do
+defmodule PaymentCompliancePlatform.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :alvera_phoenix_template_server,
+      app: :payment_compliance_platform,
       version: "0.1.0",
       elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -19,7 +19,7 @@ defmodule AlveraPhoenixTemplateServer.MixProject do
   # Type `mix help compile.app` for more information.
   def application do
     [
-      mod: {AlveraPhoenixTemplateServer.Application, []},
+      mod: {PaymentCompliancePlatform.Application, []},
       extra_applications: [:logger, :runtime_tools]
     ]
   end

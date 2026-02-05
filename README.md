@@ -87,17 +87,17 @@ cd my-app
 
 ### 2. Rename the Project
 
-Use the `mix rename` task to rename from `AlveraPhoenixTemplateServer` to your app name:
+Use the `mix rename` task to rename from `PaymentCompliancePlatform` to your app name:
 
 ```bash
 # Install dependencies first
 mix deps.get
 
 # Rename the project (updates all modules, configs, and file names)
-mix rename AlveraPhoenixTemplateServer MyApp
+mix rename PaymentCompliancePlatform MyApp
 
 # This updates:
-# - Module names: AlveraPhoenixTemplateServer.* → MyApp.*
+# - Module names: PaymentCompliancePlatform.* → MyApp.*
 # - OTP app name in mix.exs
 # - Configuration files
 # - Directory names
@@ -108,10 +108,10 @@ mix rename AlveraPhoenixTemplateServer MyApp
 
 ```bash
 # Rename with custom module prefix
-mix rename AlveraPhoenixTemplateServer MyCompany.MyApp
+mix rename PaymentCompliancePlatform MyCompany.MyApp
 
 # Dry run to preview changes
-mix rename AlveraPhoenixTemplateServer MyApp --dry-run
+mix rename PaymentCompliancePlatform MyApp --dry-run
 ```
 
 ### 3. Configure Environment

@@ -1,4 +1,4 @@
-defmodule AlveraPhoenixTemplateServerWeb.ConnCase do
+defmodule PaymentCompliancePlatformWeb.ConnCase do
   @moduledoc """
   This module defines the test case to be used by
   tests that require setting up a connection.
@@ -11,7 +11,7 @@ defmodule AlveraPhoenixTemplateServerWeb.ConnCase do
   we enable the SQL sandbox, so changes done to the database
   are reverted at the end of every test. If you are using
   PostgreSQL, you can even run database tests asynchronously
-  by setting `use AlveraPhoenixTemplateServerWeb.ConnCase, async: true`, although
+  by setting `use PaymentCompliancePlatformWeb.ConnCase, async: true`, although
   this option is not recommended for other databases.
   """
 
@@ -20,20 +20,20 @@ defmodule AlveraPhoenixTemplateServerWeb.ConnCase do
   using do
     quote do
       # The default endpoint for testing
-      @endpoint AlveraPhoenixTemplateServerWeb.Endpoint
+      @endpoint PaymentCompliancePlatformWeb.Endpoint
 
-      use AlveraPhoenixTemplateServerWeb, :verified_routes
+      use PaymentCompliancePlatformWeb, :verified_routes
 
       # Import conveniences for testing with connections
       import Plug.Conn
       import Phoenix.ConnTest
-      import AlveraPhoenixTemplateServerWeb.ConnCase
-      import AlveraPhoenixTemplateServer.Factory
+      import PaymentCompliancePlatformWeb.ConnCase
+      import PaymentCompliancePlatform.Factory
     end
   end
 
   setup tags do
-    AlveraPhoenixTemplateServer.DataCase.setup_sandbox(tags)
+    PaymentCompliancePlatform.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
@@ -49,12 +49,12 @@ defmodule AlveraPhoenixTemplateServerWeb.ConnCase do
   in the test context.
   """
   def setup_platform_admin_api(%{conn: conn}) do
-    alias AlveraPhoenixTemplateServer.Repo
-    alias AlveraPhoenixTemplateServer.ApiKeyContext.ApiKey
-    alias AlveraPhoenixTemplateServer.SessionContext.Session
-    alias AlveraPhoenixTemplateServer.RoleContext.Role
-    alias AlveraPhoenixTemplateServer.TenantContext.Tenant
-    alias AlveraPhoenixTemplateServer.Vault
+    alias PaymentCompliancePlatform.Repo
+    alias PaymentCompliancePlatform.ApiKeyContext.ApiKey
+    alias PaymentCompliancePlatform.SessionContext.Session
+    alias PaymentCompliancePlatform.RoleContext.Role
+    alias PaymentCompliancePlatform.TenantContext.Tenant
+    alias PaymentCompliancePlatform.Vault
     import Ecto.Query
 
     # Get platform tenant
@@ -129,7 +129,7 @@ defmodule AlveraPhoenixTemplateServerWeb.ConnCase do
   # test context.
   # """
   # def register_and_log_in_user(%{conn: conn}) do
-  #   user = AlveraPhoenixTemplateServer.Factory.insert(:user)
+  #   user = PaymentCompliancePlatform.Factory.insert(:user)
   #   %{conn: log_in_user(conn, user), user: user}
   # end
 

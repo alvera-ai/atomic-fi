@@ -35,7 +35,7 @@ defmodule Mix.Tasks.Alvera.Gen.Context do
     %{
       field: :tenant_id,
       table: :tenants,
-      module: AlveraPhoenixTemplateServer.TenantContext.Tenant
+      module: PaymentCompliancePlatform.TenantContext.Tenant
     }
   end
 
@@ -142,12 +142,12 @@ defmodule Mix.Tasks.Alvera.Gen.Context do
     if File.exists?(file_path) do
       content = File.read!(file_path)
 
-      # Replace use Ecto.Schema with use AlveraPhoenixTemplateServer.Schema
+      # Replace use Ecto.Schema with use PaymentCompliancePlatform.Schema
       content =
         String.replace(
           content,
           "use Ecto.Schema",
-          "use AlveraPhoenixTemplateServer.Schema"
+          "use PaymentCompliancePlatform.Schema"
         )
 
       # Remove import Ecto.Changeset (ExOpenApiUtils already imports it)
@@ -396,7 +396,7 @@ defmodule Mix.Tasks.Alvera.Gen.Context do
     Mix.Phoenix.copy_from(paths, "priv/templates/mix/alvera.gen.context", binding, files)
 
     # Extract base module name from schema.module
-    # e.g., "AlveraPhoenixTemplateServer.ApiKeyContext.ApiKey" -> "AlveraPhoenixTemplateServer"
+    # e.g., "PaymentCompliancePlatform.ApiKeyContext.ApiKey" -> "PaymentCompliancePlatform"
     base_module =
       schema.module
       |> Module.split()

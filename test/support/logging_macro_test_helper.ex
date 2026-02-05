@@ -1,13 +1,13 @@
-defmodule AlveraPhoenixTemplateServer.LoggingMacroTestHelper do
+defmodule PaymentCompliancePlatform.LoggingMacroTestHelper do
   @moduledoc """
   Test helper module to verify def_with_rls_and_logging macro works correctly.
   """
 
   require Logger
-  import AlveraPhoenixTemplateServer.LoggerMacro, only: [def_with_rls_and_logging: 3]
+  import PaymentCompliancePlatform.LoggerMacro, only: [def_with_rls_and_logging: 3]
 
-  alias AlveraPhoenixTemplateServer.RoleContext.Role
-  alias AlveraPhoenixTemplateServer.SessionContext.Session
+  alias PaymentCompliancePlatform.RoleContext.Role
+  alias PaymentCompliancePlatform.SessionContext.Session
 
   @doc """
   Simple success case - returns {:ok, :success}

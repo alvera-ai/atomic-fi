@@ -1,11 +1,11 @@
-defmodule AlveraPhoenixTemplateServer.Factory.RoleFactory do
+defmodule PaymentCompliancePlatform.Factory.RoleFactory do
   @moduledoc """
   Factory for Role context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias AlveraPhoenixTemplateServer.RoleContext.Role
+      alias PaymentCompliancePlatform.RoleContext.Role
 
       def role_factory(attrs \\ %{}) do
         unique_suffix = String.slice(Ecto.UUID.generate(), 0, 8)

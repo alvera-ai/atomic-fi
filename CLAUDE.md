@@ -85,11 +85,11 @@ Follow git-flow branching model:
 Row-Level Security (RLS) fields are configured in `config/config.exs`:
 
 ```elixir
-config :alvera_phoenix_template_server,
+config :payment_compliance_platform,
   rls_fields: [:tenant_id],
   rls_primary_field: :tenant_id,
   rls_primary_table: :tenants,
-  rls_primary_module: AlveraPhoenixTemplateServer.TenantContext.Tenant
+  rls_primary_module: PaymentCompliancePlatform.TenantContext.Tenant
 ```
 
 ### Generators
@@ -108,7 +108,7 @@ The **Tenant schema itself** requires special handling since it's the top-level 
 
 2. **Modify the schema** to use a virtual `tenant_id` field that mirrors `id`:
    ```elixir
-   # In lib/alvera_phoenix_template_server/tenant_context/tenant.ex
+   # In lib/payment_compliance_platform/tenant_context/tenant.ex
    # Remove: belongs_to :tenant, Tenant
 
    # Add instead:

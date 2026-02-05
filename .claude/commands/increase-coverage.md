@@ -10,7 +10,7 @@ Iteratively increase test coverage for a specific module to reach 100% coverage.
 
 **Example:**
 ```
-/increase-coverage lib/alvera_phoenix_template_server/user_context.ex
+/increase-coverage lib/payment_compliance_platform/user_context.ex
 ```
 
 ## Instructions
@@ -37,7 +37,7 @@ Run the specific test file with coverage to generate JSON:
 
 ```bash
 # Generate JSON coverage for specific test file
-MIX_ENV=test mix coveralls.json -- test/alvera_phoenix_template_server/<module>_test.exs
+MIX_ENV=test mix coveralls.json -- test/payment_compliance_platform/<module>_test.exs
 ```
 
 This creates `cover/excoveralls.json` with detailed line-by-line coverage.
@@ -67,7 +67,7 @@ for sf in data['source_files']:
 
 **Example output:**
 ```
-lib/alvera_phoenix_template_server/user_context.ex: 163/166 = 98.2%
+lib/payment_compliance_platform/user_context.ex: 163/166 = 98.2%
 Uncovered lines: [235, 277, 315]
 ```
 
@@ -79,8 +79,8 @@ Read the uncovered lines to understand what needs tests:
 
 ```bash
 # View specific uncovered lines (adjust numbers from Step 3)
-sed -n '230,240p' lib/alvera_phoenix_template_server/<module>.ex
-sed -n '273,282p' lib/alvera_phoenix_template_server/<module>.ex
+sed -n '230,240p' lib/payment_compliance_platform/<module>.ex
+sed -n '273,282p' lib/payment_compliance_platform/<module>.ex
 ```
 
 **Common uncovered patterns:**
@@ -144,10 +144,10 @@ After adding each test:
 
 ```bash
 # Run tests
-MIX_ENV=test mix test test/alvera_phoenix_template_server/<module>_test.exs
+MIX_ENV=test mix test test/payment_compliance_platform/<module>_test.exs
 
 # Regenerate coverage
-MIX_ENV=test mix coveralls.json -- test/alvera_phoenix_template_server/<module>_test.exs
+MIX_ENV=test mix coveralls.json -- test/payment_compliance_platform/<module>_test.exs
 
 # Check coverage increase
 python3 -c "
@@ -178,7 +178,7 @@ Repeat Steps 6-7 until all lines are covered.
 
 ```bash
 # Run full test suite for module
-MIX_ENV=test mix coveralls.json -- test/alvera_phoenix_template_server/<module>_test.exs
+MIX_ENV=test mix coveralls.json -- test/payment_compliance_platform/<module>_test.exs
 
 # Confirm 100%
 python3 -c "
@@ -244,7 +244,7 @@ for sf in sorted(data['source_files'], key=lambda x: x['name']):
 
 **Solution:** Add debug output or trace the test:
 ```bash
-MIX_ENV=test mix test test/alvera_phoenix_template_server/<module>_test.exs:<line> --trace
+MIX_ENV=test mix test test/payment_compliance_platform/<module>_test.exs:<line> --trace
 ```
 
 ### Issue 2: Private Function Uncovered

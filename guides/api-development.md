@@ -27,8 +27,8 @@ mix alvera.gen.api Accounts User users \
 ### 2. Add Routes
 
 ```elixir
-# lib/alvera_phoenix_template_server_web/router.ex
-scope "/api", AlveraPhoenixTemplateServerApi do
+# lib/payment_compliance_platform_web/router.ex
+scope "/api", PaymentCompliancePlatformApi do
   pipe_through :api
 
   # OpenAPI spec endpoint
@@ -56,17 +56,17 @@ Visit: http://localhost:4000/api/openapi
 
 ### Controller
 
-**File**: `lib/alvera_phoenix_template_server_api/controllers/user_controller.ex`
+**File**: `lib/payment_compliance_platform_api/controllers/user_controller.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerApi.UserController do
-  use AlveraPhoenixTemplateServerWeb, :controller
+defmodule PaymentCompliancePlatformApi.UserController do
+  use PaymentCompliancePlatformWeb, :controller
   use OpenApiSpex.ControllerSpecs
 
-  alias AlveraPhoenixTemplateServer.UserContext
-  alias AlveraPhoenixTemplateServer.OpenApiSchema.UserRequest
-  alias AlveraPhoenixTemplateServer.OpenApiSchema.UserResponse
-  alias AlveraPhoenixTemplateServer.OpenApiSchema.UserListResponse
+  alias PaymentCompliancePlatform.UserContext
+  alias PaymentCompliancePlatform.OpenApiSchema.UserRequest
+  alias PaymentCompliancePlatform.OpenApiSchema.UserResponse
+  alias PaymentCompliancePlatform.OpenApiSchema.UserListResponse
 
   tags ["Users"]
 
@@ -171,11 +171,11 @@ end
 
 ### JSON View
 
-**File**: `lib/alvera_phoenix_template_server_api/controllers/user_json.ex`
+**File**: `lib/payment_compliance_platform_api/controllers/user_json.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerApi.UserJSON do
-  alias AlveraPhoenixTemplateServer.UserContext.User
+defmodule PaymentCompliancePlatformApi.UserJSON do
+  alias PaymentCompliancePlatform.UserContext.User
 
   def index(%{users: users, meta: meta}) do
     %{
@@ -212,11 +212,11 @@ end
 
 ### Schema Definition
 
-**File**: `lib/alvera_phoenix_template_server/user_context/user.ex`
+**File**: `lib/payment_compliance_platform/user_context/user.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServer.UserContext.User do
-  use AlveraPhoenixTemplateServer.Schema
+defmodule PaymentCompliancePlatform.UserContext.User do
+  use PaymentCompliancePlatform.Schema
 
   # OpenAPI property definitions
   open_api_property(
@@ -263,7 +263,7 @@ defmodule AlveraPhoenixTemplateServer.UserContext.User do
     field :status, :string, default: "active"
     field :confirmed_at, :utc_datetime
 
-    belongs_to :owner, AlveraPhoenixTemplateServer.TenantContext.Tenant
+    belongs_to :owner, PaymentCompliancePlatform.TenantContext.Tenant
 
     timestamps(type: :utc_datetime)
   end
@@ -271,15 +271,15 @@ end
 ```
 
 This automatically generates:
-- `AlveraPhoenixTemplateServer.OpenApiSchema.UserRequest` (for POST/PUT)
-- `AlveraPhoenixTemplateServer.OpenApiSchema.UserResponse` (for GET)
+- `PaymentCompliancePlatform.OpenApiSchema.UserRequest` (for POST/PUT)
+- `PaymentCompliancePlatform.OpenApiSchema.UserResponse` (for GET)
 
 ### Custom Schemas
 
-**File**: `lib/alvera_phoenix_template_server/open_api_schemas.ex`
+**File**: `lib/payment_compliance_platform/open_api_schemas.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServer.OpenApiSchemas do
+defmodule PaymentCompliancePlatform.OpenApiSchemas do
   require OpenApiSpex
   alias OpenApiSpex.Schema
 
@@ -289,7 +289,7 @@ defmodule AlveraPhoenixTemplateServer.OpenApiSchemas do
       description: "Paginated list of users",
       type: :object,
       properties: %{
-        data: %Schema{type: :array, items: AlveraPhoenixTemplateServer.OpenApiSchema.UserResponse},
+        data: %Schema{type: :array, items: PaymentCompliancePlatform.OpenApiSchema.UserResponse},
         meta: %Schema{
           type: :object,
           properties: %{
@@ -325,13 +325,13 @@ end
 
 ### OpenAPI Controller
 
-**File**: `lib/alvera_phoenix_template_server_api/controllers/open_api_controller.ex`
+**File**: `lib/payment_compliance_platform_api/controllers/open_api_controller.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerApi.OpenApiController do
-  use AlveraPhoenixTemplateServerWeb, :controller
+defmodule PaymentCompliancePlatformApi.OpenApiController do
+  use PaymentCompliancePlatformWeb, :controller
 
-  alias AlveraPhoenixTemplateServerApi.ApiSpec
+  alias PaymentCompliancePlatformApi.ApiSpec
 
   def spec(conn, _params) do
     json(conn, OpenApiSpex.OpenApi.json_encoder().encode!(ApiSpec.spec()))
@@ -341,12 +341,12 @@ end
 
 ### API Spec Module
 
-**File**: `lib/alvera_phoenix_template_server_api/api_spec.ex`
+**File**: `lib/payment_compliance_platform_api/api_spec.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerApi.ApiSpec do
+defmodule PaymentCompliancePlatformApi.ApiSpec do
   alias OpenApiSpex.{Info, OpenApi, Paths, Server}
-  alias AlveraPhoenixTemplateServerWeb.{Endpoint, Router}
+  alias PaymentCompliancePlatformWeb.{Endpoint, Router}
 
   @behaviour OpenApi
 
@@ -409,7 +409,7 @@ end
 ### Auth Plug
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerWeb.ApiAuth do
+defmodule PaymentCompliancePlatformWeb.ApiAuth do
   import Plug.Conn
 
   def api_auth(conn, _opts) do
@@ -434,8 +434,8 @@ end
 ### Controller Tests
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerApi.UserControllerTest do
-  use AlveraPhoenixTemplateServerWeb.ConnCase, async: true
+defmodule PaymentCompliancePlatformApi.UserControllerTest do
+  use PaymentCompliancePlatformWeb.ConnCase, async: true
 
   import OpenApiSpex.TestAssertions
 
@@ -598,30 +598,30 @@ const newUser = await UsersService.createUser({
 
 ### FallbackController
 
-**File**: `lib/alvera_phoenix_template_server_api/fallback_controller.ex`
+**File**: `lib/payment_compliance_platform_api/fallback_controller.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerApi.FallbackController do
-  use AlveraPhoenixTemplateServerWeb, :controller
+defmodule PaymentCompliancePlatformApi.FallbackController do
+  use PaymentCompliancePlatformWeb, :controller
 
   def call(conn, {:error, %Ecto.Changeset{} = changeset}) do
     conn
     |> put_status(:unprocessable_entity)
-    |> put_view(json: AlveraPhoenixTemplateServerApi.ErrorJSON)
+    |> put_view(json: PaymentCompliancePlatformApi.ErrorJSON)
     |> render(:changeset_errors, changeset: changeset)
   end
 
   def call(conn, {:error, :not_found}) do
     conn
     |> put_status(:not_found)
-    |> put_view(json: AlveraPhoenixTemplateServerApi.ErrorJSON)
+    |> put_view(json: PaymentCompliancePlatformApi.ErrorJSON)
     |> render(:not_found)
   end
 
   def call(conn, {:error, :unauthorized}) do
     conn
     |> put_status(:unauthorized)
-    |> put_view(json: AlveraPhoenixTemplateServerApi.ErrorJSON)
+    |> put_view(json: PaymentCompliancePlatformApi.ErrorJSON)
     |> render(:unauthorized)
   end
 end
@@ -630,7 +630,7 @@ end
 ### ErrorJSON
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerApi.ErrorJSON do
+defmodule PaymentCompliancePlatformApi.ErrorJSON do
   def changeset_errors(%{changeset: changeset}) do
     %{
       errors: Ecto.Changeset.traverse_errors(changeset, &translate_error/1)
@@ -694,9 +694,9 @@ end
 
 ```elixir
 defmodule MyController do
-  use AlveraPhoenixTemplateServerWeb, :controller
+  use PaymentCompliancePlatformWeb, :controller
 
-  action_fallback AlveraPhoenixTemplateServerApi.FallbackController
+  action_fallback PaymentCompliancePlatformApi.FallbackController
 
   def create(conn, params) do
     with {:ok, resource} <- create_resource(params) do

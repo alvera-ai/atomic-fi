@@ -1,16 +1,16 @@
-defmodule AlveraPhoenixTemplateServer.Repo.Migrations.SeedSystemEntities do
+defmodule PaymentCompliancePlatform.Repo.Migrations.SeedSystemEntities do
   use Ecto.Migration
 
   import Ecto.Query
-  alias AlveraPhoenixTemplateServer.{Config, Repo}
-  alias AlveraPhoenixTemplateServer.TenantContext.Tenant
-  alias AlveraPhoenixTemplateServer.UserContext.User
-  alias AlveraPhoenixTemplateServer.RoleContext.{Role, RoleConstants}
-  alias AlveraPhoenixTemplateServer.ApiKeyContext.ApiKey
+  alias PaymentCompliancePlatform.{Config, Repo}
+  alias PaymentCompliancePlatform.TenantContext.Tenant
+  alias PaymentCompliancePlatform.UserContext.User
+  alias PaymentCompliancePlatform.RoleContext.{Role, RoleConstants}
+  alias PaymentCompliancePlatform.ApiKeyContext.ApiKey
 
   def up do
     # Start Vault directly for encryption (Application may not be running during migration)
-    case AlveraPhoenixTemplateServer.Vault.start_link() do
+    case PaymentCompliancePlatform.Vault.start_link() do
       {:ok, _} -> :ok
       {:error, {:already_started, _}} -> :ok
     end
@@ -132,7 +132,7 @@ defmodule AlveraPhoenixTemplateServer.Repo.Migrations.SeedSystemEntities do
     root_api_key_hash = :crypto.hash(:sha256, root_api_key_value) |> Base.encode16(case: :lower)
 
     # Manually encrypt the key_value using Vault (Cloak doesn't auto-encrypt in migrations)
-    encrypted_key_value = AlveraPhoenixTemplateServer.Vault.encrypt!(root_api_key_value)
+    encrypted_key_value = PaymentCompliancePlatform.Vault.encrypt!(root_api_key_value)
 
     %ApiKey{}
     |> ApiKey.changeset(%{
@@ -148,7 +148,7 @@ defmodule AlveraPhoenixTemplateServer.Repo.Migrations.SeedSystemEntities do
     platform_admin_api_key_value = "platform_admin_#{:crypto.strong_rand_bytes(32) |> Base.encode64()}"
     platform_admin_api_key_hash =
       :crypto.hash(:sha256, platform_admin_api_key_value) |> Base.encode16(case: :lower)
-    encrypted_platform_admin_key = AlveraPhoenixTemplateServer.Vault.encrypt!(platform_admin_api_key_value)
+    encrypted_platform_admin_key = PaymentCompliancePlatform.Vault.encrypt!(platform_admin_api_key_value)
 
     %ApiKey{}
     |> ApiKey.changeset(%{

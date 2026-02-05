@@ -1,15 +1,15 @@
-defmodule AlveraPhoenixTemplateServer.Factory.SessionFactory do
+defmodule PaymentCompliancePlatform.Factory.SessionFactory do
   @moduledoc """
   Factory for Session context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias AlveraPhoenixTemplateServer.SessionContext.Session
+      alias PaymentCompliancePlatform.SessionContext.Session
 
       def session_factory(attrs \\ %{}) do
-        alias AlveraPhoenixTemplateServer.RoleContext.UserRoleMapping
-        alias AlveraPhoenixTemplateServer.Repo
+        alias PaymentCompliancePlatform.RoleContext.UserRoleMapping
+        alias PaymentCompliancePlatform.Repo
 
         # Determine type - default to :user
         type = Map.get(attrs, :type, :user)
@@ -68,7 +68,7 @@ defmodule AlveraPhoenixTemplateServer.Factory.SessionFactory do
                       api_key.role_id
                     else
                       # If api_key_id was passed directly, fetch the api_key
-                      Repo.get!(AlveraPhoenixTemplateServer.ApiKeyContext.ApiKey, api_key_id,
+                      Repo.get!(PaymentCompliancePlatform.ApiKeyContext.ApiKey, api_key_id,
                         skip_multi_tenancy_check: true
                       ).role_id
                     end

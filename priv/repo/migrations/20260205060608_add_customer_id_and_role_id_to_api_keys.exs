@@ -1,4 +1,4 @@
-defmodule AlveraPhoenixTemplateServer.Repo.Migrations.AddCustomerIdAndRoleIdToApiKeys do
+defmodule PaymentCompliancePlatform.Repo.Migrations.AddCustomerIdAndRoleIdToApiKeys do
   use Ecto.Migration
 
   def change do

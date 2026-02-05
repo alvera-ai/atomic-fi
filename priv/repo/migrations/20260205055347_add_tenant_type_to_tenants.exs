@@ -1,4 +1,4 @@
-defmodule AlveraPhoenixTemplateServer.Repo.Migrations.AddTenantTypeToTenants do
+defmodule PaymentCompliancePlatform.Repo.Migrations.AddTenantTypeToTenants do
   use Ecto.Migration
 
   def change do

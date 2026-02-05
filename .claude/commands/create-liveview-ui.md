@@ -28,28 +28,28 @@ mix alvera.gen.live Accounts User users \
 
 ## Generated Files
 
-- `lib/alvera_phoenix_template_server_web/live/user_live/index.ex` (with data table)
-- `lib/alvera_phoenix_template_server_web/live/user_live/edit.ex` (instead of show)
-- `lib/alvera_phoenix_template_server_web/live/user_live/form_component.ex`
-- `lib/alvera_phoenix_template_server_web/live/user_live/index.html.heex`
-- `lib/alvera_phoenix_template_server_web/live/user_live/edit.html.heex`
-- `lib/alvera_phoenix_template_server_web/live/user_live/form_component.html.heex`
-- `test/alvera_phoenix_template_server_web/live/user_live_test.exs`
+- `lib/payment_compliance_platform_web/live/user_live/index.ex` (with data table)
+- `lib/payment_compliance_platform_web/live/user_live/edit.ex` (instead of show)
+- `lib/payment_compliance_platform_web/live/user_live/form_component.ex`
+- `lib/payment_compliance_platform_web/live/user_live/index.html.heex`
+- `lib/payment_compliance_platform_web/live/user_live/edit.html.heex`
+- `lib/payment_compliance_platform_web/live/user_live/form_component.html.heex`
+- `test/payment_compliance_platform_web/live/user_live_test.exs`
 
 ## Pattern Checklist
 
 ### LiveView Index (with Data Table)
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerWeb.UserLive.Index do
-  use AlveraPhoenixTemplateServerWeb, :live_view
-  use AlveraPhoenixTemplateServerWeb.ProComponents
+defmodule PaymentCompliancePlatformWeb.UserLive.Index do
+  use PaymentCompliancePlatformWeb, :live_view
+  use PaymentCompliancePlatformWeb.ProComponents
 
   # Authentication hook
-  on_mount {AlveraPhoenixTemplateServerWeb.UserOnMountHooks, :require_authenticated_user}
+  on_mount {PaymentCompliancePlatformWeb.UserOnMountHooks, :require_authenticated_user}
 
-  alias AlveraPhoenixTemplateServer.Accounts
-  alias AlveraPhoenixTemplateServer.Accounts.User
+  alias PaymentCompliancePlatform.Accounts
+  alias PaymentCompliancePlatform.Accounts.User
 
   @impl true
   def mount(_params, _session, socket) do
@@ -143,7 +143,7 @@ end
   on_cancel={JS.patch(~p"/admin/users")}
 >
   <.live_component
-    module={AlveraPhoenixTemplateServerWeb.UserLive.FormComponent}
+    module={PaymentCompliancePlatformWeb.UserLive.FormComponent}
     id={@user.id || :new}
     user={@user}
     action={@live_action}
@@ -155,11 +155,11 @@ end
 ### Form Component
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerWeb.UserLive.FormComponent do
-  use AlveraPhoenixTemplateServerWeb, :live_component
-  use AlveraPhoenixTemplateServerWeb.ProComponents
+defmodule PaymentCompliancePlatformWeb.UserLive.FormComponent do
+  use PaymentCompliancePlatformWeb, :live_component
+  use PaymentCompliancePlatformWeb.ProComponents
 
-  alias AlveraPhoenixTemplateServer.Accounts
+  alias PaymentCompliancePlatform.Accounts
 
   @impl true
   def update(%{user: user} = assigns, socket) do
@@ -243,10 +243,10 @@ end
 
 ## Router Integration
 
-Add routes to `lib/alvera_phoenix_template_server_web/router.ex`:
+Add routes to `lib/payment_compliance_platform_web/router.ex`:
 
 ```elixir
-scope "/admin", AlveraPhoenixTemplateServerWeb do
+scope "/admin", PaymentCompliancePlatformWeb do
   pipe_through [:browser, :require_authenticated_user]
 
   live "/users", UserLive.Index, :index
@@ -258,7 +258,7 @@ end
 
 ## On-Mount Hooks
 
-Hooks are defined in `lib/alvera_phoenix_template_server_web/live/hooks/user_on_mount_hooks.ex`:
+Hooks are defined in `lib/payment_compliance_platform_web/live/hooks/user_on_mount_hooks.ex`:
 
 - `:require_authenticated_user` - Ensures user is logged in
 - `:require_confirmed_user` - Ensures email is confirmed
@@ -267,11 +267,11 @@ Hooks are defined in `lib/alvera_phoenix_template_server_web/live/hooks/user_on_
 ## Testing Pattern
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerWeb.UserLiveTest do
-  use AlveraPhoenixTemplateServerWeb.ConnCase, async: true
+defmodule PaymentCompliancePlatformWeb.UserLiveTest do
+  use PaymentCompliancePlatformWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
-  import AlveraPhoenixTemplateServer.AccountsFixtures
+  import PaymentCompliancePlatform.AccountsFixtures
 
   setup :register_and_log_in_user
 

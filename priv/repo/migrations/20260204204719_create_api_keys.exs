@@ -1,4 +1,4 @@
-defmodule AlveraPhoenixTemplateServer.Repo.Migrations.CreateApiKeys do
+defmodule PaymentCompliancePlatform.Repo.Migrations.CreateApiKeys do
   use Ecto.Migration
 
   def change do

@@ -4,10 +4,10 @@ defmodule <%= inspect context.module %> do
   """
 
   import Ecto.Query, warn: false
-  use AlveraPhoenixTemplateServer.LoggerMacro
+  use PaymentCompliancePlatform.LoggerMacro
 
-  alias AlveraPhoenixTemplateServer.Repo
-  alias AlveraPhoenixTemplateServer.SessionContext.Session
+  alias PaymentCompliancePlatform.Repo
+  alias PaymentCompliancePlatform.SessionContext.Session
   alias <%= inspect schema.module %>
 
   # Preloads for <%= schema.alias %> responses

@@ -78,7 +78,7 @@ RUN useradd --create-home app
 USER app
 
 # Copy release
-COPY --from=builder --chown=app:app /app/_build/prod/rel/alvera_phoenix_template_server ./
+COPY --from=builder --chown=app:app /app/_build/prod/rel/payment_compliance_platform ./
 
 # Expose port
 EXPOSE 4000
@@ -201,7 +201,7 @@ if config_env() == :prod do
 
   maybe_ipv6 = if System.get_env("ECTO_IPV6") in ~w(true 1), do: [:inet6], else: []
 
-  config :alvera_phoenix_template_server, AlveraPhoenixTemplateServer.Repo,
+  config :payment_compliance_platform, PaymentCompliancePlatform.Repo,
     url: database_url,
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     socket_options: maybe_ipv6
@@ -216,7 +216,7 @@ if config_env() == :prod do
   host = System.get_env("PHX_HOST") || "example.com"
   port = String.to_integer(System.get_env("PORT") || "4000")
 
-  config :alvera_phoenix_template_server, AlveraPhoenixTemplateServerWeb.Endpoint,
+  config :payment_compliance_platform, PaymentCompliancePlatformWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
     http: [
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
@@ -225,7 +225,7 @@ if config_env() == :prod do
     secret_key_base: secret_key_base
 
   # Mailer
-  config :alvera_phoenix_template_server, AlveraPhoenixTemplateServer.Mailer,
+  config :payment_compliance_platform, PaymentCompliancePlatform.Mailer,
     adapter: Swoosh.Adapters.SMTP,
     relay: System.get_env("SMTP_HOST"),
     port: System.get_env("SMTP_PORT"),
@@ -336,23 +336,23 @@ jobs:
 
 ```bash
 # Inside container
-/app/bin/alvera_phoenix_template_server eval "AlveraPhoenixTemplateServer.Release.migrate"
+/app/bin/payment_compliance_platform eval "PaymentCompliancePlatform.Release.migrate"
 
 # Or via release command
-/app/bin/alvera_phoenix_template_server rpc "AlveraPhoenixTemplateServer.Release.migrate()"
+/app/bin/payment_compliance_platform rpc "PaymentCompliancePlatform.Release.migrate()"
 ```
 
 ### Migration Module
 
-**File**: `lib/alvera_phoenix_template_server/release.ex`
+**File**: `lib/payment_compliance_platform/release.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServer.Release do
+defmodule PaymentCompliancePlatform.Release do
   @moduledoc """
   Tasks to run in production releases
   """
 
-  @app :alvera_phoenix_template_server
+  @app :payment_compliance_platform
 
   def migrate do
     load_app()
@@ -468,15 +468,15 @@ spec:
 
 ### Health Check Endpoint
 
-**File**: `lib/alvera_phoenix_template_server_web/controllers/health_controller.ex`
+**File**: `lib/payment_compliance_platform_web/controllers/health_controller.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerWeb.HealthController do
-  use AlveraPhoenixTemplateServerWeb, :controller
+defmodule PaymentCompliancePlatformWeb.HealthController do
+  use PaymentCompliancePlatformWeb, :controller
 
   def index(conn, _params) do
     # Check database
-    case Ecto.Adapters.SQL.query(AlveraPhoenixTemplateServer.Repo, "SELECT 1", []) do
+    case Ecto.Adapters.SQL.query(PaymentCompliancePlatform.Repo, "SELECT 1", []) do
       {:ok, _} ->
         json(conn, %{status: "healthy", timestamp: DateTime.utc_now()})
 
@@ -509,8 +509,8 @@ Monitor with LiveDashboard (protected):
 
 ```elixir
 # config/prod.exs
-config :alvera_phoenix_template_server, AlveraPhoenixTemplateServerWeb.Endpoint,
-  live_dashboard_auth: {AlveraPhoenixTemplateServerWeb.Auth, :require_admin}
+config :payment_compliance_platform, PaymentCompliancePlatformWeb.Endpoint,
+  live_dashboard_auth: {PaymentCompliancePlatformWeb.Auth, :require_admin}
 ```
 
 ## Secrets Management
@@ -530,7 +530,7 @@ defmodule Secrets do
   end
 end
 
-config :alvera_phoenix_template_server, AlveraPhoenixTemplateServer.Repo,
+config :payment_compliance_platform, PaymentCompliancePlatform.Repo,
   url: Secrets.fetch_secret("DATABASE_URL")["url"]
 ```
 
@@ -559,7 +559,7 @@ config :phoenix, :plug_init_mode, :runtime
 config :phoenix, :serve_endpoints, true
 
 # Bandit (faster than Cowboy)
-config :alvera_phoenix_template_server, AlveraPhoenixTemplateServerWeb.Endpoint,
+config :payment_compliance_platform, PaymentCompliancePlatformWeb.Endpoint,
   adapter: Bandit.PhoenixAdapter
 ```
 
@@ -575,8 +575,8 @@ kubectl set image deployment/phoenix-template \
   app=ghcr.io/alvera-ai/phoenix-template:v1.0.0
 
 # Rollback migration
-/app/bin/alvera_phoenix_template_server rpc \
-  "AlveraPhoenixTemplateServer.Release.rollback(AlveraPhoenixTemplateServer.Repo, 20240101000000)"
+/app/bin/payment_compliance_platform rpc \
+  "PaymentCompliancePlatform.Release.rollback(PaymentCompliancePlatform.Repo, 20240101000000)"
 ```
 
 ## Next Steps

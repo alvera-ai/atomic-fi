@@ -5,18 +5,18 @@
 # We recommend using the bang functions (`insert!`, `update!`
 # and so on) as they will fail if something goes wrong.
 
-alias AlveraPhoenixTemplateServer.{Config, Repo}
-alias AlveraPhoenixTemplateServer.TenantContext.Tenant
-alias AlveraPhoenixTemplateServer.UserContext.User
-alias AlveraPhoenixTemplateServer.RoleContext.{Role, RoleConstants}
-alias AlveraPhoenixTemplateServer.ApiKeyContext.ApiKey
+alias PaymentCompliancePlatform.{Config, Repo}
+alias PaymentCompliancePlatform.TenantContext.Tenant
+alias PaymentCompliancePlatform.UserContext.User
+alias PaymentCompliancePlatform.RoleContext.{Role, RoleConstants}
+alias PaymentCompliancePlatform.ApiKeyContext.ApiKey
 
 require Logger
 
 Logger.info("Starting database seeding...")
 
 # Start Vault for encryption
-case AlveraPhoenixTemplateServer.Vault.start_link() do
+case PaymentCompliancePlatform.Vault.start_link() do
   {:ok, _} -> Logger.info("Vault started")
   {:error, {:already_started, _}} -> Logger.info("Vault already running")
 end
@@ -162,7 +162,7 @@ Logger.info("Created bot user: #{bot_user_email}")
 
 # Create root API key for programmatic access
 root_api_key_hash = :crypto.hash(:sha256, root_api_key_value) |> Base.encode16(case: :lower)
-encrypted_key_value = AlveraPhoenixTemplateServer.Vault.encrypt!(root_api_key_value)
+encrypted_key_value = PaymentCompliancePlatform.Vault.encrypt!(root_api_key_value)
 
 %ApiKey{}
 |> ApiKey.changeset(%{
@@ -184,7 +184,7 @@ platform_admin_api_key_hash =
   :crypto.hash(:sha256, platform_admin_api_key_value) |> Base.encode16(case: :lower)
 
 encrypted_platform_admin_key =
-  AlveraPhoenixTemplateServer.Vault.encrypt!(platform_admin_api_key_value)
+  PaymentCompliancePlatform.Vault.encrypt!(platform_admin_api_key_value)
 
 %ApiKey{}
 |> ApiKey.changeset(%{

@@ -44,7 +44,7 @@ The template follows a traditional Phoenix layered architecture with multi-tenan
 
 ```
 lib/
-├── alvera_phoenix_template_server/          # Business logic
+├── payment_compliance_platform/          # Business logic
 │   ├── application.ex                        # OTP application
 │   ├── repo.ex                              # Ecto repository
 │   ├── schema.ex                            # Base schema module
@@ -65,7 +65,7 @@ lib/
 │       ├── scope.ex                         # Permissions
 │       └── ...
 │
-├── alvera_phoenix_template_server_web/      # Web interface
+├── payment_compliance_platform_web/      # Web interface
 │   ├── endpoint.ex                          # HTTP endpoint
 │   ├── router.ex                            # URL routing
 │   ├── telemetry.ex                         # Metrics
@@ -88,7 +88,7 @@ lib/
 │   └── plugs/                               # Custom plugs
 │       └── audit_logger.ex                  # Audit logging
 │
-└── alvera_phoenix_template_server_api/      # REST API
+└── payment_compliance_platform_api/      # REST API
     └── controllers/                         # API controllers
         └── ...
 ```
@@ -97,14 +97,14 @@ lib/
 
 ### 1. Repository (Repo)
 
-**File**: `lib/alvera_phoenix_template_server/repo.ex`
+**File**: `lib/payment_compliance_platform/repo.ex`
 
 The Ecto repository handles all database interactions:
 
 ```elixir
-defmodule AlveraPhoenixTemplateServer.Repo do
+defmodule PaymentCompliancePlatform.Repo do
   use Ecto.Repo,
-    otp_app: :alvera_phoenix_template_server,
+    otp_app: :payment_compliance_platform,
     adapter: Ecto.Adapters.Postgres
 end
 ```
@@ -117,12 +117,12 @@ end
 
 ### 2. Schema Base Module
 
-**File**: `lib/alvera_phoenix_template_server/schema.ex`
+**File**: `lib/payment_compliance_platform/schema.ex`
 
 Base module for all schemas with TypedEctoSchema and OpenAPI support:
 
 ```elixir
-defmodule AlveraPhoenixTemplateServer.Schema do
+defmodule PaymentCompliancePlatform.Schema do
   defmacro __using__(_) do
     quote do
       use TypedEctoSchema
@@ -144,9 +144,9 @@ Contexts encapsulate business logic and data access:
 
 **Pattern**:
 ```elixir
-defmodule AlveraPhoenixTemplateServer.UserContext do
-  alias AlveraPhoenixTemplateServer.Repo
-  alias AlveraPhoenixTemplateServer.UserContext.User
+defmodule PaymentCompliancePlatform.UserContext do
+  alias PaymentCompliancePlatform.Repo
+  alias PaymentCompliancePlatform.UserContext.User
 
   # List with tenant scoping
   def list_users(tenant_id, params \\ %{}) do
@@ -173,13 +173,13 @@ end
 
 ### 4. Web Endpoint
 
-**File**: `lib/alvera_phoenix_template_server_web/endpoint.ex`
+**File**: `lib/payment_compliance_platform_web/endpoint.ex`
 
 The HTTP endpoint handles all incoming requests:
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerWeb.Endpoint do
-  use Phoenix.Endpoint, otp_app: :alvera_phoenix_template_server
+defmodule PaymentCompliancePlatformWeb.Endpoint do
+  use Phoenix.Endpoint, otp_app: :payment_compliance_platform
 
   # WebSocket for LiveView
   socket "/live", Phoenix.LiveView.Socket
@@ -195,13 +195,13 @@ end
 
 ### 5. Router
 
-**File**: `lib/alvera_phoenix_template_server_web/router.ex`
+**File**: `lib/payment_compliance_platform_web/router.ex`
 
 Defines URL routing and pipelines:
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerWeb.Router do
-  use AlveraPhoenixTemplateServerWeb, :router
+defmodule PaymentCompliancePlatformWeb.Router do
+  use PaymentCompliancePlatformWeb, :router
 
   # Pipelines
   pipeline :browser do
@@ -218,13 +218,13 @@ defmodule AlveraPhoenixTemplateServerWeb.Router do
   end
 
   # Routes
-  scope "/", AlveraPhoenixTemplateServerWeb do
+  scope "/", PaymentCompliancePlatformWeb do
     pipe_through :browser
 
     get "/", PageController, :home
   end
 
-  scope "/api", AlveraPhoenixTemplateServerApi do
+  scope "/api", PaymentCompliancePlatformApi do
     pipe_through :api
 
     resources "/users", UserController
@@ -244,7 +244,7 @@ typed_schema "users" do
   # ... other fields ...
 
   # Tenant association
-  belongs_to :owner, AlveraPhoenixTemplateServer.TenantContext.Tenant
+  belongs_to :owner, PaymentCompliancePlatform.TenantContext.Tenant
 
   timestamps()
 end
@@ -304,10 +304,10 @@ end
 On-mount hooks for cross-cutting concerns:
 
 ```elixir
-defmodule AlveraPhoenixTemplateServerWeb.SomeLive do
-  use AlveraPhoenixTemplateServerWeb, :live_view
+defmodule PaymentCompliancePlatformWeb.SomeLive do
+  use PaymentCompliancePlatformWeb, :live_view
 
-  on_mount {AlveraPhoenixTemplateServerWeb.UserOnMountHooks, :require_authenticated_user}
+  on_mount {PaymentCompliancePlatformWeb.UserOnMountHooks, :require_authenticated_user}
 
   def mount(_params, _session, socket) do
     # current_user is available in socket.assigns
@@ -324,17 +324,17 @@ end
 
 ### 1. Background Jobs (Oban)
 
-**File**: `lib/alvera_phoenix_template_server/application.ex`
+**File**: `lib/payment_compliance_platform/application.ex`
 
 ```elixir
 children = [
-  {Oban, Application.fetch_env!(:alvera_phoenix_template_server, Oban)}
+  {Oban, Application.fetch_env!(:payment_compliance_platform, Oban)}
 ]
 ```
 
 **Job example**:
 ```elixir
-defmodule AlveraPhoenixTemplateServer.Workers.EmailWorker do
+defmodule PaymentCompliancePlatform.Workers.EmailWorker do
   use Oban.Worker, queue: :mailers
 
   @impl Oban.Worker
@@ -352,7 +352,7 @@ end
 
 ### 2. Audit Logging
 
-**File**: `lib/alvera_phoenix_template_server_web/plugs/audit_logger.ex`
+**File**: `lib/payment_compliance_platform_web/plugs/audit_logger.ex`
 
 Logs every user action to console (piped to S3):
 
@@ -370,7 +370,7 @@ Logger.info("audit_log",
 
 ### 3. Telemetry
 
-**File**: `lib/alvera_phoenix_template_server/telemetry.ex`
+**File**: `lib/payment_compliance_platform/telemetry.ex`
 
 Monitors slow operations:
 
@@ -384,11 +384,11 @@ end
 
 ### 4. Email (Swoosh)
 
-**File**: `lib/alvera_phoenix_template_server/mailer.ex`
+**File**: `lib/payment_compliance_platform/mailer.ex`
 
 ```elixir
-defmodule AlveraPhoenixTemplateServer.Mailer do
-  use Swoosh.Mailer, otp_app: :alvera_phoenix_template_server
+defmodule PaymentCompliancePlatform.Mailer do
+  use Swoosh.Mailer, otp_app: :payment_compliance_platform
 end
 ```
 
@@ -425,9 +425,9 @@ test/
 │   ├── conn_case.ex          # Controller tests
 │   ├── factory.ex            # Test data factories
 │   └── fixtures/             # Context fixtures
-├── alvera_phoenix_template_server/
+├── payment_compliance_platform/
 │   └── *_test.exs            # Context tests
-└── alvera_phoenix_template_server_web/
+└── payment_compliance_platform_web/
     ├── controllers/
     │   └── *_controller_test.exs
     └── live/

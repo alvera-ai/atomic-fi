@@ -1,4 +1,4 @@
-defmodule AlveraPhoenixTemplateServer.Repo.Migrations.CreateCustomers do
+defmodule PaymentCompliancePlatform.Repo.Migrations.CreateCustomers do
   use Ecto.Migration
 
   def change do
