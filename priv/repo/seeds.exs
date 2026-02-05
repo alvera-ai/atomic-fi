@@ -10,6 +10,7 @@ alias PaymentCompliancePlatform.TenantContext.Tenant
 alias PaymentCompliancePlatform.UserContext.User
 alias PaymentCompliancePlatform.RoleContext.{Role, RoleConstants}
 alias PaymentCompliancePlatform.ApiKeyContext.ApiKey
+alias PaymentCompliancePlatform.BlocklistContext.BlocklistEntry
 
 require Logger
 
@@ -197,6 +198,128 @@ encrypted_platform_admin_key =
 |> Repo.insert!(skip_multi_tenancy_check: true)
 
 Logger.info("Created platform admin API key")
+
+# Seed demo blocklist entries
+Logger.info("Seeding demo blocklist entries...")
+
+bot_user = Repo.get_by!(User, [email: bot_user_email], skip_multi_tenancy_check: true)
+
+demo_blocklist_entries = [
+  # Exact matches - First names
+  %{
+    scope: :first_name,
+    entry_type: :exact,
+    term: "test",
+    reason: "Generic test placeholder name",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  %{
+    scope: :first_name,
+    entry_type: :exact,
+    term: "dummy",
+    reason: "Generic dummy placeholder name",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  %{
+    scope: :first_name,
+    entry_type: :exact,
+    term: "john",
+    reason: "Demo blocked first name",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  # Exact matches - Last names
+  %{
+    scope: :last_name,
+    entry_type: :exact,
+    term: "test",
+    reason: "Generic test surname",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  %{
+    scope: :last_name,
+    entry_type: :exact,
+    term: "doe",
+    reason: "Demo blocked surname",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  # Exact matches - Company names
+  %{
+    scope: :company_name,
+    entry_type: :exact,
+    term: "acme",
+    reason: "Generic placeholder company",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  %{
+    scope: :company_name,
+    entry_type: :exact,
+    term: "test corp",
+    reason: "Generic test corporation",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  # Regex patterns - First names
+  %{
+    scope: :first_name,
+    entry_type: :regex,
+    term: "^user\\d+$",
+    reason: "User followed by numbers (user1, user123, etc.)",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  %{
+    scope: :first_name,
+    entry_type: :regex,
+    term: "^test.*",
+    reason: "Names starting with 'test'",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  # Regex patterns - Company names
+  %{
+    scope: :company_name,
+    entry_type: :regex,
+    term: "test.*company",
+    reason: "Test company variations",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  },
+  %{
+    scope: :company_name,
+    entry_type: :regex,
+    term: "^(zzz|xxx|aaa)\\s",
+    reason: "Common placeholder prefixes",
+    active: true,
+    tenant_id: tenant.id,
+    added_by_id: bot_user.id
+  }
+]
+
+Enum.each(demo_blocklist_entries, fn entry_attrs ->
+  Repo.insert!(%BlocklistEntry{} |> BlocklistEntry.changeset(entry_attrs), skip_multi_tenancy_check: true)
+end)
+
+Logger.info("✓ Seeded #{length(demo_blocklist_entries)} demo blocklist entries")
+
+# Refresh the blocklist cache after seeding
+PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant.id)
+Logger.info("✓ Refreshed blocklist cache for tenant #{tenant.id}")
 
 Logger.info("""
 
