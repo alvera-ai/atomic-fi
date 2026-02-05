@@ -1,0 +1,39 @@
+<div class="ai-search-component bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+  <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">
+    AI Search
+  </h3>
+
+  <form phx-submit="search" phx-target={@myself}>
+    <div class="flex gap-2">
+      <.input
+        type="text"
+        name="prompt"
+        value={@prompt}
+        placeholder="Ask AI to search <%= schema.plural %>..."
+        class="flex-1"
+        phx-debounce="500"
+      />
+      <.button type="submit" disabled={@loading}>
+        <%%= if @loading do %>
+          <.icon name="hero-arrow-path" class="animate-spin" />
+        <%% else %>
+          Search
+        <%% end %>
+      </.button>
+      <.button type="button" phx-click="clear" phx-target={@myself} variant="outline">
+        Clear
+      </.button>
+    </div>
+  </form>
+
+  <%%= if @prompt != "" do %>
+    <div class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+      <p class="text-sm text-blue-700 dark:text-blue-300">
+        Searching for: <strong><%%= @prompt %%></strong>
+      </p>
+      <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">
+        AI search functionality needs to be implemented. See ai_component.ex
+      </p>
+    </div>
+  <%% end %>
+</div>

@@ -1,0 +1,80 @@
+<.header>
+  Listing <%= schema.human_plural %>
+  <:actions>
+    <%= if assigns[:ai_search] do %>
+      <.button phx-click="toggle_ai_query" variant="outline">
+        <.icon name="hero-sparkles" /> AI Search
+      </.button>
+    <% end %>
+    <.button phx-click="export_csv" variant="outline">
+      <.icon name="hero-arrow-down-tray" /> Export CSV
+    </.button>
+    <.link navigate={~p"<%= schema.route_prefix %>/new"}>
+      <.button>New <%= schema.human_singular %></.button>
+    </.link>
+  </:actions>
+</.header>
+
+<%%= if @ai_search_open? do %>
+  <.live_component
+    module={<%= inspect context.web_module %>.<%= inspect Module.concat(schema.web_namespace, schema.alias) %>Live.AIComponent}
+    id="ai-search-container"
+    sql_from_prompt={@sql_from_prompt}
+  />
+<%% end %>
+
+<.table
+  :if={@index_params}
+  id="<%= schema.plural %>"
+  rows={@<%= schema.plural %>}
+  meta={@meta}
+>
+<%= for {col, type} <- schema.attrs do %>  <:col :let={<%= schema.singular %>} label="<%= Phoenix.Naming.humanize(Atom.to_string(col)) %>" :if={@visible_list |> Enum.member?(:<%= col %>)}>
+    <%= case type do %>
+      <% :utc_datetime -> %><%%= @<%= schema.singular %>.<%= col %> && Calendar.strftime(@<%= schema.singular %>.<%= col %>, "%Y-%m-%d %H:%M") %%>
+      <% :date -> %><%%= @<%= schema.singular %>.<%= col %> && Calendar.strftime(@<%= schema.singular %>.<%= col %>, "%Y-%m-%d") %%>
+      <% :boolean -> %><%%= if @<%= schema.singular %>.<%= col %>, do: "✓", else: "✗" %%>
+      <% _ -> %><%%= <%= schema.singular %>.<%= col %> %%>
+    <% end %>
+  </:col>
+<% end %>
+  <:col :let={<%= schema.singular %>} label="Inserted at" :if={@visible_list |> Enum.member?(:inserted_at)}>
+    <%%= Calendar.strftime(<%= schema.singular %>.inserted_at, "%Y-%m-%d %H:%M") %%>
+  </:col>
+
+  <:action :let={<%= schema.singular %>} :if={@visible_list |> Enum.member?(:action)}>
+    <.link navigate={~p"<%= schema.route_prefix %>/#{<%= schema.singular %>}"}>Edit</.link>
+  </:action>
+  <:action :let={<%= schema.singular %>} :if={@visible_list |> Enum.member?(:action)}>
+    <.link
+      phx-click={JS.push("delete", value: %{id: <%= schema.singular %>.id}) |> hide("##{<%= schema.singular %>.id}")}
+      data-confirm="Are you sure?"
+    >
+      Delete
+    </.link>
+  </:action>
+</.table>
+
+<div :if={@meta} class="mt-4 flex items-center justify-between">
+  <p class="text-sm text-gray-700">
+    Showing <%%= (@meta.current_page - 1) * @meta.page_size + 1 %%> to
+    <%%= min(@meta.current_page * @meta.page_size, @meta.total_count) %%> of
+    <%%= @meta.total_count %%> results
+  </p>
+
+  <div class="flex gap-2">
+    <.link
+      :if={@meta.current_page > 1}
+      patch={~p"<%= schema.route_prefix %>?page=#{@meta.current_page - 1}"}
+    >
+      <.button variant="outline">Previous</.button>
+    </.link>
+
+    <.link
+      :if={@meta.current_page < @meta.total_pages}
+      patch={~p"<%= schema.route_prefix %>?page=#{@meta.current_page + 1}"}
+    >
+      <.button variant="outline">Next</.button>
+    </.link>
+  </div>
+</div>
