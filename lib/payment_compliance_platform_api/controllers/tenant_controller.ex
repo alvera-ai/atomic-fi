@@ -28,7 +28,6 @@ defmodule PaymentCompliancePlatformApi.TenantController do
     end
   end
 
-
   operation(:index,
     summary: "List tenants",
     description: """

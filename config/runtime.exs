@@ -21,6 +21,13 @@ if System.get_env("PHX_SERVER") do
 end
 
 if config_env() == :prod do
+  # Watchman sanctions screening service
+  watchman_url =
+    System.get_env("WATCHMAN_URL") ||
+      raise "environment variable WATCHMAN_URL is missing."
+
+  config :payment_compliance_platform, :watchman_base_url, watchman_url
+
   # Cloak encryption key for sensitive fields (API keys, tokens, etc.)
   cloak_key = System.get_env("CLOAK_KEY") || raise("CLOAK_KEY is missing")
 

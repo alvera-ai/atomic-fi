@@ -2,11 +2,15 @@ import Config
 
 # System entities for seeding (CRM pattern - just names, not full configs)
 config :payment_compliance_platform,
+  env: :test,
   tenant_name: "System",
   admin_user: "admin@system.local",
   admin_pass: "admin-password-test",
   bot_user: "bot@system.local",
   root_api_key: "alvera_root_api_key_test"
+
+# Watchman client (uses Req.Test mocking in tests)
+config :payment_compliance_platform, :watchman_base_url, "http://localhost:8084"
 
 # Configure encryption vault
 config :payment_compliance_platform, PaymentCompliancePlatform.Vault,
