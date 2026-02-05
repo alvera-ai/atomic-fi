@@ -2,11 +2,11 @@ defmodule PaymentCompliancePlatformApi.OnboardingController do
   use PaymentCompliancePlatformApi.Controller
   use OpenApiSpex.ControllerSpecs
 
-  alias PaymentCompliancePlatform.OpenApiSchema
   alias PaymentCompliancePlatform.OpenApiSchema.AccountHolderRequest
   alias PaymentCompliancePlatform.OpenApiSchema.DecisionResponse
   alias PaymentCompliancePlatform.DecisionContext
   alias PaymentCompliancePlatformApi.Helpers.ApiHelpers
+  alias OpenApiSpex.Reference
 
   plug OpenApiSpex.Plug.CastAndValidate, json_render_error_v2: true
   action_fallback PaymentCompliancePlatformApi.FallbackController
@@ -29,17 +29,17 @@ defmodule PaymentCompliancePlatformApi.OnboardingController do
       ok: {
         "Decision created",
         "application/json",
-        DecisionResponse
+        %Reference{"$ref": "#/components/schemas/DecisionResponse"}
       },
       unprocessable_entity: {
         "Validation errors",
         "application/json",
-        OpenApiSchema.ChangesetErrors
+        %Reference{"$ref": "#/components/schemas/ChangesetErrors"}
       },
       service_unavailable: {
         "Watchman service unavailable",
         "application/json",
-        OpenApiSchema.ErrorResponse
+        %Reference{"$ref": "#/components/schemas/ErrorResponse"}
       }
     ]
   )

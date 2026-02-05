@@ -1,6 +1,6 @@
 defmodule PaymentCompliancePlatformApi.ApiSpec do
   @moduledoc """
-  OpenAPI specification for the Alvera Phoenix Template Server API.
+  OpenAPI specification for the Payment Compliance Platform API.
 
   This module defines the OpenAPI 3.1 specification for the API.
   It automatically generates API documentation from controller operations and schema definitions.
@@ -35,7 +35,7 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
     %OpenApi{
       openapi: "3.1.0",
       info: %Info{
-        title: "Alvera Phoenix Template API",
+        title: "Payment Compliance Platform API",
         version: "0.1.0",
         description: read_description()
       },
@@ -143,7 +143,7 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
 
       {:error, _} ->
         """
-        Alvera Phoenix Template Server - A bare-bones Elixir/Phoenix template with multi-tenancy, RLS, and API-key authentication.
+        Payment Compliance Platform - Screen payments and account holders against international sanctions lists with manual review and override capabilities.
 
         ## Authentication
 
@@ -155,7 +155,7 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
 
         ## Multi-Tenancy
 
-        All resources are scoped to a tenant. Requests automatically use the tenant associated with your API key.
+        All resources are scoped to a tenant (financial institution). Requests automatically use the tenant associated with your API key.
         """
     end
   end
