@@ -136,6 +136,83 @@ This pattern ensures that:
 
 ---
 
+## OpenAPI Schema Patterns (ExOpenApiUtils)
+
+### Auto-Generated Request/Response Schemas
+
+ExOpenApiUtils automatically generates separate Request and Response schemas from Ecto schemas annotated with `open_api_schema`.
+
+**Naming Convention:**
+- Schema title `"AccountHolder"` generates:
+  - `PaymentCompliancePlatform.OpenApiSchema.AccountHolderRequest` (for API requests)
+  - `PaymentCompliancePlatform.OpenApiSchema.AccountHolderResponse` (for API responses)
+
+**Important:** Title must match module name exactly (no spaces):
+- ✅ `title: "AccountHolder"`
+- ❌ `title: "Account holder"` (space breaks auto-generation)
+
+### ReadOnly vs WriteOnly Fields
+
+**ReadOnly fields** (`readOnly: true`):
+- Appear ONLY in Response schemas
+- Excluded from Request schemas
+- Use for server-generated values: `id`, `inserted_at`, `updated_at`, `tenant_id`
+
+```elixir
+open_api_property(schema: %Schema{type: :string, format: :uuid, readOnly: true}, key: :id)
+open_api_property(schema: %Schema{type: :string, format: :"date-time", readOnly: true}, key: :inserted_at)
+open_api_property(schema: %Schema{type: :string, format: :"date-time", readOnly: true}, key: :updated_at)
+```
+
+**WriteOnly fields** (`writeOnly: true`):
+- Appear ONLY in Request schemas
+- Excluded from Response schemas
+- Use for sensitive input: passwords, tokens
+
+```elixir
+open_api_property(schema: %Schema{type: :string, writeOnly: true}, key: :password)
+```
+
+**No flag:**
+- Appears in BOTH Request and Response schemas
+- Use for regular data fields
+
+```elixir
+open_api_property(schema: %Schema{type: :string}, key: :name)
+```
+
+### Nested Schema References
+
+For embedded schemas in arrays, reference the auto-generated Request/Response variants:
+
+```elixir
+# In parent schema (AccountHolder)
+open_api_property(
+  schema: %Schema{
+    type: :array,
+    items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/InterestedCompanyRequest"}
+  },
+  key: :interested_companies
+)
+```
+
+The nested schema (InterestedCompany) must also have proper `open_api_schema` annotation:
+
+```elixir
+# In InterestedCompany embedded schema
+open_api_schema(
+  title: "InterestedCompany",  # Generates InterestedCompanyRequest/Response
+  description: "Interested company for account holder screening",
+  required: [:name],
+  properties: [:name, :created, :dissolved]
+)
+```
+
+### Reference
+- GitHub: https://github.com/v3-dot-cash/ex_open_api_utils
+
+---
+
 ## Template Repository Notice
 
 This is a **template repository**. It provides a minimal Phoenix setup and should be customized for your specific project needs. Unlike the full platform implementation, this template:
