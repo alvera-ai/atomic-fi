@@ -85,6 +85,43 @@ defmodule PaymentCompliancePlatformWeb.ConnCase do
   end
 
   @doc """
+  Seed demo blocklist entries for platform tenant and initialize cache.
+
+  Creates the same blocklist entries as seeds.exs for testing purposes.
+  """
+  def seed_blocklist_for_platform_tenant do
+    alias PaymentCompliancePlatform.{Repo}
+    alias PaymentCompliancePlatform.TenantContext.Tenant
+    alias PaymentCompliancePlatform.BlocklistContext.BlocklistEntry
+    import Ecto.Query
+
+    platform_tenant =
+      from(t in Tenant, where: t.tenant_type == :platform)
+      |> Repo.one!(skip_multi_tenancy_check: true)
+
+    demo_entries = [
+      # Exact matches - First names
+      %{scope: :first_name, entry_type: :exact, term: "john", reason: "Demo blocked", active: true},
+      %{scope: :first_name, entry_type: :exact, term: "test", reason: "Demo blocked", active: true},
+      # Exact matches - Last names
+      %{scope: :last_name, entry_type: :exact, term: "doe", reason: "Demo blocked", active: true},
+      # Exact matches - Company names
+      %{scope: :company_name, entry_type: :exact, term: "acme", reason: "Demo blocked", active: true},
+      # Regex patterns (case-insensitive for normalized names)
+      %{scope: :first_name, entry_type: :regex, term: "(?i)^user\\d+$", reason: "User + number", active: true},
+      %{scope: :company_name, entry_type: :regex, term: "^(ZZZ|XXX|AAA)\\s", reason: "Placeholder", active: true}
+    ]
+
+    Enum.each(demo_entries, fn entry_attrs ->
+      %BlocklistEntry{}
+      |> BlocklistEntry.changeset(Map.put(entry_attrs, :tenant_id, platform_tenant.id))
+      |> Repo.insert!(skip_multi_tenancy_check: true)
+    end)
+
+    PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(platform_tenant.id)
+  end
+
+  @doc """
   Setup helper for API tests that need platform_admin_api authentication.
 
   Loads the platform_admin_api key created by test_migrations and creates

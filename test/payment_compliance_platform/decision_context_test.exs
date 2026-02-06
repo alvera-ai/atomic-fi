@@ -137,6 +137,162 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
       end
     end
 
+    test "blocks individual with exact blocklisted first name", %{session: session} do
+      seed_blocklist_for_tenant(session.tenant_id)
+
+      request_data = %{
+        name: "Test Company",
+        type: "business",
+        interested_individuals: [
+          %{
+            first_name: "John",
+            # "john" is in the blocklist
+            last_name: "Zephyrwind"
+            # Unique surname to avoid Watchman matches
+          }
+        ],
+        interested_companies: []
+      }
+
+      request = cast_account_holder_request(request_data)
+      assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
+      assert decision.overall_status == "blocked"
+      assert decision.total_entities_screened == 1
+      assert decision.entities_with_matches == 1
+
+      entity_decision = hd(decision.entity_decisions)
+      assert entity_decision.screening_result == :blocked
+      assert entity_decision.match_count == 0
+      # No Watchman matches - blocked by blocklist
+      assert entity_decision.sanctions_matches == []
+      # Should have blocklist match
+      assert length(entity_decision.blocklist_matches) > 0
+
+      blocklist_match = hd(entity_decision.blocklist_matches)
+      assert blocklist_match.matched_term == "john"
+      assert blocklist_match.match_type == :exact
+      assert blocklist_match.scope == :first_name
+      assert blocklist_match.blocklist_updated_at != nil
+    end
+
+    test "blocks individual with exact blocklisted last name", %{session: session} do
+      seed_blocklist_for_tenant(session.tenant_id)
+
+      request_data = %{
+        name: "Test Company",
+        type: "business",
+        interested_individuals: [
+          %{
+            first_name: "Zephyr",
+            # Unique first name to avoid Watchman matches
+            last_name: "Doe"
+            # "doe" is in the blocklist
+          }
+        ],
+        interested_companies: []
+      }
+
+      request = cast_account_holder_request(request_data)
+      assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
+      assert decision.overall_status == "blocked"
+
+      entity_decision = hd(decision.entity_decisions)
+      assert entity_decision.screening_result == :blocked
+      assert length(entity_decision.blocklist_matches) > 0
+
+      blocklist_match = hd(entity_decision.blocklist_matches)
+      assert blocklist_match.matched_term == "doe"
+      assert blocklist_match.match_type == :exact
+      assert blocklist_match.scope == :last_name
+    end
+
+    test "blocks company with exact blocklisted name", %{session: session} do
+      seed_blocklist_for_tenant(session.tenant_id)
+
+      request_data = %{
+        name: "Test Company",
+        type: "business",
+        interested_individuals: [],
+        interested_companies: [
+          %{
+            name: "ACME Corporation"
+            # "acme" is in the blocklist (normalized)
+          }
+        ]
+      }
+
+      request = cast_account_holder_request(request_data)
+      assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
+      assert decision.overall_status == "blocked"
+
+      entity_decision = hd(decision.entity_decisions)
+      assert entity_decision.screening_result == :blocked
+      assert length(entity_decision.blocklist_matches) > 0
+
+      blocklist_match = hd(entity_decision.blocklist_matches)
+      assert blocklist_match.matched_term == "acme"
+      assert blocklist_match.match_type == :exact
+      assert blocklist_match.scope == :company_name
+    end
+
+    test "blocks individual with regex blocklisted first name", %{session: session} do
+      seed_blocklist_for_tenant(session.tenant_id)
+
+      request_data = %{
+        name: "Test Company",
+        type: "business",
+        interested_individuals: [
+          %{
+            first_name: "User123",
+            # Matches "^user\d+$" regex pattern
+            last_name: "Thunderstone"
+            # Unique surname to avoid Watchman matches
+          }
+        ],
+        interested_companies: []
+      }
+
+      request = cast_account_holder_request(request_data)
+      assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
+      assert decision.overall_status == "blocked"
+
+      entity_decision = hd(decision.entity_decisions)
+      assert entity_decision.screening_result == :blocked
+      assert length(entity_decision.blocklist_matches) > 0
+
+      blocklist_match = hd(entity_decision.blocklist_matches)
+      assert blocklist_match.match_type == :regex
+      assert blocklist_match.scope == :first_name
+    end
+
+    test "blocks company with regex blocklisted name", %{session: session} do
+      seed_blocklist_for_tenant(session.tenant_id)
+
+      request_data = %{
+        name: "Test Company",
+        type: "business",
+        interested_individuals: [],
+        interested_companies: [
+          %{
+            name: "ZZZ Holdings"
+            # Matches "^(zzz|xxx|aaa)\\s" regex pattern
+          }
+        ]
+      }
+
+      request = cast_account_holder_request(request_data)
+      assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
+      assert decision.overall_status == "blocked"
+
+      entity_decision = hd(decision.entity_decisions)
+      assert entity_decision.screening_result == :blocked
+      assert length(entity_decision.blocklist_matches) > 0
+
+      blocklist_match = hd(entity_decision.blocklist_matches)
+      assert blocklist_match.match_type == :regex
+      assert blocklist_match.scope == :company_name
+    end
+
     test "screens account holder with no interested parties", %{session: session} do
       init_blocklist_cache(session.tenant_id)
 

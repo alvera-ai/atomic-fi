@@ -289,6 +289,170 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
       assert Map.has_key?(list_sources, "lists")
     end
 
+    test "blocks individual with exact blocklisted first name", %{conn: conn} do
+      seed_blocklist_for_platform_tenant()
+
+      request_body = %{
+        name: "Test Company",
+        type: "business",
+        interested_individuals: [
+          %{
+            first_name: "John",
+            # "john" is in the blocklist
+            last_name: "Zephyrwind"
+            # Unique surname to avoid Watchman matches
+          }
+        ],
+        interested_companies: []
+      }
+
+      conn = post(conn, ~p"/api/onboarding/screen", request_body)
+
+      assert %{
+               "overall_status" => "blocked",
+               "total_entities_screened" => 1,
+               "entities_with_matches" => 1,
+               "entity_decisions" => [entity_decision]
+             } = json_response(conn, 200)
+
+      assert entity_decision["screening_result"] == "blocked"
+      assert entity_decision["match_count"] == 0
+      # No Watchman matches
+      assert entity_decision["sanctions_matches"] == []
+      # Has blocklist match
+      assert length(entity_decision["blocklist_matches"]) > 0
+
+      blocklist_match = hd(entity_decision["blocklist_matches"])
+      assert blocklist_match["matched_term"] == "john"
+      assert blocklist_match["match_type"] == "exact"
+      assert blocklist_match["scope"] == "first_name"
+      assert blocklist_match["blocklist_updated_at"] != nil
+    end
+
+    test "blocks individual with exact blocklisted last name", %{conn: conn} do
+      seed_blocklist_for_platform_tenant()
+
+      request_body = %{
+        name: "Test Company",
+        type: "business",
+        interested_individuals: [
+          %{
+            first_name: "Zephyr",
+            # Unique first name to avoid Watchman matches
+            last_name: "Doe"
+            # "doe" is in the blocklist
+          }
+        ],
+        interested_companies: []
+      }
+
+      conn = post(conn, ~p"/api/onboarding/screen", request_body)
+
+      assert %{
+               "overall_status" => "blocked",
+               "entity_decisions" => [entity_decision]
+             } = json_response(conn, 200)
+
+      assert entity_decision["screening_result"] == "blocked"
+      assert length(entity_decision["blocklist_matches"]) > 0
+
+      blocklist_match = hd(entity_decision["blocklist_matches"])
+      assert blocklist_match["matched_term"] == "doe"
+      assert blocklist_match["scope"] == "last_name"
+    end
+
+    test "blocks company with exact blocklisted name", %{conn: conn} do
+      seed_blocklist_for_platform_tenant()
+
+      request_body = %{
+        name: "Test Company",
+        type: "business",
+        interested_individuals: [],
+        interested_companies: [
+          %{
+            name: "ACME Corporation"
+            # "acme" is in the blocklist (normalized)
+          }
+        ]
+      }
+
+      conn = post(conn, ~p"/api/onboarding/screen", request_body)
+
+      assert %{
+               "overall_status" => "blocked",
+               "entity_decisions" => [entity_decision]
+             } = json_response(conn, 200)
+
+      assert entity_decision["screening_result"] == "blocked"
+      assert length(entity_decision["blocklist_matches"]) > 0
+
+      blocklist_match = hd(entity_decision["blocklist_matches"])
+      assert blocklist_match["matched_term"] == "acme"
+      assert blocklist_match["scope"] == "company_name"
+    end
+
+    test "blocks individual with regex blocklisted first name", %{conn: conn} do
+      seed_blocklist_for_platform_tenant()
+
+      request_body = %{
+        name: "Test Company",
+        type: "business",
+        interested_individuals: [
+          %{
+            first_name: "User123",
+            # Matches "^user\d+$" regex pattern
+            last_name: "Thunderstone"
+            # Unique surname to avoid Watchman matches
+          }
+        ],
+        interested_companies: []
+      }
+
+      conn = post(conn, ~p"/api/onboarding/screen", request_body)
+
+      assert %{
+               "overall_status" => "blocked",
+               "entity_decisions" => [entity_decision]
+             } = json_response(conn, 200)
+
+      assert entity_decision["screening_result"] == "blocked"
+      assert length(entity_decision["blocklist_matches"]) > 0
+
+      blocklist_match = hd(entity_decision["blocklist_matches"])
+      assert blocklist_match["match_type"] == "regex"
+      assert blocklist_match["scope"] == "first_name"
+    end
+
+    test "blocks company with regex blocklisted name", %{conn: conn} do
+      seed_blocklist_for_platform_tenant()
+
+      request_body = %{
+        name: "Test Company",
+        type: "business",
+        interested_individuals: [],
+        interested_companies: [
+          %{
+            name: "ZZZ Holdings"
+            # Matches "^(zzz|xxx|aaa)\\s" regex pattern
+          }
+        ]
+      }
+
+      conn = post(conn, ~p"/api/onboarding/screen", request_body)
+
+      assert %{
+               "overall_status" => "blocked",
+               "entity_decisions" => [entity_decision]
+             } = json_response(conn, 200)
+
+      assert entity_decision["screening_result"] == "blocked"
+      assert length(entity_decision["blocklist_matches"]) > 0
+
+      blocklist_match = hd(entity_decision["blocklist_matches"])
+      assert blocklist_match["match_type"] == "regex"
+      assert blocklist_match["scope"] == "company_name"
+    end
+
     test "requires authentication", %{conn: base_conn} do
       # Remove API key
       conn = delete_req_header(base_conn, "x-api-key")
