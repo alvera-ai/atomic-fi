@@ -9,12 +9,7 @@ defmodule PaymentCompliancePlatform.Repo.Migrations.SeedSystemEntities do
   alias PaymentCompliancePlatform.ApiKeyContext.ApiKey
 
   def up do
-    # Start Vault directly for encryption (Application may not be running during migration)
-    case PaymentCompliancePlatform.Vault.start_link() do
-      {:ok, _} -> :ok
-      {:error, {:already_started, _}} -> :ok
-    end
-
+    # Vault is started by the application supervisor before tests run
     # Read config values using Config.fetch! (idiomatic - fails fast if missing)
     tenant_name = Config.fetch!(:tenant_name)
     admin_user_email = Config.fetch!(:admin_user)

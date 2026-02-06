@@ -67,9 +67,6 @@ jobs:
       - name: Create database
         run: mix ecto.create
 
-      - name: Run migrations
-        run: mix ecto.migrate
-
       - name: Run tests
         run: mix test --warnings-as-errors
 
