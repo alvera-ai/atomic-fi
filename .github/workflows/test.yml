@@ -29,6 +29,11 @@ jobs:
         ports:
           - 5432:5432
 
+      watchman:
+        image: moov/watchman:latest
+        ports:
+          - 8084:8084
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
