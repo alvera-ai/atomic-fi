@@ -17,6 +17,7 @@ defmodule PaymentCompliancePlatform.SessionContext.SessionManager do
   import Ecto.Query
   require Logger
 
+  alias PaymentCompliancePlatform.ApiKeyContext.ApiKey
   alias PaymentCompliancePlatform.Repo
   alias PaymentCompliancePlatform.SessionContext.Session
 
@@ -89,13 +90,20 @@ defmodule PaymentCompliancePlatform.SessionContext.SessionManager do
 
   Removes API sessions where:
   - Session is marked as inactive, OR
-  - Associated API key is inactive/deleted
+  - Associated API key has been deleted (doesn't exist in api_keys table)
   """
   def clear_expired_sessions do
-    # Delete sessions that are inactive or whose API key is inactive
+    # Subquery to find API key IDs that exist
+    existing_api_key_ids =
+      from(k in ApiKey,
+        select: k.id
+      )
+
+    # Delete sessions that are inactive OR whose API key no longer exists
+    # Using a subquery to avoid left join (not supported in PostgreSQL delete_all)
+    # Note: api_key_id cannot be null for type=:api due to DB constraint
     from(s in Session,
-      left_join: k in assoc(s, :api_key),
-      where: s.type == :api and (s.active == false or is_nil(k.id) or k.active == false)
+      where: s.type == :api and (s.active == false or s.api_key_id not in subquery(existing_api_key_ids))
     )
     |> Repo.delete_all(skip_multi_tenancy_check: true)
   end
