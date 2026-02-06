@@ -148,23 +148,95 @@ defmodule PaymentCompliancePlatform.DataCase do
 
     demo_entries = [
       # Exact matches - First names
-      %{scope: :first_name, entry_type: :exact, term: "john", reason: "Demo blocked", active: true},
-      %{scope: :first_name, entry_type: :exact, term: "test", reason: "Demo blocked", active: true},
-      %{scope: :first_name, entry_type: :exact, term: "dummy", reason: "Demo blocked", active: true},
-      %{scope: :first_name, entry_type: :exact, term: "dear", reason: "Demo blocked", active: true},
-      %{scope: :first_name, entry_type: :exact, term: "mom", reason: "Demo blocked", active: true},
+      %{
+        scope: :first_name,
+        entry_type: :exact,
+        term: "john",
+        reason: "Demo blocked",
+        active: true
+      },
+      %{
+        scope: :first_name,
+        entry_type: :exact,
+        term: "test",
+        reason: "Demo blocked",
+        active: true
+      },
+      %{
+        scope: :first_name,
+        entry_type: :exact,
+        term: "dummy",
+        reason: "Demo blocked",
+        active: true
+      },
+      %{
+        scope: :first_name,
+        entry_type: :exact,
+        term: "dear",
+        reason: "Demo blocked",
+        active: true
+      },
+      %{
+        scope: :first_name,
+        entry_type: :exact,
+        term: "mom",
+        reason: "Demo blocked",
+        active: true
+      },
       # Exact matches - Last names
       %{scope: :last_name, entry_type: :exact, term: "doe", reason: "Demo blocked", active: true},
-      %{scope: :last_name, entry_type: :exact, term: "test", reason: "Demo blocked", active: true},
+      %{
+        scope: :last_name,
+        entry_type: :exact,
+        term: "test",
+        reason: "Demo blocked",
+        active: true
+      },
       # Exact matches - Company names
-      %{scope: :company_name, entry_type: :exact, term: "acme", reason: "Demo blocked", active: true},
-      %{scope: :company_name, entry_type: :exact, term: "test corp", reason: "Demo blocked", active: true},
+      %{
+        scope: :company_name,
+        entry_type: :exact,
+        term: "acme",
+        reason: "Demo blocked",
+        active: true
+      },
+      %{
+        scope: :company_name,
+        entry_type: :exact,
+        term: "test corp",
+        reason: "Demo blocked",
+        active: true
+      },
       # Regex patterns - First names (case-insensitive for normalized names)
-      %{scope: :first_name, entry_type: :regex, term: "(?i)^user\\d+$", reason: "User + number pattern", active: true},
-      %{scope: :first_name, entry_type: :regex, term: "(?i)^test.*", reason: "Test prefix", active: true},
+      %{
+        scope: :first_name,
+        entry_type: :regex,
+        term: "(?i)^user\\d+$",
+        reason: "User + number pattern",
+        active: true
+      },
+      %{
+        scope: :first_name,
+        entry_type: :regex,
+        term: "(?i)^test.*",
+        reason: "Test prefix",
+        active: true
+      },
       # Regex patterns - Company names (already uppercase normalized)
-      %{scope: :company_name, entry_type: :regex, term: "TEST.*COMPANY", reason: "Test company", active: true},
-      %{scope: :company_name, entry_type: :regex, term: "^(ZZZ|XXX|AAA)\\s", reason: "Placeholder prefix", active: true}
+      %{
+        scope: :company_name,
+        entry_type: :regex,
+        term: "TEST.*COMPANY",
+        reason: "Test company",
+        active: true
+      },
+      %{
+        scope: :company_name,
+        entry_type: :regex,
+        term: "^(ZZZ|XXX|AAA)\\s",
+        reason: "Placeholder prefix",
+        active: true
+      }
     ]
 
     Enum.each(demo_entries, fn entry_attrs ->

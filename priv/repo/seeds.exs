@@ -392,11 +392,22 @@ demo_blocklist_entries = [
   }
 ]
 
-Enum.each(demo_blocklist_entries, fn entry_attrs ->
-  Repo.insert!(%BlocklistEntry{} |> BlocklistEntry.changeset(entry_attrs), skip_multi_tenancy_check: true)
-end)
+inserted_count =
+  Enum.reduce(demo_blocklist_entries, 0, fn entry_attrs, acc ->
+    case Repo.insert(
+           %BlocklistEntry{} |> BlocklistEntry.changeset(entry_attrs),
+           skip_multi_tenancy_check: true,
+           on_conflict: :nothing,
+           conflict_target: [:tenant_id, :scope, :term]
+         ) do
+      {:ok, _} -> acc + 1
+      {:error, _} -> acc
+    end
+  end)
 
-Logger.info("✓ Seeded #{length(demo_blocklist_entries)} demo blocklist entries")
+Logger.info(
+  "✓ Seeded #{inserted_count} new blocklist entries (#{length(demo_blocklist_entries)} total attempted)"
+)
 
 # Refresh the blocklist cache after seeding
 PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant.id)

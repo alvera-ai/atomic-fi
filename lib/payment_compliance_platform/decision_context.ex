@@ -183,7 +183,9 @@ defmodule PaymentCompliancePlatform.DecisionContext do
 
     if blocklist_matches != [] do
       # Blocked by blocklist - skip Watchman screening
-      entity_decision = build_blocklist_entity_decision(:interested_individual, entity_name, blocklist_matches)
+      entity_decision =
+        build_blocklist_entity_decision(:interested_individual, entity_name, blocklist_matches)
+
       {:ok, entity_decision}
     else
       # Passed blocklist - continue to Watchman screening
@@ -202,7 +204,9 @@ defmodule PaymentCompliancePlatform.DecisionContext do
 
     if blocklist_matches != [] do
       # Blocked by blocklist - skip Watchman screening
-      entity_decision = build_blocklist_entity_decision(:interested_company, name, blocklist_matches)
+      entity_decision =
+        build_blocklist_entity_decision(:interested_company, name, blocklist_matches)
+
       {:ok, entity_decision}
     else
       # Passed blocklist - continue to Watchman screening
@@ -285,7 +289,8 @@ defmodule PaymentCompliancePlatform.DecisionContext do
       highest_match_score: highest_match_score,
       screened_at: DateTime.utc_now(),
       sanctions_matches: sanctions_matches,
-      blocklist_matches: []  # Empty - entity passed blocklist check
+      # Empty - entity passed blocklist check
+      blocklist_matches: []
     }
   end
 
@@ -351,7 +356,9 @@ defmodule PaymentCompliancePlatform.DecisionContext do
     matches =
       case BlocklistValidator.validate_first_name(tenant_id, first_name) do
         {:error, :blocklisted, match_type, matched_term, reason} ->
-          matches ++ [build_blocklist_match(tenant_id, :first_name, match_type, matched_term, reason)]
+          matches ++
+            [build_blocklist_match(tenant_id, :first_name, match_type, matched_term, reason)]
+
         {:ok, _} ->
           matches
       end
@@ -359,7 +366,9 @@ defmodule PaymentCompliancePlatform.DecisionContext do
     # Check last name
     case BlocklistValidator.validate_last_name(tenant_id, last_name) do
       {:error, :blocklisted, match_type, matched_term, reason} ->
-        matches ++ [build_blocklist_match(tenant_id, :last_name, match_type, matched_term, reason)]
+        matches ++
+          [build_blocklist_match(tenant_id, :last_name, match_type, matched_term, reason)]
+
       {:ok, _} ->
         matches
     end
@@ -369,6 +378,7 @@ defmodule PaymentCompliancePlatform.DecisionContext do
     case BlocklistValidator.validate_company_name(tenant_id, company_name) do
       {:error, :blocklisted, match_type, matched_term, reason} ->
         [build_blocklist_match(tenant_id, :company_name, match_type, matched_term, reason)]
+
       {:ok, _} ->
         []
     end
@@ -389,10 +399,12 @@ defmodule PaymentCompliancePlatform.DecisionContext do
       entity_type: entity_type,
       entity_name: entity_name,
       screening_result: :blocked,
-      match_count: 0,  # No Watchman matches
+      # No Watchman matches
+      match_count: 0,
       highest_match_score: nil,
       screened_at: DateTime.utc_now(),
-      sanctions_matches: [],  # Empty - blocked by blocklist before Watchman
+      # Empty - blocked by blocklist before Watchman
+      sanctions_matches: [],
       blocklist_matches: blocklist_matches
     }
   end

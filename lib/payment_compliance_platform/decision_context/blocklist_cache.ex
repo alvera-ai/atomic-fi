@@ -21,7 +21,10 @@ defmodule PaymentCompliancePlatform.DecisionContext.BlocklistCache do
   """
   def init do
     :ets.new(@table_name, [:set, :named_table, :public, read_concurrency: true])
-    Logger.info("BlocklistCache ETS table created (data will be loaded by scheduler or explicit refresh)")
+
+    Logger.info(
+      "BlocklistCache ETS table created (data will be loaded by scheduler or explicit refresh)"
+    )
   end
 
   @doc """

@@ -66,6 +66,10 @@ defmodule PaymentCompliancePlatform.BlocklistContext.BlocklistEntry do
     |> cast(attrs, [:scope, :entry_type, :term, :reason, :active, :added_by_id, :tenant_id])
     |> validate_required([:scope, :entry_type, :term, :tenant_id])
     |> validate_regex_compilation()
+    |> unique_constraint([:tenant_id, :scope, :term],
+      name: :blocklist_entries_unique_per_tenant,
+      message: "term already exists for this scope in the tenant"
+    )
   end
 
   defp validate_regex_compilation(changeset) do

@@ -21,10 +21,10 @@ defmodule PaymentCompliancePlatform.Repo.Migrations.CreateBlocklistEntries do
     create index(:blocklist_entries, [:active])
     create index(:blocklist_entries, [:scope])
 
-    # Composite unique index to prevent duplicate entries per tenant (when active)
+    # Composite unique index to prevent duplicate entries per tenant/scope/term
+    # Uniqueness applies regardless of active status to prevent duplicates
     create unique_index(:blocklist_entries, [:tenant_id, :scope, :term],
-             where: "active = true",
-             name: :blocklist_entries_unique_active
+             name: :blocklist_entries_unique_per_tenant
            )
   end
 end
