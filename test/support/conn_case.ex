@@ -38,6 +38,53 @@ defmodule PaymentCompliancePlatformWeb.ConnCase do
   end
 
   @doc """
+  Initialize blocklist cache for a tenant.
+
+  Call this helper before tests that perform screening operations
+  to ensure the cache is initialized and prevent uninitialized cache exceptions.
+
+  ## Examples
+
+      test "POST /api/onboarding/screen", %{conn: conn} do
+        init_blocklist_cache()  # Initializes platform tenant cache
+
+        request_body = %{name: "Test", type: "individual", ...}
+        conn = post(conn, ~p"/api/onboarding/screen", request_body)
+        assert json_response(conn, 200)
+      end
+
+  """
+  def init_blocklist_cache do
+    alias PaymentCompliancePlatform.{Repo}
+    alias PaymentCompliancePlatform.TenantContext.Tenant
+    import Ecto.Query
+
+    platform_tenant =
+      from(t in Tenant, where: t.tenant_type == :platform)
+      |> Repo.one!(skip_multi_tenancy_check: true)
+
+    PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(platform_tenant.id)
+  end
+
+  @doc """
+  Initialize blocklist cache for a specific tenant.
+
+  Use this when testing with custom tenants (not the platform tenant).
+
+  ## Examples
+
+      test "screens with custom tenant" do
+        tenant = insert_tenant_with_cache()
+        init_blocklist_cache(tenant.id)
+        # ... perform screening ...
+      end
+
+  """
+  def init_blocklist_cache(tenant_id) do
+    PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant_id)
+  end
+
+  @doc """
   Setup helper for API tests that need platform_admin_api authentication.
 
   Loads the platform_admin_api key created by test_migrations and creates
