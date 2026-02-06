@@ -30,9 +30,10 @@ jobs:
           - 5432:5432
 
       watchman:
-        image: moov/watchman:latest
+        image: ghcr.io/alvera-ai/watchman:latest
         ports:
           - 8084:8084
+          - 9094:9094
 
     steps:
       - name: Checkout code
