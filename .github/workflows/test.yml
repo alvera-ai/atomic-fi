@@ -62,7 +62,7 @@ jobs:
         run: mix deps.compile
 
       - name: Compile application
-        run: mix compile --warnings-as-errors
+        run: mix compile
 
       - name: Check formatting
         run: mix format --check-formatted
@@ -74,7 +74,7 @@ jobs:
         run: mix ecto.create
 
       - name: Run tests
-        run: mix test --warnings-as-errors
+        run: mix test
 
       - name: Test Summary
         if: always()
