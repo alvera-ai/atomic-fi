@@ -111,6 +111,32 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
       {:ok, session: session}
     end
 
+    test "raises error when blocklist cache is not initialized" do
+      # Create a NEW tenant specifically for this test to avoid race conditions
+      new_tenant = insert(:tenant)
+      session = %{tenant_id: new_tenant.id, user_id: Ecto.UUID.generate()}
+
+      # Do NOT initialize cache for this tenant
+      request_data = %{
+        name: "Test Company",
+        type: "business",
+        interested_individuals: [
+          %{
+            first_name: "John",
+            last_name: "Doe"
+          }
+        ],
+        interested_companies: []
+      }
+
+      request = cast_account_holder_request(request_data)
+
+      # Should raise RuntimeError with specific message about uninitialized cache
+      assert_raise RuntimeError, ~r/BlocklistCache not initialized for tenant/, fn ->
+        DecisionContext.screen_account_holder(session, request)
+      end
+    end
+
     test "screens account holder with no interested parties", %{session: session} do
       init_blocklist_cache(session.tenant_id)
 
