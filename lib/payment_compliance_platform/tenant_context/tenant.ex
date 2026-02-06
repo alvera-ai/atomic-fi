@@ -33,7 +33,7 @@ defmodule PaymentCompliancePlatform.TenantContext.Tenant do
   # OpenAPI annotations
   open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :id)
   open_api_property(schema: %Schema{type: :string}, key: :name)
-  open_api_property(schema: %Schema{type: :string}, key: :slug)
+  open_api_property(schema: %Schema{type: :string, nullable: true}, key: :slug)
 
   open_api_property(
     schema: %Schema{type: :string, enum: ["active", "suspended", "inactive"]},
@@ -45,7 +45,7 @@ defmodule PaymentCompliancePlatform.TenantContext.Tenant do
     key: :tenant_type
   )
 
-  open_api_property(schema: %Schema{type: :object}, key: :metadata)
+  open_api_property(schema: %Schema{type: :object, nullable: true}, key: :metadata)
   open_api_property(schema: %Schema{type: :string, format: :"date-time"}, key: :inserted_at)
   open_api_property(schema: %Schema{type: :string, format: :"date-time"}, key: :updated_at)
 

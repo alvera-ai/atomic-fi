@@ -4,22 +4,35 @@ defmodule PaymentCompliancePlatform.DecisionContext do
   """
 
   import Ecto.Query, warn: false
-  alias PaymentCompliancePlatform.Repo
+  use PaymentCompliancePlatform.LoggerMacro
 
+  alias PaymentCompliancePlatform.Repo
   alias PaymentCompliancePlatform.DecisionContext.Decision
+  alias PaymentCompliancePlatform.DecisionContext.BlocklistCache
+  alias PaymentCompliancePlatform.DecisionContext.BlocklistValidator
+  alias PaymentCompliancePlatform.SessionContext.Session
   alias PaymentCompliancePlatform.Watchman.Operations
 
   @doc """
-  Returns the list of decisions.
+  Returns the list of decisions with pagination and filtering.
+
+  Uses Flop for idiomatic filtering, sorting, and pagination.
 
   ## Examples
 
-      iex> list_decisions()
-      [%Decision{}, ...]
+      iex> list_decisions(session, %{page: 1, page_size: 20})
+      {:ok, {[%Decision{}, ...], %Flop.Meta{}}}
 
   """
-  def list_decisions do
-    Repo.all(Decision)
+  @spec list_decisions(Session.t(), map()) ::
+          {:ok, {list(Decision.t()), Flop.Meta.t()}} | {:error, Flop.Meta.t()}
+  def_with_rls_and_logging list_decisions(session, flop_params \\ %{}), log_fields: [:flop_params] do
+    Decision
+    |> Flop.validate_and_run(flop_params,
+      for: Decision,
+      repo: Repo,
+      query_opts: [session: session]
+    )
   end
 
   @doc """
@@ -29,31 +42,36 @@ defmodule PaymentCompliancePlatform.DecisionContext do
 
   ## Examples
 
-      iex> get_decision!(123)
+      iex> get_decision!(session, "123")
       %Decision{}
 
-      iex> get_decision!(456)
+      iex> get_decision!(session, "456")
       ** (Ecto.NoResultsError)
 
   """
-  def get_decision!(id), do: Repo.get!(Decision, id)
+  @spec get_decision!(Session.t(), Ecto.UUID.t()) :: Decision.t()
+  def_with_rls_and_logging get_decision!(session, id), log_fields: [:id] do
+    Repo.get!(Decision, id, session: session)
+  end
 
   @doc """
   Creates a decision.
 
   ## Examples
 
-      iex> create_decision(%{field: value})
+      iex> create_decision(session, %{field: value})
       {:ok, %Decision{}}
 
-      iex> create_decision(%{field: bad_value})
+      iex> create_decision(session, %{field: bad_value})
       {:error, %Ecto.Changeset{}}
 
   """
-  def create_decision(attrs) do
+  @spec create_decision(Session.t(), map()) ::
+          {:ok, Decision.t()} | {:error, Ecto.Changeset.t()}
+  def_with_rls_and_logging create_decision(session, attrs), log_fields: [] do
     %Decision{}
     |> Decision.changeset(attrs)
-    |> Repo.insert()
+    |> Repo.insert(session: session)
   end
 
   @doc """
@@ -61,17 +79,20 @@ defmodule PaymentCompliancePlatform.DecisionContext do
 
   ## Examples
 
-      iex> update_decision(decision, %{field: new_value})
+      iex> update_decision(session, decision, %{field: new_value})
       {:ok, %Decision{}}
 
-      iex> update_decision(decision, %{field: bad_value})
+      iex> update_decision(session, decision, %{field: bad_value})
       {:error, %Ecto.Changeset{}}
 
   """
-  def update_decision(%Decision{} = decision, attrs) do
+  @spec update_decision(Session.t(), Decision.t(), map()) ::
+          {:ok, Decision.t()} | {:error, Ecto.Changeset.t()}
+  def_with_rls_and_logging update_decision(session, %Decision{} = decision, attrs),
+    log_fields: [:decision] do
     decision
     |> Decision.changeset(attrs)
-    |> Repo.update()
+    |> Repo.update(session: session)
   end
 
   @doc """
@@ -79,15 +100,18 @@ defmodule PaymentCompliancePlatform.DecisionContext do
 
   ## Examples
 
-      iex> delete_decision(decision)
+      iex> delete_decision(session, decision)
       {:ok, %Decision{}}
 
-      iex> delete_decision(decision)
+      iex> delete_decision(session, decision)
       {:error, %Ecto.Changeset{}}
 
   """
-  def delete_decision(%Decision{} = decision) do
-    Repo.delete(decision)
+  @spec delete_decision(Session.t(), Decision.t()) ::
+          {:ok, Decision.t()} | {:error, Ecto.Changeset.t()}
+  def_with_rls_and_logging delete_decision(session, %Decision{} = decision),
+    log_fields: [:decision] do
+    Repo.delete(decision, session: session)
   end
 
   @doc """
@@ -116,7 +140,7 @@ defmodule PaymentCompliancePlatform.DecisionContext do
           {:ok, Decision.t()} | {:error, term()}
   def screen_account_holder(session, request) do
     with {:ok, list_info} <- get_watchman_list_info(),
-         {:ok, entity_decisions} <- screen_all_entities(request) do
+         {:ok, entity_decisions} <- screen_all_entities(session.tenant_id, request) do
       decision = build_decision(session, list_info, entity_decisions, request)
       {:ok, decision}
     end
@@ -132,15 +156,15 @@ defmodule PaymentCompliancePlatform.DecisionContext do
     end
   end
 
-  defp screen_all_entities(%{
+  defp screen_all_entities(tenant_id, %{
          interested_individuals: individuals,
          interested_companies: companies
        }) do
     individuals = individuals || []
     companies = companies || []
 
-    individual_results = Enum.map(individuals, &screen_individual/1)
-    company_results = Enum.map(companies, &screen_company/1)
+    individual_results = Enum.map(individuals, &screen_individual(tenant_id, &1))
+    company_results = Enum.map(companies, &screen_company(tenant_id, &1))
 
     all_results = individual_results ++ company_results
 
@@ -151,24 +175,48 @@ defmodule PaymentCompliancePlatform.DecisionContext do
     end
   end
 
-  defp screen_individual(%{first_name: first_name, last_name: last_name} = individual) do
+  defp screen_individual(tenant_id, %{first_name: first_name, last_name: last_name} = individual) do
     entity_name = "#{first_name} #{last_name}"
 
-    search_params =
-      [name: entity_name, minMatch: 0.7, type: "person"]
-      |> maybe_add(:birthDate, individual.birth_date)
-      |> maybe_add(:gender, individual.gender)
+    # Check blocklist FIRST (fail fast)
+    blocklist_matches = check_individual_blocklist(tenant_id, first_name, last_name)
 
-    perform_watchman_search(:interested_individual, entity_name, search_params)
+    if blocklist_matches != [] do
+      # Blocked by blocklist - skip Watchman screening
+      entity_decision =
+        build_blocklist_entity_decision(:interested_individual, entity_name, blocklist_matches)
+
+      {:ok, entity_decision}
+    else
+      # Passed blocklist - continue to Watchman screening
+      search_params =
+        [name: entity_name, minMatch: 0.7, type: "person"]
+        |> maybe_add(:birthDate, individual.birth_date)
+        |> maybe_add(:gender, individual.gender)
+
+      perform_watchman_search(:interested_individual, entity_name, search_params)
+    end
   end
 
-  defp screen_company(%{name: name} = company) do
-    search_params =
-      [name: name, minMatch: 0.7, type: "business"]
-      |> maybe_add(:created, company.created)
-      |> maybe_add(:dissolved, company.dissolved)
+  defp screen_company(tenant_id, %{name: name} = company) do
+    # Check blocklist FIRST (fail fast)
+    blocklist_matches = check_company_blocklist(tenant_id, name)
 
-    perform_watchman_search(:interested_company, name, search_params)
+    if blocklist_matches != [] do
+      # Blocked by blocklist - skip Watchman screening
+      entity_decision =
+        build_blocklist_entity_decision(:interested_company, name, blocklist_matches)
+
+      {:ok, entity_decision}
+    else
+      # Passed blocklist - continue to Watchman screening
+      search_params =
+        [name: name, minMatch: 0.7, type: "business"]
+        |> maybe_add(:created, company.created)
+        |> maybe_add(:dissolved, company.dissolved)
+
+      perform_watchman_search(:interested_company, name, search_params)
+    end
   end
 
   defp maybe_add(params, _key, nil), do: params
@@ -240,13 +288,21 @@ defmodule PaymentCompliancePlatform.DecisionContext do
       match_count: match_count,
       highest_match_score: highest_match_score,
       screened_at: DateTime.utc_now(),
-      sanctions_matches: sanctions_matches
+      sanctions_matches: sanctions_matches,
+      # Empty - entity passed blocklist check
+      blocklist_matches: []
     }
   end
 
   defp build_decision(session, list_info, entity_decisions, request) do
     total_entities_screened = length(entity_decisions)
-    entities_with_matches = Enum.count(entity_decisions, &(&1.match_count > 0))
+
+    # Count entities with either Watchman matches OR blocklist matches
+    entities_with_matches =
+      Enum.count(entity_decisions, fn ed ->
+        ed.match_count > 0 || ed.blocklist_matches != []
+      end)
+
     overall_status = determine_overall_status(entity_decisions)
 
     decision_with_metadata = %Decision{
@@ -290,4 +346,66 @@ defmodule PaymentCompliancePlatform.DecisionContext do
   end
 
   defp parse_datetime(_), do: DateTime.utc_now()
+
+  # Blocklist validation helpers
+
+  defp check_individual_blocklist(tenant_id, first_name, last_name) do
+    matches = []
+
+    # Check first name
+    matches =
+      case BlocklistValidator.validate_first_name(tenant_id, first_name) do
+        {:error, :blocklisted, match_type, matched_term, reason} ->
+          matches ++
+            [build_blocklist_match(tenant_id, :first_name, match_type, matched_term, reason)]
+
+        {:ok, _} ->
+          matches
+      end
+
+    # Check last name
+    case BlocklistValidator.validate_last_name(tenant_id, last_name) do
+      {:error, :blocklisted, match_type, matched_term, reason} ->
+        matches ++
+          [build_blocklist_match(tenant_id, :last_name, match_type, matched_term, reason)]
+
+      {:ok, _} ->
+        matches
+    end
+  end
+
+  defp check_company_blocklist(tenant_id, company_name) do
+    case BlocklistValidator.validate_company_name(tenant_id, company_name) do
+      {:error, :blocklisted, match_type, matched_term, reason} ->
+        [build_blocklist_match(tenant_id, :company_name, match_type, matched_term, reason)]
+
+      {:ok, _} ->
+        []
+    end
+  end
+
+  defp build_blocklist_match(tenant_id, scope, match_type, matched_term, reason) do
+    %{
+      matched_term: matched_term,
+      match_type: match_type,
+      scope: scope,
+      reason: reason,
+      blocklist_updated_at: BlocklistCache.get_last_updated(tenant_id)
+    }
+  end
+
+  defp build_blocklist_entity_decision(entity_type, entity_name, blocklist_matches) do
+    %{
+      entity_type: entity_type,
+      entity_name: entity_name,
+      screening_result: :blocked,
+      # No Watchman matches
+      match_count: 0,
+      highest_match_score: nil,
+      screened_at: DateTime.utc_now(),
+      # Empty - blocked by blocklist before Watchman
+      sanctions_matches: [],
+      blocklist_matches: blocklist_matches
+    }
+  end
 end

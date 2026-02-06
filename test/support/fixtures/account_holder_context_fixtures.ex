@@ -4,17 +4,22 @@ defmodule PaymentCompliancePlatform.AccountHolderContextFixtures do
   entities via the `PaymentCompliancePlatform.AccountHolderContext` context.
   """
 
+  import PaymentCompliancePlatform.DataCase, only: [system_session: 0]
+
   @doc """
   Generate a account_holder.
   """
   def account_holder_fixture(attrs \\ %{}) do
+    session = system_session()
+
     {:ok, account_holder} =
       attrs
       |> Enum.into(%{
         name: "some name",
-        type: "some type"
+        type: :individual,
+        tenant_id: session.tenant_id
       })
-      |> PaymentCompliancePlatform.AccountHolderContext.create_account_holder()
+      |> then(&PaymentCompliancePlatform.AccountHolderContext.create_account_holder(session, &1))
 
     account_holder
   end

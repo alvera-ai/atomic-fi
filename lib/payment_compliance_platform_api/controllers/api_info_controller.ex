@@ -3,11 +3,32 @@ defmodule PaymentCompliancePlatformApi.ApiInfoController do
   use OpenApiSpex.ControllerSpecs
 
   alias PaymentCompliancePlatform.Repo
-  alias PaymentCompliancePlatform.OpenApiSchema.{ApiInfoResponse, ApiInfoErrorResponse}
+
+  alias PaymentCompliancePlatform.OpenApiSchema.{
+    ApiInfoResponse,
+    ApiInfoErrorResponse,
+    NormalizationRulesResponse
+  }
+
   alias PaymentCompliancePlatformApi.Helpers.ApiHelpers
   alias OpenApiSpex.Reference
 
   tags(["Health"])
+
+  # Load normalization rules at compile time
+  @external_resource normalization_rules_path =
+                       Path.join([
+                         :code.priv_dir(:payment_compliance_platform),
+                         "normalization_rules.exs"
+                       ])
+  @normalization_rules (case File.read(normalization_rules_path) do
+                          {:ok, content} ->
+                            {rules, _} = Code.eval_string(content)
+                            rules
+
+                          {:error, reason} ->
+                            raise "Failed to load normalization rules: #{inspect(reason)}"
+                        end)
 
   @doc """
   API info endpoint with database connectivity check.
@@ -97,5 +118,33 @@ defmodule PaymentCompliancePlatformApi.ApiInfoController do
   rescue
     error ->
       {:error, Exception.message(error)}
+  end
+
+  @doc """
+  Normalization rules endpoint.
+  Returns the hardcoded normalization rules used for data quality checks.
+  """
+  operation(:normalization_rules,
+    summary: "Get normalization rules",
+    description: """
+    Returns the normalization rules used across the platform for data quality:
+    - **titles**: List of name titles to strip (Mr., Mrs., Dr., etc.)
+    - **suffixes**: List of name suffixes to standardize (Jr., Sr., III, etc.)
+    - **entity_types**: List of company entity types to remove (LLC, Inc, Corp, etc.)
+
+    These rules are applied during account holder screening to normalize names
+    and company names before blocklist matching.
+
+    **No authentication required.**
+    """,
+    responses: [
+      ok:
+        {"Normalization rules", "application/json",
+         %Reference{"$ref": "#/components/schemas/NormalizationRulesResponse"}}
+    ]
+  )
+
+  def normalization_rules(conn, _params) do
+    ApiHelpers.json_response(conn, @normalization_rules, NormalizationRulesResponse)
   end
 end

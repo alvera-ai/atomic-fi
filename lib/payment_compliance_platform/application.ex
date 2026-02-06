@@ -7,6 +7,9 @@ defmodule PaymentCompliancePlatform.Application do
 
   @impl true
   def start(_type, _args) do
+    # Initialize BlocklistCache ETS table before supervision tree
+    PaymentCompliancePlatform.DecisionContext.BlocklistCache.init()
+
     children = [
       # Start the Telemetry supervisor
       PaymentCompliancePlatformWeb.Telemetry,
@@ -18,6 +21,8 @@ defmodule PaymentCompliancePlatform.Application do
       {Cachex, name: :api_session_cache},
       # Start SessionCleaner for periodic cleanup
       PaymentCompliancePlatform.SessionContext.SessionCleaner,
+      # Start Quantum scheduler for periodic jobs (blocklist cache refresh)
+      PaymentCompliancePlatform.Scheduler,
       # Start the PubSub system
       {Phoenix.PubSub, name: PaymentCompliancePlatform.PubSub},
       # Start Finch

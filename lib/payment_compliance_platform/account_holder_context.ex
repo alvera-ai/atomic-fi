@@ -4,21 +4,33 @@ defmodule PaymentCompliancePlatform.AccountHolderContext do
   """
 
   import Ecto.Query, warn: false
-  alias PaymentCompliancePlatform.Repo
+  use PaymentCompliancePlatform.LoggerMacro
 
+  alias PaymentCompliancePlatform.Repo
   alias PaymentCompliancePlatform.AccountHolderContext.AccountHolder
+  alias PaymentCompliancePlatform.SessionContext.Session
 
   @doc """
-  Returns the list of account_holders.
+  Returns the list of account_holders with pagination and filtering.
+
+  Uses Flop for idiomatic filtering, sorting, and pagination.
 
   ## Examples
 
-      iex> list_account_holders()
-      [%AccountHolder{}, ...]
+      iex> list_account_holders(session, %{page: 1, page_size: 20})
+      {:ok, {[%AccountHolder{}, ...], %Flop.Meta{}}}
 
   """
-  def list_account_holders do
-    Repo.all(AccountHolder)
+  @spec list_account_holders(Session.t(), map()) ::
+          {:ok, {list(AccountHolder.t()), Flop.Meta.t()}} | {:error, Flop.Meta.t()}
+  def_with_rls_and_logging list_account_holders(session, flop_params \\ %{}),
+    log_fields: [:flop_params] do
+    AccountHolder
+    |> Flop.validate_and_run(flop_params,
+      for: AccountHolder,
+      repo: Repo,
+      query_opts: [session: session]
+    )
   end
 
   @doc """
@@ -28,31 +40,36 @@ defmodule PaymentCompliancePlatform.AccountHolderContext do
 
   ## Examples
 
-      iex> get_account_holder!(123)
+      iex> get_account_holder!(session, "123")
       %AccountHolder{}
 
-      iex> get_account_holder!(456)
+      iex> get_account_holder!(session, "456")
       ** (Ecto.NoResultsError)
 
   """
-  def get_account_holder!(id), do: Repo.get!(AccountHolder, id)
+  @spec get_account_holder!(Session.t(), Ecto.UUID.t()) :: AccountHolder.t()
+  def_with_rls_and_logging get_account_holder!(session, id), log_fields: [:id] do
+    Repo.get!(AccountHolder, id, session: session)
+  end
 
   @doc """
   Creates a account_holder.
 
   ## Examples
 
-      iex> create_account_holder(%{field: value})
+      iex> create_account_holder(session, %{field: value})
       {:ok, %AccountHolder{}}
 
-      iex> create_account_holder(%{field: bad_value})
+      iex> create_account_holder(session, %{field: bad_value})
       {:error, %Ecto.Changeset{}}
 
   """
-  def create_account_holder(attrs) do
+  @spec create_account_holder(Session.t(), map()) ::
+          {:ok, AccountHolder.t()} | {:error, Ecto.Changeset.t()}
+  def_with_rls_and_logging create_account_holder(session, attrs), log_fields: [] do
     %AccountHolder{}
     |> AccountHolder.changeset(attrs)
-    |> Repo.insert()
+    |> Repo.insert(session: session)
   end
 
   @doc """
@@ -60,17 +77,24 @@ defmodule PaymentCompliancePlatform.AccountHolderContext do
 
   ## Examples
 
-      iex> update_account_holder(account_holder, %{field: new_value})
+      iex> update_account_holder(session, account_holder, %{field: new_value})
       {:ok, %AccountHolder{}}
 
-      iex> update_account_holder(account_holder, %{field: bad_value})
+      iex> update_account_holder(session, account_holder, %{field: bad_value})
       {:error, %Ecto.Changeset{}}
 
   """
-  def update_account_holder(%AccountHolder{} = account_holder, attrs) do
+  @spec update_account_holder(Session.t(), AccountHolder.t(), map()) ::
+          {:ok, AccountHolder.t()} | {:error, Ecto.Changeset.t()}
+  def_with_rls_and_logging update_account_holder(
+                             session,
+                             %AccountHolder{} = account_holder,
+                             attrs
+                           ),
+                           log_fields: [:account_holder] do
     account_holder
     |> AccountHolder.changeset(attrs)
-    |> Repo.update()
+    |> Repo.update(session: session)
   end
 
   @doc """
@@ -78,15 +102,18 @@ defmodule PaymentCompliancePlatform.AccountHolderContext do
 
   ## Examples
 
-      iex> delete_account_holder(account_holder)
+      iex> delete_account_holder(session, account_holder)
       {:ok, %AccountHolder{}}
 
-      iex> delete_account_holder(account_holder)
+      iex> delete_account_holder(session, account_holder)
       {:error, %Ecto.Changeset{}}
 
   """
-  def delete_account_holder(%AccountHolder{} = account_holder) do
-    Repo.delete(account_holder)
+  @spec delete_account_holder(Session.t(), AccountHolder.t()) ::
+          {:ok, AccountHolder.t()} | {:error, Ecto.Changeset.t()}
+  def_with_rls_and_logging delete_account_holder(session, %AccountHolder{} = account_holder),
+    log_fields: [:account_holder] do
+    Repo.delete(account_holder, session: session)
   end
 
   @doc """

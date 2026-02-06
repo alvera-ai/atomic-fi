@@ -61,6 +61,9 @@ defmodule PaymentCompliancePlatform.MixProject do
       # Background jobs (open-source Oban, not Oban Pro)
       {:oban, "~> 2.20"},
 
+      # Cron-like job scheduler
+      {:quantum, "~> 3.5"},
+
       # Ecto querying / pagination
       {:query_builder, "~> 1.4"},
       {:flop, "~> 0.25"},

@@ -23,6 +23,9 @@ defmodule PaymentCompliancePlatformApi.Routes do
         # API info endpoint (version + database connectivity check)
         get "/info", ApiInfoController, :info
 
+        # Normalization rules endpoint (data quality rules)
+        get "/info/normalization-rules", ApiInfoController, :normalization_rules
+
         # OpenAPI spec endpoint (for Scalar and other tools)
         get "/openapi", OpenApiSpecController, :spec
       end
@@ -37,6 +40,9 @@ defmodule PaymentCompliancePlatformApi.Routes do
         post "/tenants", TenantController, :create
         put "/tenants/:id", TenantController, :update
         delete "/tenants/:id", TenantController, :delete
+
+        # Tenant utility endpoints
+        post "/tenants/refresh-blocklist-cache", TenantController, :refresh_blocklist_cache
 
         # Onboarding screening endpoint
         post "/onboarding/screen", OnboardingController, :screen

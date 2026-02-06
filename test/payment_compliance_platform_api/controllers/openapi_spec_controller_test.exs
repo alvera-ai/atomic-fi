@@ -14,7 +14,7 @@ defmodule PaymentCompliancePlatformApi.OpenApiSpecControllerTest do
 
       # Verify servers section exists
       assert is_list(response["servers"])
-      assert length(response["servers"]) > 0
+      assert response["servers"] != []
 
       # Verify components section with security schemes
       assert %{"securitySchemes" => security_schemes} = response["components"]

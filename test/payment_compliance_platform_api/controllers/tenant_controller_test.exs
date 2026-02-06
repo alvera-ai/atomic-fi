@@ -4,7 +4,6 @@ defmodule PaymentCompliancePlatformApi.TenantControllerTest do
   import OpenApiSpex.TestAssertions
   import PaymentCompliancePlatform.Factory
 
-  alias PaymentCompliancePlatform.TenantContext
   alias PaymentCompliancePlatformApi.ApiSpec
 
   @create_attrs %{
@@ -272,7 +271,7 @@ defmodule PaymentCompliancePlatformApi.TenantControllerTest do
 
       assert %{"errors" => errors} = json_response(conn, 422)
       assert is_list(errors)
-      assert length(errors) > 0
+      assert errors != []
     end
 
     test "renders errors when name is missing", %{conn: conn} do
@@ -421,7 +420,7 @@ defmodule PaymentCompliancePlatformApi.TenantControllerTest do
 
       assert %{"errors" => errors} = json_response(conn, 422)
       assert is_list(errors)
-      assert length(errors) > 0
+      assert errors != []
     end
 
     test "renders errors when name is blank", %{conn: conn, tenant: tenant} do
