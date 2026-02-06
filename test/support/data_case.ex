@@ -119,6 +119,26 @@ defmodule PaymentCompliancePlatform.DataCase do
   end
 
   @doc """
+  Initialize blocklist cache for a tenant.
+
+  Call this helper before tests that perform screening operations
+  to ensure the cache is initialized and prevent uninitialized cache exceptions.
+
+  ## Examples
+
+      test "screens account holder", %{session: session} do
+        init_blocklist_cache(session.tenant_id)
+
+        request = %{name: "Test", type: "individual", ...}
+        assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
+      end
+
+  """
+  def init_blocklist_cache(tenant_id) do
+    PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant_id)
+  end
+
+  @doc """
   Casts request data through the AccountHolderRequest OpenAPI schema.
 
   This mimics what happens in the controller when OpenApiSpex validates

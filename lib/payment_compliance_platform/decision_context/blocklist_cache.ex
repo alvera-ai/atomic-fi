@@ -25,32 +25,122 @@ defmodule PaymentCompliancePlatform.DecisionContext.BlocklistCache do
   end
 
   @doc """
+  Check if cache is initialized for tenant (has any data loaded)
+
+  Returns true if tenant has cache entries, false if cache is empty/uninitialized.
+  """
+  def cache_initialized?(tenant_id) do
+    case :ets.lookup(@table_name, {tenant_id, :last_updated}) do
+      [{{^tenant_id, :last_updated}, _timestamp}] -> true
+      [] -> false
+    end
+  end
+
+  @doc """
   Get exact terms MapSet for tenant+scope
+
+  Returns empty MapSet if not found. Logs warning if cache is uninitialized.
   """
   def get_exact_terms(tenant_id, scope) do
     case :ets.lookup(@table_name, {tenant_id, :exact, scope}) do
-      [{{^tenant_id, :exact, ^scope}, mapset}] -> mapset
-      [] -> MapSet.new()
+      [{{^tenant_id, :exact, ^scope}, mapset}] ->
+        mapset
+
+      [] ->
+        unless cache_initialized?(tenant_id) do
+          Logger.warning(
+            "BlocklistCache not initialized for tenant #{tenant_id} - " <>
+              "returning empty set (entities will pass through). " <>
+              "Cache should be populated by Quantum scheduler or manual refresh."
+          )
+        end
+
+        MapSet.new()
     end
   end
 
   @doc """
   Get combined regex pattern for tenant+scope
+
+  Returns nil if not found. Logs warning if cache is uninitialized.
   """
   def get_regex_pattern(tenant_id, scope) do
     case :ets.lookup(@table_name, {tenant_id, :regex, scope}) do
-      [{{^tenant_id, :regex, ^scope}, regex}] -> regex
-      [] -> nil
+      [{{^tenant_id, :regex, ^scope}, regex}] ->
+        regex
+
+      [] ->
+        unless cache_initialized?(tenant_id) do
+          Logger.warning(
+            "BlocklistCache not initialized for tenant #{tenant_id} - " <>
+              "returning nil pattern (entities will pass through). " <>
+              "Cache should be populated by Quantum scheduler or manual refresh."
+          )
+        end
+
+        nil
     end
   end
 
   @doc """
   Get last updated timestamp for tenant (for BlocklistMatch.blocklist_updated_at)
+
+  Returns current time if not found. Logs warning if cache is uninitialized.
   """
   def get_last_updated(tenant_id) do
     case :ets.lookup(@table_name, {tenant_id, :last_updated}) do
-      [{{^tenant_id, :last_updated}, timestamp}] -> timestamp
-      [] -> DateTime.utc_now()
+      [{{^tenant_id, :last_updated}, timestamp}] ->
+        timestamp
+
+      [] ->
+        Logger.warning(
+          "BlocklistCache not initialized for tenant #{tenant_id} - " <>
+            "returning current timestamp. " <>
+            "Cache should be populated by Quantum scheduler or manual refresh."
+        )
+
+        DateTime.utc_now()
+    end
+  end
+
+  @doc """
+  Health check for cache state
+
+  Returns {:ok, stats} if cache is healthy, {:error, reason} otherwise.
+
+  ## Examples
+
+      iex> health_check()
+      {:ok, %{table_exists: true, total_entries: 42, initialized_tenants: 3}}
+
+      iex> health_check()
+      {:error, :table_not_found}
+  """
+  def health_check do
+    case :ets.whereis(@table_name) do
+      :undefined ->
+        {:error, :table_not_found}
+
+      _table_ref ->
+        all_entries = :ets.tab2list(@table_name)
+        total_entries = length(all_entries)
+
+        # Count distinct tenants with last_updated entries
+        initialized_tenants =
+          all_entries
+          |> Enum.filter(fn
+            {{_tenant_id, :last_updated}, _timestamp} -> true
+            _ -> false
+          end)
+          |> length()
+
+        stats = %{
+          table_exists: true,
+          total_entries: total_entries,
+          initialized_tenants: initialized_tenants
+        }
+
+        {:ok, stats}
     end
   end
 

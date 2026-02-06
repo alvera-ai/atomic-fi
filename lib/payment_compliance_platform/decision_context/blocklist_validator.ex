@@ -79,6 +79,24 @@ defmodule PaymentCompliancePlatform.DecisionContext.BlocklistValidator do
   # Private helpers
 
   defp check_blocklist(tenant_id, scope, normalized_value) do
+    # CRITICAL: Verify cache is initialized before validation
+    # Fail fast with exception if cache is not loaded to prevent false negatives
+    unless BlocklistCache.cache_initialized?(tenant_id) do
+      raise """
+      BlocklistCache not initialized for tenant #{tenant_id}.
+
+      Cache must be populated before screening can proceed. This prevents
+      accidentally allowing blocked entities through due to empty cache.
+
+      Solutions:
+      - Wait for Quantum scheduler to populate cache (runs hourly)
+      - Manually trigger cache refresh: POST /api/tenants/refresh-blocklist-cache
+      - Run seeds.exs to populate demo blocklist entries
+
+      Health check: BlocklistCache.health_check()
+      """
+    end
+
     # 1. Check exact match (O(1) MapSet lookup)
     exact_terms = BlocklistCache.get_exact_terms(tenant_id, scope)
     downcased = String.downcase(normalized_value)
