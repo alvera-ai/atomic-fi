@@ -9,9 +9,16 @@ defmodule PaymentCompliancePlatform.Repo.Migrations.SeedSystemEntities do
   alias PaymentCompliancePlatform.ApiKeyContext.ApiKey
 
   def up do
-    # Vault is started by the application supervisor before tests run
-    # Read config values using Config.fetch! (idiomatic - fails fast if missing)
-    tenant_name = Config.fetch!(:tenant_name)
+    # Start Vault temporarily for encrypting API keys (migrations run before app supervisor)
+    vault_started_by_migration =
+      case PaymentCompliancePlatform.Vault.start_link() do
+        {:ok, _pid} -> true
+        {:error, {:already_started, _pid}} -> false
+      end
+
+    try do
+      # Read config values using Config.fetch! (idiomatic - fails fast if missing)
+      tenant_name = Config.fetch!(:tenant_name)
     admin_user_email = Config.fetch!(:admin_user)
     admin_pass = Config.fetch!(:admin_pass)
     bot_user_email = Config.fetch!(:bot_user)
@@ -154,6 +161,12 @@ defmodule PaymentCompliancePlatform.Repo.Migrations.SeedSystemEntities do
       tenant_id: tenant.id
     })
     |> Repo.insert!(skip_multi_tenancy_check: true)
+    after
+      # Stop Vault if we started it, so the application supervisor can start it properly
+      if vault_started_by_migration do
+        Supervisor.stop(PaymentCompliancePlatform.Vault)
+      end
+    end
   end
 
   def down do
