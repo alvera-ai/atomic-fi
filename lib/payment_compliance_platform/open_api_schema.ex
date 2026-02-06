@@ -240,4 +240,11 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     TenantResponse,
     "tenants"
   )
+
+  # BlocklistEntry list response - wraps BlocklistEntryResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    BlocklistEntryListResponse,
+    BlocklistEntryResponse,
+    "blocklist_entries"
+  )
 end

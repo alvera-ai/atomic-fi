@@ -7,6 +7,8 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
     setup :setup_platform_admin_api
 
     test "screens account holder with clean individuals and companies", %{conn: conn} do
+      init_blocklist_cache()
+
       request_body = %{
         name: "Clean Company LLC",
         type: "business",
@@ -44,6 +46,8 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
     end
 
     test "screens account holder with sanctioned individual", %{conn: conn} do
+      init_blocklist_cache()
+
       request_body = %{
         name: "Test Company",
         type: "business",
@@ -82,6 +86,8 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
     end
 
     test "screens account holder with sanctioned company", %{conn: conn} do
+      init_blocklist_cache()
+
       request_body = %{
         name: "Partner Screening",
         type: "business",
@@ -109,6 +115,8 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
     end
 
     test "screens mixed - clean and sanctioned entities", %{conn: conn} do
+      init_blocklist_cache()
+
       request_body = %{
         name: "Mixed Screening Test",
         type: "business",
@@ -156,6 +164,8 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
     end
 
     test "screens famous athlete (clean)", %{conn: conn} do
+      init_blocklist_cache()
+
       request_body = %{
         name: "Sports Agency",
         type: "business",
@@ -258,6 +268,8 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
     end
 
     test "includes list sync information in response", %{conn: conn} do
+      init_blocklist_cache()
+
       request_body = %{
         name: "Info Test",
         type: "business",

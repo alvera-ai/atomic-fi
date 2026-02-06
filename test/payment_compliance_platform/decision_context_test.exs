@@ -112,6 +112,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens account holder with no interested parties", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -129,6 +131,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens account holder with individuals only", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -156,6 +160,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens account holder with companies only", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -181,6 +187,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens account holder with both individuals and companies", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -207,6 +215,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "includes Watchman list sync information", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -221,6 +231,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "stores raw request in decision", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -235,6 +247,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens known sanctioned individual - Vladimir Putin", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -274,6 +288,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens known sanctioned individual - Bashar al-Assad", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -302,6 +318,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens clean individual - fictional name", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -332,6 +350,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens famous footballer - Lionel Messi", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -359,6 +379,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens famous footballer - Cristiano Ronaldo", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -386,6 +408,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens famous footballer - Neymar da Silva Santos Junior", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -412,6 +436,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens famous basketball player - LeBron James", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -439,6 +465,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens famous tennis player - Serena Williams", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -466,6 +494,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens tech entrepreneur - Elon Musk", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -493,6 +523,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens known sanctioned company - Rosneft", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -526,6 +558,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens known sanctioned company - Bank Rossiya", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -557,6 +591,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens clean Fortune 500 company - Apple Inc", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -585,6 +621,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens clean Fortune 500 company - Microsoft Corporation", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -611,6 +649,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens clean Fortune 500 company - Amazon.com Inc", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -636,6 +676,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     test "screens mixed - sanctioned individual with clean Fortune 500 company", %{
       session: session
     } do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -681,6 +723,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens mixed - clean individual with sanctioned company", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -728,6 +772,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "screens multiple sanctioned individuals", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -759,6 +805,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "verifies sanctions match data structure", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -802,6 +850,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "verifies match score thresholds - high confidence match", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
@@ -830,6 +880,8 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
     end
 
     test "verifies list sync information is populated", %{session: session} do
+      init_blocklist_cache(session.tenant_id)
+
       request_data = %{
         name: "Test Company",
         type: "business",
