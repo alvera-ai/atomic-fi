@@ -103,7 +103,9 @@ defmodule PaymentCompliancePlatform.SessionContext.SessionManager do
     # Using a subquery to avoid left join (not supported in PostgreSQL delete_all)
     # Note: api_key_id cannot be null for type=:api due to DB constraint
     from(s in Session,
-      where: s.type == :api and (s.active == false or s.api_key_id not in subquery(existing_api_key_ids))
+      where:
+        s.type == :api and
+          (s.active == false or s.api_key_id not in subquery(existing_api_key_ids))
     )
     |> Repo.delete_all(skip_multi_tenancy_check: true)
   end

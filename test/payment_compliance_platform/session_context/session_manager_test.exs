@@ -149,7 +149,11 @@ defmodule PaymentCompliancePlatform.SessionContext.SessionManagerTest do
       assert Repo.get(Session, user_session.id, skip_multi_tenancy_check: true)
     end
 
-    test "handles multiple conditions simultaneously", %{tenant: tenant, api_key: api_key, role: role} do
+    test "handles multiple conditions simultaneously", %{
+      tenant: tenant,
+      api_key: api_key,
+      role: role
+    } do
       # Create second API key that will be deleted
       second_api_key = Factory.insert(:api_key, tenant_id: tenant.id, role_id: role.id)
 
