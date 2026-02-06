@@ -166,7 +166,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
       # No Watchman matches - blocked by blocklist
       assert entity_decision.sanctions_matches == []
       # Should have blocklist match
-      assert length(entity_decision.blocklist_matches) > 0
+      assert entity_decision.blocklist_matches != []
 
       blocklist_match = hd(entity_decision.blocklist_matches)
       assert blocklist_match.matched_term == "john"
@@ -198,7 +198,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
 
       entity_decision = hd(decision.entity_decisions)
       assert entity_decision.screening_result == :blocked
-      assert length(entity_decision.blocklist_matches) > 0
+      assert entity_decision.blocklist_matches != []
 
       blocklist_match = hd(entity_decision.blocklist_matches)
       assert blocklist_match.matched_term == "doe"
@@ -227,7 +227,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
 
       entity_decision = hd(decision.entity_decisions)
       assert entity_decision.screening_result == :blocked
-      assert length(entity_decision.blocklist_matches) > 0
+      assert entity_decision.blocklist_matches != []
 
       blocklist_match = hd(entity_decision.blocklist_matches)
       assert blocklist_match.matched_term == "acme"
@@ -258,7 +258,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
 
       entity_decision = hd(decision.entity_decisions)
       assert entity_decision.screening_result == :blocked
-      assert length(entity_decision.blocklist_matches) > 0
+      assert entity_decision.blocklist_matches != []
 
       blocklist_match = hd(entity_decision.blocklist_matches)
       assert blocklist_match.match_type == :regex
@@ -286,7 +286,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
 
       entity_decision = hd(decision.entity_decisions)
       assert entity_decision.screening_result == :blocked
-      assert length(entity_decision.blocklist_matches) > 0
+      assert entity_decision.blocklist_matches != []
 
       blocklist_match = hd(entity_decision.blocklist_matches)
       assert blocklist_match.match_type == :regex
@@ -460,7 +460,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
 
       # Verify sanctions matches are present
       assert is_list(entity_decision.sanctions_matches)
-      assert length(entity_decision.sanctions_matches) > 0
+      assert entity_decision.sanctions_matches != []
 
       first_match = hd(entity_decision.sanctions_matches)
       assert first_match.matched_name != nil
@@ -730,7 +730,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
       if entity_decision.match_count > 0 do
         assert entity_decision.screening_result in [:blocked, :potential_match]
         assert entity_decision.highest_match_score > 0.7
-        assert length(entity_decision.sanctions_matches) > 0
+        assert entity_decision.sanctions_matches != []
 
         first_match = hd(entity_decision.sanctions_matches)
         assert first_match.matched_name != nil
@@ -982,7 +982,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
       Enum.each(decision.entity_decisions, fn entity_decision ->
         assert entity_decision.screening_result in [:blocked, :potential_match]
         assert entity_decision.match_count > 0
-        assert length(entity_decision.sanctions_matches) > 0
+        assert entity_decision.sanctions_matches != []
       end)
     end
 

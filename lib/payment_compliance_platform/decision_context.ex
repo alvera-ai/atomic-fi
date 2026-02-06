@@ -300,7 +300,7 @@ defmodule PaymentCompliancePlatform.DecisionContext do
     # Count entities with either Watchman matches OR blocklist matches
     entities_with_matches =
       Enum.count(entity_decisions, fn ed ->
-        ed.match_count > 0 || length(ed.blocklist_matches) > 0
+        ed.match_count > 0 || ed.blocklist_matches != []
       end)
 
     overall_status = determine_overall_status(entity_decisions)

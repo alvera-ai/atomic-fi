@@ -77,7 +77,7 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
       assert entity_decision["match_count"] > 0
       assert entity_decision["highest_match_score"] >= 0.7
       assert is_list(entity_decision["sanctions_matches"])
-      assert length(entity_decision["sanctions_matches"]) > 0
+      assert entity_decision["sanctions_matches"] != []
 
       match = hd(entity_decision["sanctions_matches"])
       assert match["matched_name"]
@@ -320,7 +320,7 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
       # No Watchman matches
       assert entity_decision["sanctions_matches"] == []
       # Has blocklist match
-      assert length(entity_decision["blocklist_matches"]) > 0
+      assert entity_decision["blocklist_matches"] != []
 
       blocklist_match = hd(entity_decision["blocklist_matches"])
       assert blocklist_match["matched_term"] == "john"
@@ -354,7 +354,7 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
              } = json_response(conn, 200)
 
       assert entity_decision["screening_result"] == "blocked"
-      assert length(entity_decision["blocklist_matches"]) > 0
+      assert entity_decision["blocklist_matches"] != []
 
       blocklist_match = hd(entity_decision["blocklist_matches"])
       assert blocklist_match["matched_term"] == "doe"
@@ -384,7 +384,7 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
              } = json_response(conn, 200)
 
       assert entity_decision["screening_result"] == "blocked"
-      assert length(entity_decision["blocklist_matches"]) > 0
+      assert entity_decision["blocklist_matches"] != []
 
       blocklist_match = hd(entity_decision["blocklist_matches"])
       assert blocklist_match["matched_term"] == "acme"
@@ -416,7 +416,7 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
              } = json_response(conn, 200)
 
       assert entity_decision["screening_result"] == "blocked"
-      assert length(entity_decision["blocklist_matches"]) > 0
+      assert entity_decision["blocklist_matches"] != []
 
       blocklist_match = hd(entity_decision["blocklist_matches"])
       assert blocklist_match["match_type"] == "regex"
@@ -446,7 +446,7 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
              } = json_response(conn, 200)
 
       assert entity_decision["screening_result"] == "blocked"
-      assert length(entity_decision["blocklist_matches"]) > 0
+      assert entity_decision["blocklist_matches"] != []
 
       blocklist_match = hd(entity_decision["blocklist_matches"])
       assert blocklist_match["match_type"] == "regex"

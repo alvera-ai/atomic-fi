@@ -166,7 +166,7 @@ defmodule PaymentCompliancePlatform.Watchman.OperationsTest do
       {:ok, %SearchResponse{} = response} = Operations.v2_search_get(name: "Putin")
 
       [entity | _] = response.entities
-      assert length(entity.addresses) >= 1
+      assert entity.addresses != []
 
       [address | _] = entity.addresses
       assert %Address{} = address
