@@ -44,8 +44,23 @@ defmodule PaymentCompliancePlatformApi.Routes do
         # Tenant utility endpoints
         post "/tenants/refresh-blocklist-cache", TenantController, :refresh_blocklist_cache
 
-        # Onboarding screening endpoint
-        post "/onboarding/screen", OnboardingController, :screen
+        # Compliance screening CRUD + subject-specific screen actions (ISO 20022 auth:018 / camt:998)
+        get "/compliance-screenings", ComplianceScreeningController, :index
+        get "/compliance-screenings/:id", ComplianceScreeningController, :show
+        put "/compliance-screenings/:id", ComplianceScreeningController, :update
+        delete "/compliance-screenings/:id", ComplianceScreeningController, :delete
+
+        post "/compliance-screenings/screen-account-holder",
+             ComplianceScreeningController,
+             :screen_account_holder
+
+        post "/compliance-screenings/screen-beneficial-owner",
+             ComplianceScreeningController,
+             :screen_beneficial_owner
+
+        post "/compliance-screenings/screen-counterparty",
+             ComplianceScreeningController,
+             :screen_counterparty
 
         # Legal entity CRUD endpoints (PUT only for full replacement semantics)
         get "/legal-entities", LegalEntityController, :index

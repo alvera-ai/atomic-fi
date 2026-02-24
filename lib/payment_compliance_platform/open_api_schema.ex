@@ -275,4 +275,11 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     CounterpartyResponse,
     "counterparties"
   )
+
+  # ComplianceScreening list response - wraps ComplianceScreeningResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    ComplianceScreeningListResponse,
+    ComplianceScreeningResponse,
+    "compliance_screenings"
+  )
 end

@@ -47,6 +47,9 @@ config :payment_compliance_platform, PaymentCompliancePlatform.Mailer,
 # Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
 
+# Oban - manual mode: jobs are inserted into DB sandbox, drained explicitly in tests
+config :payment_compliance_platform, Oban, testing: :manual
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

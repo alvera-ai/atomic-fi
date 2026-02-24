@@ -27,6 +27,8 @@ defmodule PaymentCompliancePlatform.Application do
       {Phoenix.PubSub, name: PaymentCompliancePlatform.PubSub},
       # Start Finch
       {Finch, name: PaymentCompliancePlatform.Finch},
+      # Start Oban for background job processing (compliance screening)
+      {Oban, Application.fetch_env!(:payment_compliance_platform, Oban)},
       # Start the Endpoint (http/https)
       PaymentCompliancePlatformWeb.Endpoint
       # Start a worker by calling: PaymentCompliancePlatform.Worker.start_link(arg)

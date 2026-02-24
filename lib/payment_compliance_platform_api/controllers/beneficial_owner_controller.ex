@@ -123,10 +123,9 @@ defmodule PaymentCompliancePlatformApi.BeneficialOwnerController do
 
   def create(%{body_params: %BeneficialOwnerRequest{} = request} = conn, %{}) do
     session = conn.assigns.api_session
-    attrs = ExOpenApiUtils.Mapper.to_map(request)
 
     with {:ok, beneficial_owner} <-
-           BeneficialOwnerContext.create_beneficial_owner(session, attrs) do
+           BeneficialOwnerContext.create_beneficial_owner(session, request) do
       conn
       |> put_status(:created)
       |> put_resp_header("location", ~p"/api/beneficial-owners/#{beneficial_owner.id}")
@@ -158,11 +157,10 @@ defmodule PaymentCompliancePlatformApi.BeneficialOwnerController do
 
   def update(%{body_params: %BeneficialOwnerRequest{} = request} = conn, %{id: id}) do
     session = conn.assigns.api_session
-    attrs = ExOpenApiUtils.Mapper.to_map(request)
     beneficial_owner = BeneficialOwnerContext.get_beneficial_owner!(session, id)
 
     with {:ok, beneficial_owner} <-
-           BeneficialOwnerContext.update_beneficial_owner(session, beneficial_owner, attrs) do
+           BeneficialOwnerContext.update_beneficial_owner(session, beneficial_owner, request) do
       ApiHelpers.json_response(conn, beneficial_owner, BeneficialOwnerResponse)
     end
   end

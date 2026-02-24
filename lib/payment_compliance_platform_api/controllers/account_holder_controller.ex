@@ -120,10 +120,9 @@ defmodule PaymentCompliancePlatformApi.AccountHolderController do
 
   def create(%{body_params: %AccountHolderRequest{} = account_holder_request} = conn, %{}) do
     session = conn.assigns.api_session
-    attrs = ExOpenApiUtils.Mapper.to_map(account_holder_request)
 
     with {:ok, account_holder} <-
-           AccountHolderContext.create_account_holder(session, attrs) do
+           AccountHolderContext.create_account_holder(session, account_holder_request) do
       conn
       |> put_status(:created)
       |> put_resp_header("location", ~p"/api/account-holders/#{account_holder.id}")
@@ -157,11 +156,14 @@ defmodule PaymentCompliancePlatformApi.AccountHolderController do
         %{id: id}
       ) do
     session = conn.assigns.api_session
-    attrs = ExOpenApiUtils.Mapper.to_map(account_holder_request)
     account_holder = AccountHolderContext.get_account_holder!(session, id)
 
     with {:ok, account_holder} <-
-           AccountHolderContext.update_account_holder(session, account_holder, attrs) do
+           AccountHolderContext.update_account_holder(
+             session,
+             account_holder,
+             account_holder_request
+           ) do
       ApiHelpers.json_response(conn, account_holder, AccountHolderResponse)
     end
   end

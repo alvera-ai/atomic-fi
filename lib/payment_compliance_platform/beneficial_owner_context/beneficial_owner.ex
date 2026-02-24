@@ -91,6 +91,17 @@ defmodule PaymentCompliancePlatform.BeneficialOwnerContext.BeneficialOwner do
     key: :updated_at
   )
 
+  open_api_property(
+    schema: %Schema{
+      type: :boolean,
+      writeOnly: true,
+      default: true,
+      description:
+        "When true (default), enqueues a compliance screening job after creation. Set to false to skip."
+    },
+    key: :chain_screening
+  )
+
   open_api_schema(
     title: "BeneficialOwner",
     description:
@@ -108,7 +119,8 @@ defmodule PaymentCompliancePlatform.BeneficialOwnerContext.BeneficialOwner do
       :beneficial_owner_number,
       :tenant_id,
       :inserted_at,
-      :updated_at
+      :updated_at,
+      :chain_screening
     ]
   )
 
@@ -125,6 +137,9 @@ defmodule PaymentCompliancePlatform.BeneficialOwnerContext.BeneficialOwner do
       default: :pending
 
     field :beneficial_owner_number, :string
+
+    # Virtual: controls whether a compliance screening job is enqueued on create
+    field :chain_screening, :boolean, virtual: true, default: true
 
     # Multi-tenancy: tenant_id references tenants for RLS
     belongs_to :tenant, Tenant

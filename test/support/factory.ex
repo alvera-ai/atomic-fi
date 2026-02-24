@@ -14,7 +14,6 @@ defmodule PaymentCompliancePlatform.Factory do
   use PaymentCompliancePlatform.Factory.SessionFactory
   use PaymentCompliancePlatform.Factory.CustomerFactory
   use PaymentCompliancePlatform.Factory.AccountHolderFactory
-  use PaymentCompliancePlatform.Factory.DecisionFactory
   use PaymentCompliancePlatform.Factory.BlocklistEntryFactory
 
   @doc """
@@ -27,7 +26,7 @@ defmodule PaymentCompliancePlatform.Factory do
 
       tenant = insert_tenant_with_cache()
       session = %Session{tenant_id: tenant.id, ...}
-      DecisionContext.screen_account_holder(session, request)
+      ComplianceScreeningContext.screen_account_holder(session, request)
   """
   def insert_tenant_with_cache(attrs \\ %{}) do
     tenant = insert(:tenant, attrs)

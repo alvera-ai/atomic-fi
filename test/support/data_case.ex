@@ -266,11 +266,11 @@ defmodule PaymentCompliancePlatform.DataCase do
       }
 
       casted = cast_screening_request(request)
-      assert %PaymentCompliancePlatform.DecisionContext.ScreeningRequest{} = casted
+      assert %PaymentCompliancePlatform.ComplianceScreeningContext.ScreeningRequest{} = casted
 
   """
   def cast_screening_request(request_data) do
-    alias PaymentCompliancePlatform.DecisionContext.ScreeningRequest
+    alias PaymentCompliancePlatform.ComplianceScreeningContext.ScreeningRequest
 
     # Generate spec fresh (not cached) to reflect current schema state
     spec = OpenApiSpex.resolve_schema_modules(PaymentCompliancePlatformApi.ApiSpec.spec())

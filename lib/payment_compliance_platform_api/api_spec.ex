@@ -71,11 +71,6 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "CounterpartyRequest" => OpenApiSchema.CounterpartyRequest.schema(),
           "CounterpartyResponse" => OpenApiSchema.CounterpartyResponse.schema(),
           "CounterpartyListResponse" => OpenApiSchema.CounterpartyListResponse.schema(),
-          # Request/Response schemas for Decision (Onboarding)
-          "ScreeningRequest" =>
-            PaymentCompliancePlatform.DecisionContext.ScreeningRequest.schema(),
-          "DecisionRequest" => OpenApiSchema.DecisionRequest.schema(),
-          "DecisionResponse" => OpenApiSchema.DecisionResponse.schema(),
           # Nested schemas for AccountHolder
           "InterestedCompanyRequest" => OpenApiSchema.InterestedCompanyRequest.schema(),
           "InterestedCompanyResponse" => OpenApiSchema.InterestedCompanyResponse.schema(),
@@ -86,11 +81,27 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "AddressResponse" => OpenApiSchema.AddressResponse.schema(),
           "ContactRequest" => OpenApiSchema.ContactRequest.schema(),
           "ContactResponse" => OpenApiSchema.ContactResponse.schema(),
-          # Nested schemas for Decision
-          "EntityDecisionRequest" => OpenApiSchema.EntityDecisionRequest.schema(),
-          "EntityDecisionResponse" => OpenApiSchema.EntityDecisionResponse.schema(),
+          # Request/Response schemas for ComplianceScreening (ISO 20022 auth:018 / camt:998)
+          "ComplianceScreeningRequest" => OpenApiSchema.ComplianceScreeningRequest.schema(),
+          "ComplianceScreeningResponse" => OpenApiSchema.ComplianceScreeningResponse.schema(),
+          "ComplianceScreeningListResponse" =>
+            OpenApiSchema.ComplianceScreeningListResponse.schema(),
+          # Manual ScreeningRequest struct (input-only for screen_* controller actions)
+          "ScreeningRequest" =>
+            PaymentCompliancePlatform.ComplianceScreeningContext.ScreeningRequest.schema(),
           "SanctionsMatchRequest" => OpenApiSchema.SanctionsMatchRequest.schema(),
           "SanctionsMatchResponse" => OpenApiSchema.SanctionsMatchResponse.schema(),
+          "BlocklistMatchRequest" => OpenApiSchema.BlocklistMatchRequest.schema(),
+          "BlocklistMatchResponse" => OpenApiSchema.BlocklistMatchResponse.schema(),
+          # Watchman typed embed schemas (auto-generated from SanctionsMatch inline modules)
+          "WatchmanAddressRequest" => OpenApiSchema.WatchmanAddressRequest.schema(),
+          "WatchmanAddressResponse" => OpenApiSchema.WatchmanAddressResponse.schema(),
+          "WatchmanBusinessRequest" => OpenApiSchema.WatchmanBusinessRequest.schema(),
+          "WatchmanBusinessResponse" => OpenApiSchema.WatchmanBusinessResponse.schema(),
+          "WatchmanPersonRequest" => OpenApiSchema.WatchmanPersonRequest.schema(),
+          "WatchmanPersonResponse" => OpenApiSchema.WatchmanPersonResponse.schema(),
+          "WatchmanContactRequest" => OpenApiSchema.WatchmanContactRequest.schema(),
+          "WatchmanContactResponse" => OpenApiSchema.WatchmanContactResponse.schema(),
           # Request/Response schemas for LegalEntity
           "LegalEntityRequest" => OpenApiSchema.LegalEntityRequest.schema(),
           "LegalEntityResponse" => OpenApiSchema.LegalEntityResponse.schema(),
@@ -115,8 +126,9 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
         %Tag{name: "Health", description: "System health and status"},
         %Tag{name: "Tenants", description: "Tenant management (requires API key)"},
         %Tag{
-          name: "Onboarding",
-          description: "Account holder onboarding and sanctions screening (requires API key)"
+          name: "Compliance Screening",
+          description:
+            "ISO 20022 compliance screening — sanctions (OFAC/Watchman), PEP, AML, blocklist (auth:018 / camt:998)"
         },
         %Tag{
           name: "Legal Entities",

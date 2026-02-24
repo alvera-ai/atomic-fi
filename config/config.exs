@@ -100,6 +100,11 @@ config :flop, repo: PaymentCompliancePlatform.Repo, default_limit: 20
 # Watchman sanctions screening service
 config :payment_compliance_platform, :watchman_base_url, "http://localhost:8084"
 
+# Oban background job processing
+config :payment_compliance_platform, Oban,
+  repo: PaymentCompliancePlatform.Repo,
+  queues: [compliance_screening: 10]
+
 # Quantum scheduler - cron-like job scheduling
 config :payment_compliance_platform, PaymentCompliancePlatform.Scheduler,
   jobs: [

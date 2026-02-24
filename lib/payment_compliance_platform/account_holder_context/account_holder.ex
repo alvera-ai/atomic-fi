@@ -14,7 +14,7 @@ defmodule PaymentCompliancePlatform.AccountHolderContext.AccountHolder do
   * `id` - UUID primary key
   * `legal_entity_id` - FK to LegalEntity (all PII / identity)
   * `external_id` - Upstream ID (Stripe/JPMC/Moov), unique per tenant
-  * `holder_type` - `individual` | `organization`
+  * `holder_type` - `individual` | `business` | `trust` | `nonprofit`
   * `status` - `pending` | `active` | `suspended` | `closed`
   * `kyc_status` - `not_started` | `in_progress` | `approved` | `rejected` | `expired`
   * `risk_level` - `low` | `medium` | `high` | `very_high` | `prohibited`
@@ -112,6 +112,17 @@ defmodule PaymentCompliancePlatform.AccountHolderContext.AccountHolder do
     key: :updated_at
   )
 
+  open_api_property(
+    schema: %Schema{
+      type: :boolean,
+      writeOnly: true,
+      default: true,
+      description:
+        "When true (default), enqueues a compliance screening job after creation. Set to false to skip."
+    },
+    key: :chain_screening
+  )
+
   open_api_schema(
     title: "AccountHolder",
     description:
@@ -132,7 +143,8 @@ defmodule PaymentCompliancePlatform.AccountHolderContext.AccountHolder do
       :last_reviewed_at,
       :tenant_id,
       :inserted_at,
-      :updated_at
+      :updated_at,
+      :chain_screening
     ]
   )
 
@@ -161,6 +173,9 @@ defmodule PaymentCompliancePlatform.AccountHolderContext.AccountHolder do
 
     field :onboarded_at, :utc_datetime_usec
     field :last_reviewed_at, :utc_datetime_usec
+
+    # Virtual: controls whether a compliance screening job is enqueued on create
+    field :chain_screening, :boolean, virtual: true, default: true
 
     # Multi-tenancy: tenant_id references tenants for RLS
     belongs_to :tenant, Tenant

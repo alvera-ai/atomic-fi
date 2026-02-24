@@ -117,9 +117,8 @@ defmodule PaymentCompliancePlatformApi.CounterpartyController do
 
   def create(%{body_params: %CounterpartyRequest{} = request} = conn, %{}) do
     session = conn.assigns.api_session
-    attrs = ExOpenApiUtils.Mapper.to_map(request)
 
-    with {:ok, counterparty} <- CounterpartyContext.create_counterparty(session, attrs) do
+    with {:ok, counterparty} <- CounterpartyContext.create_counterparty(session, request) do
       conn
       |> put_status(:created)
       |> put_resp_header("location", ~p"/api/counterparties/#{counterparty.id}")
@@ -150,11 +149,10 @@ defmodule PaymentCompliancePlatformApi.CounterpartyController do
 
   def update(%{body_params: %CounterpartyRequest{} = request} = conn, %{id: id}) do
     session = conn.assigns.api_session
-    attrs = ExOpenApiUtils.Mapper.to_map(request)
     counterparty = CounterpartyContext.get_counterparty!(session, id)
 
     with {:ok, counterparty} <-
-           CounterpartyContext.update_counterparty(session, counterparty, attrs) do
+           CounterpartyContext.update_counterparty(session, counterparty, request) do
       ApiHelpers.json_response(conn, counterparty, CounterpartyResponse)
     end
   end
