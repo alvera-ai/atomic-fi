@@ -37,4 +37,5 @@ defmodule PaymentCompliancePlatform.Factory do
 
   use PaymentCompliancePlatform.Factory.LegalEntityFactory
   use PaymentCompliancePlatform.Factory.BeneficialOwnerFactory
+  use PaymentCompliancePlatform.Factory.CounterpartyFactory
 end

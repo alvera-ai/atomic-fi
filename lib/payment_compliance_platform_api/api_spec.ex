@@ -67,6 +67,10 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "BeneficialOwnerRequest" => OpenApiSchema.BeneficialOwnerRequest.schema(),
           "BeneficialOwnerResponse" => OpenApiSchema.BeneficialOwnerResponse.schema(),
           "BeneficialOwnerListResponse" => OpenApiSchema.BeneficialOwnerListResponse.schema(),
+          # Request/Response schemas for Counterparty
+          "CounterpartyRequest" => OpenApiSchema.CounterpartyRequest.schema(),
+          "CounterpartyResponse" => OpenApiSchema.CounterpartyResponse.schema(),
+          "CounterpartyListResponse" => OpenApiSchema.CounterpartyListResponse.schema(),
           # Request/Response schemas for Decision (Onboarding)
           "ScreeningRequest" =>
             PaymentCompliancePlatform.DecisionContext.ScreeningRequest.schema(),
@@ -128,6 +132,12 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           name: "Beneficial Owners",
           description:
             "Beneficial owners of corporate account holders (FinCEN CDD Rule 31 CFR §1010.230 / FATF Rec 24). " <>
+              "PII lives in the linked Legal Entity."
+        },
+        %Tag{
+          name: "Counterparties",
+          description:
+            "External payers/payees (ISO 20022 <Dbtr>/<Cdtr>) that AccountHolders transact with. " <>
               "PII lives in the linked Legal Entity."
         }
       ]

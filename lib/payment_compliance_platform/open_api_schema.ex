@@ -268,4 +268,11 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     BeneficialOwnerResponse,
     "beneficial_owners"
   )
+
+  # Counterparty list response - wraps CounterpartyResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    CounterpartyListResponse,
+    CounterpartyResponse,
+    "counterparties"
+  )
 end

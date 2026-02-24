@@ -67,6 +67,13 @@ defmodule PaymentCompliancePlatformApi.Routes do
         post "/beneficial-owners", BeneficialOwnerController, :create
         put "/beneficial-owners/:id", BeneficialOwnerController, :update
         delete "/beneficial-owners/:id", BeneficialOwnerController, :delete
+
+        # Counterparty CRUD endpoints (PUT only for full replacement semantics)
+        get "/counterparties", CounterpartyController, :index
+        get "/counterparties/:id", CounterpartyController, :show
+        post "/counterparties", CounterpartyController, :create
+        put "/counterparties/:id", CounterpartyController, :update
+        delete "/counterparties/:id", CounterpartyController, :delete
       end
     end
   end
