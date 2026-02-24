@@ -1,49 +1,105 @@
 defmodule PaymentCompliancePlatform.AccountHolderContext.AccountHolder do
   use PaymentCompliancePlatform.Schema
 
-  alias PaymentCompliancePlatform.AccountHolderContext.AccountHolder.{
-    InterestedCompany,
-    InterestedIndividual,
-    RawBody
-  }
-
+  alias PaymentCompliancePlatform.LegalEntityContext.LegalEntity
   alias PaymentCompliancePlatform.TenantContext.Tenant
 
-  @derive {
-    Flop.Schema,
-    filterable: [:id, :tenant_id, :name, :type],
-    sortable: [:id, :inserted_at, :updated_at, :name, :type],
-    default_limit: 20,
-    max_limit: 100
-  }
+  @typedoc """
+  Account holder — the MDM subject that controls an account (ISO 20022 acmt:007, acmt:019).
+
+  Operational state lives here. All PII lives in the linked LegalEntity.
+
+  ## Attributes
+
+  * `id` - UUID primary key
+  * `legal_entity_id` - FK to LegalEntity (all PII / identity)
+  * `external_id` - Upstream ID (Stripe/JPMC/Moov), unique per tenant
+  * `holder_type` - `individual` | `organization`
+  * `status` - `pending` | `active` | `suspended` | `closed`
+  * `kyc_status` - `not_started` | `in_progress` | `approved` | `rejected` | `expired`
+  * `risk_level` - `low` | `medium` | `high` | `very_high` | `prohibited`
+  * `enabled_currencies` - ISO 4217 codes (each creates a Ledger)
+  * `account_holder_number` - Opaque internal identifier
+  * `onboarded_at` - Timestamp when account holder was onboarded
+  * `last_reviewed_at` - Timestamp when account holder was last reviewed
+  * `tenant_id` - FK to tenant for multi-tenancy isolation (RLS)
+  * `inserted_at` - Timestamp when record was created
+  * `updated_at` - Timestamp when record was last updated
+  """
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
 
+  @derive {
+    Flop.Schema,
+    filterable: [:id, :tenant_id, :holder_type, :status, :kyc_status, :risk_level],
+    sortable: [:id, :inserted_at, :updated_at, :holder_type, :status, :onboarded_at],
+    default_limit: 20,
+    max_limit: 100
+  }
+
   # OpenAPI annotations
   open_api_property(schema: %Schema{type: :string, format: :uuid, readOnly: true}, key: :id)
-  open_api_property(schema: %Schema{type: :string}, key: :name)
-  open_api_property(schema: %Schema{type: :string, enum: ["individual", "business"]}, key: :type)
 
   open_api_property(
-    schema: %Schema{type: :string, format: :uuid, readOnly: true},
+    schema: %Schema{type: :string, format: :uuid},
+    key: :legal_entity_id
+  )
+
+  open_api_property(schema: %Schema{type: :string, nullable: true}, key: :external_id)
+
+  open_api_property(
+    schema: %Schema{type: :string, enum: ["individual", "business", "trust", "nonprofit"]},
+    key: :holder_type
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      nullable: true,
+      enum: ["pending", "active", "suspended", "closed", "flagged"]
+    },
+    key: :status
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      nullable: true,
+      enum: ["not_started", "in_progress", "approved", "rejected", "expired"]
+    },
+    key: :kyc_status
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      nullable: true,
+      enum: ["low", "medium", "high", "very_high"]
+    },
+    key: :risk_level
+  )
+
+  open_api_property(
+    schema: %Schema{type: :array, nullable: true, items: %Schema{type: :string}},
+    key: :enabled_currencies
+  )
+
+  open_api_property(schema: %Schema{type: :string, nullable: true}, key: :account_holder_number)
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", nullable: true},
+    key: :onboarded_at
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", nullable: true},
+    key: :last_reviewed_at
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :uuid},
     key: :tenant_id
-  )
-
-  open_api_property(
-    schema: %Schema{
-      type: :array,
-      items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/InterestedCompanyRequest"}
-    },
-    key: :interested_companies
-  )
-
-  open_api_property(
-    schema: %Schema{
-      type: :array,
-      items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/InterestedIndividualRequest"}
-    },
-    key: :interested_individuals
   )
 
   open_api_property(
@@ -58,27 +114,53 @@ defmodule PaymentCompliancePlatform.AccountHolderContext.AccountHolder do
 
   open_api_schema(
     title: "AccountHolder",
-    description: "Account holder schema",
-    required: [:name, :type],
+    description:
+      "Account holder — the MDM subject controlling an account. " <>
+        "All PII lives in the linked LegalEntity (ISO 20022 acmt:007 / acmt:019).",
+    required: [:legal_entity_id, :holder_type],
     properties: [
       :id,
-      :name,
-      :type,
+      :legal_entity_id,
+      :external_id,
+      :holder_type,
+      :status,
+      :kyc_status,
+      :risk_level,
+      :enabled_currencies,
+      :account_holder_number,
+      :onboarded_at,
+      :last_reviewed_at,
       :tenant_id,
-      :interested_companies,
-      :interested_individuals,
       :inserted_at,
       :updated_at
     ]
   )
 
   typed_schema "account_holders" do
-    field :name, :string
-    field :type, Ecto.Enum, values: [:individual, :business]
+    belongs_to :legal_entity, LegalEntity
 
-    embeds_many :interested_companies, InterestedCompany, on_replace: :delete
-    embeds_many :interested_individuals, InterestedIndividual, on_replace: :delete
-    embeds_one :raw_body, RawBody, on_replace: :update
+    field :external_id, :string
+
+    field :holder_type, Ecto.Enum, values: [:individual, :business, :trust, :nonprofit]
+
+    field :status, Ecto.Enum,
+      values: [:pending, :active, :suspended, :closed, :flagged],
+      default: :pending
+
+    field :kyc_status, Ecto.Enum,
+      values: [:not_started, :in_progress, :approved, :rejected, :expired],
+      default: :not_started
+
+    field :risk_level, Ecto.Enum,
+      values: [:low, :medium, :high, :very_high],
+      default: :low
+
+    field :enabled_currencies, {:array, :string}, default: []
+
+    field :account_holder_number, :string
+
+    field :onboarded_at, :utc_datetime_usec
+    field :last_reviewed_at, :utc_datetime_usec
 
     # Multi-tenancy: tenant_id references tenants for RLS
     belongs_to :tenant, Tenant
@@ -89,10 +171,21 @@ defmodule PaymentCompliancePlatform.AccountHolderContext.AccountHolder do
   @doc false
   def changeset(account_holder, attrs) do
     account_holder
-    |> cast(attrs, [:name, :type, :tenant_id])
-    |> validate_required([:name, :type, :tenant_id])
-    |> cast_embed(:interested_companies)
-    |> cast_embed(:interested_individuals)
-    |> cast_embed(:raw_body)
+    |> cast(attrs, [
+      :legal_entity_id,
+      :external_id,
+      :holder_type,
+      :status,
+      :kyc_status,
+      :risk_level,
+      :enabled_currencies,
+      :account_holder_number,
+      :onboarded_at,
+      :last_reviewed_at,
+      :tenant_id
+    ])
+    |> validate_required([:legal_entity_id, :holder_type, :tenant_id])
+    |> foreign_key_constraint(:legal_entity_id)
+    |> foreign_key_constraint(:tenant_id)
   end
 end

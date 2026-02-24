@@ -2,9 +2,9 @@ defmodule PaymentCompliancePlatformApi.OnboardingController do
   use PaymentCompliancePlatformApi.Controller
   use OpenApiSpex.ControllerSpecs
 
-  alias PaymentCompliancePlatform.OpenApiSchema.AccountHolderRequest
-  alias PaymentCompliancePlatform.OpenApiSchema.DecisionResponse
   alias PaymentCompliancePlatform.DecisionContext
+  alias PaymentCompliancePlatform.DecisionContext.ScreeningRequest
+  alias PaymentCompliancePlatform.OpenApiSchema.DecisionResponse
   alias PaymentCompliancePlatformApi.Helpers.ApiHelpers
   alias OpenApiSpex.Reference
 
@@ -20,9 +20,9 @@ defmodule PaymentCompliancePlatformApi.OnboardingController do
     Returns a decision with screening results for each entity.
     """,
     request_body: {
-      "Account holder to screen",
+      "Entities to screen",
       "application/json",
-      AccountHolderRequest.schema(),
+      ScreeningRequest.schema(),
       required: true
     },
     responses: [
@@ -44,7 +44,7 @@ defmodule PaymentCompliancePlatformApi.OnboardingController do
     ]
   )
 
-  def screen(%{body_params: body_params} = conn, _params) do
+  def screen(%{body_params: %ScreeningRequest{} = body_params} = conn, _params) do
     session = conn.assigns.api_session
 
     case DecisionContext.screen_account_holder(session, body_params) do

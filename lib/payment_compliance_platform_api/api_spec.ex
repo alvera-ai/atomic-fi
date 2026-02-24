@@ -59,10 +59,13 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "TenantRequest" => OpenApiSchema.TenantRequest.schema(),
           "TenantResponse" => OpenApiSchema.TenantResponse.schema(),
           "TenantListResponse" => OpenApiSchema.TenantListResponse.schema(),
-          # Request/Response schemas for AccountHolder (Onboarding)
+          # Request/Response schemas for AccountHolder
           "AccountHolderRequest" => OpenApiSchema.AccountHolderRequest.schema(),
           "AccountHolderResponse" => OpenApiSchema.AccountHolderResponse.schema(),
+          "AccountHolderListResponse" => OpenApiSchema.AccountHolderListResponse.schema(),
           # Request/Response schemas for Decision (Onboarding)
+          "ScreeningRequest" =>
+            PaymentCompliancePlatform.DecisionContext.ScreeningRequest.schema(),
           "DecisionRequest" => OpenApiSchema.DecisionRequest.schema(),
           "DecisionResponse" => OpenApiSchema.DecisionResponse.schema(),
           # Nested schemas for AccountHolder
@@ -110,6 +113,12 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
         %Tag{
           name: "Legal Entities",
           description: "Legal entity identity records (ISO 20022 acmt:007 + FATF CDD)"
+        },
+        %Tag{
+          name: "Account Holders",
+          description:
+            "Account holder operational state (ISO 20022 acmt:007 / acmt:019). " <>
+              "PII lives in the linked Legal Entity."
         }
       ]
     }

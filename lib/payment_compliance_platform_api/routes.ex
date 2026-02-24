@@ -53,6 +53,13 @@ defmodule PaymentCompliancePlatformApi.Routes do
         post "/legal-entities", LegalEntityController, :create
         put "/legal-entities/:id", LegalEntityController, :update
         delete "/legal-entities/:id", LegalEntityController, :delete
+
+        # Account holder CRUD endpoints (PUT only for full replacement semantics)
+        get "/account-holders", AccountHolderController, :index
+        get "/account-holders/:id", AccountHolderController, :show
+        post "/account-holders", AccountHolderController, :create
+        put "/account-holders/:id", AccountHolderController, :update
+        delete "/account-holders/:id", AccountHolderController, :delete
       end
     end
   end

@@ -129,7 +129,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
 
       # Should raise RuntimeError with specific message about uninitialized cache
       assert_raise RuntimeError, ~r/BlocklistCache not initialized for tenant/, fn ->
@@ -154,7 +154,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.overall_status == "blocked"
       assert decision.total_entities_screened == 1
@@ -192,7 +192,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.overall_status == "blocked"
 
@@ -221,7 +221,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         ]
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.overall_status == "blocked"
 
@@ -252,7 +252,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.overall_status == "blocked"
 
@@ -280,7 +280,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         ]
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.overall_status == "blocked"
 
@@ -303,7 +303,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.overall_status == "pass"
       assert decision.total_entities_screened == 0
@@ -329,7 +329,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
       assert is_list(decision.entity_decisions)
@@ -356,7 +356,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         ]
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
       assert is_list(decision.entity_decisions)
@@ -389,7 +389,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         ]
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 2
       assert length(decision.entity_decisions) == 2
@@ -406,7 +406,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.list_synced_at != nil
       assert is_map(decision.list_sources) or is_list(decision.list_sources)
@@ -422,10 +422,10 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert is_map(decision.raw_request)
-      assert decision.raw_request.name == "Test Company"
+      assert Map.has_key?(decision.raw_request, :interested_individuals)
     end
 
     test "screens known sanctioned individual - Vladimir Putin", %{session: session} do
@@ -445,7 +445,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
       assert decision.entities_with_matches >= 1
@@ -485,7 +485,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
       assert decision.entities_with_matches >= 1
@@ -516,7 +516,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
       assert decision.entities_with_matches == 0
@@ -548,7 +548,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
       assert decision.entities_with_matches == 0
@@ -577,7 +577,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
       assert decision.entities_with_matches == 0
@@ -606,7 +606,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
       assert decision.entities_with_matches == 0
@@ -634,7 +634,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
       assert decision.entities_with_matches == 0
@@ -663,7 +663,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
       assert decision.entities_with_matches == 0
@@ -692,7 +692,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
       assert decision.entities_with_matches == 0
@@ -718,7 +718,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         ]
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
 
@@ -753,7 +753,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         ]
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
 
@@ -787,7 +787,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         ]
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
       assert decision.entities_with_matches == 0
@@ -817,7 +817,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         ]
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
       assert decision.entities_with_matches == 0
@@ -844,7 +844,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         ]
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 1
       assert decision.entities_with_matches == 0
@@ -876,7 +876,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         ]
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 2
 
@@ -924,7 +924,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         ]
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 2
 
@@ -972,7 +972,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
       assert decision.total_entities_screened == 2
       assert decision.entities_with_matches >= 1
@@ -1002,7 +1002,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
 
       entity_decision = hd(decision.entity_decisions)
@@ -1048,7 +1048,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
 
       entity_decision = hd(decision.entity_decisions)
@@ -1071,7 +1071,7 @@ defmodule PaymentCompliancePlatform.DecisionContextTest do
         interested_companies: []
       }
 
-      request = cast_account_holder_request(request_data)
+      request = cast_screening_request(request_data)
       assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
 
       # Verify list sources structure

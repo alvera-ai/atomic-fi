@@ -7,13 +7,25 @@ defmodule PaymentCompliancePlatform.Factory.AccountHolderFactory do
     quote do
       alias PaymentCompliancePlatform.AccountHolderContext.AccountHolder
 
-      def account_holder_factory do
-        unique_suffix = String.slice(Ecto.UUID.generate(), 0, 8)
+      def account_holder_factory(attrs \\ %{}) do
+        tenant_id =
+          Map.get_lazy(attrs, :tenant_id, fn ->
+            insert(:tenant).id
+          end)
+
+        legal_entity_id =
+          Map.get_lazy(attrs, :legal_entity_id, fn ->
+            insert(:legal_entity, tenant_id: tenant_id).id
+          end)
 
         %AccountHolder{
-          name: "some name" <> unique_suffix,
-          type: "some type" <> unique_suffix,
-          tenant: build(:tenant)
+          legal_entity_id: legal_entity_id,
+          holder_type: :individual,
+          status: :pending,
+          kyc_status: :not_started,
+          risk_level: :low,
+          enabled_currencies: ["USD"],
+          tenant_id: tenant_id
         }
       end
     end

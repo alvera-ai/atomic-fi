@@ -254,4 +254,11 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     LegalEntityResponse,
     "legal_entities"
   )
+
+  # AccountHolder list response - wraps AccountHolderResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    AccountHolderListResponse,
+    AccountHolderResponse,
+    "account_holders"
+  )
 end

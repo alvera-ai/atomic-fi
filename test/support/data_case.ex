@@ -250,7 +250,7 @@ defmodule PaymentCompliancePlatform.DataCase do
   end
 
   @doc """
-  Casts request data through the AccountHolderRequest OpenAPI schema.
+  Casts request data through the ScreeningRequest OpenAPI schema.
 
   This mimics what happens in the controller when OpenApiSpex validates
   and casts the request body. Generates the spec fresh for each call
@@ -259,24 +259,22 @@ defmodule PaymentCompliancePlatform.DataCase do
   ## Examples
 
       request = %{
-        name: "Test Company",
-        type: "business",
         interested_individuals: [
           %{first_name: "John", last_name: "Doe"}
         ],
         interested_companies: []
       }
 
-      casted = cast_account_holder_request(request)
-      assert %PaymentCompliancePlatform.OpenApiSchema.AccountHolderRequest{} = casted
+      casted = cast_screening_request(request)
+      assert %PaymentCompliancePlatform.DecisionContext.ScreeningRequest{} = casted
 
   """
-  def cast_account_holder_request(request_data) do
-    alias PaymentCompliancePlatform.OpenApiSchema.AccountHolderRequest
+  def cast_screening_request(request_data) do
+    alias PaymentCompliancePlatform.DecisionContext.ScreeningRequest
 
     # Generate spec fresh (not cached) to reflect current schema state
     spec = OpenApiSpex.resolve_schema_modules(PaymentCompliancePlatformApi.ApiSpec.spec())
-    schema = AccountHolderRequest.schema()
+    schema = ScreeningRequest.schema()
 
     case OpenApiSpex.cast_value(request_data, schema, spec) do
       {:ok, casted} ->
@@ -284,7 +282,7 @@ defmodule PaymentCompliancePlatform.DataCase do
 
       {:error, errors} ->
         raise """
-        Failed to cast AccountHolderRequest through OpenAPI schema.
+        Failed to cast ScreeningRequest through OpenAPI schema.
 
         Errors: #{inspect(errors, pretty: true)}
 

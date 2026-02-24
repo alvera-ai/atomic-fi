@@ -1,6 +1,9 @@
 defmodule PaymentCompliancePlatform.AccountHolderContext do
   @moduledoc """
-  The AccountHolderContext context.
+  Account holder context — manages the MDM subjects that control accounts.
+
+  AccountHolder records represent the operational state (status, KYC, risk level)
+  while all PII lives in the linked LegalEntity.
   """
 
   import Ecto.Query, warn: false

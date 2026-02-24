@@ -192,25 +192,25 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
       assert entity_decision["match_count"] == 0
     end
 
-    test "returns validation error for missing required fields", %{conn: conn} do
+    test "accepts empty screening request", %{conn: conn} do
       request_body = %{
-        # Missing name and type
         interested_individuals: [],
         interested_companies: []
       }
 
       conn = post(conn, ~p"/api/onboarding/screen", request_body)
 
-      assert %{"errors" => errors} = json_response(conn, 422)
-      assert is_list(errors)
-      assert length(errors) >= 2
+      assert %{"overall_status" => "pass"} = json_response(conn, 200)
     end
 
-    test "returns validation error for invalid type", %{conn: conn} do
+    test "returns validation error for individual with invalid structure", %{conn: conn} do
       request_body = %{
-        name: "Test",
-        type: "invalid_type",
-        interested_individuals: [],
+        interested_individuals: [
+          %{
+            # missing required last_name
+            first_name: "John"
+          }
+        ],
         interested_companies: []
       }
 
@@ -219,12 +219,10 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
       assert %{"errors" => _errors} = json_response(conn, 422)
     end
 
-    test "returns validation error for invalid individual structure", %{conn: conn} do
-      api_spec = ApiSpec.spec()
-
+    test "returns validation error for invalid individual structure (missing last_name)", %{
+      conn: conn
+    } do
       request_body = %{
-        name: "Test Company",
-        type: "business",
         interested_individuals: [
           %{
             # Missing required last_name
@@ -234,21 +232,13 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
         interested_companies: []
       }
 
-      # Verify request body doesn't match schema
-      schema = api_spec.components.schemas["AccountHolderRequest"]
-      assert {:error, _errors} = OpenApiSpex.cast_value(request_body, schema, api_spec)
-
       conn = post(conn, ~p"/api/onboarding/screen", request_body)
 
       assert %{"errors" => _errors} = json_response(conn, 422)
     end
 
-    test "returns validation error for invalid company structure", %{conn: conn} do
-      api_spec = ApiSpec.spec()
-
+    test "returns validation error for invalid company structure (missing name)", %{conn: conn} do
       request_body = %{
-        name: "Test Company",
-        type: "business",
         interested_individuals: [],
         interested_companies: [
           %{
@@ -257,10 +247,6 @@ defmodule PaymentCompliancePlatformApi.OnboardingControllerTest do
           }
         ]
       }
-
-      # Verify request body doesn't match schema
-      schema = api_spec.components.schemas["AccountHolderRequest"]
-      assert {:error, _errors} = OpenApiSpex.cast_value(request_body, schema, api_spec)
 
       conn = post(conn, ~p"/api/onboarding/screen", request_body)
 

@@ -135,7 +135,7 @@ defmodule PaymentCompliancePlatform.DecisionContext do
   """
   @spec screen_account_holder(
           Session.t(),
-          PaymentCompliancePlatform.OpenApiSchema.AccountHolderRequest.t()
+          PaymentCompliancePlatform.DecisionContext.ScreeningRequest.t()
         ) ::
           {:ok, Decision.t()} | {:error, term()}
   def screen_account_holder(session, request) do
