@@ -34,4 +34,6 @@ defmodule PaymentCompliancePlatform.Factory do
     PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant.id)
     tenant
   end
+
+  use PaymentCompliancePlatform.Factory.LegalEntityFactory
 end

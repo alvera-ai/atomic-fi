@@ -247,4 +247,11 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     BlocklistEntryResponse,
     "blocklist_entries"
   )
+
+  # LegalEntity list response - wraps LegalEntityResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    LegalEntityListResponse,
+    LegalEntityResponse,
+    "legal_entities"
+  )
 end

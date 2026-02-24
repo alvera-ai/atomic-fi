@@ -47,8 +47,12 @@ defmodule PaymentCompliancePlatformApi.Routes do
         # Onboarding screening endpoint
         post "/onboarding/screen", OnboardingController, :screen
 
-        # Future: Add more authenticated resources here
-        # resources "/users", UserController, except: [:new, :edit]
+        # Legal entity CRUD endpoints (PUT only for full replacement semantics)
+        get "/legal-entities", LegalEntityController, :index
+        get "/legal-entities/:id", LegalEntityController, :show
+        post "/legal-entities", LegalEntityController, :create
+        put "/legal-entities/:id", LegalEntityController, :update
+        delete "/legal-entities/:id", LegalEntityController, :delete
       end
     end
   end

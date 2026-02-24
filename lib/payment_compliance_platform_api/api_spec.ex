@@ -80,6 +80,20 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "EntityDecisionResponse" => OpenApiSchema.EntityDecisionResponse.schema(),
           "SanctionsMatchRequest" => OpenApiSchema.SanctionsMatchRequest.schema(),
           "SanctionsMatchResponse" => OpenApiSchema.SanctionsMatchResponse.schema(),
+          # Request/Response schemas for LegalEntity
+          "LegalEntityRequest" => OpenApiSchema.LegalEntityRequest.schema(),
+          "LegalEntityResponse" => OpenApiSchema.LegalEntityResponse.schema(),
+          "LegalEntityListResponse" => OpenApiSchema.LegalEntityListResponse.schema(),
+          # Nested schemas for LegalEntity
+          "LegalEntityAddressRequest" => OpenApiSchema.LegalEntityAddressRequest.schema(),
+          "LegalEntityAddressResponse" => OpenApiSchema.LegalEntityAddressResponse.schema(),
+          "LegalEntityPhoneNumberRequest" => OpenApiSchema.LegalEntityPhoneNumberRequest.schema(),
+          "LegalEntityPhoneNumberResponse" =>
+            OpenApiSchema.LegalEntityPhoneNumberResponse.schema(),
+          "LegalEntityIdentificationRequest" =>
+            OpenApiSchema.LegalEntityIdentificationRequest.schema(),
+          "LegalEntityIdentificationResponse" =>
+            OpenApiSchema.LegalEntityIdentificationResponse.schema(),
           # Common schemas
           "ErrorResponse" => OpenApiSchema.ErrorResponse.schema(),
           "ChangesetErrors" => OpenApiSchema.ChangesetErrors.schema(),
@@ -92,6 +106,10 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
         %Tag{
           name: "Onboarding",
           description: "Account holder onboarding and sanctions screening (requires API key)"
+        },
+        %Tag{
+          name: "Legal Entities",
+          description: "Legal entity identity records (ISO 20022 acmt:007 + FATF CDD)"
         }
       ]
     }
