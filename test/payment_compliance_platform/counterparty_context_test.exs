@@ -3,11 +3,10 @@ defmodule PaymentCompliancePlatform.CounterpartyContextTest do
 
   alias PaymentCompliancePlatform.CounterpartyContext
   alias PaymentCompliancePlatform.CounterpartyContext.Counterparty
+  alias PaymentCompliancePlatform.OpenApiSchema.CounterpartyRequest
   import PaymentCompliancePlatform.Factory
 
   describe "counterparties" do
-    @invalid_attrs %{status: nil}
-
     test "list_counterparties/1 returns all counterparties for tenant", %{session: session} do
       insert(:counterparty, tenant_id: session.tenant_id)
       {:ok, {counterparties, _meta}} = CounterpartyContext.list_counterparties(session)
@@ -27,15 +26,16 @@ defmodule PaymentCompliancePlatform.CounterpartyContextTest do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
       legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
 
-      valid_attrs = %{
+      request = %CounterpartyRequest{
         account_holder_id: account_holder.id,
         legal_entity_id: legal_entity.id,
         status: :active,
-        tenant_id: session.tenant_id
+        tenant_id: session.tenant_id,
+        chain_screening: false
       }
 
       assert {:ok, %Counterparty{} = counterparty} =
-               CounterpartyContext.create_counterparty(session, valid_attrs)
+               CounterpartyContext.create_counterparty(session, request)
 
       assert counterparty.account_holder_id == account_holder.id
       assert counterparty.legal_entity_id == legal_entity.id
@@ -47,23 +47,29 @@ defmodule PaymentCompliancePlatform.CounterpartyContextTest do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
       legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
 
-      valid_attrs = %{
+      request = %CounterpartyRequest{
         account_holder_id: account_holder.id,
         legal_entity_id: legal_entity.id,
         status: :active,
         counterparty_number: "CP-001",
-        tenant_id: session.tenant_id
+        tenant_id: session.tenant_id,
+        chain_screening: false
       }
 
       assert {:ok, %Counterparty{} = counterparty} =
-               CounterpartyContext.create_counterparty(session, valid_attrs)
+               CounterpartyContext.create_counterparty(session, request)
 
       assert counterparty.counterparty_number == "CP-001"
     end
 
     test "create_counterparty/2 with invalid data returns error changeset", %{session: session} do
+      request = %CounterpartyRequest{
+        status: nil,
+        chain_screening: false
+      }
+
       assert {:error, %Ecto.Changeset{}} =
-               CounterpartyContext.create_counterparty(session, @invalid_attrs)
+               CounterpartyContext.create_counterparty(session, request)
     end
 
     test "create_counterparty/2 enforces unique (account_holder_id, legal_entity_id)", %{
@@ -72,23 +78,33 @@ defmodule PaymentCompliancePlatform.CounterpartyContextTest do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
       legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
 
-      attrs = %{
+      request = %CounterpartyRequest{
         account_holder_id: account_holder.id,
         legal_entity_id: legal_entity.id,
         status: :active,
-        tenant_id: session.tenant_id
+        tenant_id: session.tenant_id,
+        chain_screening: false
       }
 
-      assert {:ok, _} = CounterpartyContext.create_counterparty(session, attrs)
-      assert {:error, %Ecto.Changeset{}} = CounterpartyContext.create_counterparty(session, attrs)
+      assert {:ok, _} = CounterpartyContext.create_counterparty(session, request)
+
+      assert {:error, %Ecto.Changeset{}} =
+               CounterpartyContext.create_counterparty(session, request)
     end
 
     test "update_counterparty/3 with valid data updates the counterparty", %{session: session} do
       counterparty = insert(:counterparty, tenant_id: session.tenant_id)
-      update_attrs = %{status: :suspended}
+
+      request = %CounterpartyRequest{
+        account_holder_id: counterparty.account_holder_id,
+        legal_entity_id: counterparty.legal_entity_id,
+        status: :suspended,
+        tenant_id: session.tenant_id,
+        chain_screening: false
+      }
 
       assert {:ok, %Counterparty{} = updated} =
-               CounterpartyContext.update_counterparty(session, counterparty, update_attrs)
+               CounterpartyContext.update_counterparty(session, counterparty, request)
 
       assert updated.status == :suspended
     end
@@ -96,8 +112,13 @@ defmodule PaymentCompliancePlatform.CounterpartyContextTest do
     test "update_counterparty/3 with invalid data returns error changeset", %{session: session} do
       counterparty = insert(:counterparty, tenant_id: session.tenant_id)
 
+      request = %CounterpartyRequest{
+        status: nil,
+        chain_screening: false
+      }
+
       assert {:error, %Ecto.Changeset{}} =
-               CounterpartyContext.update_counterparty(session, counterparty, %{status: nil})
+               CounterpartyContext.update_counterparty(session, counterparty, request)
     end
 
     test "delete_counterparty/2 deletes the counterparty", %{session: session} do

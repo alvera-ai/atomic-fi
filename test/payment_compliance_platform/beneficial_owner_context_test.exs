@@ -3,11 +3,10 @@ defmodule PaymentCompliancePlatform.BeneficialOwnerContextTest do
 
   alias PaymentCompliancePlatform.BeneficialOwnerContext
   alias PaymentCompliancePlatform.BeneficialOwnerContext.BeneficialOwner
+  alias PaymentCompliancePlatform.OpenApiSchema.BeneficialOwnerRequest
   import PaymentCompliancePlatform.Factory
 
   describe "beneficial_owners" do
-    @invalid_attrs %{control_type: nil}
-
     test "list_beneficial_owners/1 returns all beneficial_owners for tenant", %{session: session} do
       insert(:beneficial_owner, tenant_id: session.tenant_id)
       {:ok, {beneficial_owners, _meta}} = BeneficialOwnerContext.list_beneficial_owners(session)
@@ -31,16 +30,18 @@ defmodule PaymentCompliancePlatform.BeneficialOwnerContextTest do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
       legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
 
-      valid_attrs = %{
+      request = %BeneficialOwnerRequest{
         account_holder_id: account_holder.id,
         legal_entity_id: legal_entity.id,
         control_type: :shareholder,
         ownership_pct: 30.0,
-        tenant_id: session.tenant_id
+        verification_status: :pending,
+        tenant_id: session.tenant_id,
+        chain_screening: false
       }
 
       assert {:ok, %BeneficialOwner{} = beneficial_owner} =
-               BeneficialOwnerContext.create_beneficial_owner(session, valid_attrs)
+               BeneficialOwnerContext.create_beneficial_owner(session, request)
 
       assert beneficial_owner.account_holder_id == account_holder.id
       assert beneficial_owner.legal_entity_id == legal_entity.id
@@ -53,21 +54,36 @@ defmodule PaymentCompliancePlatform.BeneficialOwnerContextTest do
     test "create_beneficial_owner/2 with invalid data returns error changeset", %{
       session: session
     } do
+      request = %BeneficialOwnerRequest{
+        control_type: nil,
+        verification_status: :pending,
+        chain_screening: false
+      }
+
       assert {:error, %Ecto.Changeset{}} =
-               BeneficialOwnerContext.create_beneficial_owner(session, @invalid_attrs)
+               BeneficialOwnerContext.create_beneficial_owner(session, request)
     end
 
     test "update_beneficial_owner/3 with valid data updates the beneficial_owner", %{
       session: session
     } do
       beneficial_owner = insert(:beneficial_owner, tenant_id: session.tenant_id)
-      update_attrs = %{verification_status: :verified, ownership_pct: 51.0}
+
+      request = %BeneficialOwnerRequest{
+        account_holder_id: beneficial_owner.account_holder_id,
+        legal_entity_id: beneficial_owner.legal_entity_id,
+        control_type: beneficial_owner.control_type,
+        verification_status: :verified,
+        ownership_pct: 51.0,
+        tenant_id: session.tenant_id,
+        chain_screening: false
+      }
 
       assert {:ok, %BeneficialOwner{} = updated} =
                BeneficialOwnerContext.update_beneficial_owner(
                  session,
                  beneficial_owner,
-                 update_attrs
+                 request
                )
 
       assert updated.verification_status == :verified
@@ -79,10 +95,14 @@ defmodule PaymentCompliancePlatform.BeneficialOwnerContextTest do
     } do
       beneficial_owner = insert(:beneficial_owner, tenant_id: session.tenant_id)
 
+      request = %BeneficialOwnerRequest{
+        control_type: nil,
+        verification_status: :pending,
+        chain_screening: false
+      }
+
       assert {:error, %Ecto.Changeset{}} =
-               BeneficialOwnerContext.update_beneficial_owner(session, beneficial_owner, %{
-                 control_type: nil
-               })
+               BeneficialOwnerContext.update_beneficial_owner(session, beneficial_owner, request)
     end
 
     test "delete_beneficial_owner/2 deletes the beneficial_owner", %{session: session} do

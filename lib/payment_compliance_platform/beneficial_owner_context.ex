@@ -13,6 +13,8 @@ defmodule PaymentCompliancePlatform.BeneficialOwnerContext do
   import Ecto.Query, warn: false
   use PaymentCompliancePlatform.LoggerMacro
 
+  alias PaymentCompliancePlatform.ComplianceScreeningContext.ScreeningWorker
+  alias PaymentCompliancePlatform.OpenApiSchema.BeneficialOwnerRequest
   alias PaymentCompliancePlatform.Repo
   alias PaymentCompliancePlatform.BeneficialOwnerContext.BeneficialOwner
   alias PaymentCompliancePlatform.SessionContext.Session
@@ -71,12 +73,30 @@ defmodule PaymentCompliancePlatform.BeneficialOwnerContext do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec create_beneficial_owner(Session.t(), map()) ::
+  @spec create_beneficial_owner(Session.t(), BeneficialOwnerRequest.t()) ::
           {:ok, BeneficialOwner.t()} | {:error, Ecto.Changeset.t()}
-  def_with_rls_and_logging create_beneficial_owner(session, attrs), log_fields: [] do
-    %BeneficialOwner{}
-    |> BeneficialOwner.changeset(attrs)
-    |> Repo.insert(session: session)
+  def_with_rls_and_logging create_beneficial_owner(
+                             session,
+                             %BeneficialOwnerRequest{} = request
+                           ),
+                           log_fields: [] do
+    with {:ok, beneficial_owner} <-
+           %BeneficialOwner{}
+           |> BeneficialOwner.changeset(request)
+           |> Repo.insert(session: session) do
+      if request.chain_screening do
+        %{
+          subject: "beneficial_owner",
+          account_holder_id: beneficial_owner.account_holder_id,
+          beneficial_owner_id: beneficial_owner.id,
+          tenant_id: beneficial_owner.tenant_id
+        }
+        |> ScreeningWorker.new()
+        |> Oban.insert!()
+      end
+
+      {:ok, beneficial_owner}
+    end
   end
 
   @doc """
@@ -91,16 +111,16 @@ defmodule PaymentCompliancePlatform.BeneficialOwnerContext do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec update_beneficial_owner(Session.t(), BeneficialOwner.t(), map()) ::
+  @spec update_beneficial_owner(Session.t(), BeneficialOwner.t(), BeneficialOwnerRequest.t()) ::
           {:ok, BeneficialOwner.t()} | {:error, Ecto.Changeset.t()}
   def_with_rls_and_logging update_beneficial_owner(
                              session,
                              %BeneficialOwner{} = beneficial_owner,
-                             attrs
+                             %BeneficialOwnerRequest{} = request
                            ),
                            log_fields: [:beneficial_owner] do
     beneficial_owner
-    |> BeneficialOwner.changeset(attrs)
+    |> BeneficialOwner.changeset(request)
     |> Repo.update(session: session)
   end
 

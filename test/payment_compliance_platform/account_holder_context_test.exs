@@ -3,11 +3,10 @@ defmodule PaymentCompliancePlatform.AccountHolderContextTest do
 
   alias PaymentCompliancePlatform.AccountHolderContext
   alias PaymentCompliancePlatform.AccountHolderContext.AccountHolder
+  alias PaymentCompliancePlatform.OpenApiSchema.AccountHolderRequest
   import PaymentCompliancePlatform.Factory
 
   describe "account_holders" do
-    @invalid_attrs %{holder_type: nil}
-
     test "list_account_holders/1 returns all account_holders for tenant", %{session: session} do
       insert(:account_holder, tenant_id: session.tenant_id)
       {:ok, {account_holders, _meta}} = AccountHolderContext.list_account_holders(session)
@@ -28,14 +27,19 @@ defmodule PaymentCompliancePlatform.AccountHolderContextTest do
     } do
       legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
 
-      valid_attrs = %{
+      request = %AccountHolderRequest{
         legal_entity_id: legal_entity.id,
         holder_type: :individual,
-        tenant_id: session.tenant_id
+        status: :pending,
+        kyc_status: :not_started,
+        risk_level: :low,
+        enabled_currencies: ["USD"],
+        tenant_id: session.tenant_id,
+        chain_screening: false
       }
 
       assert {:ok, %AccountHolder{} = account_holder} =
-               AccountHolderContext.create_account_holder(session, valid_attrs)
+               AccountHolderContext.create_account_holder(session, request)
 
       assert account_holder.legal_entity_id == legal_entity.id
       assert account_holder.holder_type == :individual
@@ -46,18 +50,37 @@ defmodule PaymentCompliancePlatform.AccountHolderContextTest do
     end
 
     test "create_account_holder/2 with invalid data returns error changeset", %{session: session} do
+      request = %AccountHolderRequest{
+        holder_type: nil,
+        status: :pending,
+        kyc_status: :not_started,
+        risk_level: :low,
+        enabled_currencies: [],
+        chain_screening: false
+      }
+
       assert {:error, %Ecto.Changeset{}} =
-               AccountHolderContext.create_account_holder(session, @invalid_attrs)
+               AccountHolderContext.create_account_holder(session, request)
     end
 
     test "update_account_holder/3 with valid data updates the account_holder", %{
       session: session
     } do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
-      update_attrs = %{status: :active, kyc_status: :approved, risk_level: :medium}
+
+      request = %AccountHolderRequest{
+        legal_entity_id: account_holder.legal_entity_id,
+        holder_type: account_holder.holder_type,
+        status: :active,
+        kyc_status: :approved,
+        risk_level: :medium,
+        enabled_currencies: ["USD"],
+        tenant_id: session.tenant_id,
+        chain_screening: false
+      }
 
       assert {:ok, %AccountHolder{} = updated} =
-               AccountHolderContext.update_account_holder(session, account_holder, update_attrs)
+               AccountHolderContext.update_account_holder(session, account_holder, request)
 
       assert updated.status == :active
       assert updated.kyc_status == :approved
@@ -67,10 +90,18 @@ defmodule PaymentCompliancePlatform.AccountHolderContextTest do
     test "update_account_holder/3 with invalid data returns error changeset", %{session: session} do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
+      request = %AccountHolderRequest{
+        holder_type: nil,
+        status: :pending,
+        kyc_status: :not_started,
+        risk_level: :low,
+        enabled_currencies: [],
+        tenant_id: session.tenant_id,
+        chain_screening: false
+      }
+
       assert {:error, %Ecto.Changeset{}} =
-               AccountHolderContext.update_account_holder(session, account_holder, %{
-                 holder_type: nil
-               })
+               AccountHolderContext.update_account_holder(session, account_holder, request)
     end
 
     test "delete_account_holder/2 deletes the account_holder", %{session: session} do

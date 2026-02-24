@@ -11,6 +11,8 @@ defmodule PaymentCompliancePlatform.CounterpartyContext do
   import Ecto.Query, warn: false
   use PaymentCompliancePlatform.LoggerMacro
 
+  alias PaymentCompliancePlatform.ComplianceScreeningContext.ScreeningWorker
+  alias PaymentCompliancePlatform.OpenApiSchema.CounterpartyRequest
   alias PaymentCompliancePlatform.Repo
   alias PaymentCompliancePlatform.CounterpartyContext.Counterparty
   alias PaymentCompliancePlatform.SessionContext.Session
@@ -69,12 +71,30 @@ defmodule PaymentCompliancePlatform.CounterpartyContext do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec create_counterparty(Session.t(), map()) ::
+  @spec create_counterparty(Session.t(), CounterpartyRequest.t()) ::
           {:ok, Counterparty.t()} | {:error, Ecto.Changeset.t()}
-  def_with_rls_and_logging create_counterparty(session, attrs), log_fields: [] do
-    %Counterparty{}
-    |> Counterparty.changeset(attrs)
-    |> Repo.insert(session: session)
+  def_with_rls_and_logging create_counterparty(
+                             session,
+                             %CounterpartyRequest{} = request
+                           ),
+                           log_fields: [] do
+    with {:ok, counterparty} <-
+           %Counterparty{}
+           |> Counterparty.changeset(request)
+           |> Repo.insert(session: session) do
+      if request.chain_screening do
+        %{
+          subject: "counterparty",
+          account_holder_id: counterparty.account_holder_id,
+          counterparty_id: counterparty.id,
+          tenant_id: counterparty.tenant_id
+        }
+        |> ScreeningWorker.new()
+        |> Oban.insert!()
+      end
+
+      {:ok, counterparty}
+    end
   end
 
   @doc """
@@ -89,16 +109,16 @@ defmodule PaymentCompliancePlatform.CounterpartyContext do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec update_counterparty(Session.t(), Counterparty.t(), map()) ::
+  @spec update_counterparty(Session.t(), Counterparty.t(), CounterpartyRequest.t()) ::
           {:ok, Counterparty.t()} | {:error, Ecto.Changeset.t()}
   def_with_rls_and_logging update_counterparty(
                              session,
                              %Counterparty{} = counterparty,
-                             attrs
+                             %CounterpartyRequest{} = request
                            ),
                            log_fields: [:counterparty] do
     counterparty
-    |> Counterparty.changeset(attrs)
+    |> Counterparty.changeset(request)
     |> Repo.update(session: session)
   end
 

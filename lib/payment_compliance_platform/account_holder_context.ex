@@ -9,6 +9,8 @@ defmodule PaymentCompliancePlatform.AccountHolderContext do
   import Ecto.Query, warn: false
   use PaymentCompliancePlatform.LoggerMacro
 
+  alias PaymentCompliancePlatform.ComplianceScreeningContext.ScreeningWorker
+  alias PaymentCompliancePlatform.OpenApiSchema.AccountHolderRequest
   alias PaymentCompliancePlatform.Repo
   alias PaymentCompliancePlatform.AccountHolderContext.AccountHolder
   alias PaymentCompliancePlatform.SessionContext.Session
@@ -67,12 +69,29 @@ defmodule PaymentCompliancePlatform.AccountHolderContext do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec create_account_holder(Session.t(), map()) ::
+  @spec create_account_holder(Session.t(), AccountHolderRequest.t()) ::
           {:ok, AccountHolder.t()} | {:error, Ecto.Changeset.t()}
-  def_with_rls_and_logging create_account_holder(session, attrs), log_fields: [] do
-    %AccountHolder{}
-    |> AccountHolder.changeset(attrs)
-    |> Repo.insert(session: session)
+  def_with_rls_and_logging create_account_holder(
+                             session,
+                             %AccountHolderRequest{} = request
+                           ),
+                           log_fields: [] do
+    with {:ok, account_holder} <-
+           %AccountHolder{}
+           |> AccountHolder.changeset(request)
+           |> Repo.insert(session: session) do
+      if request.chain_screening do
+        %{
+          subject: "account_holder",
+          account_holder_id: account_holder.id,
+          tenant_id: account_holder.tenant_id
+        }
+        |> ScreeningWorker.new()
+        |> Oban.insert!()
+      end
+
+      {:ok, account_holder}
+    end
   end
 
   @doc """
@@ -87,16 +106,16 @@ defmodule PaymentCompliancePlatform.AccountHolderContext do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec update_account_holder(Session.t(), AccountHolder.t(), map()) ::
+  @spec update_account_holder(Session.t(), AccountHolder.t(), AccountHolderRequest.t()) ::
           {:ok, AccountHolder.t()} | {:error, Ecto.Changeset.t()}
   def_with_rls_and_logging update_account_holder(
                              session,
                              %AccountHolder{} = account_holder,
-                             attrs
+                             %AccountHolderRequest{} = request
                            ),
                            log_fields: [:account_holder] do
     account_holder
-    |> AccountHolder.changeset(attrs)
+    |> AccountHolder.changeset(request)
     |> Repo.update(session: session)
   end
 
