@@ -261,4 +261,11 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     AccountHolderResponse,
     "account_holders"
   )
+
+  # BeneficialOwner list response - wraps BeneficialOwnerResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    BeneficialOwnerListResponse,
+    BeneficialOwnerResponse,
+    "beneficial_owners"
+  )
 end

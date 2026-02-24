@@ -63,6 +63,10 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "AccountHolderRequest" => OpenApiSchema.AccountHolderRequest.schema(),
           "AccountHolderResponse" => OpenApiSchema.AccountHolderResponse.schema(),
           "AccountHolderListResponse" => OpenApiSchema.AccountHolderListResponse.schema(),
+          # Request/Response schemas for BeneficialOwner
+          "BeneficialOwnerRequest" => OpenApiSchema.BeneficialOwnerRequest.schema(),
+          "BeneficialOwnerResponse" => OpenApiSchema.BeneficialOwnerResponse.schema(),
+          "BeneficialOwnerListResponse" => OpenApiSchema.BeneficialOwnerListResponse.schema(),
           # Request/Response schemas for Decision (Onboarding)
           "ScreeningRequest" =>
             PaymentCompliancePlatform.DecisionContext.ScreeningRequest.schema(),
@@ -118,6 +122,12 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           name: "Account Holders",
           description:
             "Account holder operational state (ISO 20022 acmt:007 / acmt:019). " <>
+              "PII lives in the linked Legal Entity."
+        },
+        %Tag{
+          name: "Beneficial Owners",
+          description:
+            "Beneficial owners of corporate account holders (FinCEN CDD Rule 31 CFR §1010.230 / FATF Rec 24). " <>
               "PII lives in the linked Legal Entity."
         }
       ]
