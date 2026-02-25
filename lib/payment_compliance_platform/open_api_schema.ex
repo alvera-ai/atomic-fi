@@ -310,4 +310,11 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     LedgerAccountBalanceResponse,
     "ledger_account_balances"
   )
+
+  # KycRequirement list response - wraps KycRequirementResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    KycRequirementListResponse,
+    KycRequirementResponse,
+    "kyc_requirements"
+  )
 end

@@ -90,6 +90,13 @@ defmodule PaymentCompliancePlatformApi.Routes do
         put "/counterparties/:id", CounterpartyController, :update
         delete "/counterparties/:id", CounterpartyController, :delete
 
+        # KYC requirement CRUD endpoints (FATF CDD/EDD/wire/UBO compliance verification)
+        get "/kyc-requirements", KycRequirementController, :index
+        get "/kyc-requirements/:id", KycRequirementController, :show
+        post "/kyc-requirements", KycRequirementController, :create
+        put "/kyc-requirements/:id", KycRequirementController, :update
+        delete "/kyc-requirements/:id", KycRequirementController, :delete
+
         # Ledger CRUD endpoints (ISO 20022 camt:052/camt:053 — one per AccountHolder per currency)
         get "/ledgers", LedgerController, :index
         get "/ledgers/:id", LedgerController, :show

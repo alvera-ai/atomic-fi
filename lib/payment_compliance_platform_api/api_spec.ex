@@ -71,11 +71,6 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "CounterpartyRequest" => OpenApiSchema.CounterpartyRequest.schema(),
           "CounterpartyResponse" => OpenApiSchema.CounterpartyResponse.schema(),
           "CounterpartyListResponse" => OpenApiSchema.CounterpartyListResponse.schema(),
-          # Nested schemas for AccountHolder
-          "InterestedCompanyRequest" => OpenApiSchema.InterestedCompanyRequest.schema(),
-          "InterestedCompanyResponse" => OpenApiSchema.InterestedCompanyResponse.schema(),
-          "InterestedIndividualRequest" => OpenApiSchema.InterestedIndividualRequest.schema(),
-          "InterestedIndividualResponse" => OpenApiSchema.InterestedIndividualResponse.schema(),
           # Watchman nested schemas
           "AddressRequest" => OpenApiSchema.AddressRequest.schema(),
           "AddressResponse" => OpenApiSchema.AddressResponse.schema(),
@@ -86,9 +81,6 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "ComplianceScreeningResponse" => OpenApiSchema.ComplianceScreeningResponse.schema(),
           "ComplianceScreeningListResponse" =>
             OpenApiSchema.ComplianceScreeningListResponse.schema(),
-          # Manual ScreeningRequest struct (input-only for screen_* controller actions)
-          "ScreeningRequest" =>
-            PaymentCompliancePlatform.ComplianceScreeningContext.ScreeningRequest.schema(),
           "SanctionsMatchRequest" => OpenApiSchema.SanctionsMatchRequest.schema(),
           "SanctionsMatchResponse" => OpenApiSchema.SanctionsMatchResponse.schema(),
           "BlocklistMatchRequest" => OpenApiSchema.BlocklistMatchRequest.schema(),
@@ -135,7 +127,11 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           # Response schemas for LedgerAccountBalance (read-only — trigger-maintained)
           "LedgerAccountBalanceResponse" => OpenApiSchema.LedgerAccountBalanceResponse.schema(),
           "LedgerAccountBalanceListResponse" =>
-            OpenApiSchema.LedgerAccountBalanceListResponse.schema()
+            OpenApiSchema.LedgerAccountBalanceListResponse.schema(),
+          # Request/Response schemas for KycRequirement (FATF CDD/EDD/wire/UBO)
+          "KycRequirementRequest" => OpenApiSchema.KycRequirementRequest.schema(),
+          "KycRequirementResponse" => OpenApiSchema.KycRequirementResponse.schema(),
+          "KycRequirementListResponse" => OpenApiSchema.KycRequirementListResponse.schema()
         }
       },
       tags: [
@@ -194,6 +190,13 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
               "Created and updated entirely by the ledger_entry_propagate_to_balances DB trigger. " <>
               "Each row carries day/week/month/year cumulative totals and last known velocity limits " <>
               "from the risk engine. Velocity limit enforcement is DB-driven via CHECK constraints."
+        },
+        %Tag{
+          name: "KYC Requirements",
+          description:
+            "KYC verification requirements per FATF scope (CDD Rec 10 / EDD Rec 19 / wire Rec 16 / UBO Rec 24). " <>
+              "One row per compliance check action — natural key: (account_holder_id, legal_entity_id, scope, requirement_type). " <>
+              "account_holder_id is always the MDM subject; legal_entity_id is the identity being verified."
         }
       ]
     }
