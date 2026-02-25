@@ -179,13 +179,6 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext.ComplianceScreeni
 
   open_api_property(schema: %Schema{type: :integer, nullable: true}, key: :escalation_level)
 
-  open_api_property(schema: %Schema{type: :object, nullable: true}, key: :list_sources)
-
-  open_api_property(
-    schema: %Schema{type: :string, format: :"date-time", nullable: true},
-    key: :list_synced_at
-  )
-
   open_api_property(
     schema: %Schema{type: :string, nullable: true},
     key: :compliance_screening_number
@@ -265,8 +258,6 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext.ComplianceScreeni
       :reviewed_by_user_id,
       :review_notes,
       :escalation_level,
-      :list_sources,
-      :list_synced_at,
       :compliance_screening_number,
       :account_holder_id,
       :counterparty_id,
@@ -328,10 +319,6 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext.ComplianceScreeni
     field :review_notes, :string
     field :escalation_level, :integer
 
-    # Watchman list metadata
-    field :list_sources, :map
-    field :list_synced_at, :utc_datetime_usec
-
     # Opaque SoE identifier
     field :compliance_screening_number, :string
 
@@ -380,8 +367,6 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext.ComplianceScreeni
       :reviewed_by_user_id,
       :review_notes,
       :escalation_level,
-      :list_sources,
-      :list_synced_at,
       :compliance_screening_number,
       :account_holder_id,
       :counterparty_id,

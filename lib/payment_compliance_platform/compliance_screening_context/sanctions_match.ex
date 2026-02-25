@@ -268,6 +268,13 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext.SanctionsMatch do
   )
 
   open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", nullable: true},
+    key: :list_synced_at
+  )
+
+  open_api_property(schema: %Schema{type: :object, nullable: true}, key: :list_sources)
+
+  open_api_property(
     schema: %Schema{type: :string, format: :uuid, readOnly: true},
     key: :tenant_id
   )
@@ -307,6 +314,8 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext.SanctionsMatch do
       :review_notes,
       :reviewed_by_user_id,
       :reviewed_at,
+      :list_synced_at,
+      :list_sources,
       :tenant_id,
       :inserted_at,
       :updated_at
@@ -340,6 +349,10 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext.SanctionsMatch do
     field :reviewed_by_user_id, :binary_id
     field :reviewed_at, :utc_datetime_usec
 
+    # Watchman list metadata at the time this specific match was found
+    field :list_synced_at, :utc_datetime_usec
+    field :list_sources, :map
+
     belongs_to :compliance_screening,
                PaymentCompliancePlatform.ComplianceScreeningContext.ComplianceScreening
 
@@ -363,6 +376,8 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext.SanctionsMatch do
       :review_notes,
       :reviewed_by_user_id,
       :reviewed_at,
+      :list_synced_at,
+      :list_sources,
       :compliance_screening_id,
       :tenant_id
     ])
