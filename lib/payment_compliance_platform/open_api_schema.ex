@@ -317,4 +317,11 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     KycRequirementResponse,
     "kyc_requirements"
   )
+
+  # Document list response - wraps DocumentResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    DocumentListResponse,
+    DocumentResponse,
+    "documents"
+  )
 end

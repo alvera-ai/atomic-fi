@@ -121,6 +121,13 @@ defmodule PaymentCompliancePlatformApi.Routes do
         # Ledger account balance read-only endpoints (trigger-maintained daily snapshots)
         get "/ledger-account-balances", LedgerAccountBalanceController, :index
         get "/ledger-account-balances/:id", LedgerAccountBalanceController, :show
+
+        # Document CRUD endpoints (ISO 20022 acmt:007 SupportingDocument — KYC artefacts)
+        get "/documents", DocumentController, :index
+        get "/documents/:id", DocumentController, :show
+        post "/documents", DocumentController, :create
+        put "/documents/:id", DocumentController, :update
+        delete "/documents/:id", DocumentController, :delete
       end
     end
   end

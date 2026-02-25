@@ -131,7 +131,11 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           # Request/Response schemas for KycRequirement (FATF CDD/EDD/wire/UBO)
           "KycRequirementRequest" => OpenApiSchema.KycRequirementRequest.schema(),
           "KycRequirementResponse" => OpenApiSchema.KycRequirementResponse.schema(),
-          "KycRequirementListResponse" => OpenApiSchema.KycRequirementListResponse.schema()
+          "KycRequirementListResponse" => OpenApiSchema.KycRequirementListResponse.schema(),
+          # Request/Response schemas for Document (ISO 20022 acmt:007 SupportingDocument)
+          "DocumentRequest" => OpenApiSchema.DocumentRequest.schema(),
+          "DocumentResponse" => OpenApiSchema.DocumentResponse.schema(),
+          "DocumentListResponse" => OpenApiSchema.DocumentListResponse.schema()
         }
       },
       tags: [
@@ -197,6 +201,13 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
             "KYC verification requirements per FATF scope (CDD Rec 10 / EDD Rec 19 / wire Rec 16 / UBO Rec 24). " <>
               "One row per compliance check action — natural key: (account_holder_id, legal_entity_id, scope, requirement_type). " <>
               "account_holder_id is always the MDM subject; legal_entity_id is the identity being verified."
+        },
+        %Tag{
+          name: "Documents",
+          description:
+            "Compliance supporting documents (ISO 20022 acmt:007 SupportingDocument). " <>
+              "Identity documents, proof of address, UBO declarations, and other KYC artefacts linked to AccountHolders. " <>
+              "Physical files are stored out-of-band; this API manages only storage references."
         }
       ]
     }
