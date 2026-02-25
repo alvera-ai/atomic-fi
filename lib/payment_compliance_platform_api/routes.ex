@@ -89,6 +89,31 @@ defmodule PaymentCompliancePlatformApi.Routes do
         post "/counterparties", CounterpartyController, :create
         put "/counterparties/:id", CounterpartyController, :update
         delete "/counterparties/:id", CounterpartyController, :delete
+
+        # Ledger CRUD endpoints (ISO 20022 camt:052/camt:053 — one per AccountHolder per currency)
+        get "/ledgers", LedgerController, :index
+        get "/ledgers/:id", LedgerController, :show
+        post "/ledgers", LedgerController, :create
+        put "/ledgers/:id", LedgerController, :update
+        delete "/ledgers/:id", LedgerController, :delete
+
+        # Ledger account CRUD endpoints (chart-of-accounts line items with stored balance)
+        get "/ledger-accounts", LedgerAccountController, :index
+        get "/ledger-accounts/:id", LedgerAccountController, :show
+        post "/ledger-accounts", LedgerAccountController, :create
+        put "/ledger-accounts/:id", LedgerAccountController, :update
+        delete "/ledger-accounts/:id", LedgerAccountController, :delete
+
+        # Ledger entry CRUD endpoints (debit/credit lines — balance updated atomically on create/void)
+        get "/ledger-entries", LedgerEntryController, :index
+        get "/ledger-entries/:id", LedgerEntryController, :show
+        post "/ledger-entries", LedgerEntryController, :create
+        put "/ledger-entries/:id", LedgerEntryController, :update
+        delete "/ledger-entries/:id", LedgerEntryController, :delete
+
+        # Ledger account balance read-only endpoints (trigger-maintained daily snapshots)
+        get "/ledger-account-balances", LedgerAccountBalanceController, :index
+        get "/ledger-account-balances/:id", LedgerAccountBalanceController, :show
       end
     end
   end

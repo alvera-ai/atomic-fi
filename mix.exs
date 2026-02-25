@@ -89,6 +89,9 @@ defmodule PaymentCompliancePlatform.MixProject do
       # HTTP client
       {:req, "~> 0.5"},
 
+      # Money / currency arithmetic
+      {:money, "~> 1.12"},
+
       # Utils
       {:slugify, "~> 1.3"},
       {:timex, "~> 3.7", override: true},

@@ -119,7 +119,23 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           # Common schemas
           "ErrorResponse" => OpenApiSchema.ErrorResponse.schema(),
           "ChangesetErrors" => OpenApiSchema.ChangesetErrors.schema(),
-          "PaginationMeta" => OpenApiSchema.PaginationMeta.schema()
+          "PaginationMeta" => OpenApiSchema.PaginationMeta.schema(),
+          # Request/Response schemas for Ledger
+          "LedgerRequest" => OpenApiSchema.LedgerRequest.schema(),
+          "LedgerResponse" => OpenApiSchema.LedgerResponse.schema(),
+          "LedgerListResponse" => OpenApiSchema.LedgerListResponse.schema(),
+          # Request/Response schemas for LedgerAccount
+          "LedgerAccountRequest" => OpenApiSchema.LedgerAccountRequest.schema(),
+          "LedgerAccountResponse" => OpenApiSchema.LedgerAccountResponse.schema(),
+          "LedgerAccountListResponse" => OpenApiSchema.LedgerAccountListResponse.schema(),
+          # Request/Response schemas for LedgerEntry
+          "LedgerEntryRequest" => OpenApiSchema.LedgerEntryRequest.schema(),
+          "LedgerEntryResponse" => OpenApiSchema.LedgerEntryResponse.schema(),
+          "LedgerEntryListResponse" => OpenApiSchema.LedgerEntryListResponse.schema(),
+          # Response schemas for LedgerAccountBalance (read-only — trigger-maintained)
+          "LedgerAccountBalanceResponse" => OpenApiSchema.LedgerAccountBalanceResponse.schema(),
+          "LedgerAccountBalanceListResponse" =>
+            OpenApiSchema.LedgerAccountBalanceListResponse.schema()
         }
       },
       tags: [
@@ -151,6 +167,33 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           description:
             "External payers/payees (ISO 20022 <Dbtr>/<Cdtr>) that AccountHolders transact with. " <>
               "PII lives in the linked Legal Entity."
+        },
+        %Tag{
+          name: "Ledgers",
+          description:
+            "ISO 20022 camt:052/camt:053 chart-of-accounts containers — one per AccountHolder per currency."
+        },
+        %Tag{
+          name: "Ledger Accounts",
+          description:
+            "Chart-of-accounts line items within a Ledger (asset, liability, equity, revenue, expense). " <>
+              "Stores running balance in minor currency units — atomically updated on entry create/reverse."
+        },
+        %Tag{
+          name: "Ledger Entries",
+          description:
+            "Individual debit/credit line items (ISO 20022 CdtDbtInd). " <>
+              "Creating an entry atomically updates the parent LedgerAccount balance via DB trigger. " <>
+              "Voiding an entry (status → voided) reverses the balance delta. " <>
+              "Velocity limits are enforced by DB CHECK constraints on ledger_account_balances."
+        },
+        %Tag{
+          name: "Ledger Account Balances",
+          description:
+            "Daily balance snapshots for LedgerAccounts (read-only). " <>
+              "Created and updated entirely by the ledger_entry_propagate_to_balances DB trigger. " <>
+              "Each row carries day/week/month/year cumulative totals and last known velocity limits " <>
+              "from the risk engine. Velocity limit enforcement is DB-driven via CHECK constraints."
         }
       ]
     }

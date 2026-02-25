@@ -282,4 +282,32 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     ComplianceScreeningResponse,
     "compliance_screenings"
   )
+
+  # Ledger list response - wraps LedgerResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    LedgerListResponse,
+    LedgerResponse,
+    "ledgers"
+  )
+
+  # LedgerAccount list response - wraps LedgerAccountResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    LedgerAccountListResponse,
+    LedgerAccountResponse,
+    "ledger_accounts"
+  )
+
+  # LedgerEntry list response - wraps LedgerEntryResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    LedgerEntryListResponse,
+    LedgerEntryResponse,
+    "ledger_entries"
+  )
+
+  # LedgerAccountBalance list response - wraps LedgerAccountBalanceResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    LedgerAccountBalanceListResponse,
+    LedgerAccountBalanceResponse,
+    "ledger_account_balances"
+  )
 end
