@@ -252,7 +252,7 @@ All contexts in the project. ISO 20022 alignment tracked in [#9](https://github.
 | LedgerAccount | ISO 20022 camt:052, camt:053 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | LedgerEntry | ISO 20022 camt:052, camt:053 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | LedgerAccountBalance | ISO 20022 camt:053 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| KycRequirement | ISO 20022 acmt:007, acmt:008 · FATF Rec 10/16/19/24 | 🔴 | 🔴 | 🔴 | 🔴 | 🔴 | 0/5 |
+| KycRequirement | ISO 20022 acmt:007, acmt:008 · FATF Rec 10/16/19/24 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | Document | ISO 20022 acmt:007 · FATF Rec 10 | 🔴 | 🔴 | 🔴 | 🔴 | 🔴 | 0/5 |
 | PaymentAccount | ISO 20022 pain:001 · FATF Rec 16 · PCI-DSS 4.0 | 🔴 | 🔴 | 🔴 | 🔴 | 🔴 | 0/5 |
 | Transaction | ISO 20022 pain:001, pacs:008, pacs:002, pacs:004, camt:054 | 🔴 | 🔴 | 🔴 | 🔴 | 🔴 | 0/5 |
@@ -288,6 +288,7 @@ All endpoints under `/api`, documented at `/api/docs` (Scalar UI).
 | Ledger Accounts | `GET/POST /api/ledger-accounts` · `GET/PUT/DELETE /api/ledger-accounts/:id` |
 | Ledger Entries | `GET/POST /api/ledger-entries` · `GET/PUT/DELETE /api/ledger-entries/:id` |
 | Ledger Account Balances | `GET /api/ledger-account-balances` · `GET /api/ledger-account-balances/:id` |
+| KYC Requirements | `GET/POST /api/kyc-requirements` · `GET/PUT/DELETE /api/kyc-requirements/:id` |
 
 ### Compliance Screening Actions
 
@@ -328,10 +329,10 @@ lib/
 │   ├── legal_entity_context/           # Shared identity + PII
 │   ├── compliance_screening_context/   # OFAC/SDN/PEP screening + Watchman
 │   │   ├── compliance_screening.ex     # Parent screening record (auth:018, camt:998)
-│   │   ├── screening_request.ex
 │   │   ├── screening_worker.ex         # Oban worker: :compliance_screening queue
 │   │   ├── blocklist_match.ex          # Per-hit internal blocklist result
 │   │   └── sanctions_match.ex          # Per-hit Watchman/OFAC result
+│   ├── kyc_requirement_context/        # KYC gates (FATF Rec 10/16/19/24)
 │   ├── decision_context/
 │   │   └── screening_engine.ex         # Watchman API client
 │   ├── blocklist_context/              # Internal blocklist management
@@ -355,7 +356,8 @@ lib/
 │       ├── ledger_controller.ex
 │       ├── ledger_account_controller.ex
 │       ├── ledger_entry_controller.ex
-│       └── ledger_account_balance_controller.ex
+│       ├── ledger_account_balance_controller.ex
+│       └── kyc_requirement_controller.ex
 │
 └── payment_compliance_platform_web/    # LiveView UI (future)
 
@@ -468,7 +470,7 @@ ADMIN_PASSWORD=change_me_in_production
 ### Running Tests
 
 ```bash
-# Run all tests (359 tests, 0 failures)
+# Run all tests (456 tests, 0 failures)
 mix test
 
 # Run specific domain tests
