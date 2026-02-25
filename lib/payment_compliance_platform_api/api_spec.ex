@@ -143,7 +143,14 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           # Request/Response schemas for Transaction (ISO 20022 pain:001/pacs:008/002/004/camt:054)
           "TransactionRequest" => OpenApiSchema.TransactionRequest.schema(),
           "TransactionResponse" => OpenApiSchema.TransactionResponse.schema(),
-          "TransactionListResponse" => OpenApiSchema.TransactionListResponse.schema()
+          "TransactionListResponse" => OpenApiSchema.TransactionListResponse.schema(),
+          # Request/Response schemas for AccountActivitySnapshot (ISO 20022 camt:052/053 · FinCEN AML)
+          "AccountActivitySnapshotRequest" =>
+            OpenApiSchema.AccountActivitySnapshotRequest.schema(),
+          "AccountActivitySnapshotResponse" =>
+            OpenApiSchema.AccountActivitySnapshotResponse.schema(),
+          "AccountActivitySnapshotListResponse" =>
+            OpenApiSchema.AccountActivitySnapshotListResponse.schema()
         }
       },
       tags: [
@@ -232,6 +239,14 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
               "Covers pain:001 (initiation), pacs:008 (interbank), pacs:002 (status), " <>
               "pacs:004 (return/refund), camt:054 (booking notification). " <>
               "FATF Rec 16: debtor/creditor PaymentAccounts must be verified before settlement."
+        },
+        %Tag{
+          name: "Account Activity Snapshots",
+          description:
+            "Periodic account activity summaries for AccountHolders (ISO 20022 camt:052/camt:053). " <>
+              "Intraday snapshots map to camt:052 BankToCustomerAccountReport; " <>
+              "daily/weekly/monthly snapshots map to camt:053 BankToCustomerStatement. " <>
+              "AML fields (flagged_for_review, sar_reference) support FinCEN SAR filing under 31 CFR §1020.320."
         }
       ]
     }

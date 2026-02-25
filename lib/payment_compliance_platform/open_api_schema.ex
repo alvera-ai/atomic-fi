@@ -338,4 +338,11 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     TransactionResponse,
     "transactions"
   )
+
+  # AccountActivitySnapshot list response - wraps AccountActivitySnapshotResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    AccountActivitySnapshotListResponse,
+    AccountActivitySnapshotResponse,
+    "account_activity_snapshots"
+  )
 end

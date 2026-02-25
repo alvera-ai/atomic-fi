@@ -142,6 +142,13 @@ defmodule PaymentCompliancePlatformApi.Routes do
         post "/transactions", TransactionController, :create
         put "/transactions/:id", TransactionController, :update
         delete "/transactions/:id", TransactionController, :delete
+
+        # Account activity snapshot CRUD endpoints (ISO 20022 camt:052/053 · FinCEN AML)
+        get "/account-activity-snapshots", AccountActivitySnapshotController, :index
+        get "/account-activity-snapshots/:id", AccountActivitySnapshotController, :show
+        post "/account-activity-snapshots", AccountActivitySnapshotController, :create
+        put "/account-activity-snapshots/:id", AccountActivitySnapshotController, :update
+        delete "/account-activity-snapshots/:id", AccountActivitySnapshotController, :delete
       end
     end
   end
