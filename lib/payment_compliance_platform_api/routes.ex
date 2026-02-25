@@ -149,6 +149,13 @@ defmodule PaymentCompliancePlatformApi.Routes do
         post "/account-activity-snapshots", AccountActivitySnapshotController, :create
         put "/account-activity-snapshots/:id", AccountActivitySnapshotController, :update
         delete "/account-activity-snapshots/:id", AccountActivitySnapshotController, :delete
+
+        # Legal entity change event CRUD endpoints (ISO 20022 acmt:006/acmt:002 · AML account takeover)
+        get "/legal-entity-change-events", LegalEntityChangeEventController, :index
+        get "/legal-entity-change-events/:id", LegalEntityChangeEventController, :show
+        post "/legal-entity-change-events", LegalEntityChangeEventController, :create
+        put "/legal-entity-change-events/:id", LegalEntityChangeEventController, :update
+        delete "/legal-entity-change-events/:id", LegalEntityChangeEventController, :delete
       end
     end
   end

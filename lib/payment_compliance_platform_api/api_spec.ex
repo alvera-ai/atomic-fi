@@ -150,7 +150,13 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "AccountActivitySnapshotResponse" =>
             OpenApiSchema.AccountActivitySnapshotResponse.schema(),
           "AccountActivitySnapshotListResponse" =>
-            OpenApiSchema.AccountActivitySnapshotListResponse.schema()
+            OpenApiSchema.AccountActivitySnapshotListResponse.schema(),
+          # Request/Response schemas for LegalEntityChangeEvent (ISO 20022 acmt:006/acmt:002 · AML)
+          "LegalEntityChangeEventRequest" => OpenApiSchema.LegalEntityChangeEventRequest.schema(),
+          "LegalEntityChangeEventResponse" =>
+            OpenApiSchema.LegalEntityChangeEventResponse.schema(),
+          "LegalEntityChangeEventListResponse" =>
+            OpenApiSchema.LegalEntityChangeEventListResponse.schema()
         }
       },
       tags: [
@@ -247,6 +253,14 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
               "Intraday snapshots map to camt:052 BankToCustomerAccountReport; " <>
               "daily/weekly/monthly snapshots map to camt:053 BankToCustomerStatement. " <>
               "AML fields (flagged_for_review, sar_reference) support FinCEN SAR filing under 31 CFR §1020.320."
+        },
+        %Tag{
+          name: "Legal Entity Change Events",
+          description:
+            "Audit log of non-financial identity lifecycle changes (ISO 20022 acmt:006/acmt:002). " <>
+              "Auto-created by update_legal_entity via Ecto prepare_changes — captures JSONB diff and previous state. " <>
+              "Primary AML signal source for account takeover detection: SIM swap (phone_change), " <>
+              "address velocity (address_change), pre-transfer grooming (beneficiary_added/authorised_signer_change)."
         }
       ]
     }

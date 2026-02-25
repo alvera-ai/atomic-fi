@@ -345,4 +345,11 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     AccountActivitySnapshotResponse,
     "account_activity_snapshots"
   )
+
+  # LegalEntityChangeEvent list response - wraps LegalEntityChangeEventResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    LegalEntityChangeEventListResponse,
+    LegalEntityChangeEventResponse,
+    "legal_entity_change_events"
+  )
 end

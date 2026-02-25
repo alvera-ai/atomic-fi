@@ -162,6 +162,19 @@ defmodule PaymentCompliancePlatform.LegalEntityContext.LegalEntity do
   )
 
   open_api_property(
+    schema: %Schema{
+      type: :string,
+      format: :uuid,
+      nullable: true,
+      readOnly: true,
+      description:
+        "UUID of the most recent LegalEntityChangeEvent for this entity. " <>
+          "Maintained by DB trigger after each change event insert — never written directly."
+    },
+    key: :latest_change_event_id
+  )
+
+  open_api_property(
     schema: %Schema{type: :string, format: :"date-time", readOnly: true},
     key: :inserted_at
   )
@@ -198,6 +211,7 @@ defmodule PaymentCompliancePlatform.LegalEntityContext.LegalEntity do
       :phone_numbers,
       :identifications,
       :tenant_id,
+      :latest_change_event_id,
       :inserted_at,
       :updated_at
     ]
@@ -246,6 +260,9 @@ defmodule PaymentCompliancePlatform.LegalEntityContext.LegalEntity do
 
     # Multi-tenancy: tenant_id references tenants for RLS
     belongs_to :tenant, Tenant
+
+    # Trigger-maintained FK to the most recent LegalEntityChangeEvent — never written directly
+    field :latest_change_event_id, :binary_id
 
     timestamps(type: :utc_datetime_usec)
   end

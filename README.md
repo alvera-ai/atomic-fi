@@ -213,6 +213,7 @@ All contexts in the project. ISO 20022 alignment tracked in [#9](https://github.
 | PaymentAccount | ISO 20022 pain:001 · FATF Rec 16 · PCI-DSS 4.0 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | Transaction | ISO 20022 pain:001, pacs:008, pacs:002, pacs:004, camt:054 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | AccountActivitySnapshot | ISO 20022 camt:052 · FinCEN AML | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| LegalEntityChangeEvent | ISO 20022 acmt:006 · acmt:002 · AML account takeover | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | PartyActivitySnapshot | FATF Rec 10 · FinCEN AML | 🔴 | 🔴 | 🔴 | 🔴 | 🔴 | 0/5 |
 | RiskClassification | ISO 20022 auth:018 · FATF Rec 10 | 🔴 | 🔴 | 🔴 | 🔴 | 🔴 | 0/5 |
 
