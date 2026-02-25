@@ -331,4 +331,11 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     PaymentAccountResponse,
     "payment_accounts"
   )
+
+  # Transaction list response - wraps TransactionResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    TransactionListResponse,
+    TransactionResponse,
+    "transactions"
+  )
 end

@@ -139,7 +139,11 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           # Request/Response schemas for PaymentAccount (ISO 20022 pain:001 DbtrAcct/CdtrAcct)
           "PaymentAccountRequest" => OpenApiSchema.PaymentAccountRequest.schema(),
           "PaymentAccountResponse" => OpenApiSchema.PaymentAccountResponse.schema(),
-          "PaymentAccountListResponse" => OpenApiSchema.PaymentAccountListResponse.schema()
+          "PaymentAccountListResponse" => OpenApiSchema.PaymentAccountListResponse.schema(),
+          # Request/Response schemas for Transaction (ISO 20022 pain:001/pacs:008/002/004/camt:054)
+          "TransactionRequest" => OpenApiSchema.TransactionRequest.schema(),
+          "TransactionResponse" => OpenApiSchema.TransactionResponse.schema(),
+          "TransactionListResponse" => OpenApiSchema.TransactionListResponse.schema()
         }
       },
       tags: [
@@ -220,6 +224,14 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
               "Gates FATF Recommendation 16 wire transfer compliance. " <>
               "Supports bank accounts, cards, wallets, and crypto wallets. " <>
               "PCI-DSS 4.0: account_number, iban, card_pan must be tokenised before writing."
+        },
+        %Tag{
+          name: "Transactions",
+          description:
+            "Payment transactions linked to AccountHolders — full ISO 20022 payment lifecycle. " <>
+              "Covers pain:001 (initiation), pacs:008 (interbank), pacs:002 (status), " <>
+              "pacs:004 (return/refund), camt:054 (booking notification). " <>
+              "FATF Rec 16: debtor/creditor PaymentAccounts must be verified before settlement."
         }
       ]
     }

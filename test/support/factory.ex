@@ -43,4 +43,5 @@ defmodule PaymentCompliancePlatform.Factory do
   use PaymentCompliancePlatform.Factory.KycRequirementFactory
   use PaymentCompliancePlatform.Factory.DocumentFactory
   use PaymentCompliancePlatform.Factory.PaymentAccountFactory
+  use PaymentCompliancePlatform.Factory.TransactionFactory
 end

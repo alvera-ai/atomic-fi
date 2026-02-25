@@ -254,8 +254,8 @@ All contexts in the project. ISO 20022 alignment tracked in [#9](https://github.
 | LedgerAccountBalance | ISO 20022 camt:053 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | KycRequirement | ISO 20022 acmt:007, acmt:008 · FATF Rec 10/16/19/24 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | Document | ISO 20022 acmt:007, acmt:008 · FATF Rec 10 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| PaymentAccount | ISO 20022 pain:001 · FATF Rec 16 · PCI-DSS 4.0 | 🔴 | 🔴 | 🔴 | 🔴 | 🔴 | 0/5 |
-| Transaction | ISO 20022 pain:001, pacs:008, pacs:002, pacs:004, camt:054 | 🔴 | 🔴 | 🔴 | 🔴 | 🔴 | 0/5 |
+| PaymentAccount | ISO 20022 pain:001 · FATF Rec 16 · PCI-DSS 4.0 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| Transaction | ISO 20022 pain:001, pacs:008, pacs:002, pacs:004, camt:054 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | AccountActivitySnapshot | ISO 20022 camt:052 · FinCEN AML | 🔴 | 🔴 | 🔴 | 🔴 | 🔴 | 0/5 |
 | PartyActivitySnapshot | FATF Rec 10 · FinCEN AML | 🔴 | 🔴 | 🔴 | 🔴 | 🔴 | 0/5 |
 | RiskClassification | ISO 20022 auth:018 · FATF Rec 10 | 🔴 | 🔴 | 🔴 | 🔴 | 🔴 | 0/5 |

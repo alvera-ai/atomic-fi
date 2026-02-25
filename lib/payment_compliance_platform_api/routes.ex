@@ -135,6 +135,13 @@ defmodule PaymentCompliancePlatformApi.Routes do
         post "/payment-accounts", PaymentAccountController, :create
         put "/payment-accounts/:id", PaymentAccountController, :update
         delete "/payment-accounts/:id", PaymentAccountController, :delete
+
+        # Transaction CRUD endpoints (ISO 20022 pain:001/pacs:008/002/004/camt:054)
+        get "/transactions", TransactionController, :index
+        get "/transactions/:id", TransactionController, :show
+        post "/transactions", TransactionController, :create
+        put "/transactions/:id", TransactionController, :update
+        delete "/transactions/:id", TransactionController, :delete
       end
     end
   end
