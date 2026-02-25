@@ -6,6 +6,9 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext.ScreeningWorker d
   is created with `chain_screening: true` (the default). Dispatches to the appropriate
   `ComplianceScreeningContext.screen_*/2` function based on the `subject` arg.
 
+  The context is responsible for loading the entity and its linked LegalEntity from
+  the database and constructing the Watchman screening input from those records.
+
   ## Job args
 
   Account holder screening:
@@ -34,13 +37,9 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext.ScreeningWorker d
       }) do
     session = build_session(tenant_id)
 
-    request = %{
-      account_holder_id: account_holder_id,
-      interested_individuals: [],
-      interested_companies: []
-    }
-
-    case ComplianceScreeningContext.screen_account_holder(session, request) do
+    case ComplianceScreeningContext.screen_account_holder(session, %{
+           account_holder_id: account_holder_id
+         }) do
       {:ok, _screenings} -> :ok
       {:error, reason} -> {:error, reason}
     end
@@ -56,14 +55,10 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext.ScreeningWorker d
       }) do
     session = build_session(tenant_id)
 
-    request = %{
-      account_holder_id: account_holder_id,
-      beneficial_owner_id: beneficial_owner_id,
-      interested_individuals: [],
-      interested_companies: []
-    }
-
-    case ComplianceScreeningContext.screen_beneficial_owner(session, request) do
+    case ComplianceScreeningContext.screen_beneficial_owner(session, %{
+           account_holder_id: account_holder_id,
+           beneficial_owner_id: beneficial_owner_id
+         }) do
       {:ok, _screenings} -> :ok
       {:error, reason} -> {:error, reason}
     end
@@ -79,14 +74,10 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext.ScreeningWorker d
       }) do
     session = build_session(tenant_id)
 
-    request = %{
-      account_holder_id: account_holder_id,
-      counterparty_id: counterparty_id,
-      interested_individuals: [],
-      interested_companies: []
-    }
-
-    case ComplianceScreeningContext.screen_counterparty(session, request) do
+    case ComplianceScreeningContext.screen_counterparty(session, %{
+           account_holder_id: account_holder_id,
+           counterparty_id: counterparty_id
+         }) do
       {:ok, _screenings} -> :ok
       {:error, reason} -> {:error, reason}
     end

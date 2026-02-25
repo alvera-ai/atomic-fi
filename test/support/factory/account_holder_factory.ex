@@ -27,6 +27,8 @@ defmodule PaymentCompliancePlatform.Factory.AccountHolderFactory do
           enabled_currencies: ["USD"],
           tenant_id: tenant_id
         }
+        |> merge_attributes(attrs)
+        |> evaluate_lazy_attributes()
       end
     end
   end

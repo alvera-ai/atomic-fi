@@ -3,7 +3,6 @@ defmodule PaymentCompliancePlatformApi.ComplianceScreeningController do
   use OpenApiSpex.ControllerSpecs
 
   alias PaymentCompliancePlatform.ComplianceScreeningContext
-  alias PaymentCompliancePlatform.ComplianceScreeningContext.ScreeningRequest
   alias PaymentCompliancePlatform.OpenApiSchema
   alias PaymentCompliancePlatform.OpenApiSchema.ComplianceScreeningListResponse
   alias PaymentCompliancePlatform.OpenApiSchema.ComplianceScreeningRequest
@@ -134,11 +133,7 @@ defmodule PaymentCompliancePlatformApi.ComplianceScreeningController do
     screening = ComplianceScreeningContext.get_compliance_screening!(session, id)
 
     with {:ok, screening} <-
-           ComplianceScreeningContext.update_compliance_screening(
-             session,
-             screening,
-             Map.from_struct(request)
-           ) do
+           ComplianceScreeningContext.update_compliance_screening(session, screening, request) do
       ApiHelpers.json_response(conn, screening, ComplianceScreeningResponse)
     end
   end
@@ -173,17 +168,79 @@ defmodule PaymentCompliancePlatformApi.ComplianceScreeningController do
     end
   end
 
+  # Inline schema for the screen_* request bodies (entity ID only).
+  @account_holder_screen_request %Schema{
+    title: "AccountHolderScreenRequest",
+    type: :object,
+    required: [:account_holder_id],
+    properties: %{
+      account_holder_id: %Schema{
+        type: :string,
+        format: :uuid,
+        description: "ID of the AccountHolder to screen"
+      }
+    },
+    example: %{"account_holder_id" => "550e8400-e29b-41d4-a716-446655440000"}
+  }
+
+  @beneficial_owner_screen_request %Schema{
+    title: "BeneficialOwnerScreenRequest",
+    type: :object,
+    required: [:account_holder_id, :beneficial_owner_id],
+    properties: %{
+      account_holder_id: %Schema{
+        type: :string,
+        format: :uuid,
+        description: "ID of the owning AccountHolder"
+      },
+      beneficial_owner_id: %Schema{
+        type: :string,
+        format: :uuid,
+        description: "ID of the BeneficialOwner to screen"
+      }
+    },
+    example: %{
+      "account_holder_id" => "550e8400-e29b-41d4-a716-446655440000",
+      "beneficial_owner_id" => "660e8400-e29b-41d4-a716-446655440001"
+    }
+  }
+
+  @counterparty_screen_request %Schema{
+    title: "CounterpartyScreenRequest",
+    type: :object,
+    required: [:account_holder_id, :counterparty_id],
+    properties: %{
+      account_holder_id: %Schema{
+        type: :string,
+        format: :uuid,
+        description: "ID of the internal AccountHolder"
+      },
+      counterparty_id: %Schema{
+        type: :string,
+        format: :uuid,
+        description: "ID of the Counterparty to screen"
+      }
+    },
+    example: %{
+      "account_holder_id" => "550e8400-e29b-41d4-a716-446655440000",
+      "counterparty_id" => "770e8400-e29b-41d4-a716-446655440002"
+    }
+  }
+
   operation(:screen_account_holder,
     summary: "Screen account holder for compliance (ISO 20022 auth:018)",
     description: """
-    Screens an account holder and all listed individuals/companies against:
+    Loads the AccountHolder and its linked LegalEntity from the database and screens
+    that entity against:
     - Internal blocklist (fail-fast, checked before Watchman)
     - Watchman OFAC/SDN/EU/UN sanctions lists
 
-    Returns one ComplianceScreening record per entity screened. Previously-reviewed
-    false positives (manual_override) are automatically suppressed on re-screening.
+    Returns one ComplianceScreening record. Previously-reviewed false positives
+    (manual_override) are automatically suppressed on re-screening.
     """,
-    request_body: {"Entities to screen", "application/json", ScreeningRequest, required: true},
+    request_body:
+      {"Account holder to screen", "application/json", @account_holder_screen_request,
+       required: true},
     responses: [
       ok: {
         "Compliance screenings created",
@@ -202,33 +259,20 @@ defmodule PaymentCompliancePlatformApi.ComplianceScreeningController do
     ]
   )
 
-  def screen_account_holder(
-        %{body_params: %ScreeningRequest{} = request} = conn,
-        _params
-      ) do
+  def screen_account_holder(conn, _params) do
     session = conn.assigns.api_session
 
-    case ComplianceScreeningContext.screen_account_holder(session, request) do
+    case ComplianceScreeningContext.screen_account_holder(session, conn.body_params) do
       {:ok, screenings} ->
         conn
         |> put_status(:ok)
-        |> json(Enum.map(screenings, &Map.from_struct/1))
+        |> json(Enum.map(screenings, &ExOpenApiUtils.Mapper.to_map/1))
 
       {:error, :watchman_listinfo_unavailable} ->
-        conn
-        |> put_status(:service_unavailable)
-        |> json(%{
-          error: "Watchman service unavailable",
-          detail: "Unable to retrieve sanctions list information"
-        })
+        watchman_unavailable(conn, "Unable to retrieve sanctions list information")
 
       {:error, :watchman_search_unavailable} ->
-        conn
-        |> put_status(:service_unavailable)
-        |> json(%{
-          error: "Watchman service unavailable",
-          detail: "Unable to perform sanctions screening"
-        })
+        watchman_unavailable(conn, "Unable to perform sanctions screening")
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:error, changeset}
@@ -238,11 +282,14 @@ defmodule PaymentCompliancePlatformApi.ComplianceScreeningController do
   operation(:screen_beneficial_owner,
     summary: "Screen beneficial owner for compliance (FinCEN CDD Rule)",
     description: """
-    Screens a beneficial owner and all listed individuals/companies against the
-    internal blocklist and Watchman sanctions lists under the account_holder scope
-    (beneficial owners are part of account holder CDD per FinCEN CDD Rule 31 CFR §1010.230).
+    Loads the BeneficialOwner and its linked LegalEntity from the database and screens
+    that entity against the internal blocklist and Watchman sanctions lists under the
+    account_holder scope (beneficial owners are part of account holder CDD per FinCEN
+    CDD Rule 31 CFR §1010.230).
     """,
-    request_body: {"Entities to screen", "application/json", ScreeningRequest, required: true},
+    request_body:
+      {"Beneficial owner to screen", "application/json", @beneficial_owner_screen_request,
+       required: true},
     responses: [
       ok: {
         "Compliance screenings created",
@@ -261,33 +308,20 @@ defmodule PaymentCompliancePlatformApi.ComplianceScreeningController do
     ]
   )
 
-  def screen_beneficial_owner(
-        %{body_params: %ScreeningRequest{} = request} = conn,
-        _params
-      ) do
+  def screen_beneficial_owner(conn, _params) do
     session = conn.assigns.api_session
 
-    case ComplianceScreeningContext.screen_beneficial_owner(session, request) do
+    case ComplianceScreeningContext.screen_beneficial_owner(session, conn.body_params) do
       {:ok, screenings} ->
         conn
         |> put_status(:ok)
-        |> json(Enum.map(screenings, &Map.from_struct/1))
+        |> json(Enum.map(screenings, &ExOpenApiUtils.Mapper.to_map/1))
 
       {:error, :watchman_listinfo_unavailable} ->
-        conn
-        |> put_status(:service_unavailable)
-        |> json(%{
-          error: "Watchman service unavailable",
-          detail: "Unable to retrieve sanctions list information"
-        })
+        watchman_unavailable(conn, "Unable to retrieve sanctions list information")
 
       {:error, :watchman_search_unavailable} ->
-        conn
-        |> put_status(:service_unavailable)
-        |> json(%{
-          error: "Watchman service unavailable",
-          detail: "Unable to perform sanctions screening"
-        })
+        watchman_unavailable(conn, "Unable to perform sanctions screening")
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:error, changeset}
@@ -297,11 +331,12 @@ defmodule PaymentCompliancePlatformApi.ComplianceScreeningController do
   operation(:screen_counterparty,
     summary: "Screen counterparty for compliance (ISO 20022 <Dbtr>/<Cdtr>)",
     description: """
-    Screens a counterparty and all listed individuals/companies against the
-    internal blocklist and Watchman sanctions lists under the counterparty scope.
-    Requires both account_holder_id and counterparty_id in the request body.
+    Loads the Counterparty and its linked LegalEntity from the database and screens
+    that entity against the internal blocklist and Watchman sanctions lists under
+    the counterparty scope.
     """,
-    request_body: {"Entities to screen", "application/json", ScreeningRequest, required: true},
+    request_body:
+      {"Counterparty to screen", "application/json", @counterparty_screen_request, required: true},
     responses: [
       ok: {
         "Compliance screenings created",
@@ -320,36 +355,29 @@ defmodule PaymentCompliancePlatformApi.ComplianceScreeningController do
     ]
   )
 
-  def screen_counterparty(
-        %{body_params: %ScreeningRequest{} = request} = conn,
-        _params
-      ) do
+  def screen_counterparty(conn, _params) do
     session = conn.assigns.api_session
 
-    case ComplianceScreeningContext.screen_counterparty(session, request) do
+    case ComplianceScreeningContext.screen_counterparty(session, conn.body_params) do
       {:ok, screenings} ->
         conn
         |> put_status(:ok)
-        |> json(Enum.map(screenings, &Map.from_struct/1))
+        |> json(Enum.map(screenings, &ExOpenApiUtils.Mapper.to_map/1))
 
       {:error, :watchman_listinfo_unavailable} ->
-        conn
-        |> put_status(:service_unavailable)
-        |> json(%{
-          error: "Watchman service unavailable",
-          detail: "Unable to retrieve sanctions list information"
-        })
+        watchman_unavailable(conn, "Unable to retrieve sanctions list information")
 
       {:error, :watchman_search_unavailable} ->
-        conn
-        |> put_status(:service_unavailable)
-        |> json(%{
-          error: "Watchman service unavailable",
-          detail: "Unable to perform sanctions screening"
-        })
+        watchman_unavailable(conn, "Unable to perform sanctions screening")
 
       {:error, %Ecto.Changeset{} = changeset} ->
         {:error, changeset}
     end
+  end
+
+  defp watchman_unavailable(conn, detail) do
+    conn
+    |> put_status(:service_unavailable)
+    |> json(%{error: "Watchman service unavailable", detail: detail})
   end
 end

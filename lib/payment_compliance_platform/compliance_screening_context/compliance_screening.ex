@@ -136,7 +136,7 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext.ComplianceScreeni
   )
 
   # PEP fields
-  open_api_property(schema: %Schema{type: :boolean}, key: :pep_indicator)
+  open_api_property(schema: %Schema{type: :boolean, nullable: true}, key: :pep_indicator)
   open_api_property(schema: %Schema{type: :string, nullable: true}, key: :pep_list_name)
 
   # AML fields
@@ -145,9 +145,13 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext.ComplianceScreeni
     key: :aml_risk_score
   )
 
-  open_api_property(schema: %Schema{type: :boolean}, key: :aml_velocity_flag)
+  open_api_property(schema: %Schema{type: :boolean, nullable: true}, key: :aml_velocity_flag)
   open_api_property(schema: %Schema{type: :integer, nullable: true}, key: :aml_velocity_count)
-  open_api_property(schema: %Schema{type: :boolean}, key: :aml_geographic_risk_flag)
+
+  open_api_property(
+    schema: %Schema{type: :boolean, nullable: true},
+    key: :aml_geographic_risk_flag
+  )
 
   open_api_property(
     schema: %Schema{type: :string, nullable: true},

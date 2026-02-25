@@ -261,6 +261,49 @@ defmodule PaymentCompliancePlatformApi.AccountHolderControllerTest do
              } = response
     end
 
+    test "creates account holder with nested legal_entity object", %{
+      conn: conn,
+      platform_tenant: platform_tenant
+    } do
+      attrs = %{
+        holder_type: "individual",
+        status: "pending",
+        kyc_status: "not_started",
+        risk_level: "low",
+        enabled_currencies: ["USD"],
+        tenant_id: platform_tenant.id,
+        legal_entity: %{
+          legal_entity_type: "individual",
+          first_name: "Jane",
+          last_name: "Doe",
+          date_of_birth: "1985-06-15",
+          citizenship_country: "US",
+          politically_exposed_person: false,
+          tenant_id: platform_tenant.id
+        }
+      }
+
+      conn = post(conn, ~p"/api/account-holders", attrs)
+      response = json_response(conn, 201)
+      api_spec = ApiSpec.spec()
+
+      assert_schema(response, "AccountHolderResponse", api_spec)
+
+      assert %{
+               "id" => id,
+               "holder_type" => "individual",
+               "legal_entity_id" => legal_entity_id,
+               "legal_entity" => %{
+                 "first_name" => "Jane",
+                 "last_name" => "Doe"
+               }
+             } = response
+
+      assert is_binary(id)
+      assert is_binary(legal_entity_id)
+      assert Plug.Conn.get_resp_header(conn, "location") == ["/api/account-holders/#{id}"]
+    end
+
     test "renders errors when holder_type is missing", %{conn: conn} do
       conn = post(conn, ~p"/api/account-holders", @invalid_attrs)
       response = json_response(conn, 422)

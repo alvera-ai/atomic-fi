@@ -31,6 +31,8 @@ defmodule PaymentCompliancePlatform.Factory.BeneficialOwnerFactory do
           verification_status: :pending,
           tenant_id: tenant_id
         }
+        |> merge_attributes(attrs)
+        |> evaluate_lazy_attributes()
       end
     end
   end

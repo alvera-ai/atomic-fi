@@ -26,6 +26,8 @@ defmodule PaymentCompliancePlatform.Factory.LegalEntityFactory do
           doing_business_as_names: [],
           tenant_id: tenant_id
         }
+        |> merge_attributes(attrs)
+        |> evaluate_lazy_attributes()
       end
 
       def business_legal_entity_factory(attrs \\ %{}) do
@@ -47,6 +49,8 @@ defmodule PaymentCompliancePlatform.Factory.LegalEntityFactory do
           politically_exposed_person: false,
           tenant_id: tenant_id
         }
+        |> merge_attributes(attrs)
+        |> evaluate_lazy_attributes()
       end
     end
   end

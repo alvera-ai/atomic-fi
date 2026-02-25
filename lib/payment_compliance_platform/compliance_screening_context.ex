@@ -31,10 +31,14 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext do
   import Ecto.Query, warn: false
   use PaymentCompliancePlatform.LoggerMacro
 
+  alias PaymentCompliancePlatform.AccountHolderContext.AccountHolder
+  alias PaymentCompliancePlatform.BeneficialOwnerContext.BeneficialOwner
   alias PaymentCompliancePlatform.ComplianceScreeningContext.BlocklistMatch
   alias PaymentCompliancePlatform.ComplianceScreeningContext.ComplianceScreening
   alias PaymentCompliancePlatform.ComplianceScreeningContext.SanctionsMatch
+  alias PaymentCompliancePlatform.CounterpartyContext.Counterparty
   alias PaymentCompliancePlatform.DecisionContext.ScreeningEngine
+  alias PaymentCompliancePlatform.LegalEntityContext.LegalEntity
   alias PaymentCompliancePlatform.Repo
   alias PaymentCompliancePlatform.SessionContext.Session
 
@@ -261,16 +265,15 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext do
   @doc """
   Screen an account holder for compliance (ISO 20022 auth:018 / camt:998).
 
-  Screens all associated individuals and companies against the internal blocklist
-  (fail-fast) and Watchman sanctions lists. Persists one `ComplianceScreening`
-  row per entity plus child `SanctionsMatch` / `BlocklistMatch` rows.
+  Loads the AccountHolder and its linked LegalEntity from the database, then
+  screens that entity against the internal blocklist (fail-fast) and Watchman
+  sanctions lists. Persists one `ComplianceScreening` row plus child
+  `SanctionsMatch` / `BlocklistMatch` rows.
 
   `request` must include:
-  - `account_holder_id` — references an existing AccountHolder in the same tenant
-  - `interested_individuals` — list of `%{first_name:, last_name:, birth_date:, gender:}`
-  - `interested_companies` — list of `%{name:, created:, dissolved:}`
+  - `account_holder_id` — UUID of an existing AccountHolder in the same tenant
 
-  Returns `{:ok, [%ComplianceScreening{}]}` — one per screened entity.
+  Returns `{:ok, [%ComplianceScreening{}]}` — one record for the screened entity.
   """
   @spec screen_account_holder(Session.t(), map()) ::
           {:ok, [ComplianceScreening.t()]} | {:error, term()}
@@ -278,66 +281,84 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext do
     tenant_id = session.tenant_id
     account_holder_id = request[:account_holder_id] || request["account_holder_id"]
 
+    account_holder =
+      AccountHolder
+      |> Repo.get!(account_holder_id, skip_multi_tenancy_check: true)
+      |> Repo.preload(:legal_entity, skip_multi_tenancy_check: true)
+
+    entity = legal_entity_to_watchman_entity(account_holder.legal_entity)
+
     with {:ok, list_info} <- ScreeningEngine.get_watchman_list_info(),
          suppressed_ids <- fetch_suppressed_source_ids(tenant_id),
-         {:ok, screenings} <-
-           screen_all_entities_for_account_holder(
+         {:ok, result} <- screen_entity(tenant_id, entity, suppressed_ids),
+         {:ok, screening} <-
+           persist_account_holder_screening(
              session,
              account_holder_id,
              tenant_id,
              list_info,
-             suppressed_ids,
-             request
+             result,
+             :sanctions
            ) do
-      {:ok, screenings}
+      {:ok, [screening]}
     end
   end
 
   @doc """
   Screen a beneficial owner for compliance (FinCEN CDD Rule 31 CFR §1010.230).
 
-  Screens all listed individuals and companies under the `account_holder` scope —
-  beneficial owners are part of account holder CDD per FinCEN CDD Rule.
+  Loads the BeneficialOwner and its linked LegalEntity from the database, then
+  screens that entity under the `account_holder` scope (beneficial owners are
+  part of account holder CDD per the FinCEN CDD Rule).
 
   `request` must include:
-  - `account_holder_id` — references the owning AccountHolder in the same tenant
-  - `interested_individuals` / `interested_companies` — entities to screen
+  - `account_holder_id` — UUID of the owning AccountHolder
+  - `beneficial_owner_id` — UUID of the BeneficialOwner to screen
 
-  Returns `{:ok, [%ComplianceScreening{}]}` — one per screened entity.
+  Returns `{:ok, [%ComplianceScreening{}]}` — one record for the screened entity.
   """
   @spec screen_beneficial_owner(Session.t(), map()) ::
           {:ok, [ComplianceScreening.t()]} | {:error, term()}
   def_with_rls_and_logging screen_beneficial_owner(session, request), log_fields: [] do
     tenant_id = session.tenant_id
     account_holder_id = request[:account_holder_id] || request["account_holder_id"]
+    beneficial_owner_id = request[:beneficial_owner_id] || request["beneficial_owner_id"]
+
+    beneficial_owner =
+      BeneficialOwner
+      |> Repo.get!(beneficial_owner_id, skip_multi_tenancy_check: true)
+      |> Repo.preload(:legal_entity, skip_multi_tenancy_check: true)
+
+    entity = legal_entity_to_watchman_entity(beneficial_owner.legal_entity)
 
     with {:ok, list_info} <- ScreeningEngine.get_watchman_list_info(),
          suppressed_ids <- fetch_suppressed_source_ids(tenant_id),
-         {:ok, screenings} <-
-           screen_all_entities_for_account_holder(
+         {:ok, result} <- screen_entity(tenant_id, entity, suppressed_ids),
+         {:ok, screening} <-
+           persist_account_holder_screening(
              session,
              account_holder_id,
              tenant_id,
              list_info,
-             suppressed_ids,
-             request
+             result,
+             :sanctions
            ) do
-      {:ok, screenings}
+      {:ok, [screening]}
     end
   end
 
   @doc """
   Screen a counterparty for compliance (ISO 20022 <Dbtr>/<Cdtr>).
 
-  Screens all listed individuals and companies under the `counterparty` scope.
-  Results are linked to both the account_holder and the counterparty.
+  Loads the Counterparty and its linked LegalEntity from the database, then
+  screens that entity under the `counterparty` scope. Results are linked to
+  both the account_holder and the counterparty.
 
   `request` must include:
-  - `account_holder_id` — references the internal AccountHolder
-  - `counterparty_id` — references the Counterparty being screened
-  - `interested_individuals` / `interested_companies` — entities to screen
+  - `account_holder_id` — UUID of the internal AccountHolder
+  - `counterparty_id` — UUID of the Counterparty to screen
 
-  Returns `{:ok, [%ComplianceScreening{}]}` — one per screened entity.
+  Returns `{:ok, [%ComplianceScreening{}]}` — one record for the screened entity.
   """
   @spec screen_counterparty(Session.t(), map()) ::
           {:ok, [ComplianceScreening.t()]} | {:error, term()}
@@ -346,19 +367,27 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext do
     account_holder_id = request[:account_holder_id] || request["account_holder_id"]
     counterparty_id = request[:counterparty_id] || request["counterparty_id"]
 
+    counterparty =
+      Counterparty
+      |> Repo.get!(counterparty_id, skip_multi_tenancy_check: true)
+      |> Repo.preload(:legal_entity, skip_multi_tenancy_check: true)
+
+    entity = legal_entity_to_watchman_entity(counterparty.legal_entity)
+
     with {:ok, list_info} <- ScreeningEngine.get_watchman_list_info(),
          suppressed_ids <- fetch_suppressed_source_ids(tenant_id),
-         {:ok, screenings} <-
-           screen_all_entities_for_counterparty(
+         {:ok, result} <- screen_entity(tenant_id, entity, suppressed_ids),
+         {:ok, screening} <-
+           persist_counterparty_screening(
              session,
              account_holder_id,
              counterparty_id,
              tenant_id,
              list_info,
-             suppressed_ids,
-             request
+             result,
+             :sanctions
            ) do
-      {:ok, screenings}
+      {:ok, [screening]}
     end
   end
 
@@ -374,98 +403,39 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext do
         sm.false_positive_qualifier in [:manual_override, :auto_suppressed]
     )
     |> select([sm], sm.source_id)
-    |> Repo.all()
+    |> Repo.all(skip_multi_tenancy_check: true)
     |> Enum.reject(&is_nil/1)
     |> MapSet.new()
   end
 
-  defp screen_all_entities_for_account_holder(
-         session,
-         account_holder_id,
-         tenant_id,
-         list_info,
-         suppressed_ids,
-         request
-       ) do
-    individuals = request[:interested_individuals] || request["interested_individuals"] || []
-    companies = request[:interested_companies] || request["interested_companies"] || []
-
-    individual_results =
-      Enum.map(individuals, fn individual ->
-        with {:ok, result} <-
-               ScreeningEngine.screen_individual(tenant_id, individual, suppressed_ids) do
-          persist_account_holder_screening(
-            session,
-            account_holder_id,
-            tenant_id,
-            list_info,
-            result,
-            :sanctions
-          )
-        end
-      end)
-
-    company_results =
-      Enum.map(companies, fn company ->
-        with {:ok, result} <- ScreeningEngine.screen_company(tenant_id, company, suppressed_ids) do
-          persist_account_holder_screening(
-            session,
-            account_holder_id,
-            tenant_id,
-            list_info,
-            result,
-            :sanctions
-          )
-        end
-      end)
-
-    collect_results(individual_results ++ company_results)
+  # Converts a LegalEntity to the map shape expected by ScreeningEngine.
+  # Individuals → screen_individual/3; businesses → screen_company/3.
+  defp legal_entity_to_watchman_entity(%LegalEntity{legal_entity_type: :individual} = le) do
+    {:individual,
+     %{
+       first_name: le.first_name,
+       last_name: le.last_name,
+       birth_date: le.date_of_birth && Date.to_string(le.date_of_birth),
+       gender: nil
+     }}
   end
 
-  defp screen_all_entities_for_counterparty(
-         session,
-         account_holder_id,
-         counterparty_id,
-         tenant_id,
-         list_info,
-         suppressed_ids,
-         request
-       ) do
-    individuals = request[:interested_individuals] || request["interested_individuals"] || []
-    companies = request[:interested_companies] || request["interested_companies"] || []
+  defp legal_entity_to_watchman_entity(%LegalEntity{legal_entity_type: :business} = le) do
+    {:company,
+     %{
+       name: le.business_name,
+       created: le.date_formed && Date.to_string(le.date_formed),
+       dissolved: nil
+     }}
+  end
 
-    individual_results =
-      Enum.map(individuals, fn individual ->
-        with {:ok, result} <-
-               ScreeningEngine.screen_individual(tenant_id, individual, suppressed_ids) do
-          persist_counterparty_screening(
-            session,
-            account_holder_id,
-            counterparty_id,
-            tenant_id,
-            list_info,
-            result,
-            :sanctions
-          )
-        end
-      end)
+  # Dispatches to ScreeningEngine based on entity type.
+  defp screen_entity(tenant_id, {:individual, attrs}, suppressed_ids) do
+    ScreeningEngine.screen_individual(tenant_id, attrs, suppressed_ids)
+  end
 
-    company_results =
-      Enum.map(companies, fn company ->
-        with {:ok, result} <- ScreeningEngine.screen_company(tenant_id, company, suppressed_ids) do
-          persist_counterparty_screening(
-            session,
-            account_holder_id,
-            counterparty_id,
-            tenant_id,
-            list_info,
-            result,
-            :sanctions
-          )
-        end
-      end)
-
-    collect_results(individual_results ++ company_results)
+  defp screen_entity(tenant_id, {:company, attrs}, suppressed_ids) do
+    ScreeningEngine.screen_company(tenant_id, attrs, suppressed_ids)
   end
 
   defp persist_account_holder_screening(
@@ -565,14 +535,6 @@ defmodule PaymentCompliancePlatform.ComplianceScreeningContext do
       build_match_changesets(blocklist_match_attrs, BlocklistMatch)
     )
     |> Repo.insert(session: session)
-  end
-
-  defp collect_results(results) do
-    if Enum.all?(results, &match?({:ok, _}, &1)) do
-      {:ok, Enum.map(results, fn {:ok, screening} -> screening end)}
-    else
-      Enum.find(results, &match?({:error, _}, &1))
-    end
   end
 
   defp build_match_changesets(attrs_list, schema_module) do

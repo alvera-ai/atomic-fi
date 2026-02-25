@@ -246,7 +246,7 @@ All contexts in the project. ISO 20022 alignment tracked in [#9](https://github.
 | AccountHolder | ISO 20022 acmt:007, acmt:019 · FATF Rec 10 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | BeneficialOwner | ISO 20022 acmt:023 · FATF Rec 24 · FinCEN CDD §1010.230 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | BlocklistEntry ⚠️ | OFAC/SDN (pre-ISO MVP) | ✅ | ✅ | ✅ | ✅ | 🔴 | 4/5 |
-| ComplianceScreening | ISO 20022 camt:998, auth:018 · FATF Rec 19 · OFAC | ✅ | ✅ | 🔴 | ✅ | ✅ | 4/5 |
+| ComplianceScreening | ISO 20022 camt:998, auth:018 · FATF Rec 19 · OFAC | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | Counterparty | ISO 20022 pain:001 · FATF Rec 19 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | Ledger | ISO 20022 camt:052, camt:053 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | LedgerAccount | ISO 20022 camt:052, camt:053 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |

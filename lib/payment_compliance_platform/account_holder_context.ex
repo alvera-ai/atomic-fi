@@ -15,6 +15,8 @@ defmodule PaymentCompliancePlatform.AccountHolderContext do
   alias PaymentCompliancePlatform.AccountHolderContext.AccountHolder
   alias PaymentCompliancePlatform.SessionContext.Session
 
+  @preloads [legal_entity: [:addresses, :phone_numbers, :identifications]]
+
   @doc """
   Returns the list of account_holders with pagination and filtering.
 
@@ -31,6 +33,7 @@ defmodule PaymentCompliancePlatform.AccountHolderContext do
   def_with_rls_and_logging list_account_holders(session, flop_params \\ %{}),
     log_fields: [:flop_params] do
     AccountHolder
+    |> preload_query()
     |> Flop.validate_and_run(flop_params,
       for: AccountHolder,
       repo: Repo,
@@ -54,7 +57,9 @@ defmodule PaymentCompliancePlatform.AccountHolderContext do
   """
   @spec get_account_holder!(Session.t(), Ecto.UUID.t()) :: AccountHolder.t()
   def_with_rls_and_logging get_account_holder!(session, id), log_fields: [:id] do
-    Repo.get!(AccountHolder, id, session: session)
+    AccountHolder
+    |> preload_query()
+    |> Repo.get!(id, session: session)
   end
 
   @doc """
@@ -76,10 +81,13 @@ defmodule PaymentCompliancePlatform.AccountHolderContext do
                              %AccountHolderRequest{} = request
                            ),
                            log_fields: [] do
-    with {:ok, account_holder} <-
-           %AccountHolder{}
-           |> AccountHolder.changeset(request)
-           |> Repo.insert(session: session) do
+    result =
+      %AccountHolder{}
+      |> AccountHolder.changeset(request)
+      |> Repo.insert(session: session)
+      |> preload_after_write()
+
+    with {:ok, account_holder} <- result do
       if request.chain_screening do
         %{
           subject: "account_holder",
@@ -117,6 +125,7 @@ defmodule PaymentCompliancePlatform.AccountHolderContext do
     account_holder
     |> AccountHolder.changeset(request)
     |> Repo.update(session: session)
+    |> preload_after_write()
   end
 
   @doc """
@@ -150,4 +159,17 @@ defmodule PaymentCompliancePlatform.AccountHolderContext do
   def change_account_holder(%AccountHolder{} = account_holder, attrs \\ %{}) do
     AccountHolder.changeset(account_holder, attrs)
   end
+
+  # Pipes the preload into the query so Flop and Repo.get! always load associations.
+  defp preload_query(query) do
+    preload(query, ^@preloads)
+  end
+
+  # Preloads associations after successful write operations.
+  # Uses skip_multi_tenancy_check since the record was just written and we need the full struct.
+  defp preload_after_write({:ok, %AccountHolder{} = account_holder}) do
+    {:ok, Repo.preload(account_holder, @preloads, skip_multi_tenancy_check: true)}
+  end
+
+  defp preload_after_write({:error, changeset}), do: {:error, changeset}
 end

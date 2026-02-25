@@ -248,46 +248,4 @@ defmodule PaymentCompliancePlatform.DataCase do
     # Refresh cache after seeding
     PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant_id)
   end
-
-  @doc """
-  Casts request data through the ScreeningRequest OpenAPI schema.
-
-  This mimics what happens in the controller when OpenApiSpex validates
-  and casts the request body. Generates the spec fresh for each call
-  instead of caching to ensure tests use current schema definitions.
-
-  ## Examples
-
-      request = %{
-        interested_individuals: [
-          %{first_name: "John", last_name: "Doe"}
-        ],
-        interested_companies: []
-      }
-
-      casted = cast_screening_request(request)
-      assert %PaymentCompliancePlatform.ComplianceScreeningContext.ScreeningRequest{} = casted
-
-  """
-  def cast_screening_request(request_data) do
-    alias PaymentCompliancePlatform.ComplianceScreeningContext.ScreeningRequest
-
-    # Generate spec fresh (not cached) to reflect current schema state
-    spec = OpenApiSpex.resolve_schema_modules(PaymentCompliancePlatformApi.ApiSpec.spec())
-    schema = ScreeningRequest.schema()
-
-    case OpenApiSpex.cast_value(request_data, schema, spec) do
-      {:ok, casted} ->
-        casted
-
-      {:error, errors} ->
-        raise """
-        Failed to cast ScreeningRequest through OpenAPI schema.
-
-        Errors: #{inspect(errors, pretty: true)}
-
-        Request data: #{inspect(request_data, pretty: true)}
-        """
-    end
-  end
 end
