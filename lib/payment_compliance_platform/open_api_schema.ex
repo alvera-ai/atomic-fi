@@ -324,4 +324,11 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     DocumentResponse,
     "documents"
   )
+
+  # PaymentAccount list response - wraps PaymentAccountResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    PaymentAccountListResponse,
+    PaymentAccountResponse,
+    "payment_accounts"
+  )
 end

@@ -128,6 +128,13 @@ defmodule PaymentCompliancePlatformApi.Routes do
         post "/documents", DocumentController, :create
         put "/documents/:id", DocumentController, :update
         delete "/documents/:id", DocumentController, :delete
+
+        # Payment account CRUD endpoints (ISO 20022 pain:001 DbtrAcct/CdtrAcct — FATF Rec 16)
+        get "/payment-accounts", PaymentAccountController, :index
+        get "/payment-accounts/:id", PaymentAccountController, :show
+        post "/payment-accounts", PaymentAccountController, :create
+        put "/payment-accounts/:id", PaymentAccountController, :update
+        delete "/payment-accounts/:id", PaymentAccountController, :delete
       end
     end
   end

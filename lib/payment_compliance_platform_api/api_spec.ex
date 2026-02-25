@@ -135,7 +135,11 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           # Request/Response schemas for Document (ISO 20022 acmt:007 SupportingDocument)
           "DocumentRequest" => OpenApiSchema.DocumentRequest.schema(),
           "DocumentResponse" => OpenApiSchema.DocumentResponse.schema(),
-          "DocumentListResponse" => OpenApiSchema.DocumentListResponse.schema()
+          "DocumentListResponse" => OpenApiSchema.DocumentListResponse.schema(),
+          # Request/Response schemas for PaymentAccount (ISO 20022 pain:001 DbtrAcct/CdtrAcct)
+          "PaymentAccountRequest" => OpenApiSchema.PaymentAccountRequest.schema(),
+          "PaymentAccountResponse" => OpenApiSchema.PaymentAccountResponse.schema(),
+          "PaymentAccountListResponse" => OpenApiSchema.PaymentAccountListResponse.schema()
         }
       },
       tags: [
@@ -208,6 +212,14 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
             "Compliance supporting documents (ISO 20022 acmt:007 SupportingDocument). " <>
               "Identity documents, proof of address, UBO declarations, and other KYC artefacts linked to AccountHolders. " <>
               "Physical files are stored out-of-band; this API manages only storage references."
+        },
+        %Tag{
+          name: "Payment Accounts",
+          description:
+            "Payment accounts linked to AccountHolders (ISO 20022 pain:001 <DbtrAcct>/<CdtrAcct>). " <>
+              "Gates FATF Recommendation 16 wire transfer compliance. " <>
+              "Supports bank accounts, cards, wallets, and crypto wallets. " <>
+              "PCI-DSS 4.0: account_number, iban, card_pan must be tokenised before writing."
         }
       ]
     }
