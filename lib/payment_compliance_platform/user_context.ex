@@ -11,6 +11,7 @@ defmodule PaymentCompliancePlatform.UserContext do
   alias PaymentCompliancePlatform.RoleContext.{Role, RoleConstants, UserRoleMapping}
   alias PaymentCompliancePlatform.SessionContext.Session
   alias PaymentCompliancePlatform.UserContext.User
+  alias PaymentCompliancePlatform.UserContext.UserToken
 
   # Preloads for User responses
   @user_preloads [:roles, :tenant]
@@ -198,6 +199,56 @@ defmodule PaymentCompliancePlatform.UserContext do
   """
   def change_user(%User{} = user, attrs \\ %{}) do
     User.changeset(user, attrs)
+  end
+
+  # ── Authentication helpers (Bearer session API) ─────────────────────
+
+  @doc """
+  Looks up a user by email and verifies the password via Bcrypt.
+
+  Bypasses multi-tenancy: login happens before any session exists, so there is
+  no tenant context yet. Returns the user or nil. Callers must still verify the
+  user's tenant membership before issuing a session.
+
+  ## Examples
+
+      iex> get_user_by_email_and_password("alice@example.com", "hunter2")
+      %User{}
+
+      iex> get_user_by_email_and_password("alice@example.com", "wrong")
+      nil
+  """
+  @spec get_user_by_email_and_password(String.t(), String.t()) :: User.t() | nil
+  def get_user_by_email_and_password(email, password)
+      when is_binary(email) and is_binary(password) do
+    user =
+      User
+      |> preload(^@user_preloads)
+      |> Repo.get_by([email: email], skip_multi_tenancy_check: true)
+
+    if User.valid_password?(user, password), do: user
+  end
+
+  @doc """
+  Builds a hashed Bearer session API token for a user.
+
+  Returns `{plaintext_token, %UserToken{}}` — the struct is unpersisted; the
+  caller inserts it. Delegates to `UserToken.build_user_session_api_token/1`.
+  """
+  @spec build_user_session_api_token(User.t()) :: {String.t(), UserToken.t()}
+  def build_user_session_api_token(%User{} = user) do
+    UserToken.build_user_session_api_token(user)
+  end
+
+  @doc """
+  Returns a query that verifies an incoming Bearer token and selects the
+  matching `%UserToken{}` record (NOT the user). The caller uses the token
+  id to look up the linked `Session` via `session.user_token_id`.
+  """
+  @spec verify_user_session_api_token_query(String.t()) ::
+          {:ok, Ecto.Query.t()} | :error
+  def verify_user_session_api_token_query(token) do
+    UserToken.verify_user_session_api_token_query(token)
   end
 
   # Preloads associations for user API responses.
