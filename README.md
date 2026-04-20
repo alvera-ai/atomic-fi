@@ -1,6 +1,6 @@
 # Payments Compliance Platform
 
-**The KYC/KYB/AML compliance SoE for payment companies — Alvera `payments` data domain**
+**The KYC/KYB/AML compliance SoE for payment companies**
 
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 [![Elixir](https://img.shields.io/badge/Elixir-1.18-purple.svg)](https://elixir-lang.org)
@@ -10,9 +10,8 @@
 
 ## Overview
 
-The Payments Compliance Platform is a **System of Engagement (SoE)** in the Alvera three-tier architecture. It gives payment companies — fintechs, payment processors, e-money institutions, neobanks — a compliance backbone for KYC (Know Your Customer), KYB (Know Your Business), and AML (Anti-Money Laundering) that sits alongside their existing Stripe, JPMC, or Adyen integration without replacing it.
+The Payments Compliance Platform is a **System of Engagement (SoE)**. It gives payment companies — fintechs, payment processors, e-money institutions, neobanks — a compliance backbone for KYC (Know Your Customer), KYB (Know Your Business), and AML (Anti-Money Laundering) that sits alongside their existing Stripe, JPMC, or Adyen integration without replacing it.
 
-**Data domain:** `payments`
 **MDM subject:** `AccountHolder` (ISO 20022 acmt:007, acmt:019)
 **Standard:** ISO 20022 — acmt, pain, pacs, camt, auth message families
 **Competes with:** Alloy, Sardine, Marqeta
@@ -29,33 +28,19 @@ The Payments Compliance Platform is a **System of Engagement (SoE)** in the Alve
 
 ---
 
-## Three-Tier Position
+## Where It Fits
 
 ```
-SoR (Legacy)          SoE (Engagement)                SoI (Intelligence)
-────────────          ────────────────                ──────────────────
-Stripe                Payments Compliance        ───► Alvera Platform
-JPMC          ──►     Platform (this repo)       │    ├── Data Activation Pipeline
-Adyen                 ├── PostgreSQL (owner)     │    ├── MDM (AccountHolder resolution)
-                      ├── Oban CDC outbound ─────┘    ├── Triplication (raw + tokenized)
-                      └── PlatformSyncWorker ◄──────── ├── Agentic Workflows
-                          (inbound sync)               ├── MCP Server
-                                                       └── REST API + Scalar UI
+SoR (Legacy)          SoE (This repo)                 Downstream Consumers
+────────────          ────────────────                ──────────────────────
+Stripe                Payments Compliance             Data lakes
+JPMC          ──►     Platform                  ───►  Agent workflows
+Adyen                 ├── PostgreSQL (owner)          Analytics engines
+                      ├── Outbound CDC cursor         MCP servers
+                      └── REST API + OpenAPI
 ```
 
-The SoE starts alongside Stripe/JPMC/Adyen. As data accumulates and the SoE earns operational trust,
-it can become the System of Record. No big-bang migration — data continuity is solved by the platform datalake.
-
-### Platform SoI Capabilities (provided for free)
-
-| Platform Capability | What this SoE gets |
-|--------------------|-------------------|
-| Data Activation | Platform syncs SoE data into the `payments` datalake |
-| MDM | AccountHolder entity resolution across Stripe, JPMC, Adyen sources |
-| Triplication | Regulated (raw PII) + Unregulated (tokenized) + Tokenized (SHA-256) storage |
-| Compliance Screening | OFAC/SDN, PEP, AML scoring via Watchman against public feeds |
-| Agentic Workflows | Stuck-KYC detection, OFAC escalation, payment recovery — triggered by datalake events |
-| MCP Server | AI agents query the payments datalake without this SoE building an AI layer |
+The SoE starts alongside existing payment providers. As data accumulates and the SoE earns operational trust, it can become the System of Record. Downstream consumers receive read-only CDC copies; they do not modify SoE data.
 
 ---
 
@@ -86,11 +71,11 @@ Counterparty                            ← ISO 20022 pain:001 <Dbtr>/<Cdtr>
   field :status                         ← :active | :suspended | :blocked
 
 LegalEntity                             ← Shared identity record — all PII lives here
-  field :legal_name                     ← KYC identity (tokenized in public schema)
-  field :date_of_birth                  ← FATF CDD Rec 10 (tokenized)
-  field :tax_id                         ← SSN / EIN / TIN (tokenized)
-  field :address_*                      ← KYC address verification (tokenized)
-  field :lei                            ← ISO 17442 Legal Entity Identifier (public)
+  field :legal_name                     ← KYC identity
+  field :date_of_birth                  ← FATF CDD Rec 10
+  field :tax_id                         ← SSN / EIN / TIN (encrypted at rest)
+  field :address_*                      ← KYC address verification
+  field :lei                            ← ISO 17442 Legal Entity Identifier
 
 Ledger                                  ← ISO 20022 camt:052/camt:053 chart-of-accounts
   belongs_to :account_holder
@@ -137,7 +122,7 @@ SanctionsMatch                          ← per-hit Watchman result
   embeds_many :addresses                ← WatchmanAddress (typed JSONB)
   embeds_one  :business_data            ← WatchmanBusiness (typed JSONB)
   embeds_one  :person_data              ← WatchmanPerson (typed JSONB)
-  embeds_one  :contact_data            ← WatchmanContact (typed JSONB)
+  embeds_one  :contact_data             ← WatchmanContact (typed JSONB)
 ```
 
 ### LedgerAccount Hierarchy — Risk Classification Cascade
@@ -163,35 +148,6 @@ Ledger (AccountHolder's book)
 
 ---
 
-## Dual-Schema Architecture
-
-Every dataset has both a **public** (tokenized for AI) and **regulated** (raw PII for humans) schema. The split is enforced consistently for LLM agentic workflow access.
-
-### What Is Tokenized (regulated tables)
-
-| Field | Reason |
-|-------|--------|
-| `legal_name`, `date_of_birth`, `tax_id` | KYC identity — FATF CDD Rec 10 |
-| `nationality`, `email`, `phone` | Contact PII |
-| `address_line1`, `city`, `state`, `postal_code` | KYC address verification |
-| `account_number`, `routing_number`, `iban`, `card_pan` | PCI-DSS 4.0 |
-| `response_content`, `extracted_fields` | KYC response data — may contain PII |
-| `matched_name`, `sdn_entity_pii` | OFAC/SDN match details |
-| `debtor_name`, `creditor_name`, `remittance_info` | Payment party PII (ISO 20022 RmtInf) |
-
-### What Is NOT Tokenized (public tables — safe for AI)
-
-| Field | Reason |
-|-------|--------|
-| `holder_type`, `kyc_status`, `risk_level` | Enums — not PII |
-| `account_holder_number`, `ledger_account_number` | Opaque internal IDs |
-| `lei` | ISO 17442 Legal Entity Identifier — public standard |
-| `amount`, `currency`, `entry_type` | Transaction metadata — not PII |
-| `swift_bic`, `bank_name` | Public bank identifiers |
-| `screening_status`, `scope` | Workflow state — not PII |
-
----
-
 ## Compliance Coverage
 
 | Regulation | Enforcement |
@@ -202,14 +158,14 @@ Every dataset has both a **public** (tokenized for AI) and **regulated** (raw PI
 | **FATF Rec 24** — UBO Transparency | `BeneficialOwner` chain must be complete and verified; incomplete UBO blocks `AccountHolder` activation |
 | **FinCEN CDD Rule** (31 CFR §1010.230) | `ownership_pct ≥ 25%` + control person verification enforced via `BeneficialOwner` |
 | **OFAC Sanctions** | Watchman (Moov) screens every entity against SDN/EU/UN lists; `SanctionsMatch` per hit with false-positive dedup across re-screenings |
-| **PCI-DSS 4.0** | Bank/card details tokenized via Platform triplication (`RegulatedLedgerAccount`) |
+| **PCI-DSS 4.0** | Bank/card details encrypted at rest via Cloak |
 | **BSA Data Retention** | `ComplianceScreening` + `SanctionsMatch` + `BlocklistMatch` provide 5-year audit trail |
 
 ---
 
 ## ISO 20022 Message Coverage
 
-All ISO 20022 messages for this domain are constructable from platform data:
+All ISO 20022 messages for this domain are constructable from the data model:
 
 | ISO Message | Purpose | Datasets Required |
 |-------------|---------|-------------------|
@@ -218,13 +174,13 @@ All ISO 20022 messages for this domain are constructable from platform data:
 | acmt:019 | Account Closing | AccountHolder + LedgerAccount |
 | pain:001 | Credit Transfer Initiation | Transaction + Counterparty + LegalEntity + LedgerAccount |
 | pain:002 | Payment Status Report | Transaction |
-| pacs:008 | FI Credit Transfer | Transaction + LedgerAccount + RegulatedLedgerAccount |
+| pacs:008 | FI Credit Transfer | Transaction + LedgerAccount |
 | pacs:002 | FI Payment Status | Transaction |
 | pacs:004 | Payment Return | Transaction + LedgerEntry |
 | camt:052 | Account Report (intraday) | LedgerAccount + LedgerEntry + AccountActivitySnapshot |
 | camt:053 | Account Statement | LedgerAccount + LedgerEntry + AccountActivitySnapshot |
 | camt:054 | Debit/Credit Notification | Transaction |
-| camt:060 | Account Reporting Request | LedgerAccount + RegulatedLedgerAccount |
+| camt:060 | Account Reporting Request | LedgerAccount |
 | auth:018 | Risk Classification Report | RiskClassification + ComplianceScreening |
 | camt:998 | Sanctions Screening | ComplianceScreening + SanctionsMatch |
 
@@ -263,6 +219,7 @@ All contexts in the project. ISO 20022 alignment tracked in [#9](https://github.
 ⚠️ BlocklistEntry is a pre-ISO MVP context, superseded by ComplianceScreening + BlocklistMatch in [#9](https://github.com/alvera-ai/payments-compliance-platform/issues/9).
 
 **Column definitions:**
+
 - **Schema**: Ecto schema + migration, TypedEctoSchema, ISO 20022 field alignment, column comments
 - **Docs**: `@moduledoc` with FATF Recommendation / ISO 20022 cross-references
 - **Tests**: ExUnit DataCase tests, no mocks, real PostgreSQL
@@ -301,8 +258,7 @@ All endpoints under `/api`, documented at `/api/docs` (Scalar UI).
 
 ### chain_screening (Automatic on Create)
 
-Creating any AccountHolder, BeneficialOwner, or Counterparty automatically enqueues an Oban
-compliance screening job (`chain_screening: true` by default):
+Creating any AccountHolder, BeneficialOwner, or Counterparty automatically enqueues an Oban compliance screening job (`chain_screening: true` by default):
 
 ```json
 POST /api/account-holders
@@ -346,7 +302,7 @@ lib/
 │   ├── role_context/                   # RBAC
 │   ├── customer_context/               # B2B customer orgs
 │   ├── api_key_context/                # Machine-to-machine auth
-│   └── session_context/               # Session management
+│   └── session_context/                # Session management
 │
 ├── payment_compliance_platform_api/
 │   └── controllers/
@@ -365,6 +321,7 @@ lib/
 └── payment_compliance_platform_web/    # LiveView UI (future)
 
 priv/repo/migrations/                   # All DB migrations in timestamp order
+
 test/
 ├── payment_compliance_platform/        # Context tests (ExUnit, no mocks)
 └── payment_compliance_platform_api/    # Controller tests (ConnCase)
@@ -383,8 +340,7 @@ Schemas use `open_api_schema` annotations to auto-generate `*Request` / `*Respon
 
 ### Multi-Tenancy (RLS)
 
-Every domain record is scoped to `tenant_id`. Row-level security enforced at the repo level via
-`PaymentCompliancePlatform.LoggerMacro.def_with_rls_and_logging/3`.
+Every domain record is scoped to `tenant_id`. Row-level security enforced at the repo level via `PaymentCompliancePlatform.LoggerMacro.def_with_rls_and_logging/3`.
 
 ### Background Jobs (Oban)
 
@@ -404,20 +360,20 @@ The `propagate_ledger_entry_to_balances` trigger fires on every `ledger_entries`
 
 ---
 
-## CDC to Platform
+## Change Data Capture (Outbound)
 
-This SoE syncs to the Alvera Platform SoI via Oban outbound CDC (every 5 minutes):
+The SoE exposes an outbound CDC feed via an Oban cron job (every 5 minutes):
 
 ```
 Local PostgreSQL
   └── Oban cron job (updated_at cursor)
         └── Batch changed rows since last_synced_at
-              └── POST to Platform ingest endpoint
-                    └── Platform: MDM Resolve → Dataset Upsert → Generate Event → Agentic Workflows
+              └── POST to configurable ingest endpoint
 ```
 
-**Inbound sync**: `PlatformSyncWorker` polls the platform events API and writes compliance results,
-MDM merges, and workflow outputs back to local DB.
+Downstream consumers subscribe to this feed and hold read-only copies of SoE data. The ingest endpoint is configurable via environment variable; no coupling to any specific consumer.
+
+An inbound sync worker polls a consumer events API on a configurable schedule and writes returned results (screening decisions, MDM merges, workflow outputs) back to the local DB.
 
 ---
 
@@ -446,6 +402,7 @@ mix phx.server
 ```
 
 **Visit:**
+
 - **API Docs**: http://localhost:4001/api/docs
 - **OpenAPI Spec**: http://localhost:4001/api/openapi
 
@@ -486,16 +443,6 @@ mix credo --strict
 mix compile --warnings-as-errors
 ```
 
-### Code Generators
-
-```bash
-# Generate context (Ecto schema + context + tests + RLS)
-mix alvera.gen.context Payments Transaction transactions amount:integer currency:string
-
-# Generate REST API (with OpenAPI)
-mix alvera.gen.api Payments Transaction transactions
-```
-
 ---
 
 ## Technology Stack
@@ -518,11 +465,10 @@ mix alvera.gen.api Payments Transaction transactions
 
 ## Contributing
 
-Maintained by Alvera AI. Internal use only.
-
 Before committing:
+
 1. `mix format && mix credo --strict && mix test`
-2. Follow [CLAUDE.md](CLAUDE.md) — GPG-sign all commits (`git commit -S`)
+2. GPG-sign all commits (`git commit -S`)
 3. Update this README's capability matrix when completing dataset work
 4. Conventional commits: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`
 
@@ -530,4 +476,4 @@ Before committing:
 
 ## License
 
-Copyright © 2026 Alvera AI. All rights reserved.
+Copyright © 2026. All rights reserved.
