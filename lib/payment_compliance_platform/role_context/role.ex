@@ -43,15 +43,41 @@ defmodule PaymentCompliancePlatform.RoleContext.Role do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   # OpenAPI annotations
+  open_api_property(schema: %Schema{type: :string, format: :uuid, readOnly: true}, key: :id)
   open_api_property(schema: %Schema{type: :string}, key: :name)
   open_api_property(schema: %Schema{type: :string}, key: :description)
-  open_api_property(schema: %Schema{type: :string}, key: :metadata)
+  open_api_property(schema: %Schema{type: :object, nullable: true}, key: :metadata)
+  open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :tenant_id)
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :uuid, nullable: true},
+    key: :customer_id
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", readOnly: true},
+    key: :inserted_at
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", readOnly: true},
+    key: :updated_at
+  )
 
   open_api_schema(
     title: "Role",
     description: "Role schema",
-    required: [:name, :tenant_id],
-    properties: [:id, :name, :description, :metadata, :tenant_id, :inserted_at, :updated_at]
+    required: [:name, :description, :tenant_id],
+    properties: [
+      :id,
+      :name,
+      :description,
+      :metadata,
+      :tenant_id,
+      :customer_id,
+      :inserted_at,
+      :updated_at
+    ]
   )
 
   typed_schema "roles" do

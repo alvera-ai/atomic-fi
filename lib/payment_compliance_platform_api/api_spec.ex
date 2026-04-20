@@ -63,6 +63,10 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "UserRequest" => OpenApiSchema.UserRequest.schema(),
           "UserResponse" => OpenApiSchema.UserResponse.schema(),
           "UserListResponse" => OpenApiSchema.UserListResponse.schema(),
+          # Request/Response schemas for Roles
+          "RoleRequest" => OpenApiSchema.RoleRequest.schema(),
+          "RoleResponse" => OpenApiSchema.RoleResponse.schema(),
+          "RoleListResponse" => OpenApiSchema.RoleListResponse.schema(),
           # Request/Response schemas for AccountHolder
           "AccountHolderRequest" => OpenApiSchema.AccountHolderRequest.schema(),
           "AccountHolderResponse" => OpenApiSchema.AccountHolderResponse.schema(),
@@ -169,6 +173,10 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
         %Tag{
           name: "Users",
           description: "User management — email-authenticated accounts scoped to a tenant"
+        },
+        %Tag{
+          name: "Roles",
+          description: "Authorization roles (tenant- and customer-scoped) for users and API keys"
         },
         %Tag{
           name: "Compliance Screening",

@@ -248,6 +248,13 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     "users"
   )
 
+  # Role list response - wraps RoleResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    RoleListResponse,
+    RoleResponse,
+    "roles"
+  )
+
   # BlocklistEntry list response - wraps BlocklistEntryResponse in paginated format
   OpenApiSchemaHelpers.deflistresponse(
     BlocklistEntryListResponse,

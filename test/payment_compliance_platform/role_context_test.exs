@@ -1,6 +1,7 @@
 defmodule PaymentCompliancePlatform.RoleContextTest do
   use PaymentCompliancePlatform.DataCase
 
+  alias PaymentCompliancePlatform.OpenApiSchema.RoleRequest
   alias PaymentCompliancePlatform.RoleContext
 
   describe "roles" do
@@ -8,7 +9,13 @@ defmodule PaymentCompliancePlatform.RoleContextTest do
 
     import PaymentCompliancePlatform.Factory
 
-    @invalid_attrs %{name: nil, description: nil, metadata: nil}
+    @invalid_attrs %RoleRequest{
+      name: nil,
+      description: nil,
+      metadata: nil,
+      tenant_id: nil,
+      customer_id: nil
+    }
 
     test "list_roles/2 returns all roles", %{session: session} do
       role = insert(:role, tenant_id: session.tenant_id)
@@ -24,11 +31,12 @@ defmodule PaymentCompliancePlatform.RoleContextTest do
     end
 
     test "create_role/2 with valid data creates a role", %{session: session} do
-      valid_attrs = %{
+      valid_attrs = %RoleRequest{
         name: "some name",
         description: "some description",
         metadata: %{},
-        tenant_id: session.tenant_id
+        tenant_id: session.tenant_id,
+        customer_id: nil
       }
 
       assert {:ok, %Role{} = role} = RoleContext.create_role(session, valid_attrs)
@@ -44,10 +52,12 @@ defmodule PaymentCompliancePlatform.RoleContextTest do
     test "update_role/3 with valid data updates the role", %{session: session} do
       role = insert(:role, tenant_id: session.tenant_id)
 
-      update_attrs = %{
+      update_attrs = %RoleRequest{
         name: "some updated name",
         description: "some updated description",
-        metadata: %{}
+        metadata: %{},
+        tenant_id: session.tenant_id,
+        customer_id: nil
       }
 
       assert {:ok, %Role{} = role} = RoleContext.update_role(session, role, update_attrs)

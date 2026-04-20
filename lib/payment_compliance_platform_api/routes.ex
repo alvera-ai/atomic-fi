@@ -47,6 +47,9 @@ defmodule PaymentCompliancePlatformApi.Routes do
         # User CRUD endpoints (PUT only for full replacement semantics)
         resources "/users", UserController, only: [:index, :show, :create, :update, :delete]
 
+        # Role CRUD endpoints (tenant & customer-scoped authorization roles)
+        resources "/roles", RoleController, only: [:index, :show, :create, :update, :delete]
+
         # Compliance screening CRUD + subject-specific screen actions (ISO 20022 auth:018 / camt:998)
         get "/compliance-screenings", ComplianceScreeningController, :index
         get "/compliance-screenings/:id", ComplianceScreeningController, :show
