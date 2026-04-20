@@ -42,6 +42,8 @@ Adyen                 ├── PostgreSQL (owner)          Analytics engines
 
 The SoE starts alongside existing payment providers. As data accumulates and the SoE earns operational trust, it can become the System of Record. Downstream consumers receive read-only CDC copies; they do not modify SoE data.
 
+For optional integration with the Alvera Platform (SoI) — MDM, agentic workflows, AI query layer — see [guides/platform-integration.md](guides/platform-integration.md).
+
 ---
 
 ## Domain Model
