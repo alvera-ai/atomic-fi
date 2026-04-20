@@ -50,6 +50,9 @@ defmodule PaymentCompliancePlatformApi.Routes do
         # Role CRUD endpoints (tenant & customer-scoped authorization roles)
         resources "/roles", RoleController, only: [:index, :show, :create, :update, :delete]
 
+        # API Key endpoints — no PUT (rotate via delete + create)
+        resources "/api-keys", ApiKeyController, only: [:index, :show, :create, :delete]
+
         # Compliance screening CRUD + subject-specific screen actions (ISO 20022 auth:018 / camt:998)
         get "/compliance-screenings", ComplianceScreeningController, :index
         get "/compliance-screenings/:id", ComplianceScreeningController, :show

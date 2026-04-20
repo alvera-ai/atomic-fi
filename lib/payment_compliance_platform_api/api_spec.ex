@@ -67,6 +67,10 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "RoleRequest" => OpenApiSchema.RoleRequest.schema(),
           "RoleResponse" => OpenApiSchema.RoleResponse.schema(),
           "RoleListResponse" => OpenApiSchema.RoleListResponse.schema(),
+          # Request/Response schemas for ApiKeys
+          "ApiKeyRequest" => OpenApiSchema.ApiKeyRequest.schema(),
+          "ApiKeyResponse" => OpenApiSchema.ApiKeyResponse.schema(),
+          "ApiKeyListResponse" => OpenApiSchema.ApiKeyListResponse.schema(),
           # Request/Response schemas for AccountHolder
           "AccountHolderRequest" => OpenApiSchema.AccountHolderRequest.schema(),
           "AccountHolderResponse" => OpenApiSchema.AccountHolderResponse.schema(),
@@ -177,6 +181,11 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
         %Tag{
           name: "Roles",
           description: "Authorization roles (tenant- and customer-scoped) for users and API keys"
+        },
+        %Tag{
+          name: "Api Keys",
+          description:
+            "Programmatic-access API keys. Each key has exactly one role. The plaintext key is returned ONCE on create — rotate by delete + create."
         },
         %Tag{
           name: "Compliance Screening",

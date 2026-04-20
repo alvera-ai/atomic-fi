@@ -7,8 +7,10 @@ defmodule PaymentCompliancePlatform.ApiKeyContext do
   use PaymentCompliancePlatform.LoggerMacro
 
   alias PaymentCompliancePlatform.ApiKeyContext.ApiKey
+  alias PaymentCompliancePlatform.OpenApiSchema.ApiKeyRequest
   alias PaymentCompliancePlatform.Repo
   alias PaymentCompliancePlatform.SessionContext.Session
+  alias PaymentCompliancePlatform.Vault
 
   # Preloads for ApiKey responses
   @api_key_preloads [:role, :tenant]
@@ -80,6 +82,43 @@ defmodule PaymentCompliancePlatform.ApiKeyContext do
     |> ApiKey.changeset(attrs)
     |> Repo.insert(session: session)
     |> preload_after_write()
+  end
+
+  @doc """
+  Creates an API key from an `ApiKeyRequest` — generates the raw key, hash, and
+  encrypted value server-side.
+
+  The returned `%ApiKey{}` has its virtual `raw_key` field populated with the
+  plaintext key. This is the ONLY time the plaintext key is available — store it
+  securely client-side.
+
+  ## Examples
+
+      iex> generate_and_create_api_key(session, %ApiKeyRequest{name: "prod", tenant_id: tid, role_id: rid})
+      {:ok, %ApiKey{raw_key: "sk-..."}}
+
+  """
+  @spec generate_and_create_api_key(Session.t(), ApiKeyRequest.t()) ::
+          {:ok, ApiKey.t()} | {:error, Ecto.Changeset.t()}
+  def_with_rls_and_logging generate_and_create_api_key(session, %ApiKeyRequest{} = request),
+    log_fields: [] do
+    raw_key = "sk-" <> (:crypto.strong_rand_bytes(32) |> Base.url_encode64(padding: false))
+    key_hash = :crypto.hash(:sha256, raw_key) |> Base.encode16(case: :lower)
+    key_value = Vault.encrypt!(raw_key)
+
+    attrs =
+      request
+      |> Map.from_struct()
+      |> Map.put(:key_hash, key_hash)
+      |> Map.put(:key_value, key_value)
+
+    with {:ok, api_key} <-
+           %ApiKey{}
+           |> ApiKey.changeset(attrs)
+           |> Repo.insert(session: session)
+           |> preload_after_write() do
+      {:ok, %{api_key | raw_key: raw_key}}
+    end
   end
 
   @doc """

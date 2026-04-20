@@ -255,6 +255,13 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     "roles"
   )
 
+  # ApiKey list response - wraps ApiKeyResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    ApiKeyListResponse,
+    ApiKeyResponse,
+    "api_keys"
+  )
+
   # BlocklistEntry list response - wraps BlocklistEntryResponse in paginated format
   OpenApiSchemaHelpers.deflistresponse(
     BlocklistEntryListResponse,
