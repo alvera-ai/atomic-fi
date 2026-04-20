@@ -1,6 +1,6 @@
 # Multi-Tenancy
 
-This guide explains the multi-tenancy architecture used in the Alvera Phoenix Template.
+This guide explains the multi-tenancy architecture used in the Payments Compliance Platform.
 
 ## Overview
 

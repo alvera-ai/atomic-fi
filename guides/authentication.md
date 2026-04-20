@@ -1,6 +1,6 @@
 # Authentication
 
-This guide covers the authentication system in the Alvera Phoenix Template.
+This guide covers the authentication system in the Payments Compliance Platform.
 
 ## Overview
 
@@ -266,7 +266,7 @@ end
 
 ```elixir
 def totp_qr_code(user, secret) do
-  otpauth_url = "otpauth://totp/AlveraPhoenixTemplate:#{user.email}?secret=#{secret}&issuer=AlveraPhoenixTemplate"
+  otpauth_url = "otpauth://totp/PaymentsCompliancePlatform:#{user.email}?secret=#{secret}&issuer=PaymentsCompliancePlatform"
 
   otpauth_url
   |> EQRCode.encode()

@@ -26,8 +26,7 @@ Implementation status for every context in the Payments Compliance Platform SoE.
 
 ## Platform Infrastructure Contexts
 
-These contexts are inherited from `phoenix-template-server` and provide the foundational
-multi-tenancy, auth, and session plumbing used by all domain contexts.
+These contexts provide the foundational multi-tenancy, auth, and session plumbing used by all domain contexts.
 
 | Context | Schema | Docs | Tests | RLS | API | Score | Notes |
 |---------|--------|------|-------|-----|-----|-------|-------|
@@ -218,14 +217,6 @@ All ISO 20022 messages for the `payments` domain are constructable from this SoE
 |------|---------|--------|
 | BlocklistContext REST API | BlocklistContext | Small — schema complete |
 | E2E controller tests | All domain contexts | Medium |
-
-### Platform Integration (SoI)
-
-| Item | Description |
-|------|-------------|
-| CDC outbound job | Oban cron polls local DB, POSTs to Platform ingest endpoint every 5 min |
-| PlatformSyncWorker | Inbound — pulls compliance results + MDM merges from Platform back to local DB |
-| Agentic workflow hooks | Stuck-KYC detection, OFAC escalation triggered by Platform datalake events |
 
 ---
 

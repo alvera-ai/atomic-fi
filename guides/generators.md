@@ -1,6 +1,6 @@
 # Code Generators
 
-The Alvera Phoenix Template includes custom Mix tasks for scaffolding common patterns.
+The Payments Compliance Platform includes custom Mix tasks for scaffolding common patterns.
 
 ## Available Generators
 

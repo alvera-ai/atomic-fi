@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide will help you set up your development environment and get the Phoenix Template Server running.
+This guide will help you set up your development environment and get the Payments Compliance Platform running.
 
 ## Prerequisites
 
