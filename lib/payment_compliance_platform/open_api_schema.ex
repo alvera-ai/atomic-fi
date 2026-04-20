@@ -241,6 +241,13 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     "tenants"
   )
 
+  # User list response - wraps UserResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    UserListResponse,
+    UserResponse,
+    "users"
+  )
+
   # BlocklistEntry list response - wraps BlocklistEntryResponse in paginated format
   OpenApiSchemaHelpers.deflistresponse(
     BlocklistEntryListResponse,

@@ -59,6 +59,10 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "TenantRequest" => OpenApiSchema.TenantRequest.schema(),
           "TenantResponse" => OpenApiSchema.TenantResponse.schema(),
           "TenantListResponse" => OpenApiSchema.TenantListResponse.schema(),
+          # Request/Response schemas for Users
+          "UserRequest" => OpenApiSchema.UserRequest.schema(),
+          "UserResponse" => OpenApiSchema.UserResponse.schema(),
+          "UserListResponse" => OpenApiSchema.UserListResponse.schema(),
           # Request/Response schemas for AccountHolder
           "AccountHolderRequest" => OpenApiSchema.AccountHolderRequest.schema(),
           "AccountHolderResponse" => OpenApiSchema.AccountHolderResponse.schema(),
@@ -162,6 +166,10 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
       tags: [
         %Tag{name: "Health", description: "System health and status"},
         %Tag{name: "Tenants", description: "Tenant management (requires API key)"},
+        %Tag{
+          name: "Users",
+          description: "User management — email-authenticated accounts scoped to a tenant"
+        },
         %Tag{
           name: "Compliance Screening",
           description:

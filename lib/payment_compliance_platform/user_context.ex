@@ -6,6 +6,7 @@ defmodule PaymentCompliancePlatform.UserContext do
   import Ecto.Query, warn: false
   use PaymentCompliancePlatform.LoggerMacro
 
+  alias PaymentCompliancePlatform.OpenApiSchema.UserRequest
   alias PaymentCompliancePlatform.Repo
   alias PaymentCompliancePlatform.RoleContext.{Role, RoleConstants, UserRoleMapping}
   alias PaymentCompliancePlatform.SessionContext.Session
@@ -108,10 +109,11 @@ defmodule PaymentCompliancePlatform.UserContext do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec create_user(Session.t(), map()) :: {:ok, User.t()} | {:error, Ecto.Changeset.t()}
-  def_with_rls_and_logging create_user(session, attrs), log_fields: [] do
+  @spec create_user(Session.t(), UserRequest.t()) ::
+          {:ok, User.t()} | {:error, Ecto.Changeset.t()}
+  def_with_rls_and_logging create_user(session, %UserRequest{} = request), log_fields: [] do
     Ecto.Multi.new()
-    |> Ecto.Multi.insert(:user, User.changeset(%User{}, attrs))
+    |> Ecto.Multi.insert(:user, User.changeset(%User{}, request))
     |> Ecto.Multi.run(:role, fn _repo, _changes ->
       # Look up default "user" role for tenant
       role =
@@ -157,12 +159,12 @@ defmodule PaymentCompliancePlatform.UserContext do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec update_user(Session.t(), User.t(), map()) ::
+  @spec update_user(Session.t(), User.t(), UserRequest.t()) ::
           {:ok, User.t()} | {:error, Ecto.Changeset.t()}
-  def_with_rls_and_logging update_user(session, %User{} = user_record, attrs),
+  def_with_rls_and_logging update_user(session, %User{} = user_record, %UserRequest{} = request),
     log_fields: [:user_record] do
     user_record
-    |> User.changeset(attrs)
+    |> User.changeset(request)
     |> Repo.update(session: session)
     |> preload_after_write()
   end

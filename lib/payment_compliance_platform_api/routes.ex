@@ -1,6 +1,6 @@
 defmodule PaymentCompliancePlatformApi.Routes do
   @moduledoc """
-  REST API routes for Alvera Phoenix Template Server.
+  REST API routes for Payments Compliance Platform.
 
   All API routes are namespaced under `/api` with two categories:
 
@@ -43,6 +43,9 @@ defmodule PaymentCompliancePlatformApi.Routes do
 
         # Tenant utility endpoints
         post "/tenants/refresh-blocklist-cache", TenantController, :refresh_blocklist_cache
+
+        # User CRUD endpoints (PUT only for full replacement semantics)
+        resources "/users", UserController, only: [:index, :show, :create, :update, :delete]
 
         # Compliance screening CRUD + subject-specific screen actions (ISO 20022 auth:018 / camt:998)
         get "/compliance-screenings", ComplianceScreeningController, :index
