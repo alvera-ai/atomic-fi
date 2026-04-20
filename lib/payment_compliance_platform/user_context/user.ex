@@ -102,4 +102,21 @@ defmodule PaymentCompliancePlatform.UserContext.User do
     |> validate_required([:email, :hashed_password, :confirmed_at, :tenant_id])
     |> unique_constraint(:email)
   end
+
+  @doc """
+  Verifies the password against the user's `hashed_password` using Bcrypt.
+
+  Runs a no-op hash when `user` is nil or `hashed_password` is nil so the
+  function is constant-time against email-existence enumeration.
+  """
+  @spec valid_password?(t() | nil, String.t()) :: boolean()
+  def valid_password?(%__MODULE__{hashed_password: hashed_password}, password)
+      when is_binary(hashed_password) and byte_size(password) > 0 do
+    Bcrypt.verify_pass(password, hashed_password)
+  end
+
+  def valid_password?(_, _) do
+    Bcrypt.no_user_verify()
+    false
+  end
 end

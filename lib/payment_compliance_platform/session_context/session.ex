@@ -13,6 +13,7 @@ defmodule PaymentCompliancePlatform.SessionContext.Session do
   alias PaymentCompliancePlatform.RoleContext.{Role, RoleConstants}
   alias PaymentCompliancePlatform.TenantContext.Tenant
   alias PaymentCompliancePlatform.UserContext.User
+  alias PaymentCompliancePlatform.UserContext.UserToken
 
   @derive {
     Flop.Schema,
@@ -102,6 +103,10 @@ defmodule PaymentCompliancePlatform.SessionContext.Session do
     belongs_to :user, User
     belongs_to :api_key, ApiKey
 
+    # Non-null only for Bearer user-session API tokens
+    # (POST /api/sessions). NULL for X-API-Key sessions.
+    belongs_to :user_token, UserToken
+
     # The assumed role (required)
     belongs_to :role, Role
 
@@ -125,6 +130,7 @@ defmodule PaymentCompliancePlatform.SessionContext.Session do
       :metadata,
       :user_id,
       :api_key_id,
+      :user_token_id,
       :role_id,
       :tenant_id,
       :customer_id
@@ -133,6 +139,7 @@ defmodule PaymentCompliancePlatform.SessionContext.Session do
     |> validate_conditional_foreign_keys()
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:api_key_id)
+    |> foreign_key_constraint(:user_token_id)
     |> foreign_key_constraint(:role_id)
     |> foreign_key_constraint(:tenant_id)
     |> foreign_key_constraint(:customer_id)
