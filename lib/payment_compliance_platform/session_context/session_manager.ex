@@ -30,7 +30,7 @@ defmodule PaymentCompliancePlatform.SessionContext.SessionManager do
   @default_bearer_expires_in 86_400
   @max_bearer_expires_in 2_592_000
 
-  @bearer_session_preloads [:user, :user_token, :role, :tenant, :customer]
+  @session_preloads [:user, :user_token, :api_key, :role, :tenant, :customer]
 
   @doc """
   Get or create session for an API key.
@@ -180,7 +180,7 @@ defmodule PaymentCompliancePlatform.SessionContext.SessionManager do
         expires_at: expires_at
       })
       |> Repo.insert!(skip_multi_tenancy_check: true)
-      |> Repo.preload(@bearer_session_preloads, skip_multi_tenancy_check: true)
+      |> Repo.preload(@session_preloads, skip_multi_tenancy_check: true)
 
     Cachex.put(:api_session_cache, user_token_cache_key(user_token.id), session, ttl: @cache_ttl)
 
@@ -250,7 +250,7 @@ defmodule PaymentCompliancePlatform.SessionContext.SessionManager do
         where: s.type == :api and s.api_key_id == ^api_key.id and s.active == true,
         order_by: [desc: s.inserted_at],
         limit: 1,
-        preload: [:api_key, :role, :tenant, :customer]
+        preload: ^@session_preloads
 
     case Repo.one(query, skip_multi_tenancy_check: true) do
       nil ->
@@ -288,7 +288,7 @@ defmodule PaymentCompliancePlatform.SessionContext.SessionManager do
       expires_at: nil
     })
     |> Repo.insert!(skip_multi_tenancy_check: true)
-    |> Repo.preload([:api_key, :role, :tenant, :customer], skip_multi_tenancy_check: true)
+    |> Repo.preload(@session_preloads, skip_multi_tenancy_check: true)
   end
 
   defp cache_key(api_key_id) do
@@ -316,7 +316,7 @@ defmodule PaymentCompliancePlatform.SessionContext.SessionManager do
     Repo.one(
       from(s in Session,
         where: s.user_token_id == ^user_token_id and s.active == true,
-        preload: ^@bearer_session_preloads
+        preload: ^@session_preloads
       ),
       skip_multi_tenancy_check: true
     )

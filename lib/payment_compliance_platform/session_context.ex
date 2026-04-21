@@ -8,6 +8,10 @@ defmodule PaymentCompliancePlatform.SessionContext do
 
   alias PaymentCompliancePlatform.Repo
   alias PaymentCompliancePlatform.SessionContext.Session
+  alias PaymentCompliancePlatform.SessionContext.SessionManager
+  alias PaymentCompliancePlatform.TenantContext.Tenant
+  alias PaymentCompliancePlatform.UserContext
+  alias PaymentCompliancePlatform.UserContext.User
 
   # Preloads for Session responses
   @session_preloads [:user, :api_key, :role, :tenant]
@@ -118,6 +122,69 @@ defmodule PaymentCompliancePlatform.SessionContext do
   def change_session(%Session{} = session, attrs \\ %{}) do
     Session.changeset(session, attrs)
   end
+
+  @doc """
+  Exchanges credentials for a Bearer session.
+
+  Given a `SessionRequest` (email + password + tenant_slug + optional
+  expires_in) and request metadata, authenticates the user, verifies tenant
+  membership, resolves a role, and creates a Bearer Session via
+  `SessionManager.create_user_session_api_token/4`.
+
+  Returns `{:ok, %Session{bearer: plaintext_token}}` on success — the session
+  is preloaded with user/role/tenant and the virtual `:bearer` field carries
+  the plaintext token (returned once).
+
+  Returns `{:error, :unauthorized}` for any authentication / tenant-access
+  / role-assignment failure — avoids leaking which check failed to callers.
+  """
+  @spec sign_in(map(), map()) :: {:ok, Session.t()} | {:error, :unauthorized}
+  def sign_in(%{} = request, metadata \\ %{}) do
+    with {:ok, user} <- authenticate_user(request),
+         {:ok, tenant} <- fetch_tenant_by_slug(Map.get(request, :tenant_slug)),
+         :ok <- verify_user_belongs_to_tenant(user, tenant),
+         {:ok, role} <- pick_primary_role(user) do
+      {plaintext_token, session} =
+        SessionManager.create_user_session_api_token(user, tenant, role,
+          expires_in: Map.get(request, :expires_in),
+          metadata: metadata
+        )
+
+      {:ok, %{session | bearer: plaintext_token}}
+    else
+      _ -> {:error, :unauthorized}
+    end
+  end
+
+  defp authenticate_user(%{} = request) do
+    case UserContext.get_user_by_email_and_password(
+           Map.get(request, :email),
+           Map.get(request, :password)
+         ) do
+      %User{} = user -> {:ok, user}
+      nil -> :error
+    end
+  end
+
+  defp fetch_tenant_by_slug(slug) when is_binary(slug) do
+    case Repo.get_by(Tenant, [slug: slug], skip_multi_tenancy_check: true) do
+      %Tenant{} = tenant -> {:ok, tenant}
+      nil -> :error
+    end
+  end
+
+  defp fetch_tenant_by_slug(_), do: :error
+
+  defp verify_user_belongs_to_tenant(%User{tenant_id: tid}, %Tenant{id: tid}), do: :ok
+  defp verify_user_belongs_to_tenant(_, _), do: :error
+
+  # Users have a many-to-many to Roles via UserRoleMapping; membership is
+  # implicit via User.tenant_id. Pick the lowest-id role for determinism.
+  defp pick_primary_role(%User{roles: roles}) when is_list(roles) and roles != [] do
+    {:ok, Enum.min_by(roles, & &1.id)}
+  end
+
+  defp pick_primary_role(_), do: :error
 
   # Preloads associations for session API responses.
   # Uses @session_preloads module attribute for consistent preloading.

@@ -71,6 +71,10 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "ApiKeyRequest" => OpenApiSchema.ApiKeyRequest.schema(),
           "ApiKeyResponse" => OpenApiSchema.ApiKeyResponse.schema(),
           "ApiKeyListResponse" => OpenApiSchema.ApiKeyListResponse.schema(),
+          # Request/Response schemas for Session (POST /api/sessions — email/password/tenant_slug
+          # appear only in Request as writeOnly virtual fields)
+          "SessionRequest" => OpenApiSchema.SessionRequest.schema(),
+          "SessionResponse" => OpenApiSchema.SessionResponse.schema(),
           # Request/Response schemas for AccountHolder
           "AccountHolderRequest" => OpenApiSchema.AccountHolderRequest.schema(),
           "AccountHolderResponse" => OpenApiSchema.AccountHolderResponse.schema(),
@@ -186,6 +190,11 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           name: "Api Keys",
           description:
             "Programmatic-access API keys. Each key has exactly one role. The plaintext key is returned ONCE on create — rotate by delete + create."
+        },
+        %Tag{
+          name: "Auth",
+          description:
+            "Session lifecycle for human Bearer authentication — POST /api/sessions exchanges {email,password,tenant_slug} for a Bearer token; GET /verify returns the current identity; DELETE revokes the Bearer session. X-API-Key callers do not need these endpoints."
         },
         %Tag{
           name: "Compliance Screening",

@@ -28,6 +28,9 @@ defmodule PaymentCompliancePlatformApi.Routes do
 
         # OpenAPI spec endpoint (for Scalar and other tools)
         get "/openapi", OpenApiSpecController, :spec
+
+        # Bearer session creation (exchange credentials for Bearer token)
+        post "/sessions", SessionController, :create
       end
 
       # Protected API routes - require x-api-key header
@@ -52,6 +55,10 @@ defmodule PaymentCompliancePlatformApi.Routes do
 
         # API Key endpoints — no PUT (rotate via delete + create)
         resources "/api-keys", ApiKeyController, only: [:index, :show, :create, :delete]
+
+        # Session endpoints (Bearer lifecycle)
+        get "/sessions/verify", SessionController, :verify
+        delete "/sessions", SessionController, :delete
 
         # Compliance screening CRUD + subject-specific screen actions (ISO 20022 auth:018 / camt:998)
         get "/compliance-screenings", ComplianceScreeningController, :index

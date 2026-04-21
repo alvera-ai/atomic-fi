@@ -80,7 +80,7 @@ defmodule PaymentCompliancePlatform.MixProject do
       {:cloak_ecto, "~> 1.3"},
 
       # API & OpenAPI
-      {:ex_open_api_utils, "~> 0.11.1"},
+      {:ex_open_api_utils, "~> 0.17.0"},
       {:cachex, "~> 3.6"},
 
       # Petal components and framework
