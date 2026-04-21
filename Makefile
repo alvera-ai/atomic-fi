@@ -22,6 +22,7 @@ deps.status:
 
 WATCHMAN_IMAGE := moov/watchman:v0.61.1
 WATCHMAN_CONFIG := $(CURDIR)/config.all-lists.yml
+WATCHMAN_DATA := $(CURDIR)/custom-watchlist.jsonl
 
 run-watchman:
 	@echo "Starting Watchman sanctions screening service..."
@@ -30,6 +31,7 @@ run-watchman:
 		-p 8084:8084 \
 		-p 9094:9094 \
 		-v $(WATCHMAN_CONFIG):/app/config.yml \
+		-v $(WATCHMAN_DATA):/data/custom_watchlist.jsonl \
 		-e APP_CONFIG=/app/config.yml \
 		$(WATCHMAN_IMAGE)
 	@echo "Watchman ready on http://localhost:8084"

@@ -11,7 +11,7 @@ Watchman:
 
   Download:
     RefreshInterval: "12h"
-    InitialDataDirectory: ""
+    InitialDataDirectory: "/data"
 
     IncludedLists:
       - us_ofac
@@ -34,6 +34,11 @@ Watchman:
     RequestTimeout: "10s"
     BinaryPath: ""
     CGOSelfInstances: 1
+
+  Ingest:
+    Files:
+      custom_watchlist:
+        Format: "senzing-jsonl"
 
   Geocoding:
     Enabled: false

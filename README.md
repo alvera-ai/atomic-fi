@@ -387,7 +387,7 @@ An inbound sync worker polls a consumer events API on a configurable schedule an
 - **Erlang**: 27.3.3
 - **Elixir**: 1.18.3-otp-27
 - **PostgreSQL**: 17.2
-- **Watchman** (optional, for sanctions screening): `docker run -p 8084:8084 moov/watchman:latest`
+- **Watchman** (sanctions screening): `make run-watchman` (pulls `moov/watchman:v0.61.1`)
 
 See `.tool-versions` for exact versions.
 
@@ -400,6 +400,14 @@ mix deps.get
 # Create DB, run migrations, seed
 mix ecto.setup
 
+# Start Watchman (sanctions screening + custom watchlist)
+make run-watchman
+
+# Ingest the custom watchlist into Watchman
+curl -X POST http://localhost:8084/v2/ingest/custom_watchlist \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @custom-watchlist.jsonl
+
 # Start server
 mix phx.server
 ```
@@ -408,6 +416,19 @@ mix phx.server
 
 - **API Docs**: http://localhost:4001/api/docs
 - **OpenAPI Spec**: http://localhost:4001/api/openapi
+
+### Verify Watchman
+
+```bash
+# Search sanctions lists (OFAC, CSL, UN, FinCEN 311)
+curl -s "http://localhost:8084/v2/search?name=Nicolas+Maduro&type=person&limit=3"
+
+# Search custom watchlist
+curl -s "http://localhost:8084/v2/search?name=Viktor+Petrov&source=custom_watchlist&type=person"
+
+# Search custom watchlist (organization)
+curl -s "http://localhost:8084/v2/search?name=Golden+Dragon+Trading&source=custom_watchlist"
+```
 
 ### Environment Variables
 
@@ -458,7 +479,7 @@ mix compile --warnings-as-errors
 | API documentation | OpenApiSpex + Scalar UI |
 | Schema generation | ExOpenApiUtils (Request/Response auto-split) |
 | Background jobs | Oban — `compliance_screening` queue |
-| Compliance screening | Moov Watchman (OFAC/SDN/EU/UN lists) |
+| Compliance screening | Moov Watchman v0.61.1 (OFAC/SDN/CSL/UN/FinCEN 311 + custom watchlists) |
 | Auth | bcrypt + TOTP 2FA + API keys |
 | Pagination/filtering | Flop |
 | Testing | ExUnit (DataCase + ConnCase, no mocks) |
