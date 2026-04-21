@@ -20,7 +20,7 @@ deps.logs:
 deps.status:
 	@docker compose -f $(COMPOSE_FILE) ps
 
-WATCHMAN_IMAGE := ghcr.io/alvera-ai/alvera-watchman:latest
+WATCHMAN_IMAGE := moovio/watchman:latest
 WATCHMAN_CONFIG := $(CURDIR)/config.all-lists.yml
 
 run-watchman:
