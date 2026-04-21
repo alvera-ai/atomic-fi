@@ -20,7 +20,7 @@ deps.logs:
 deps.status:
 	@docker compose -f $(COMPOSE_FILE) ps
 
-WATCHMAN_IMAGE := moovio/watchman:latest
+WATCHMAN_IMAGE := moov/watchman:latest
 WATCHMAN_CONFIG := $(CURDIR)/config.all-lists.yml
 
 run-watchman:
