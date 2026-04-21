@@ -1,15 +1,16 @@
-.PHONY: server console help deps deps.up deps.down deps.logs deps.status
+.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status
 
 COMPOSE_FILE := local-dependencies.yaml
 
-deps.up:
-	@echo "Starting local dependencies..."
+run-backing-services:
+	@echo "Starting local backing services..."
 	@docker compose -f $(COMPOSE_FILE) up -d
-	@echo "Services starting. Run 'make deps.logs' to follow."
+	@echo "Backing services ready. Run 'make deps.logs' to follow."
 
-deps.down:
+stop-backing-services:
+	@echo "Stopping local backing services..."
 	@docker compose -f $(COMPOSE_FILE) down
-	@echo "Local dependencies stopped"
+	@echo "Backing services stopped."
 
 deps.logs:
 	@docker compose -f $(COMPOSE_FILE) logs -f
@@ -29,19 +30,19 @@ console:
 	@iex --sname console@localhost --remsh phoenix@localhost
 
 help:
-	@echo "Phoenix Template Server - Available Commands"
+	@echo "Payments Compliance Platform - Available Commands"
 	@echo ""
 	@echo "Development:"
-	@echo "  make server            - Start Phoenix server with remote console"
-	@echo "  make console           - Connect to running Phoenix console"
+	@echo "  make server                  - Start Phoenix server with remote console"
+	@echo "  make console                 - Connect to running Phoenix console"
 	@echo ""
-	@echo "Local Dependencies (docker compose):"
-	@echo "  make deps.up           - Start all local dependencies"
-	@echo "  make deps.down         - Stop all local dependencies"
-	@echo "  make deps.logs         - Follow dependency logs"
-	@echo "  make deps.status       - Show running services"
+	@echo "Backing Services (Docker):"
+	@echo "  make run-backing-services    - Start local Docker services"
+	@echo "  make stop-backing-services   - Stop local Docker services"
+	@echo "  make deps.logs               - Follow service logs"
+	@echo "  make deps.status             - Show running services"
 	@echo ""
 	@echo "Usage:"
-	@echo "  1. Start services:  make deps.up"
+	@echo "  1. Start services:  make run-backing-services"
 	@echo "  2. Start server:    make server"
 	@echo "  3. In another terminal, connect: make console"
