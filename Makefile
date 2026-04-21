@@ -1,15 +1,17 @@
-.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status
+.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman
 
 COMPOSE_FILE := local-dependencies.yaml
 
 run-backing-services:
 	@echo "Starting local backing services..."
 	@docker compose -f $(COMPOSE_FILE) up -d
+	@$(MAKE) run-watchman
 	@echo "Backing services ready. Run 'make deps.logs' to follow."
 
 stop-backing-services:
 	@echo "Stopping local backing services..."
 	@docker compose -f $(COMPOSE_FILE) down
+	@$(MAKE) stop-watchman
 	@echo "Backing services stopped."
 
 deps.logs:
@@ -17,6 +19,25 @@ deps.logs:
 
 deps.status:
 	@docker compose -f $(COMPOSE_FILE) ps
+
+WATCHMAN_IMAGE := ghcr.io/alvera-ai/alvera-watchman:latest
+WATCHMAN_CONFIG := $(CURDIR)/config.all-lists.yml
+
+run-watchman:
+	@echo "Starting Watchman sanctions screening service..."
+	@docker run -d \
+		--name watchman-local \
+		-p 8084:8084 \
+		-p 9094:9094 \
+		-v $(WATCHMAN_CONFIG):/app/config.yml \
+		-e APP_CONFIG=/app/config.yml \
+		$(WATCHMAN_IMAGE)
+	@echo "Watchman ready on http://localhost:8084"
+
+stop-watchman:
+	@echo "Stopping Watchman..."
+	@docker rm -f watchman-local
+	@echo "Watchman stopped."
 
 server:
 	@echo "🚀 Starting Phoenix server with remote console support..."
@@ -37,10 +58,14 @@ help:
 	@echo "  make console                 - Connect to running Phoenix console"
 	@echo ""
 	@echo "Backing Services (Docker):"
-	@echo "  make run-backing-services    - Start local Docker services"
-	@echo "  make stop-backing-services   - Stop local Docker services"
-	@echo "  make deps.logs               - Follow service logs"
-	@echo "  make deps.status             - Show running services"
+	@echo "  make run-backing-services    - Start all services (Docker Compose + Watchman)"
+	@echo "  make stop-backing-services   - Stop all services"
+	@echo "  make deps.logs               - Follow Docker Compose logs"
+	@echo "  make deps.status             - Show running Docker Compose services"
+	@echo ""
+	@echo "Watchman (Sanctions Screening):"
+	@echo "  make run-watchman            - Start Watchman standalone"
+	@echo "  make stop-watchman           - Stop Watchman"
 	@echo ""
 	@echo "Usage:"
 	@echo "  1. Start services:  make run-backing-services"
