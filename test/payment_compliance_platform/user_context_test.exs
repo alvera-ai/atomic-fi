@@ -1,6 +1,7 @@
 defmodule PaymentCompliancePlatform.UserContextTest do
   use PaymentCompliancePlatform.DataCase
 
+  alias PaymentCompliancePlatform.OpenApiSchema.UserRequest
   alias PaymentCompliancePlatform.UserContext
 
   describe "users" do
@@ -8,7 +9,12 @@ defmodule PaymentCompliancePlatform.UserContextTest do
 
     import PaymentCompliancePlatform.Factory
 
-    @invalid_attrs %{email: nil, hashed_password: nil, confirmed_at: nil}
+    @invalid_attrs %UserRequest{
+      email: nil,
+      hashed_password: nil,
+      confirmed_at: nil,
+      tenant_id: nil
+    }
 
     test "list_users/2 returns all users", %{session: session} do
       user = insert(:user, tenant_id: session.tenant_id)
@@ -24,10 +30,10 @@ defmodule PaymentCompliancePlatform.UserContextTest do
     end
 
     test "create_user/2 with valid data creates a user", %{session: session} do
-      valid_attrs = %{
+      valid_attrs = %UserRequest{
         email: "some@email.com",
         hashed_password: "some hashed_password",
-        confirmed_at: ~U[2026-02-03 20:36:00.000000Z],
+        confirmed_at: "2026-02-03T20:36:00.000000Z",
         tenant_id: session.tenant_id
       }
 
@@ -44,10 +50,11 @@ defmodule PaymentCompliancePlatform.UserContextTest do
     test "update_user/3 with valid data updates the user", %{session: session} do
       user = insert(:user, tenant_id: session.tenant_id)
 
-      update_attrs = %{
+      update_attrs = %UserRequest{
         email: "updated@email.com",
         hashed_password: "some updated hashed_password",
-        confirmed_at: ~U[2026-02-04 20:36:00.000000Z]
+        confirmed_at: "2026-02-04T20:36:00.000000Z",
+        tenant_id: session.tenant_id
       }
 
       assert {:ok, %User{} = user} = UserContext.update_user(session, user, update_attrs)

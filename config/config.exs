@@ -9,6 +9,7 @@ import Config
 
 config :payment_compliance_platform,
   ecto_repos: [PaymentCompliancePlatform.Repo],
+  env: config_env(),
   # Generator defaults: binary IDs and microsecond timestamps
   generators: [binary_id: true, timestamp_type: :utc_datetime_usec],
   # Row-Level Security (RLS) hierarchy
@@ -99,6 +100,12 @@ config :flop, repo: PaymentCompliancePlatform.Repo, default_limit: 20
 
 # Watchman sanctions screening service
 config :payment_compliance_platform, :watchman_base_url, "http://localhost:8084"
+
+# Oban background job processing
+config :payment_compliance_platform, Oban,
+  prefix: "oban",
+  repo: PaymentCompliancePlatform.Repo,
+  queues: [compliance_screening: 10]
 
 # Quantum scheduler - cron-like job scheduling
 config :payment_compliance_platform, PaymentCompliancePlatform.Scheduler,

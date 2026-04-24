@@ -13,6 +13,7 @@ defmodule PaymentCompliancePlatform.SessionContext.Session do
   alias PaymentCompliancePlatform.RoleContext.{Role, RoleConstants}
   alias PaymentCompliancePlatform.TenantContext.Tenant
   alias PaymentCompliancePlatform.UserContext.User
+  alias PaymentCompliancePlatform.UserContext.UserToken
 
   @derive {
     Flop.Schema,
@@ -65,21 +66,149 @@ defmodule PaymentCompliancePlatform.SessionContext.Session do
   @foreign_key_type :binary_id
 
   # OpenAPI annotations
-  open_api_property(schema: %Schema{type: :string, enum: ["user", "api"]}, key: :type)
-  open_api_property(schema: %Schema{type: :boolean, default: true}, key: :active)
-  open_api_property(schema: %Schema{type: :string, format: :binary}, key: :session_token)
-  open_api_property(schema: %Schema{type: :string, format: "date-time"}, key: :expires_at)
-  open_api_property(schema: %Schema{type: :object}, key: :metadata)
+  # Server-resolved fields — readOnly so they appear in SessionResponse only,
+  # never expected on a SessionRequest body.
+  open_api_property(
+    schema: %Schema{type: :string, format: :uuid, readOnly: true},
+    key: :id
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, enum: ["user", "api"], readOnly: true},
+    key: :type
+  )
+
+  open_api_property(
+    schema: %Schema{type: :boolean, default: true, readOnly: true},
+    key: :active
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :binary, readOnly: true},
+    key: :session_token
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", readOnly: true, nullable: true},
+    key: :expires_at
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :object,
+      readOnly: true,
+      additionalProperties: true,
+      description: "Session metadata (IP, user agent, Cloudflare headers)"
+    },
+    key: :metadata
+  )
+
+  # Plaintext Bearer token — returned ONCE by POST /api/sessions. readOnly;
+  # never accepted on a request body. When absent (e.g. on GET /verify) the
+  # field is stripped from the Response by ExOpenApiUtils.Mapper.
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      readOnly: true,
+      nullable: true,
+      description: "Plaintext Bearer token. Returned ONCE on POST /api/sessions."
+    },
+    key: :bearer
+  )
+
+  # Preloaded association projections — Mapper.to_map serializes each via its
+  # own Response schema. `$ref`-to-*Response is auto-detected as readOnly by
+  # ExOpenApiUtils (is_readOnly?/1 on a Reference checks the ref suffix).
+  open_api_property(
+    schema: %OpenApiSpex.Reference{"$ref": "#/components/schemas/TenantResponse"},
+    key: :tenant
+  )
+
+  open_api_property(
+    schema: %OpenApiSpex.Reference{"$ref": "#/components/schemas/RoleResponse"},
+    key: :role
+  )
+
+  open_api_property(
+    schema: %OpenApiSpex.Reference{"$ref": "#/components/schemas/UserResponse"},
+    key: :user
+  )
+
+  open_api_property(
+    schema: %OpenApiSpex.Reference{"$ref": "#/components/schemas/ApiKeyResponse"},
+    key: :api_key
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :uuid, readOnly: true, nullable: true},
+    key: :user_id
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :uuid, readOnly: true, nullable: true},
+    key: :api_key_id
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :uuid, readOnly: true},
+    key: :role_id
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :uuid, readOnly: true},
+    key: :tenant_id
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", readOnly: true},
+    key: :inserted_at
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", readOnly: true},
+    key: :updated_at
+  )
+
+  # Auth-only writeOnly fields — appear in SessionRequest, excluded from SessionResponse.
+  # Populated by POST /api/sessions body to exchange credentials for a Bearer token.
+  open_api_property(
+    schema: %Schema{type: :string, format: :email, writeOnly: true},
+    key: :email
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :password, writeOnly: true, minLength: 1},
+    key: :password
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, writeOnly: true},
+    key: :tenant_slug
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :integer,
+      writeOnly: true,
+      nullable: true,
+      minimum: 60,
+      maximum: 2_592_000,
+      description: "Bearer session duration in seconds. Default 86400 (24h)."
+    },
+    key: :expires_in
+  )
 
   open_api_schema(
     title: "Session",
-    description: "Authentication session with role assumption",
-    required: [:type, :active, :session_token, :role_id, :tenant_id],
+    description:
+      "Authentication session. Request fields (writeOnly) carry credentials for " <>
+        "POST /api/sessions. Response fields (readOnly) describe the resolved session.",
+    required: [:email, :password, :tenant_slug],
     properties: [
+      # readOnly DB fields — appear in Response only
       :id,
       :type,
       :active,
-      :session_token,
       :expires_at,
       :metadata,
       :user_id,
@@ -87,7 +216,19 @@ defmodule PaymentCompliancePlatform.SessionContext.Session do
       :role_id,
       :tenant_id,
       :inserted_at,
-      :updated_at
+      :updated_at,
+      # readOnly plaintext Bearer token (virtual, returned once on create)
+      :bearer,
+      # readOnly preloaded associations — serialized via their Response schemas
+      :tenant,
+      :role,
+      :user,
+      :api_key,
+      # writeOnly — appear in Request only (POST /api/sessions body)
+      :email,
+      :password,
+      :tenant_slug,
+      :expires_in
     ]
   )
 
@@ -98,9 +239,25 @@ defmodule PaymentCompliancePlatform.SessionContext.Session do
     field :expires_at, :utc_datetime
     field :metadata, :map, default: %{}
 
+    # Virtual auth-input fields — present only on SessionRequest (writeOnly).
+    # POST /api/sessions reads these from the request body; never persisted.
+    field :email, :string, virtual: true
+    field :password, :string, virtual: true
+    field :tenant_slug, :string, virtual: true
+    field :expires_in, :integer, virtual: true
+
+    # Virtual response field — plaintext Bearer token returned ONCE by
+    # POST /api/sessions. Not persisted; the DB stores only the hashed
+    # UserToken linked via user_token_id.
+    field :bearer, :string, virtual: true
+
     # Polymorphic association: either user or api_key
     belongs_to :user, User
     belongs_to :api_key, ApiKey
+
+    # Non-null only for Bearer user-session API tokens
+    # (POST /api/sessions). NULL for X-API-Key sessions.
+    belongs_to :user_token, UserToken
 
     # The assumed role (required)
     belongs_to :role, Role
@@ -125,6 +282,7 @@ defmodule PaymentCompliancePlatform.SessionContext.Session do
       :metadata,
       :user_id,
       :api_key_id,
+      :user_token_id,
       :role_id,
       :tenant_id,
       :customer_id
@@ -133,6 +291,7 @@ defmodule PaymentCompliancePlatform.SessionContext.Session do
     |> validate_conditional_foreign_keys()
     |> foreign_key_constraint(:user_id)
     |> foreign_key_constraint(:api_key_id)
+    |> foreign_key_constraint(:user_token_id)
     |> foreign_key_constraint(:role_id)
     |> foreign_key_constraint(:tenant_id)
     |> foreign_key_constraint(:customer_id)

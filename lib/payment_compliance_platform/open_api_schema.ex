@@ -241,10 +241,157 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     "tenants"
   )
 
+  # User list response - wraps UserResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    UserListResponse,
+    UserResponse,
+    "users"
+  )
+
+  # Role list response - wraps RoleResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    RoleListResponse,
+    RoleResponse,
+    "roles"
+  )
+
+  # ApiKey list response - wraps ApiKeyResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    ApiKeyListResponse,
+    ApiKeyResponse,
+    "api_keys"
+  )
+
   # BlocklistEntry list response - wraps BlocklistEntryResponse in paginated format
   OpenApiSchemaHelpers.deflistresponse(
     BlocklistEntryListResponse,
     BlocklistEntryResponse,
     "blocklist_entries"
+  )
+
+  # LegalEntity list response - wraps LegalEntityResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    LegalEntityListResponse,
+    LegalEntityResponse,
+    "legal_entities"
+  )
+
+  # AccountHolder list response - wraps AccountHolderResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    AccountHolderListResponse,
+    AccountHolderResponse,
+    "account_holders"
+  )
+
+  # BeneficialOwner list response - wraps BeneficialOwnerResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    BeneficialOwnerListResponse,
+    BeneficialOwnerResponse,
+    "beneficial_owners"
+  )
+
+  # Counterparty list response - wraps CounterpartyResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    CounterpartyListResponse,
+    CounterpartyResponse,
+    "counterparties"
+  )
+
+  # ComplianceScreening list response - wraps ComplianceScreeningResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    ComplianceScreeningListResponse,
+    ComplianceScreeningResponse,
+    "compliance_screenings"
+  )
+
+  # Ledger list response - wraps LedgerResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    LedgerListResponse,
+    LedgerResponse,
+    "ledgers"
+  )
+
+  # LedgerAccount list response - wraps LedgerAccountResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    LedgerAccountListResponse,
+    LedgerAccountResponse,
+    "ledger_accounts"
+  )
+
+  # LedgerEntry list response - wraps LedgerEntryResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    LedgerEntryListResponse,
+    LedgerEntryResponse,
+    "ledger_entries"
+  )
+
+  # LedgerAccountBalance list response - wraps LedgerAccountBalanceResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    LedgerAccountBalanceListResponse,
+    LedgerAccountBalanceResponse,
+    "ledger_account_balances"
+  )
+
+  # KycRequirement list response - wraps KycRequirementResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    KycRequirementListResponse,
+    KycRequirementResponse,
+    "kyc_requirements"
+  )
+
+  # Document list response - wraps DocumentResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    DocumentListResponse,
+    DocumentResponse,
+    "documents"
+  )
+
+  # PaymentAccount list response - wraps PaymentAccountResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    PaymentAccountListResponse,
+    PaymentAccountResponse,
+    "payment_accounts"
+  )
+
+  # Transaction list response - wraps TransactionResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    TransactionListResponse,
+    TransactionResponse,
+    "transactions"
+  )
+
+  # AccountActivitySnapshot list response - wraps AccountActivitySnapshotResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    AccountActivitySnapshotListResponse,
+    AccountActivitySnapshotResponse,
+    "account_activity_snapshots"
+  )
+
+  # LegalEntityChangeEvent list response - wraps LegalEntityChangeEventResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    LegalEntityChangeEventListResponse,
+    LegalEntityChangeEventResponse,
+    "legal_entity_change_events"
+  )
+
+  # PartyActivitySnapshot list response - wraps PartyActivitySnapshotResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    PartyActivitySnapshotListResponse,
+    PartyActivitySnapshotResponse,
+    "party_activity_snapshots"
+  )
+
+  # RiskClassification list response - wraps RiskClassificationResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    RiskClassificationListResponse,
+    RiskClassificationResponse,
+    "risk_classifications"
+  )
+
+  # Customer list response - wraps CustomerResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    CustomerListResponse,
+    CustomerResponse,
+    "customers"
   )
 end

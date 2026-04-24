@@ -1,458 +1,510 @@
-# Alvera Phoenix Template Server
+# Payments Compliance Platform
 
-A production-ready Phoenix application template for building **Industry CRMs** and **Microservices** in the Alvera ecosystem. This template combines battle-tested patterns from Hamilton Practice, Service Commerce Platform, and the main Alvera Platform.
+**The KYC/KYB/AML compliance SoE for payment companies**
 
-> **Context**: In the Alvera architecture, Industry CRMs (like Hamilton Practice for healthcare, Service Commerce for consumer services) sit at the edge and integrate with the unified Data Activation and AI Platform. This template provides the foundation for building new Industry CRMs or standalone services following proven patterns.
-
----
-
-## Features
-
-- 🚀 **Phoenix 1.8+ with LiveView 1.0+** - Modern Phoenix stack with latest best practices
-- 🔐 **Multi-Tenancy with RBAC** - Tenant-scoped data with role-based access control
-- 🎨 **Petal Pro Components** - Pre-configured UI library with Storybook documentation
-- 📊 **REST API with OpenAPI** - Documented endpoints with automatic TypeScript SDK generation
-- 🧪 **Comprehensive Testing** - ExUnit, Wallaby (E2E), Vitest integration tests
-- 🐳 **Docker Multi-Arch** - AMD64/ARM64 images published to GHCR
-- 📝 **Audit Logging** - Console-based logging piped to S3 for forensic analysis
-- 🔄 **Background Jobs** - Oban (free version) for async processing
-- 🤖 **AI-Assisted Development** - Tidewave MCP for Claude Code/Cursor integration
-- 📚 **ExDoc Documentation** - Comprehensive guides and API docs
-- ⚙️ **GitHub Actions CI/CD** - Test, quality checks, Docker builds, integration tests
+[![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
+[![Elixir](https://img.shields.io/badge/Elixir-1.18-purple.svg)](https://elixir-lang.org)
+[![Phoenix](https://img.shields.io/badge/Phoenix-1.8-orange.svg)](https://phoenixframework.org)
 
 ---
 
-## Architecture Context
+## Overview
 
-### Where This Template Fits
+The Payments Compliance Platform is a **System of Engagement (SoE)**. It gives payment companies — fintechs, payment processors, e-money institutions, neobanks — a compliance backbone for KYC (Know Your Customer), KYB (Know Your Business), and AML (Anti-Money Laundering) that sits alongside their existing Stripe, JPMC, or Adyen integration without replacing it.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Alvera                           │
-│  ┌────────────────────────────────────────────────────┐    │
-│  │ Industry CRMs (Built with This Template)           │    │
-│  │  - Hamilton Practice (Healthcare - HIPAA)          │    │
-│  │  - Service Commerce Platform (Consumer - PCI-DSS)  │    │
-│  │  - Hamilton Pay (Fintech - KYC/AML)                │    │
-│  │  - Future: Credit Union, Legal, Real Estate        │    │
-│  └────────────────────────────────────────────────────┘    │
-│                          ↕                                  │
-│  ┌────────────────────────────────────────────────────┐    │
-│  │ Data Activation & AI Platform                      │    │
-│  │  - Master Data Manager (MDM)                       │    │
-│  │  - Data Activation (Push/Pull)                     │    │
-│  │  - AI Platform (Talk to Data)                      │    │
-│  │  - Agentic Workflows (Oban)                        │    │
-│  └────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────┘
-```
+**MDM subject:** `AccountHolder` (ISO 20022 acmt:007, acmt:019)
+**Standard:** ISO 20022 — acmt, pain, pacs, camt, auth message families
+**Competes with:** Alloy, Sardine, Marqeta
 
-> **Salesforce Parallel**: Just as Salesforce Industry Clouds are built on Data Cloud + Agentforce, Alvera Industry CRMs are built on a unified Data Activation and AI Platform. This template provides the foundation for building those Industry CRMs.
+### What You Can Build
 
-### What This Template Includes
-
-- ✅ **Core Phoenix patterns** from Platform project
-- ✅ **Multi-tenancy & Auth** from CRM project
-- ✅ **REST API with OpenAPI** from CRM project
-- ✅ **Testing infrastructure** from CRM project
-- ✅ **Docker & CI/CD** from CRM project
-- ✅ **Petal Pro Components** from Petal Pro library
-- ✅ **Storybook** from Hamilton Practice
-- ✅ **Audit Logging** from Hamilton Practice
-
-### What This Template Excludes
-
-- ❌ Multiple datalakes (RegulatedRepo, DatalakeRepo)
-- ❌ TokenizedData for PHI/PII handling
-- ❌ MDM and entity resolution
-- ❌ AI/ML integrations (Langchain, embeddings)
-- ❌ Agentic workflows (use Platform for this)
-- ❌ FHIR/healthcare-specific resources
-- ❌ Oban Pro (using free Oban)
-
-**This is a simplified starting point.** For advanced features like MDM, data activation, or agentic workflows, integrate with the main Alvera Platform.
+| Vertical | Examples |
+|----------|----------|
+| **Fintechs** | Neobanks, challenger banks, digital wallets |
+| **Payment Processors** | PSPs, acquirers, ISO/MSPs |
+| **E-Money Institutions** | EMIs, prepaid card issuers |
+| **Embedded Finance** | BaaS platforms, lending, BNPL |
+| **Crypto / Digital Assets** | VASPs, exchanges requiring Travel Rule compliance |
 
 ---
 
-## Quick Start
+## Where It Fits
 
-### 1. Clone the Template
-
-Use this repository as a template on GitHub or clone directly:
-
-```bash
-git clone https://github.com/alvera-ai/phoenix-template-server.git my-app
-cd my-app
+```
+SoR (Legacy)          SoE (This repo)                 Downstream Consumers
+────────────          ────────────────                ──────────────────────
+Stripe                Payments Compliance             Data lakes
+JPMC          ──►     Platform                  ───►  Agent workflows
+Adyen                 ├── PostgreSQL (owner)          Analytics engines
+                      ├── Outbound CDC cursor         MCP servers
+                      └── REST API + OpenAPI
 ```
 
-### 2. Rename the Project
+The SoE starts alongside existing payment providers. As data accumulates and the SoE earns operational trust, it can become the System of Record. Downstream consumers receive read-only CDC copies; they do not modify SoE data.
 
-Use the `mix rename` task to rename from `PaymentCompliancePlatform` to your app name:
-
-```bash
-# Install dependencies first
-mix deps.get
-
-# Rename the project (updates all modules, configs, and file names)
-mix rename PaymentCompliancePlatform MyApp
-
-# This updates:
-# - Module names: PaymentCompliancePlatform.* → MyApp.*
-# - OTP app name in mix.exs
-# - Configuration files
-# - Directory names
-# - File contents throughout the codebase
-```
-
-**Advanced Usage**:
-
-```bash
-# Rename with custom module prefix
-mix rename PaymentCompliancePlatform MyCompany.MyApp
-
-# Dry run to preview changes
-mix rename PaymentCompliancePlatform MyApp --dry-run
-```
-
-### 3. Configure Environment
-
-```bash
-# Copy example environment file
-cp .env.example .env
-
-# Edit .env with your configuration:
-# - Database credentials
-# - Secret key base
-# - API keys (if any)
-# - Auth0/Keycloak settings (if using OAuth)
-```
-
-**Required Environment Variables**:
-
-```bash
-DATABASE_URL=ecto://postgres:postgres@localhost/myapp_dev
-SECRET_KEY_BASE=generate_with_mix_phx_gen_secret
-PHX_HOST=localhost
-PORT=4000
-
-# Optional: Default seeds
-TENANT_NAME=my-company
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=change_me_in_production
-```
-
-### 4. Setup Database
-
-```bash
-# Create database, run migrations, and seed
-mix ecto.setup
-
-# Or run steps individually:
-mix ecto.create
-mix ecto.migrate
-mix run priv/repo/seeds.exs
-```
-
-### 5. Install Assets
-
-```bash
-# Install Tailwind CSS and esbuild
-mix assets.setup
-
-# Build assets
-mix assets.build
-```
-
-### 6. Start the Server
-
-```bash
-# Start Phoenix server
-mix phx.server
-
-# Or start with IEx console
-iex -S mix phx.server
-```
-
-**Visit**:
-- **App**: http://localhost:4000
-- **Storybook** (dev only): http://localhost:4000/ux-dev/storybook
-- **OpenAPI Spec**: http://localhost:4000/api/openapi
-- **Tidewave MCP** (dev only): http://localhost:4000/tidewave/mcp
+For optional integration with the Alvera Platform (SoI) — MDM, agentic workflows, AI query layer — see [guides/platform-integration.md](guides/platform-integration.md).
 
 ---
 
-## Development
+## Domain Model
 
-### Code Generators
+All domain data links to **AccountHolder** as the MDM subject. All PII lives in the linked **LegalEntity** — AccountHolder itself has no PII fields.
 
-This template includes custom Alvera generators for scaffolding:
+```
+AccountHolder (MDM Subject — ISO 20022 acmt:007, acmt:019)
+  belongs_to :legal_entity              ← ALL PII: name, DOB, tax_id, address, email, phone
+  has_many   :beneficial_owners         ← UBO chain (FinCEN CDD Rule ≥25% threshold)
+  has_many   :counterparties            ← payer/payee roles (ISO 20022 <Dbtr>/<Cdtr>)
+  has_one    :ledger                    ← accounting book (ISO 20022 camt:052/camt:053)
+  has_many   :compliance_screenings     ← OFAC/SDN/PEP results (auth:018, camt:998)
+  has_many   :kyc_requirements          ← CDD gates (FATF Recs 10/16/19/24)
+  has_many   :documents                 ← identity documents (acmt:007 SupportingDocument)
 
-**Generate Context** (Ecto schema + context + tests):
-```bash
-mix alvera.gen.context Blog Post posts title:string content:text published_at:datetime
+BeneficialOwner                         ← ISO 20022 acmt:007 BeneficialOwnership section
+  belongs_to :account_holder            ← the company being owned
+  belongs_to :legal_entity              ← the person or entity who owns it
+  field :ownership_pct                  ← FinCEN CDD ≥25% ownership threshold
+  field :control_type                   ← :shareholder | :director | :officer | :trustee
+  field :verification_status            ← :pending | :verified | :failed
+
+Counterparty                            ← ISO 20022 pain:001 <Dbtr>/<Cdtr>
+  belongs_to :account_holder
+  belongs_to :legal_entity
+  field :status                         ← :active | :suspended | :blocked
+
+LegalEntity                             ← Shared identity record — all PII lives here
+  field :legal_name                     ← KYC identity
+  field :date_of_birth                  ← FATF CDD Rec 10
+  field :tax_id                         ← SSN / EIN / TIN (encrypted at rest)
+  field :address_*                      ← KYC address verification
+  field :lei                            ← ISO 17442 Legal Entity Identifier
+
+Ledger                                  ← ISO 20022 camt:052/camt:053 chart-of-accounts
+  belongs_to :account_holder
+  field :currency                       ← ISO 4217 (one ledger per currency)
+  has_many   :ledger_accounts
+
+LedgerAccount                           ← camt:052 <Acct>, camt:053 <Acct>, camt:060
+  belongs_to :ledger
+  belongs_to :parent_ledger_account     ← self-referential hierarchy (MASTER→DEBIT/CREDIT→PAIR)
+  field :ancestor_ids                   ← materialized path for O(1) ancestor lookup
+  field :balance                        ← running balance (trigger-maintained)
+  has_many   :ledger_entries
+  has_many   :ledger_account_balances   ← per-day rolling period totals
+
+LedgerEntry                             ← camt:052 <Ntry>, camt:053 <Ntry>
+  belongs_to :ledger_account
+  field :entry_type                     ← :debit | :credit (ISO 20022 CdtDbtInd)
+  field :amount                         ← minor currency units (cents)
+  field :status                         ← :pending | :posted | :reversed | :voided
+  field :*_limit_at_entry               ← risk engine limit snapshot at creation time
+
+LedgerAccountBalance                    ← per-day rolling period totals (trigger-maintained)
+  belongs_to :ledger_account
+  field :balance_date / :iso_week / :month / :year   ← period key
+  field :daily_debit / :daily_credit                  ← day totals
+  field :weekly_debit / :weekly_credit                ← week-to-date cumulative
+  field :monthly_debit / :monthly_credit              ← month-to-date cumulative
+  field :yearly_debit / :yearly_credit                ← year-to-date cumulative
+  field :last_*_limit                   ← most recent risk engine limit (CHECK constraint source)
+
+ComplianceScreening                     ← ISO 20022 camt:998, auth:018
+  belongs_to :account_holder
+  field :scope            ← :account_holder | :counterparty | :payment_account | :transaction
+  field :screening_type   ← :sanctions | :pep | :aml | :adverse_media
+  field :screening_status ← :pending | :pass | :potential_match | :blocked | :escalated
+  has_many :sanctions_matches           ← one row per Watchman/OFAC hit
+  has_many :blocklist_matches           ← one row per internal blocklist hit
+
+SanctionsMatch                          ← per-hit Watchman result
+  belongs_to :compliance_screening
+  field :match_score / :source_list / :source_id
+  field :false_positive_qualifier       ← :none | :manual_override | :auto_suppressed
+  field :list_synced_at / :list_sources ← Watchman list version at time of this specific match
+  embeds_many :addresses                ← WatchmanAddress (typed JSONB)
+  embeds_one  :business_data            ← WatchmanBusiness (typed JSONB)
+  embeds_one  :person_data              ← WatchmanPerson (typed JSONB)
+  embeds_one  :contact_data             ← WatchmanContact (typed JSONB)
 ```
 
-**Generate LiveView UI** (with data table):
-```bash
-mix alvera.gen.live Blog Post posts --data_table --route_root "/admin"
+### LedgerAccount Hierarchy — Risk Classification Cascade
+
+```
+Ledger (AccountHolder's book)
+│
+└── MASTER LedgerAccount                          ← limit = f(RiskClassification.risk_level)
+      │                                             :low → $50K/day  :high → $5K/day
+      │
+      ├── DEBIT LedgerAccount                     ← limit = min(MASTER, Counterparty.debit_daily_limit)
+      │     owned by: Counterparty (outbound)
+      │     └── PAIR_DEBIT LedgerAccount          ← limit = min(DEBIT, ComplianceScreening pair result)
+      │           owned by: PaymentAccount
+      │
+      └── CREDIT LedgerAccount                    ← limit = min(MASTER, Counterparty.credit_daily_limit)
+            owned by: Counterparty (inbound)
+            └── PAIR_CREDIT LedgerAccount         ← limit = min(CREDIT, ComplianceScreening pair result)
+                  owned by: PaymentAccount
 ```
 
-**Generate REST API** (with OpenAPI):
-```bash
-mix alvera.gen.api Blog Post posts
-```
-
-See [Generators Guide](guides/generators.md) for detailed documentation.
-
-### Running Tests
-
-```bash
-# Run all tests
-mix test
-
-# Run with coverage
-mix coveralls
-
-# Run quality checks (format, credo, sobelow)
-mix quality
-
-# Run integration tests (TypeScript)
-cd integration-tests && npm test
-```
-
-### Storybook
-
-View and develop UI components in isolation:
-
-```bash
-mix phx.server
-# Visit http://localhost:4000/ux-dev/storybook
-```
-
-**Note**: Storybook is only available in dev/test environments and requires authentication.
-
-### AI-Assisted Development (Tidewave MCP)
-
-This template includes Tidewave MCP for seamless AI assistant integration:
-
-```bash
-# Start Phoenix server with Tidewave enabled (dev only)
-mix phx.server
-
-# Claude Code will automatically detect the MCP server at:
-# http://localhost:4000/tidewave/mcp
-```
-
-**Available AI Tools**:
-- Execute Elixir code in your running application
-- Query your database with SQL
-- Access logs and inspect Ecto schemas
-- Navigate source code and documentation
-- Debug in real-time from your editor
+**Balance trigger**: Every `ledger_entries` INSERT/UPDATE(voided) fires `propagate_ledger_entry_to_balances` — updates `ledger_accounts.balance` and upserts `ledger_account_balances` rows for the direct account AND all ancestors (via materialized `ancestor_ids`). CHECK constraints on `ledger_account_balances` enforce limits from the risk engine.
 
 ---
 
-## Architecture Patterns
+## Compliance Coverage
 
-### Multi-Tenancy
-
-This template uses a tenant-scoped architecture following Alvera principles:
-
-- Each **Tenant** owns **Users**, **Roles**, and data
-- Row-level security via `owner_id` foreign key
-- Users belong to one tenant (simplified model)
-- See [Multi-Tenancy Guide](guides/multi-tenancy.md)
-
-### Authentication
-
-- **Local Auth**: Email/password with bcrypt
-- **2FA**: TOTP-based two-factor authentication
-- **OAuth** (optional): Auth0/Keycloak placeholders
-- See [Authentication Guide](guides/authentication.md)
-
-### Audit Logging
-
-All user actions are logged to console with structured JSON (not database to avoid bloat):
-
-- **HTTP Requests**: Via audit plug in router pipeline
-- **LiveView Actions**: Via on_mount hook
-- **Metadata**: current_user, current_tenant, path, params, request_id
-- **Flow**: Console → Infrastructure → S3 (Parquet) → Athena for analysis
-
-> **Why Console-Based?** Last week's debugging nightmare highlighted missing audit trails. Console logs pipe to S3 via infrastructure (CloudWatch → S3 → Glue → Athena), avoiding database bloat while enabling forensic analysis.
-
-See [Architecture Guide](guides/architecture.md) for implementation details.
-
-### Telemetry
-
-Threshold-based performance monitoring:
-
-- **Slow Queries**: Log queries > 500ms
-- **Slow LiveView**: Log mounts/events > 500ms
-- **Rich Metadata**: Request context for debugging
+| Regulation | Enforcement |
+|-----------|-------------|
+| **FATF Rec 10** — Customer Due Diligence | `ComplianceScreening` `:account_holder` scope + `KycRequirement` gate account activation |
+| **FATF Rec 16** — Wire Transfer Rule | `:payment_account`-scope `KycRequirement` gates individual payment instruction |
+| **FATF Rec 19** — Enhanced Due Diligence | High-risk accounts trigger `:counterparty`-scope screening and EDD requirements |
+| **FATF Rec 24** — UBO Transparency | `BeneficialOwner` chain must be complete and verified; incomplete UBO blocks `AccountHolder` activation |
+| **FinCEN CDD Rule** (31 CFR §1010.230) | `ownership_pct ≥ 25%` + control person verification enforced via `BeneficialOwner` |
+| **OFAC Sanctions** | Watchman (Moov) screens every entity against SDN/EU/UN lists; `SanctionsMatch` per hit with false-positive dedup across re-screenings |
+| **PCI-DSS 4.0** | Bank/card details encrypted at rest via Cloak |
+| **BSA Data Retention** | `ComplianceScreening` + `SanctionsMatch` + `BlocklistMatch` provide 5-year audit trail |
 
 ---
 
-## Deployment
+## ISO 20022 Message Coverage
 
-### Docker Build
+All ISO 20022 messages for this domain are constructable from the data model:
 
-```bash
-# Build multi-arch image
-docker build -t my-app .
-
-# Run container
-docker run -p 4000:4000 \
-  -e DATABASE_URL=ecto://user:pass@host/db \
-  -e SECRET_KEY_BASE=your_secret \
-  my-app
-```
-
-### GitHub Actions
-
-The template includes CI/CD workflows:
-
-- **Test**: ExUnit tests with coverage (Codecov)
-- **Code Quality**: Format, Credo, Sobelow, Dialyxir
-- **Integration Tests**: Vitest with TypeScript SDK
-- **Docker**: Multi-arch builds (amd64/arm64) to GHCR
-- **Docs**: ExDoc generation to GitHub Pages
-- **PR**: Automated PR checks with GPG commit verification
-
-Workflows trigger on push to `main` and pull requests.
-
----
-
-## Documentation
-
-Full documentation is available via ExDoc:
-
-```bash
-# Generate docs
-mix docs
-
-# Opens in browser
-```
-
-**Available Guides**:
-- [Introduction](guides/introduction.md)
-- [Getting Started](guides/getting-started.md)
-- [Architecture](guides/architecture.md)
-- [Multi-Tenancy](guides/multi-tenancy.md)
-- [Authentication](guides/authentication.md)
-- [Generators](guides/generators.md)
-- [Testing](guides/testing.md)
-- [API Development](guides/api-development.md)
-- [Deployment](guides/deployment.md)
-
----
-
-## Best Practices (Learned from Production)
-
-This template incorporates lessons learned from building Hamilton Practice (healthcare), Service Commerce Platform (consumer), and the main Alvera Platform:
-
-### 1. **Always Run Tests Before Commit**
-
-```bash
-# Pre-commit checklist (enforced by git hooks)
-mix format
-mix credo --strict
-mix test
-```
-
-See [CLAUDE.md](.claude/CLAUDE.md) for git conventions.
-
-### 2. **Use Generators for Consistency**
-
-Don't hand-write CRUD code. Use generators to ensure consistent patterns:
-
-```bash
-mix alvera.gen.context Accounts User users ...
-mix alvera.gen.live Accounts User users --data_table
-mix alvera.gen.api Accounts User users
-```
-
-### 3. **Log Everything to Console (Not Database)**
-
-Audit logging goes to console → S3, never to database:
-
-- ✅ No database bloat
-- ✅ Forensic analysis via Athena
-- ✅ Survives application failures
-
-### 4. **Dual Analytics Engine Pattern**
-
-- **Postgres**: Realtime queries (<100ms)
-- **DuckDB + Parquet**: Historical/large datasets (<5s)
-
-### 5. **Work with Raw Data Only**
-
-Companion apps built from this template always work with raw data and interact with Alvera Platform in three ways:
-
-1. **POST via Data Activation Client**: Push raw data to Platform using the data-activation ingest API
-2. **GET via REST APIs**: Retrieve context data from Platform via REST endpoints
-3. **Embedded LiveView for AI Actions**: Embed AI-powered UI components (coming later)
-
-**Platform handles triplication** (raw/redacted/tokenized) internally for compliance. Companion apps don't need to manage this.
-
-### 6. **Observability Sits Outside**
-
-Monitoring should never depend on the application being monitored:
-- External uptime checks (Pingdom)
-- Log aggregation in separate system
-- Alerts independent of main system
-
----
-
-## Integration with Alvera Platform
-
-This template can integrate with the main Alvera Platform for advanced features:
-
-| Feature | When to Integrate |
-|---------|-------------------|
-| **MDM** | When you need entity resolution across multiple sources |
-| **Data Activation** | When you need to pull data from external systems (EHRs, banks, APIs) |
-| **AI Platform** | When you need "Talk to Data" or agentic authoring |
-| **Agentic Workflows** | When you need to collect information from any party |
-| **Embeddable Components** | When you want to embed AI-powered UI in your app |
-
-**Integration Pattern**: Industry CRMs (built with this template) sync data to Platform via Database Migration Service (DMS) with CDC (Change Data Capture). Platform provides AI, MDM, and advanced workflows.
+| ISO Message | Purpose | Datasets Required |
+|-------------|---------|-------------------|
+| acmt:007 | Account Opening | AccountHolder + LegalEntity + BeneficialOwner + KycRequirement + Document |
+| acmt:008 | Additional Info Request | KycRequirement + Document |
+| acmt:019 | Account Closing | AccountHolder + LedgerAccount |
+| pain:001 | Credit Transfer Initiation | Transaction + Counterparty + LegalEntity + LedgerAccount |
+| pain:002 | Payment Status Report | Transaction |
+| pacs:008 | FI Credit Transfer | Transaction + LedgerAccount |
+| pacs:002 | FI Payment Status | Transaction |
+| pacs:004 | Payment Return | Transaction + LedgerEntry |
+| camt:052 | Account Report (intraday) | LedgerAccount + LedgerEntry + AccountActivitySnapshot |
+| camt:053 | Account Statement | LedgerAccount + LedgerEntry + AccountActivitySnapshot |
+| camt:054 | Debit/Credit Notification | Transaction |
+| camt:060 | Account Reporting Request | LedgerAccount |
+| auth:018 | Risk Classification Report | RiskClassification + ComplianceScreening |
+| camt:998 | Sanctions Screening | ComplianceScreening + SanctionsMatch |
 
 ---
 
 ## Implementation Status
 
-**Current Progress**: 5/7 core modules implemented with schemas, docs, tests, and RLS.
+All contexts in the project. ISO 20022 alignment tracked in [#9](https://github.com/alvera-ai/payments-compliance-platform/issues/9).
 
-See [Core Modules Guide](guides/core-modules.md) for detailed status tracking of all contexts.
+| Context | Regulation | Schema | Docs | Tests | RLS | API | Status |
+|---------|------------|--------|------|-------|-----|-----|--------|
+| Tenant | — | ✅ | ✅ | ✅ | N/A | ✅ | 4/5 |
+| User | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| Role | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| Customer | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| ApiKey | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| Session | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| LegalEntity | ISO 20022 acmt:007 · FATF Rec 10/24 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| AccountHolder | ISO 20022 acmt:007, acmt:019 · FATF Rec 10 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| BeneficialOwner | ISO 20022 acmt:023 · FATF Rec 24 · FinCEN CDD §1010.230 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| BlocklistEntry | Tenant-managed internal blocklist | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| ComplianceScreening | ISO 20022 camt:998, auth:018 · FATF Rec 19 · OFAC | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| Counterparty | ISO 20022 pain:001 · FATF Rec 19 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| Ledger | ISO 20022 camt:052, camt:053 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| LedgerAccount | ISO 20022 camt:052, camt:053 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| LedgerEntry | ISO 20022 camt:052, camt:053 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| LedgerAccountBalance | ISO 20022 camt:053 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| KycRequirement | ISO 20022 acmt:007, acmt:008 · FATF Rec 10/16/19/24 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| Document | ISO 20022 acmt:007, acmt:008 · FATF Rec 10 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| PaymentAccount | ISO 20022 pain:001 · FATF Rec 16 · PCI-DSS 4.0 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| Transaction | ISO 20022 pain:001, pacs:008, pacs:002, pacs:004, camt:054 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| AccountActivitySnapshot | ISO 20022 camt:052, camt:053 · FinCEN AML (ledger-level) | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| LegalEntityChangeEvent | ISO 20022 acmt:006 · acmt:002 · AML account takeover | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| PartyActivitySnapshot | FATF Rec 10 · FinCEN AML (party-level) | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| RiskClassification | ISO 20022 auth:018 · FATF Rec 10 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+
+**AccountActivitySnapshot vs PartyActivitySnapshot:**
+
+- **AccountActivitySnapshot** aggregates *ledger-level* debit/credit activity for
+  a specific PaymentAccount over a period — maps to ISO 20022 camt:052/camt:053.
+- **PartyActivitySnapshot** aggregates *party-level* compliance signals for an
+  AccountHolder over a period — KYC/risk-level transitions, screening volume and
+  hit rate, SAR candidacy — supporting FATF Rec 10 (ongoing CDD) and FinCEN
+  31 CFR §1020.320 (SAR filing).
+
+**Column definitions:**
+
+- **Schema**: Ecto schema + migration, TypedEctoSchema, ISO 20022 field alignment, column comments
+- **Docs**: `@moduledoc` with FATF Recommendation / ISO 20022 cross-references
+- **Tests**: ExUnit DataCase tests, no mocks, real PostgreSQL
+- **RLS**: Row-level security via `tenant_id` scoping in `def_with_rls_and_logging/3`
+- **API**: REST endpoints with OpenAPI Request/Response schemas via ExOpenApiUtils, documented at `/api/docs`
+
+---
+
+## API
+
+All endpoints under `/api`, documented at `/api/docs` (Scalar UI).
+
+### Resources
+
+| Resource | Endpoints |
+|----------|-----------|
+| Account Holders | `GET/POST /api/account-holders` · `GET/PUT/DELETE /api/account-holders/:id` |
+| Beneficial Owners | `GET/POST /api/beneficial-owners` · `GET/PUT/DELETE /api/beneficial-owners/:id` |
+| Counterparties | `GET/POST /api/counterparties` · `GET/PUT/DELETE /api/counterparties/:id` |
+| Legal Entities | `GET/POST /api/legal-entities` · `GET/PUT/DELETE /api/legal-entities/:id` |
+| Compliance Screenings | `GET /api/compliance-screenings` · `GET/PUT /api/compliance-screenings/:id` |
+| Ledgers | `GET/POST /api/ledgers` · `GET/PUT/DELETE /api/ledgers/:id` |
+| Ledger Accounts | `GET/POST /api/ledger-accounts` · `GET/PUT/DELETE /api/ledger-accounts/:id` |
+| Ledger Entries | `GET/POST /api/ledger-entries` · `GET/PUT/DELETE /api/ledger-entries/:id` |
+| Ledger Account Balances | `GET /api/ledger-account-balances` · `GET /api/ledger-account-balances/:id` |
+| KYC Requirements | `GET/POST /api/kyc-requirements` · `GET/PUT/DELETE /api/kyc-requirements/:id` |
+| Documents | `GET/POST /api/documents` · `GET/PUT/DELETE /api/documents/:id` |
+
+### Compliance Screening Actions
+
+| Endpoint | Screens |
+|----------|---------|
+| `POST /api/compliance-screenings/screen-account-holder` | AccountHolder against OFAC/SDN/PEP |
+| `POST /api/compliance-screenings/screen-beneficial-owner` | BeneficialOwner (FinCEN CDD UBO chain) |
+| `POST /api/compliance-screenings/screen-counterparty` | Counterparty pair |
+
+### chain_screening (Automatic on Create)
+
+Creating any AccountHolder, BeneficialOwner, or Counterparty automatically enqueues an Oban compliance screening job (`chain_screening: true` by default):
+
+```json
+POST /api/account-holders
+{
+  "legal_entity_id": "...",
+  "holder_type": "individual",
+  "chain_screening": false
+}
+```
+
+Set `"chain_screening": false` to skip — useful for bulk imports or seeding.
+
+---
+
+## Architecture
+
+### Directory Structure
+
+```
+lib/
+├── payment_compliance_platform/
+│   ├── account_holder_context/         # AccountHolder + ISO 20022 acmt
+│   ├── beneficial_owner_context/       # BeneficialOwner + FinCEN CDD
+│   ├── counterparty_context/           # Counterparty + ISO 20022 pain/pacs
+│   ├── legal_entity_context/           # Shared identity + PII
+│   ├── compliance_screening_context/   # OFAC/SDN/PEP screening + Watchman
+│   │   ├── compliance_screening.ex     # Parent screening record (auth:018, camt:998)
+│   │   ├── screening_worker.ex         # Oban worker: :compliance_screening queue
+│   │   ├── blocklist_match.ex          # Per-hit internal blocklist result
+│   │   └── sanctions_match.ex          # Per-hit Watchman/OFAC result
+│   ├── kyc_requirement_context/        # KYC gates (FATF Rec 10/16/19/24)
+│   ├── document_context/               # Compliance documents (ISO 20022 acmt:007)
+│   ├── decision_context/
+│   │   └── screening_engine.ex         # Watchman API client
+│   ├── blocklist_context/              # Internal blocklist management
+│   ├── ledger_context/                 # Ledger (camt:052/camt:053 container)
+│   ├── ledger_account_context/         # LedgerAccount + LedgerAccountBalance
+│   ├── ledger_entry_context/           # LedgerEntry + limit snapshots
+│   ├── tenant_context/                 # Multi-tenancy
+│   ├── user_context/                   # User auth (bcrypt + TOTP)
+│   ├── role_context/                   # RBAC
+│   ├── customer_context/               # B2B customer orgs
+│   ├── api_key_context/                # Machine-to-machine auth
+│   └── session_context/                # Session management
+│
+├── payment_compliance_platform_api/
+│   └── controllers/
+│       ├── account_holder_controller.ex
+│       ├── beneficial_owner_controller.ex
+│       ├── counterparty_controller.ex
+│       ├── legal_entity_controller.ex
+│       ├── compliance_screening_controller.ex
+│       ├── ledger_controller.ex
+│       ├── ledger_account_controller.ex
+│       ├── ledger_entry_controller.ex
+│       ├── ledger_account_balance_controller.ex
+│       ├── kyc_requirement_controller.ex
+│       └── document_controller.ex
+│
+└── payment_compliance_platform_web/    # LiveView UI (future)
+
+priv/repo/migrations/                   # All DB migrations in timestamp order
+
+test/
+├── payment_compliance_platform/        # Context tests (ExUnit, no mocks)
+└── payment_compliance_platform_api/    # Controller tests (ConnCase)
+```
+
+### OpenAPI Schema Pattern (ExOpenApiUtils)
+
+Schemas use `open_api_schema` annotations to auto-generate `*Request` / `*Response` structs:
+
+- `AccountHolder` → `AccountHolderRequest` (writeOnly fields excluded) + `AccountHolderResponse` (readOnly fields only)
+- `readOnly: true` on `open_api_property` → field appears only in Response struct (server-generated: `id`, timestamps)
+- `writeOnly: true` → field appears only in Request struct (sensitive input: passwords, tokens)
+- No flag → field appears in both Request and Response structs
+- Controllers receive typed `%AccountHolderRequest{}` structs — no map conversion needed
+- `ExOpenApiUtils.Changeset.cast/3` handles `Mapper.to_map` internally — pass struct directly to `changeset/2`
+
+### Multi-Tenancy (RLS)
+
+Every domain record is scoped to `tenant_id`. Row-level security enforced at the repo level via `PaymentCompliancePlatform.LoggerMacro.def_with_rls_and_logging/3`.
+
+### Background Jobs (Oban)
+
+| Queue | Worker | Trigger |
+|-------|--------|---------|
+| `compliance_screening` | `ScreeningWorker` | `chain_screening: true` on create, or manual screen action |
+
+### PostgreSQL Trigger — Balance Propagation
+
+The `propagate_ledger_entry_to_balances` trigger fires on every `ledger_entries` INSERT or UPDATE (when `status → :voided`):
+
+1. Computes debit/credit delta and collects `ancestor_ids` from the direct account
+2. Updates `ledger_accounts.balance` for direct account + all ancestors in one `UPDATE WHERE id = ANY(v_account_ids)`
+3. Upserts one `ledger_account_balances` row per account per day — stores cumulative daily/weekly/monthly/yearly debit+credit totals
+4. Copies limit snapshots from the entry's `*_limit_at_entry` fields to `last_*_limit` columns on the balance row
+5. CHECK constraints on `ledger_account_balances` enforce `last_*_limit IS NULL OR balance_total <= last_*_limit`
+
+---
+
+## Change Data Capture (Outbound)
+
+The SoE exposes an outbound CDC feed via an Oban cron job (every 5 minutes):
+
+```
+Local PostgreSQL
+  └── Oban cron job (updated_at cursor)
+        └── Batch changed rows since last_synced_at
+              └── POST to configurable ingest endpoint
+```
+
+Downstream consumers subscribe to this feed and hold read-only copies of SoE data. The ingest endpoint is configurable via environment variable; no coupling to any specific consumer.
+
+An inbound sync worker polls a consumer events API on a configurable schedule and writes returned results (screening decisions, MDM merges, workflow outputs) back to the local DB.
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- **Erlang**: 27.3.3
+- **Elixir**: 1.18.3-otp-27
+- **PostgreSQL**: 17.2
+- **Watchman** (sanctions screening): `make run-watchman` (pulls `moov/watchman:v0.61.1`)
+
+See `.tool-versions` for exact versions.
+
+### Setup
+
+```bash
+# Install dependencies
+mix deps.get
+
+# Create DB, run migrations, seed
+mix ecto.setup
+
+# Start Watchman (sanctions screening + custom watchlist)
+make run-watchman
+
+# Ingest the custom watchlist into Watchman
+curl -X POST http://localhost:8084/v2/ingest/custom_watchlist \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary @custom-watchlist.jsonl
+
+# Start server
+mix phx.server
+```
+
+**Visit:**
+
+- **API Docs**: http://localhost:4001/api/docs
+- **OpenAPI Spec**: http://localhost:4001/api/openapi
+
+### Verify Watchman
+
+```bash
+# Search sanctions lists (OFAC, CSL, UN, FinCEN 311)
+curl -s "http://localhost:8084/v2/search?name=Nicolas+Maduro&type=person&limit=3"
+
+# Search custom watchlist
+curl -s "http://localhost:8084/v2/search?name=Viktor+Petrov&source=custom_watchlist&type=person"
+
+# Search custom watchlist (organization)
+curl -s "http://localhost:8084/v2/search?name=Golden+Dragon+Trading&source=custom_watchlist"
+```
+
+### Environment Variables
+
+```bash
+DATABASE_URL=ecto://postgres:postgres@localhost/payments_compliance_platform_dev
+SECRET_KEY_BASE=generate_with_mix_phx_gen_secret
+PHX_HOST=localhost
+PORT=4001
+
+# Watchman sanctions screening service
+WATCHMAN_BASE_URL=http://localhost:8084
+
+# Optional: tenant seed
+TENANT_NAME=my-fintech
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=change_me_in_production
+```
+
+---
+
+## Development
+
+### Running Tests
+
+```bash
+# Run all tests (494 tests, 0 failures)
+mix test
+
+# Run specific domain tests
+mix test test/payment_compliance_platform/account_holder_context_test.exs
+mix test test/payment_compliance_platform/ledger_account_balance_context_test.exs
+
+# Quality checks
+mix format
+mix credo --strict
+mix compile --warnings-as-errors
+```
+
+---
+
+## Technology Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Language | Elixir 1.18 / OTP 27 |
+| Web framework | Phoenix 1.8 + Phoenix LiveView |
+| Database | PostgreSQL 17.2 with RLS + triggers |
+| API documentation | OpenApiSpex + Scalar UI |
+| Schema generation | ExOpenApiUtils (Request/Response auto-split) |
+| Background jobs | Oban — `compliance_screening` queue |
+| Compliance screening | Moov Watchman v0.61.1 (OFAC/SDN/CSL/UN/FinCEN 311 + custom watchlists) |
+| Auth | bcrypt + TOTP 2FA + API keys |
+| Pagination/filtering | Flop |
+| Testing | ExUnit (DataCase + ConnCase, no mocks) |
+| CI/CD | GitHub Actions (test + quality + Docker) |
 
 ---
 
 ## Contributing
 
-This template is maintained by Alvera AI. For internal use only.
+Before committing:
 
-When making changes:
-1. Follow [Coding Guidelines](CLAUDE.md)
-2. Ensure all tests pass: `mix test && mix quality`
-3. Update relevant guides in `guides/`
-4. Test generators work: `mix alvera.gen.*`
-5. Create conventional commits with GPG signing
-6. Update the Implementation Status table when completing work
-
----
-
-## Version Requirements
-
-- **Erlang**: 27.3.3
-- **Elixir**: 1.18.3-otp-27
-- **PostgreSQL**: 17.2
-- **Node.js**: 20+ (for assets)
-
-See `.tool-versions` for exact versions.
+1. `mix format && mix credo --strict && mix test`
+2. GPG-sign all commits (`git commit -S`)
+3. Update this README's capability matrix when completing dataset work
+4. Conventional commits: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`
 
 ---
 
 ## License
 
-Copyright © 2026 Alvera AI. All rights reserved.
+Copyright © 2026. All rights reserved.

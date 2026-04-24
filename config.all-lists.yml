@@ -1,0 +1,56 @@
+Watchman:
+  Servers:
+    BindAddress: ":8084"
+    AdminAddress: ":9094"
+
+  Telemetry:
+    ServiceName: "watchman"
+
+  Webui:
+    BasePath: "/"
+
+  Download:
+    RefreshInterval: "12h"
+    InitialDataDirectory: "/data"
+
+    IncludedLists:
+      - us_ofac
+      - us_csl
+      - us_non_sdn
+      - us_fincen_311
+      - un_csl
+
+  Search:
+    Goroutines:
+      Default: 10
+      Min: 1
+      Max: 25
+
+  # PostalPool:
+  #   Enabled: true
+  #   Instances: 2
+  #   StartingPort: 10000
+  #   StartupTimeout: "60s"
+  #   RequestTimeout: "10s"
+  #   BinaryPath: ""
+  #   CGOSelfInstances: 1
+
+  Ingest:
+    Files:
+      custom_watchlist:
+        Format: "senzing-jsonl"
+
+  Geocoding:
+    Enabled: false
+    Provider:
+      Name: "opencage"
+      APIKey: ""
+      BaseURL: ""
+      Timeout: "10s"
+    RateLimit:
+      RequestsPerSecond: 1
+      Burst: 5
+    Cache:
+      L1MaxSize: 10000
+      L1TTL: "24h"
+      L2Enabled: false

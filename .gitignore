@@ -35,11 +35,3 @@ phoenix_template_server-*.tar
 npm-debug.log
 /assets/node_modules/
 
-# Playwright MCP logs and screenshots
-.playwright-mcp/
-*.png
-*.jpg
-*.jpeg
-
-# Package.json (not used in this Phoenix project)
-package.json

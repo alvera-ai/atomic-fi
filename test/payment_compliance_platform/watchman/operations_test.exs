@@ -83,7 +83,10 @@ defmodule PaymentCompliancePlatform.Watchman.OperationsTest do
     test "returns version information" do
       {:ok, %ListInfoResponse{} = info} = Operations.v2_listinfo_get()
 
-      assert info.version == "0.1.0"
+      # Watchman reports its own semver (e.g. "v0.61.1"); assert shape, not a
+      # specific pin so upgrades don't break this test.
+      assert is_binary(info.version)
+      assert String.match?(info.version, ~r/^v?\d+\.\d+\.\d+/)
     end
 
     test "returns list hashes" do

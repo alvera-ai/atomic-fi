@@ -1,6 +1,6 @@
 # API Development
 
-This guide covers developing REST APIs with OpenAPI in the Alvera Phoenix Template.
+This guide covers developing REST APIs with OpenAPI in the Payments Compliance Platform.
 
 ## Overview
 
@@ -357,9 +357,9 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
         Server.from_endpoint(Endpoint)
       ],
       info: %Info{
-        title: "Alvera Phoenix Template API",
+        title: "Payments Compliance Platform API",
         version: "1.0.0",
-        description: "REST API for Alvera Phoenix Template",
+        description: "REST API for Payments Compliance Platform",
         contact: %{
           name: "Alvera AI",
           url: "https://alvera.ai"

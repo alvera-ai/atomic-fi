@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the architecture and design patterns used in the Alvera Phoenix Template.
+This document describes the architecture and design patterns used in the Payments Compliance Platform.
 
 ## System Overview
 

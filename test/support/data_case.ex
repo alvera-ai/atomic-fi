@@ -248,48 +248,4 @@ defmodule PaymentCompliancePlatform.DataCase do
     # Refresh cache after seeding
     PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant_id)
   end
-
-  @doc """
-  Casts request data through the AccountHolderRequest OpenAPI schema.
-
-  This mimics what happens in the controller when OpenApiSpex validates
-  and casts the request body. Generates the spec fresh for each call
-  instead of caching to ensure tests use current schema definitions.
-
-  ## Examples
-
-      request = %{
-        name: "Test Company",
-        type: "business",
-        interested_individuals: [
-          %{first_name: "John", last_name: "Doe"}
-        ],
-        interested_companies: []
-      }
-
-      casted = cast_account_holder_request(request)
-      assert %PaymentCompliancePlatform.OpenApiSchema.AccountHolderRequest{} = casted
-
-  """
-  def cast_account_holder_request(request_data) do
-    alias PaymentCompliancePlatform.OpenApiSchema.AccountHolderRequest
-
-    # Generate spec fresh (not cached) to reflect current schema state
-    spec = OpenApiSpex.resolve_schema_modules(PaymentCompliancePlatformApi.ApiSpec.spec())
-    schema = AccountHolderRequest.schema()
-
-    case OpenApiSpex.cast_value(request_data, schema, spec) do
-      {:ok, casted} ->
-        casted
-
-      {:error, errors} ->
-        raise """
-        Failed to cast AccountHolderRequest through OpenAPI schema.
-
-        Errors: #{inspect(errors, pretty: true)}
-
-        Request data: #{inspect(request_data, pretty: true)}
-        """
-    end
-  end
 end

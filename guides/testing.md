@@ -1,6 +1,6 @@
 # Testing Guide
 
-This guide covers testing strategies and best practices for the Alvera Phoenix Template.
+This guide covers testing strategies and best practices for the Payments Compliance Platform.
 
 ## Overview
 

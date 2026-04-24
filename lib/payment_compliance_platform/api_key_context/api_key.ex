@@ -39,15 +39,53 @@ defmodule PaymentCompliancePlatform.ApiKeyContext.ApiKey do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   # OpenAPI annotations
+  open_api_property(schema: %Schema{type: :string, format: :uuid, readOnly: true}, key: :id)
   open_api_property(schema: %Schema{type: :string}, key: :name)
-  open_api_property(schema: %Schema{type: :string}, key: :key_hash)
-  open_api_property(schema: %Schema{type: :string}, key: :last_used_at)
+
+  open_api_property(
+    schema: %Schema{type: :string, readOnly: true, nullable: true},
+    key: :raw_key
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", readOnly: true, nullable: true},
+    key: :last_used_at
+  )
+
+  open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :tenant_id)
+  open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :role_id)
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :uuid, nullable: true},
+    key: :customer_id
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", readOnly: true},
+    key: :inserted_at
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", readOnly: true},
+    key: :updated_at
+  )
 
   open_api_schema(
-    title: "Api key",
-    description: "Api key schema",
-    required: [:name, :tenant_id],
-    properties: [:id, :name, :key_hash, :last_used_at, :tenant_id, :inserted_at, :updated_at]
+    title: "ApiKey",
+    description:
+      "Api key schema. `raw_key` is populated ONCE on create — store it securely client-side, it cannot be retrieved later.",
+    required: [:name, :tenant_id, :role_id],
+    properties: [
+      :id,
+      :name,
+      :raw_key,
+      :last_used_at,
+      :tenant_id,
+      :role_id,
+      :customer_id,
+      :inserted_at,
+      :updated_at
+    ]
   )
 
   typed_schema "api_keys" do
@@ -58,6 +96,9 @@ defmodule PaymentCompliancePlatform.ApiKeyContext.ApiKey do
 
     # Virtual field for current role (set at runtime during API authentication)
     field :current_role, :map, virtual: true
+
+    # Virtual field for returning the plaintext key ONCE on create
+    field :raw_key, :string, virtual: true
 
     # Multi-tenancy: tenant_id references tenants for RLS
     belongs_to :tenant, Tenant

@@ -1,30 +1,86 @@
 defmodule PaymentCompliancePlatformApi.Plugs.ApiAuthentication do
   @moduledoc """
-  Validates API key from x-api-key header and loads session.
+  Authenticates requests via X-API-Key (M2M) OR Authorization: Bearer (human,
+  issued by `POST /api/sessions`).
 
-  - Validates API key on every request
-  - Creates or loads cached session
-  - Assigns current_api_key, api_session, and session_id to conn
-  - Returns 401 if invalid or missing API key
-  - Captures Cloudflare headers for audit trail
+  Resolution order:
+  1. `X-API-Key: <key>` — validated against `api_keys.key_hash`; session loaded
+     via `SessionManager.get_or_create_session/2`. Type = `:api`.
+  2. `Authorization: Bearer <token>` — verified via
+     `UserContext.verify_user_session_api_token_query/1`; linked session
+     loaded via `SessionManager.get_session_by_user_token_id/1`. Type = `:user`.
+  3. Neither present or invalid → 401.
+
+  Assigns on success:
+  - `:api_session` — the `%Session{}` (both auth types)
+  - `:session_id` — session id (both auth types)
+  - `:current_api_key` — the `%ApiKey{}` (X-API-Key only)
+  - `:current_user` — the `%User{}` (Bearer only)
+
+  Also captures Cloudflare headers into session metadata for audit trail.
   """
 
   import Plug.Conn
   require Logger
 
   alias PaymentCompliancePlatform.ApiKeyContext
+  alias PaymentCompliancePlatform.Repo
+  alias PaymentCompliancePlatform.SessionContext.Session
   alias PaymentCompliancePlatform.SessionContext.SessionManager
+  alias PaymentCompliancePlatform.UserContext
 
   def init(opts), do: opts
 
   def call(conn, _opts) do
-    case get_req_header(conn, "x-api-key") do
-      [api_key] ->
+    cond do
+      api_key = api_key_header(conn) ->
         authenticate_and_load_session(conn, api_key)
 
-      _ ->
-        unauthorized_response(conn, "API key required. Include x-api-key header.")
+      bearer = bearer_token(conn) ->
+        authenticate_bearer(conn, bearer)
+
+      true ->
+        unauthorized_response(
+          conn,
+          "Credentials required. Provide x-api-key header or Authorization: Bearer <token>."
+        )
     end
+  end
+
+  defp api_key_header(conn) do
+    case get_req_header(conn, "x-api-key") do
+      [key | _] when is_binary(key) and key != "" -> key
+      _ -> nil
+    end
+  end
+
+  defp bearer_token(conn) do
+    case get_req_header(conn, "authorization") do
+      ["Bearer " <> token | _] when is_binary(token) and token != "" -> token
+      ["bearer " <> token | _] when is_binary(token) and token != "" -> token
+      _ -> nil
+    end
+  end
+
+  defp authenticate_bearer(conn, token) do
+    with {:ok, query} <- UserContext.verify_user_session_api_token_query(token),
+         %{id: user_token_id} <- Repo.one(query, skip_multi_tenancy_check: true),
+         %Session{} = session <- SessionManager.get_session_by_user_token_id(user_token_id),
+         :ok <- check_not_expired(session) do
+      conn
+      |> assign(:current_user, session.user)
+      |> assign(:api_session, session)
+      |> assign(:session_id, session.id)
+    else
+      _ ->
+        unauthorized_response(conn, "Invalid or expired Bearer token")
+    end
+  end
+
+  defp check_not_expired(%Session{expires_at: nil}), do: :ok
+
+  defp check_not_expired(%Session{expires_at: %DateTime{} = expires_at}) do
+    if DateTime.compare(expires_at, DateTime.utc_now()) == :gt, do: :ok, else: :expired
   end
 
   defp authenticate_and_load_session(conn, api_key_value) do

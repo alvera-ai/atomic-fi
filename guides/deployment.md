@@ -1,6 +1,6 @@
 # Deployment Guide
 
-This guide covers deploying the Alvera Phoenix Template to production.
+This guide covers deploying the Payments Compliance Platform to production.
 
 ## Overview
 

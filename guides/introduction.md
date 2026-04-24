@@ -1,181 +1,79 @@
 # Introduction
 
-Welcome to the Payment Compliance Platform - a specialized system for screening payments and account holders against international sanctions lists with manual review and override capabilities.
+The Payments Compliance Platform is a **System of Engagement (SoE)** for payment companies —
+fintechs, PSPs, e-money institutions, neobanks — that need a compliance backbone for
+KYC (Know Your Customer), KYB (Know Your Business), and AML (Anti-Money Laundering).
 
-## Overview
+It sits alongside existing payment processors (Stripe, JPMC, Adyen) without replacing them,
+providing structured compliance data aligned to ISO 20022 and FATF recommendations.
 
-This platform provides comprehensive sanctions screening and compliance management for financial institutions:
+---
 
-- **Sanctions Screening**: Automated screening against US OFAC, CSL, and other watchlists
-- **Onboarding Compliance**: Screen new account holders (individuals and businesses) during onboarding
-- **Payment Monitoring**: Verify transactions against sanctioned entities
-- **Manual Review**: Human oversight with review workflows and override capabilities
-- **Multi-Tenancy**: Isolated data and compliance decisions per financial institution
-- **Audit Trail**: Complete history of screening decisions and manual overrides
-- **REST API**: OpenAPI-documented endpoints for integration with existing systems
+## What It Does
 
-## Project Goals
+| Capability | Detail |
+|-----------|--------|
+| **KYC / KYB** | AccountHolder lifecycle — `kyc_status`, document collection, CDD gating |
+| **UBO Transparency** | BeneficialOwner chain — FinCEN CDD Rule ≥25% threshold + control persons |
+| **OFAC / Sanctions** | Watchman (Moov) screens against SDN/EU/UN lists; per-hit SanctionsMatch records |
+| **AML Monitoring** | AccountActivitySnapshot, LegalEntityChangeEvent — FinCEN AML audit trail |
+| **Payment Ledger** | Double-entry LedgerAccount hierarchy with risk-limit CHECK constraints |
+| **ISO 20022** | All domain data maps to acmt, pain, pacs, camt, auth message families |
+| **REST API** | OpenAPI-documented endpoints at `/api/docs` (Scalar UI) |
+| **Multi-Tenancy** | All data scoped by `tenant_id` via PostgreSQL RLS |
 
-This platform aims to:
+---
 
-1. **Automate compliance**: Reduce manual screening workload with intelligent automation
-2. **Prevent violations**: Block transactions involving sanctioned individuals or entities
-3. **Enable oversight**: Provide compliance officers with tools for manual review and overrides
-4. **Ensure auditability**: Maintain complete records of all screening decisions
-5. **Scale efficiently**: Multi-tenant architecture supporting multiple financial institutions
+## Who It's For
 
-## What's Included
+| Vertical | Examples |
+|----------|----------|
+| Fintechs | Neobanks, challenger banks, digital wallets |
+| Payment Processors | PSPs, acquirers, ISO/MSPs |
+| E-Money Institutions | EMIs, prepaid card issuers |
+| Embedded Finance | BaaS platforms, lending, BNPL |
+| Crypto / Digital Assets | VASPs, exchanges requiring Travel Rule compliance |
 
-### Compliance Features
+---
 
-- **Sanctions Screening**: Integration with Watchman screening service
-- **Onboarding Screening**: Screen account holders (individuals and businesses) during sign-up
-- **Match Scoring**: Configurable match thresholds (default: 70% similarity)
-- **Entity Screening**: Screen individuals, companies, addresses, and contacts
-- **Decision Management**: Track screening results (pass, potential_match, blocked)
-- **Manual Override**: Compliance officer review and approval workflows
-- **Audit Logging**: Complete history of screening decisions and overrides
-
-### Sanctions Data Sources
-
-- **US OFAC** (Office of Foreign Assets Control) - ~18,598 entities
-- **US CSL** (Consolidated Screening List) - ~6,482 entities
-- **US Non-SDN** (Non-Specially Designated Nationals) - ~462 entities
-- **US FinCEN 311** (Section 311 Special Measures) - ~35 entities
-- **Real-time Updates**: Automatic synchronization with latest sanctions data
-
-### Technical Stack
-
-- Phoenix 1.8.3 with LiveView 1.0+
-- PostgreSQL with Ecto 3.12+ (multi-tenant with RLS)
-- Watchman API integration for sanctions screening
-- OpenAPI 3.0 specification with auto-generated schemas
-- User authentication with 2FA support
-- Oban for background screening jobs
-
-### Development Tools
-
-- Custom Alvera generators (alvera.gen.*)
-- Tidewave MCP for AI-assisted development
-- Code quality tools (Credo, Sobelow, Dialyxir)
-- Comprehensive testing (ExUnit with 100% coverage goal)
-- ExDoc documentation with guides
-
-### DevOps
-
-- Docker multi-arch builds (amd64/arm64)
-- GitHub Actions CI/CD
-- Structured logging with logger_json
-- Multi-environment configuration (dev/test/prod)
-
-## What's NOT Included
-
-This platform currently excludes (but may be added in future versions):
-
-- **Transaction Monitoring**: Real-time payment screening (coming soon)
-- **Risk Scoring**: ML-based risk assessment algorithms
-- **Case Management**: Full workflow system for compliance investigations
-- **Reporting Dashboard**: Analytics and compliance reporting UI
-- **Bulk Screening**: Batch screening of existing customer databases
-- **Custom Watchlists**: Institution-specific screening lists
-- **Oban Pro**: Using free version (can be upgraded for better performance)
-
-These features are planned for future releases as the platform matures.
-
-## Architecture
-
-The platform follows a compliance-focused layered architecture:
+## Domain Model (Summary)
 
 ```
-┌─────────────────────────────────────┐
-│         Web Layer (Phoenix)          │
-│  ┌──────────────┬─────────────────┐ │
-│  │  LiveView    │   REST API      │ │
-│  │  (Reviews)   │  (Screening)    │ │
-│  └──────────────┴─────────────────┘ │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│       Context Layer (Business)       │
-│  ┌──────────┬──────────┬──────────┐ │
-│  │ Account  │ Decision │  Manual  │ │
-│  │ Holders  │ Context  │ Override │ │
-│  └──────────┴──────────┴──────────┘ │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│  External Services (Watchman API)    │
-│    US OFAC, CSL, Non-SDN, FinCEN    │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│      Data Layer (Ecto/Postgres)      │
-│         Multi-Tenant (RLS)           │
-└─────────────────────────────────────┘
+AccountHolder (MDM subject — acmt:007, acmt:019)
+  belongs_to :legal_entity          ← ALL PII: name, DOB, tax_id, address, email, phone
+  has_many   :beneficial_owners     ← UBO chain (FinCEN CDD ≥25% threshold)
+  has_many   :counterparties        ← payer/payee roles (pain:001 <Dbtr>/<Cdtr>)
+  has_one    :ledger                ← chart of accounts (camt:052/053)
+  has_many   :compliance_screenings ← OFAC/SDN/PEP results
+  has_many   :kyc_requirements      ← CDD gates
+  has_many   :documents             ← identity documents
 ```
 
-## Screening Workflow
+See the [capability matrix](capability-matrix.md) for per-context implementation status.
 
-```
-Onboarding Request (Individual/Business)
-              ↓
-    Screen Interested Parties
-    (Individuals + Companies)
-              ↓
-    Watchman API Search
-    (minMatch: 0.7 threshold)
-              ↓
-    Decision Generation
-    ┌─────────┬─────────┬─────────┐
-    │  Pass   │ Potential│ Blocked │
-    │         │  Match   │         │
-    └─────────┴─────────┴─────────┘
-              ↓
-    Manual Review (if needed)
-              ↓
-    Override/Approve/Reject
-```
+---
 
-## Multi-Tenancy Model
+## Technology Stack
 
-All screening data is scoped by `tenant_id` (financial institution):
+| Layer | Technology |
+|-------|-----------|
+| Language | Elixir 1.18 / OTP 27 |
+| Web framework | Phoenix 1.8 |
+| Database | PostgreSQL 17.2 with RLS + triggers |
+| API documentation | OpenApiSpex + Scalar UI |
+| Schema generation | ExOpenApiUtils (Request/Response auto-split) |
+| Background jobs | Oban — `compliance_screening` queue |
+| Compliance screening | Moov Watchman (OFAC/SDN/EU/UN lists) |
+| Auth | bcrypt + TOTP 2FA + API keys |
+| Testing | ExUnit (DataCase + ConnCase, no mocks) |
 
-```
-Tenant (financial institution)
-  ├── User (compliance officers)
-  ├── AccountHolder (customers)
-  ├── Decision (screening results)
-  └── Override (manual reviews)
-```
-
-See [Multi-Tenancy Guide](multi-tenancy.md) for details.
+---
 
 ## Getting Started
 
-New to this platform? Start here:
+1. [Getting Started](getting-started.md) — setup and configuration
+2. [Architecture](architecture.md) — directory structure and design patterns
+3. [API Development](api-development.md) — adding REST endpoints
+4. [Testing](testing.md) — writing and running tests
 
-1. [Getting Started](getting-started.md) - Setup and configuration
-2. [Architecture](architecture.md) - Understanding the structure
-3. [Onboarding Screening](onboarding.md) - Screen account holders during sign-up
-4. [Manual Override](override.md) - Review and override screening decisions
-5. [Testing](testing.md) - Running and writing tests
-
-## API Endpoints
-
-Key endpoints for integration:
-
-- **POST /api/onboarding/screen** - Screen account holder during onboarding
-- **GET /api/decisions** - List screening decisions
-- **POST /api/overrides** - Create manual override for a decision
-
-See the [OpenAPI documentation](http://localhost:4000/api/docs) for complete API reference.
-
-## Need Help?
-
-- Check the guides in this documentation
-- Review the CLAUDE.md for development conventions
-- See the OpenAPI docs at http://localhost:4000/api/docs
-
-## Next Steps
-
-Continue to [Getting Started](getting-started.md) to set up your development environment and configure Watchman API access.
+API docs at `http://localhost:4001/api/docs` once the server is running.

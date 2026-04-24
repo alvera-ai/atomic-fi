@@ -37,9 +37,26 @@ defmodule PaymentCompliancePlatform.UserContext.User do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   # OpenAPI annotations
+  open_api_property(schema: %Schema{type: :string, format: :uuid, readOnly: true}, key: :id)
   open_api_property(schema: %Schema{type: :string}, key: :email)
-  open_api_property(schema: %Schema{type: :string}, key: :hashed_password)
-  open_api_property(schema: %Schema{type: :string}, key: :confirmed_at)
+  open_api_property(schema: %Schema{type: :string, writeOnly: true}, key: :hashed_password)
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", nullable: true},
+    key: :confirmed_at
+  )
+
+  open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :tenant_id)
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", readOnly: true},
+    key: :inserted_at
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", readOnly: true},
+    key: :updated_at
+  )
 
   open_api_schema(
     title: "User",
@@ -84,5 +101,22 @@ defmodule PaymentCompliancePlatform.UserContext.User do
     |> cast(attrs, [:email, :hashed_password, :confirmed_at, :tenant_id])
     |> validate_required([:email, :hashed_password, :confirmed_at, :tenant_id])
     |> unique_constraint(:email)
+  end
+
+  @doc """
+  Verifies the password against the user's `hashed_password` using Bcrypt.
+
+  Runs a no-op hash when `user` is nil or `hashed_password` is nil so the
+  function is constant-time against email-existence enumeration.
+  """
+  @spec valid_password?(t() | nil, String.t()) :: boolean()
+  def valid_password?(%__MODULE__{hashed_password: hashed_password}, password)
+      when is_binary(hashed_password) and byte_size(password) > 0 do
+    Bcrypt.verify_pass(password, hashed_password)
+  end
+
+  def valid_password?(_, _) do
+    Bcrypt.no_user_verify()
+    false
   end
 end

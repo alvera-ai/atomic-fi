@@ -6,6 +6,7 @@ defmodule PaymentCompliancePlatform.RoleContext do
   import Ecto.Query, warn: false
   use PaymentCompliancePlatform.LoggerMacro
 
+  alias PaymentCompliancePlatform.OpenApiSchema.RoleRequest
   alias PaymentCompliancePlatform.Repo
   alias PaymentCompliancePlatform.RoleContext.Role
   alias PaymentCompliancePlatform.SessionContext.Session
@@ -70,10 +71,11 @@ defmodule PaymentCompliancePlatform.RoleContext do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec create_role(Session.t(), map()) :: {:ok, Role.t()} | {:error, Ecto.Changeset.t()}
-  def_with_rls_and_logging create_role(session, attrs), log_fields: [] do
+  @spec create_role(Session.t(), RoleRequest.t()) ::
+          {:ok, Role.t()} | {:error, Ecto.Changeset.t()}
+  def_with_rls_and_logging create_role(session, %RoleRequest{} = request), log_fields: [] do
     %Role{}
-    |> Role.changeset(attrs)
+    |> Role.changeset(request)
     |> Repo.insert(session: session)
     |> preload_after_write()
   end
@@ -90,11 +92,12 @@ defmodule PaymentCompliancePlatform.RoleContext do
       {:error, %Ecto.Changeset{}}
 
   """
-  @spec update_role(Session.t(), Role.t(), map()) ::
+  @spec update_role(Session.t(), Role.t(), RoleRequest.t()) ::
           {:ok, Role.t()} | {:error, Ecto.Changeset.t()}
-  def_with_rls_and_logging update_role(session, %Role{} = role, attrs), log_fields: [:role] do
+  def_with_rls_and_logging update_role(session, %Role{} = role, %RoleRequest{} = request),
+    log_fields: [:role] do
     role
-    |> Role.changeset(attrs)
+    |> Role.changeset(request)
     |> Repo.update(session: session)
     |> preload_after_write()
   end

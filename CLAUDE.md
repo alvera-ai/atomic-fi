@@ -213,6 +213,60 @@ open_api_schema(
 
 ---
 
+## Controller / Context Contract
+
+### No massaging in controllers — pass typed structs directly
+
+Controllers **NEVER** call `ExOpenApiUtils.Mapper.to_map/1` or perform any attribute
+conversion. They pass the typed OpenApiSpex struct directly to the context function:
+
+```elixir
+# ✅ Correct — pass the struct directly
+AccountHolderContext.create_account_holder(session, account_holder_request)
+AccountHolderContext.update_account_holder(session, account_holder, account_holder_request)
+
+# ❌ Wrong — no Mapper.to_map in controllers
+attrs = ExOpenApiUtils.Mapper.to_map(account_holder_request)
+AccountHolderContext.create_account_holder(session, attrs)
+```
+
+### Context functions own the struct conversion
+
+`use PaymentCompliancePlatform.Schema` → `use ExOpenApiUtils` replaces `Ecto.Changeset.cast/3`
+with `ExOpenApiUtils.Changeset.cast/3`, which calls `Mapper.to_map(params)` internally.
+This means **the struct can be passed directly to `changeset/2`** — no manual conversion needed.
+
+Context functions:
+- Pattern-match on the typed struct in the function head: `%AccountHolderRequest{} = request`
+- Pass the struct directly to `changeset/2` — `ExOpenApiUtils.Changeset.cast` handles conversion
+- Read struct fields directly — `request.chain_screening`, NOT `Map.get(attrs, :chain_screening)`
+- Test structs must set all fields explicitly (full replacement, no partial updates)
+
+```elixir
+# ✅ Correct context signature — struct passed directly, Mapper.to_map called inside cast
+def_with_rls_and_logging create_account_holder(session, %AccountHolderRequest{} = request), log_fields: [] do
+  with {:ok, account_holder} <-
+         %AccountHolder{}
+         |> AccountHolder.changeset(request)
+         |> Repo.insert(session: session) do
+    if request.chain_screening do
+      # enqueue Oban job
+    end
+    {:ok, account_holder}
+  end
+end
+
+# ❌ Wrong — Map.from_struct bypasses Mapper protocol and includes all nil fields
+AccountHolder.changeset(account_holder, Map.from_struct(request))
+```
+
+### Side effects belong in the context layer
+
+Background jobs (Oban) and other side effects are enqueued inside context functions —
+not in controllers. Controllers are dumb: call context, render response.
+
+---
+
 ## Template Repository Notice
 
 This is a **template repository**. It provides a minimal Phoenix setup and should be customized for your specific project needs. Unlike the full platform implementation, this template:

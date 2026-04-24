@@ -17,6 +17,8 @@ defmodule PaymentCompliancePlatform.Application do
       PaymentCompliancePlatform.Vault,
       # Start the Ecto repository
       PaymentCompliancePlatform.Repo,
+      # Start the BackgroundTask supervisor for fire-and-forget side effects
+      {Task.Supervisor, name: PaymentCompliancePlatform.BackgroundTask},
       # Start Cachex for API session caching
       {Cachex, name: :api_session_cache},
       # Start SessionCleaner for periodic cleanup
@@ -27,6 +29,8 @@ defmodule PaymentCompliancePlatform.Application do
       {Phoenix.PubSub, name: PaymentCompliancePlatform.PubSub},
       # Start Finch
       {Finch, name: PaymentCompliancePlatform.Finch},
+      # Start Oban for background job processing (compliance screening)
+      {Oban, Application.fetch_env!(:payment_compliance_platform, Oban)},
       # Start the Endpoint (http/https)
       PaymentCompliancePlatformWeb.Endpoint
       # Start a worker by calling: PaymentCompliancePlatform.Worker.start_link(arg)
