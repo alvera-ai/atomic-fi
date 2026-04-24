@@ -58,8 +58,11 @@ defmodule PaymentCompliancePlatform.Repo do
       opts[:skip_multi_tenancy_check] || opts[:schema_migration] ->
         {query, opts}
 
-      # Skip multi-tenancy for Oban jobs (if using Oban)
-      prefix == "oban" ->
+      # Skip multi-tenancy for Oban jobs. Oban queries the `oban_jobs` table
+      # (schema `Oban.Job`) from its own stager/engine — the prefix may be
+      # "public" rather than "oban", so match either the opts[:oban] flag
+      # Oban sets or the oban prefix.
+      opts[:oban] || prefix == "oban" ->
         {query, opts}
 
       # Skip multi-tenancy for delete_all operations
