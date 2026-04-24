@@ -197,7 +197,7 @@ All contexts in the project. ISO 20022 alignment tracked in [#9](https://github.
 | Tenant | — | ✅ | ✅ | ✅ | N/A | ✅ | 4/5 |
 | User | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | Role | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| Customer ⚠️ | — | ✅ | ✅ | ✅ | ✅ | 🔴 | 4/5 |
+| Customer | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | ApiKey | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | Session | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | LegalEntity | ISO 20022 acmt:007 · FATF Rec 10/24 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
@@ -218,10 +218,6 @@ All contexts in the project. ISO 20022 alignment tracked in [#9](https://github.
 | LegalEntityChangeEvent | ISO 20022 acmt:006 · acmt:002 · AML account takeover | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | PartyActivitySnapshot | FATF Rec 10 · FinCEN AML (party-level) | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | RiskClassification | ISO 20022 auth:018 · FATF Rec 10 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-
-⚠️ Customer remains a 4/5: the context and schema are kept for tenants that need
-multi-customer-per-tenant segmentation, but no REST interface is exposed in this
-release — it is an optional feature rarely required by typical deployments.
 
 **AccountActivitySnapshot vs PartyActivitySnapshot:**
 

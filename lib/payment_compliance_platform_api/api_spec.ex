@@ -71,6 +71,10 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "ApiKeyRequest" => OpenApiSchema.ApiKeyRequest.schema(),
           "ApiKeyResponse" => OpenApiSchema.ApiKeyResponse.schema(),
           "ApiKeyListResponse" => OpenApiSchema.ApiKeyListResponse.schema(),
+          # Request/Response schemas for Customers
+          "CustomerRequest" => OpenApiSchema.CustomerRequest.schema(),
+          "CustomerResponse" => OpenApiSchema.CustomerResponse.schema(),
+          "CustomerListResponse" => OpenApiSchema.CustomerListResponse.schema(),
           # Request/Response schemas for Session (POST /api/sessions — email/password/tenant_slug
           # appear only in Request as writeOnly virtual fields)
           "SessionRequest" => OpenApiSchema.SessionRequest.schema(),
@@ -199,6 +203,13 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
         %Tag{
           name: "Roles",
           description: "Authorization roles (tenant- and customer-scoped) for users and API keys"
+        },
+        %Tag{
+          name: "Customers",
+          description:
+            "Customer organisations within a tenant. Each tenant may have zero or more customers — " <>
+              "an optional multi-customer-per-tenant segmentation used when a tenant needs to scope " <>
+              "users / API keys / roles per customer org. Slug is unique per tenant."
         },
         %Tag{
           name: "Api Keys",

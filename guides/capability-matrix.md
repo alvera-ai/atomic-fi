@@ -33,7 +33,7 @@ These contexts provide the foundational multi-tenancy, auth, and session plumbin
 | TenantContext | ✅ | ✅ | ✅ | N/A | ✅ | 4/5 | Top-level entity — RLS not applicable (is the RLS root) |
 | UserContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | bcrypt + TOTP 2FA |
 | RoleContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | RBAC scopes |
-| CustomerContext | ✅ | ✅ | ✅ | ✅ | 🔴 | 4/5 | B2B segmentation — API intentionally not exposed (optional feature) |
+| CustomerContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | Optional multi-customer-per-tenant segmentation |
 | ApiKeyContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | Machine-to-machine auth |
 | SessionContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | Bearer session lifecycle (login / verify / revoke) |
 
@@ -79,7 +79,7 @@ All are aligned to ISO 20022 message families and FATF CDD Rule recommendations.
 | Docs | 6/6 ✅ | 8/8 ✅ | **14/14 (100%)** |
 | Tests | 6/6 ✅ | 8/8 ✅ | **14/14 (100%)** |
 | RLS | 5/6 ✅ | 8/8 ✅ | **13/14 (93%)** — N/A for Tenant |
-| API | 5/6 ✅ | 8/8 ✅ | **13/14 (93%)** — Customer API intentionally not exposed |
+| API | 6/6 ✅ | 8/8 ✅ | **14/14 (100%)** |
 
 ---
 

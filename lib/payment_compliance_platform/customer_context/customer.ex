@@ -38,11 +38,36 @@ defmodule PaymentCompliancePlatform.CustomerContext.Customer do
   @foreign_key_type :binary_id
 
   # OpenAPI annotations
+  open_api_property(schema: %Schema{type: :string, format: :uuid, readOnly: true}, key: :id)
   open_api_property(schema: %Schema{type: :string}, key: :name)
-  open_api_property(schema: %Schema{type: :string}, key: :slug)
-  open_api_property(schema: %Schema{type: :string}, key: :description)
-  open_api_property(schema: %Schema{type: :string}, key: :status)
-  open_api_property(schema: %Schema{type: :string}, key: :metadata)
+  open_api_property(schema: %Schema{type: :string, nullable: true}, key: :slug)
+  open_api_property(schema: %Schema{type: :string, nullable: true}, key: :description)
+
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      enum: ["active", "inactive", "suspended"],
+      default: "active"
+    },
+    key: :status
+  )
+
+  open_api_property(
+    schema: %Schema{type: :object, additionalProperties: true, default: %{}},
+    key: :metadata
+  )
+
+  open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :tenant_id)
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", readOnly: true},
+    key: :inserted_at
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", readOnly: true},
+    key: :updated_at
+  )
 
   open_api_schema(
     title: "Customer",
@@ -55,7 +80,6 @@ defmodule PaymentCompliancePlatform.CustomerContext.Customer do
       :description,
       :status,
       :metadata,
-      :customer_id,
       :tenant_id,
       :inserted_at,
       :updated_at

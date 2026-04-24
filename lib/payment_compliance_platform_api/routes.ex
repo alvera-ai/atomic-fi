@@ -56,6 +56,10 @@ defmodule PaymentCompliancePlatformApi.Routes do
         # API Key endpoints — no PUT (rotate via delete + create)
         resources "/api-keys", ApiKeyController, only: [:index, :show, :create, :delete]
 
+        # Customer CRUD endpoints (optional multi-customer-per-tenant segmentation)
+        resources "/customers", CustomerController,
+          only: [:index, :show, :create, :update, :delete]
+
         # Session endpoints (Bearer lifecycle)
         get "/sessions/verify", SessionController, :verify
         delete "/sessions", SessionController, :delete
