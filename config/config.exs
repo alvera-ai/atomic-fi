@@ -103,6 +103,7 @@ config :payment_compliance_platform, :watchman_base_url, "http://localhost:8084"
 
 # Oban background job processing
 config :payment_compliance_platform, Oban,
+  prefix: "oban",
   repo: PaymentCompliancePlatform.Repo,
   queues: [compliance_screening: 10]
 

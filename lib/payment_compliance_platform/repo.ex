@@ -58,13 +58,8 @@ defmodule PaymentCompliancePlatform.Repo do
       opts[:skip_multi_tenancy_check] || opts[:schema_migration] ->
         {query, opts}
 
-      # Skip multi-tenancy for Oban's own queries. Oban sets opts[:oban] = true
-      # when its stager / engine issues internal queries against oban_jobs.
-      # When Oban is configured with a dedicated Postgres schema
-      # (`config :..., Oban, prefix: "oban"`) the query prefix is "oban"; when
-      # it shares the default schema the prefix is "public" and only opts[:oban]
-      # identifies the query. Match both.
-      opts[:oban] || prefix == "oban" ->
+      # Skip multi-tenancy for Oban jobs (if using Oban)
+      prefix == "oban" ->
         {query, opts}
 
       # Skip multi-tenancy for delete_all operations
