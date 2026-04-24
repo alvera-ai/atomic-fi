@@ -176,7 +176,12 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "LegalEntityChangeEventResponse" =>
             OpenApiSchema.LegalEntityChangeEventResponse.schema(),
           "LegalEntityChangeEventListResponse" =>
-            OpenApiSchema.LegalEntityChangeEventListResponse.schema()
+            OpenApiSchema.LegalEntityChangeEventListResponse.schema(),
+          # Request/Response schemas for PartyActivitySnapshot (FATF Rec 10 · FinCEN AML)
+          "PartyActivitySnapshotRequest" => OpenApiSchema.PartyActivitySnapshotRequest.schema(),
+          "PartyActivitySnapshotResponse" => OpenApiSchema.PartyActivitySnapshotResponse.schema(),
+          "PartyActivitySnapshotListResponse" =>
+            OpenApiSchema.PartyActivitySnapshotListResponse.schema()
         }
       },
       tags: [
@@ -298,6 +303,14 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
               "Intraday snapshots map to camt:052 BankToCustomerAccountReport; " <>
               "daily/weekly/monthly snapshots map to camt:053 BankToCustomerStatement. " <>
               "AML fields (flagged_for_review, sar_reference) support FinCEN SAR filing under 31 CFR §1020.320."
+        },
+        %Tag{
+          name: "Party Activity Snapshots",
+          description:
+            "Period-level AML monitoring summaries for AccountHolders (FATF Rec 10 · " <>
+              "FinCEN 31 CFR §1020.320). Captures KYC / risk-level transitions, screening " <>
+              "activity, transaction shape, and SAR candidacy across a reporting window. " <>
+              "Distinct from Account Activity Snapshots, which aggregate camt:052/053 ledger activity."
         },
         %Tag{
           name: "Legal Entity Change Events",

@@ -173,6 +173,13 @@ defmodule PaymentCompliancePlatformApi.Routes do
         put "/blocklist-entries/:id", BlocklistEntryController, :update
         delete "/blocklist-entries/:id", BlocklistEntryController, :delete
 
+        # Party activity snapshot CRUD endpoints (FATF Rec 10 · FinCEN AML period snapshot)
+        get "/party-activity-snapshots", PartyActivitySnapshotController, :index
+        get "/party-activity-snapshots/:id", PartyActivitySnapshotController, :show
+        post "/party-activity-snapshots", PartyActivitySnapshotController, :create
+        put "/party-activity-snapshots/:id", PartyActivitySnapshotController, :update
+        delete "/party-activity-snapshots/:id", PartyActivitySnapshotController, :delete
+
         # Legal entity change event CRUD endpoints (ISO 20022 acmt:006/acmt:002 · AML account takeover)
         get "/legal-entity-change-events", LegalEntityChangeEventController, :index
         get "/legal-entity-change-events/:id", LegalEntityChangeEventController, :show

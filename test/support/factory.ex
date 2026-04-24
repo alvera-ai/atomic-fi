@@ -46,4 +46,5 @@ defmodule PaymentCompliancePlatform.Factory do
   use PaymentCompliancePlatform.Factory.TransactionFactory
   use PaymentCompliancePlatform.Factory.AccountActivitySnapshotFactory
   use PaymentCompliancePlatform.Factory.LegalEntityChangeEventFactory
+  use PaymentCompliancePlatform.Factory.PartyActivitySnapshotFactory
 end

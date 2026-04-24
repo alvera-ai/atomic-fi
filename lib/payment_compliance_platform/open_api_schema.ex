@@ -373,4 +373,11 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     LegalEntityChangeEventResponse,
     "legal_entity_change_events"
   )
+
+  # PartyActivitySnapshot list response - wraps PartyActivitySnapshotResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    PartyActivitySnapshotListResponse,
+    PartyActivitySnapshotResponse,
+    "party_activity_snapshots"
+  )
 end
