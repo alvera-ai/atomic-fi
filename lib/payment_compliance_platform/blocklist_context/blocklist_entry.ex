@@ -15,6 +15,8 @@ defmodule PaymentCompliancePlatform.BlocklistContext.BlocklistEntry do
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   # OpenAPI annotations
+  open_api_property(schema: %Schema{type: :string, format: :uuid, readOnly: true}, key: :id)
+
   open_api_property(
     schema: %Schema{type: :string, enum: ["first_name", "last_name", "company_name"]},
     key: :scope
@@ -28,6 +30,23 @@ defmodule PaymentCompliancePlatform.BlocklistContext.BlocklistEntry do
   open_api_property(schema: %Schema{type: :string}, key: :term)
   open_api_property(schema: %Schema{type: :string, nullable: true}, key: :reason)
   open_api_property(schema: %Schema{type: :boolean, default: true}, key: :active)
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :uuid, nullable: true},
+    key: :added_by_id
+  )
+
+  open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :tenant_id)
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", readOnly: true},
+    key: :inserted_at
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, format: :"date-time", readOnly: true},
+    key: :updated_at
+  )
 
   open_api_schema(
     title: "BlocklistEntry",

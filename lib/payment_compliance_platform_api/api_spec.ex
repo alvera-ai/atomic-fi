@@ -75,6 +75,10 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           # appear only in Request as writeOnly virtual fields)
           "SessionRequest" => OpenApiSchema.SessionRequest.schema(),
           "SessionResponse" => OpenApiSchema.SessionResponse.schema(),
+          # Request/Response schemas for BlocklistEntry (tenant-managed internal blocklist)
+          "BlocklistEntryRequest" => OpenApiSchema.BlocklistEntryRequest.schema(),
+          "BlocklistEntryResponse" => OpenApiSchema.BlocklistEntryResponse.schema(),
+          "BlocklistEntryListResponse" => OpenApiSchema.BlocklistEntryListResponse.schema(),
           # Request/Response schemas for AccountHolder
           "AccountHolderRequest" => OpenApiSchema.AccountHolderRequest.schema(),
           "AccountHolderResponse" => OpenApiSchema.AccountHolderResponse.schema(),
@@ -195,6 +199,13 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           name: "Auth",
           description:
             "Session lifecycle for human Bearer authentication — POST /api/sessions exchanges {email,password,tenant_slug} for a Bearer token; GET /verify returns the current identity; DELETE revokes the Bearer session. X-API-Key callers do not need these endpoints."
+        },
+        %Tag{
+          name: "Blocklist Entries",
+          description:
+            "Tenant-managed internal blocklist — compliance officers add exact or regex terms " <>
+              "to block by first_name, last_name, or company_name. The screening engine reads " <>
+              "these at runtime via ETS cache (refreshed automatically on create/update/delete)."
         },
         %Tag{
           name: "Compliance Screening",

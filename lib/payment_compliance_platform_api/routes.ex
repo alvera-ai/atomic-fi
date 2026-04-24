@@ -166,6 +166,13 @@ defmodule PaymentCompliancePlatformApi.Routes do
         put "/account-activity-snapshots/:id", AccountActivitySnapshotController, :update
         delete "/account-activity-snapshots/:id", AccountActivitySnapshotController, :delete
 
+        # Blocklist entry CRUD endpoints (tenant-managed internal blocklist — cache auto-refreshes)
+        get "/blocklist-entries", BlocklistEntryController, :index
+        get "/blocklist-entries/:id", BlocklistEntryController, :show
+        post "/blocklist-entries", BlocklistEntryController, :create
+        put "/blocklist-entries/:id", BlocklistEntryController, :update
+        delete "/blocklist-entries/:id", BlocklistEntryController, :delete
+
         # Legal entity change event CRUD endpoints (ISO 20022 acmt:006/acmt:002 · AML account takeover)
         get "/legal-entity-change-events", LegalEntityChangeEventController, :index
         get "/legal-entity-change-events/:id", LegalEntityChangeEventController, :show
