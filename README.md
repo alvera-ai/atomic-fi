@@ -195,15 +195,15 @@ All contexts in the project. ISO 20022 alignment tracked in [#9](https://github.
 | Context | Regulation | Schema | Docs | Tests | RLS | API | Status |
 |---------|------------|--------|------|-------|-----|-----|--------|
 | Tenant | — | ✅ | ✅ | ✅ | N/A | ✅ | 4/5 |
-| User | — | ✅ | ✅ | ✅ | ✅ | 🔴 | 4/5 |
-| Role | — | ✅ | ✅ | ✅ | ✅ | 🔴 | 4/5 |
-| Customer | — | ✅ | ✅ | ✅ | ✅ | 🔴 | 4/5 |
-| ApiKey | — | ✅ | ✅ | ✅ | ✅ | 🔴 | 4/5 |
-| Session | — | ✅ | ✅ | ✅ | ✅ | 🔴 | 4/5 |
+| User | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| Role | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| Customer ⚠️ | — | ✅ | ✅ | ✅ | ✅ | 🔴 | 4/5 |
+| ApiKey | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| Session | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | LegalEntity | ISO 20022 acmt:007 · FATF Rec 10/24 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | AccountHolder | ISO 20022 acmt:007, acmt:019 · FATF Rec 10 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | BeneficialOwner | ISO 20022 acmt:023 · FATF Rec 24 · FinCEN CDD §1010.230 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| BlocklistEntry ⚠️ | OFAC/SDN (pre-ISO MVP) | ✅ | ✅ | ✅ | ✅ | 🔴 | 4/5 |
+| BlocklistEntry | Tenant-managed internal blocklist | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | ComplianceScreening | ISO 20022 camt:998, auth:018 · FATF Rec 19 · OFAC | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | Counterparty | ISO 20022 pain:001 · FATF Rec 19 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | Ledger | ISO 20022 camt:052, camt:053 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
@@ -214,12 +214,23 @@ All contexts in the project. ISO 20022 alignment tracked in [#9](https://github.
 | Document | ISO 20022 acmt:007, acmt:008 · FATF Rec 10 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | PaymentAccount | ISO 20022 pain:001 · FATF Rec 16 · PCI-DSS 4.0 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | Transaction | ISO 20022 pain:001, pacs:008, pacs:002, pacs:004, camt:054 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| AccountActivitySnapshot | ISO 20022 camt:052 · FinCEN AML | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| AccountActivitySnapshot | ISO 20022 camt:052, camt:053 · FinCEN AML (ledger-level) | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 | LegalEntityChangeEvent | ISO 20022 acmt:006 · acmt:002 · AML account takeover | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| PartyActivitySnapshot | FATF Rec 10 · FinCEN AML | 🔴 | 🔴 | 🔴 | 🔴 | 🔴 | 0/5 |
-| RiskClassification | ISO 20022 auth:018 · FATF Rec 10 | 🔴 | 🔴 | 🔴 | 🔴 | 🔴 | 0/5 |
+| PartyActivitySnapshot | FATF Rec 10 · FinCEN AML (party-level) | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
+| RiskClassification | ISO 20022 auth:018 · FATF Rec 10 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
 
-⚠️ BlocklistEntry is a pre-ISO MVP context, superseded by ComplianceScreening + BlocklistMatch in [#9](https://github.com/alvera-ai/payments-compliance-platform/issues/9).
+⚠️ Customer remains a 4/5: the context and schema are kept for tenants that need
+multi-customer-per-tenant segmentation, but no REST interface is exposed in this
+release — it is an optional feature rarely required by typical deployments.
+
+**AccountActivitySnapshot vs PartyActivitySnapshot:**
+
+- **AccountActivitySnapshot** aggregates *ledger-level* debit/credit activity for
+  a specific PaymentAccount over a period — maps to ISO 20022 camt:052/camt:053.
+- **PartyActivitySnapshot** aggregates *party-level* compliance signals for an
+  AccountHolder over a period — KYC/risk-level transitions, screening volume and
+  hit rate, SAR candidacy — supporting FATF Rec 10 (ongoing CDD) and FinCEN
+  31 CFR §1020.320 (SAR filing).
 
 **Column definitions:**
 

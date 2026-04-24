@@ -33,9 +33,9 @@ These contexts provide the foundational multi-tenancy, auth, and session plumbin
 | TenantContext | ✅ | ✅ | ✅ | N/A | ✅ | 4/5 | Top-level entity — RLS not applicable (is the RLS root) |
 | UserContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | bcrypt + TOTP 2FA |
 | RoleContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | RBAC scopes |
-| CustomerContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | B2B customer orgs within a tenant |
+| CustomerContext | ✅ | ✅ | ✅ | ✅ | 🔴 | 4/5 | B2B segmentation — API intentionally not exposed (optional feature) |
 | ApiKeyContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | Machine-to-machine auth |
-| SessionContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | Session management + role assumption |
+| SessionContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | Bearer session lifecycle (login / verify / revoke) |
 
 **Infrastructure Progress:**
 - Schema: 6/6 (100%)
@@ -58,14 +58,16 @@ All are aligned to ISO 20022 message families and FATF CDD Rule recommendations.
 | BeneficialOwnerContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | acmt:007 BeneficialOwnership | Rec 24, FinCEN CDD ≥25% |
 | CounterpartyContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | pain:001 `<Dbtr>`/`<Cdtr>` | Rec 19 — EDD |
 | ComplianceScreeningContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | camt:998, auth:018 | OFAC/SDN/PEP screening |
-| BlocklistContext | ✅ | ✅ | ✅ | ✅ | 🔴 | 4/5 | — | Internal blocklist management |
+| BlocklistContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | — | Tenant-managed internal blocklist (ETS-cached) |
+| PartyActivitySnapshotContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | — | Party-level AML period snapshot — Rec 10 · FinCEN AML |
+| RiskClassificationContext | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 | auth:018 | Formal risk record — drives LedgerAccount limit cascade |
 
 **Domain Progress:**
-- Schema: 6/6 (100%)
-- Docs: 6/6 (100%)
-- Tests: 6/6 (100%)
-- RLS: 6/6 (100%)
-- API: 5/6 (83%) — BlocklistContext REST endpoints pending
+- Schema: 8/8 (100%)
+- Docs: 8/8 (100%)
+- Tests: 8/8 (100%)
+- RLS: 8/8 (100%)
+- API: 8/8 (100%)
 
 ---
 
@@ -73,11 +75,11 @@ All are aligned to ISO 20022 message families and FATF CDD Rule recommendations.
 
 | Capability | Infrastructure | Domain | Total |
 |-----------|---------------|--------|-------|
-| Schema | 6/6 ✅ | 6/6 ✅ | **12/12 (100%)** |
-| Docs | 6/6 ✅ | 6/6 ✅ | **12/12 (100%)** |
-| Tests | 6/6 ✅ | 6/6 ✅ | **12/12 (100%)** |
-| RLS | 5/6 ✅ | 6/6 ✅ | **11/12 (92%)** — N/A for Tenant |
-| API | 6/6 ✅ | 5/6 ⚠️ | **11/12 (92%)** — Blocklist pending |
+| Schema | 6/6 ✅ | 8/8 ✅ | **14/14 (100%)** |
+| Docs | 6/6 ✅ | 8/8 ✅ | **14/14 (100%)** |
+| Tests | 6/6 ✅ | 8/8 ✅ | **14/14 (100%)** |
+| RLS | 5/6 ✅ | 8/8 ✅ | **13/14 (93%)** — N/A for Tenant |
+| API | 5/6 ✅ | 8/8 ✅ | **13/14 (93%)** — Customer API intentionally not exposed |
 
 ---
 
@@ -188,10 +190,43 @@ Also callable directly via `POST /api/compliance-screenings/screen-*` endpoints.
 
 ### BlocklistContext
 
-**Purpose:** Internal blocklist of known bad actors, sanctioned entities, and fraud signals.
-Separate from OFAC/SDN screening — this is the tenant-managed blocklist.
+**Purpose:** Tenant-managed internal blocklist of known bad actors by `first_name`,
+`last_name`, or `company_name` (exact or regex). Complements OFAC/SDN sanctions
+screening — the screening engine reads these at runtime via ETS cache (refreshed
+automatically on create/update/delete). Distinct from `BlocklistMatch`, which is
+the per-hit audit record produced by the screening engine.
 
-**API status:** 🔴 REST endpoints not yet implemented. Schema and context CRUD complete.
+---
+
+### PartyActivitySnapshotContext
+
+**Purpose:** Period-level AML monitoring summary for an AccountHolder — KYC /
+risk-level transitions, screening volume and hit rate, aggregate transaction
+shape, and SAR candidacy across a reporting window. Distinct from
+AccountActivitySnapshot (which is ledger-level camt:052/camt:053).
+
+**Regulatory:** FATF Rec 10 (ongoing CDD) · FinCEN 31 CFR §1020.320 (SAR filing)
+
+**Key fields:** `period_type` (daily/weekly/monthly/quarterly),
+`kyc_status_at_{start,end}`, `risk_level_at_{start,end}`, `total_screenings`,
+`screening_hits`, `transaction_count`, `total_{debit,credit}_amount`,
+`high_risk_transaction_count`, `sar_indicator`, `notes`
+
+---
+
+### RiskClassificationContext
+
+**Purpose:** Formal risk classification record per AccountHolder. The active
+classification drives the LedgerAccount limit cascade — MASTER LedgerAccount
+velocity limits are `f(RiskClassification.risk_level)`. Exactly one
+`is_active = true` record exists per `(holder, tenant)` at a time; creating or
+activating a new one deactivates the prior active record atomically.
+
+**Regulatory:** ISO 20022 auth:018 (CustomerRiskAssessment) · FATF Rec 10 (risk-based CDD)
+
+**Key fields:** `risk_level` (low/medium/high/very_high), `classification_reason`,
+`effective_from`, `effective_until`, `is_active`, `classified_by_user_id`
+(nil = auto-classified), `compliance_screening_id`
 
 ---
 
@@ -215,7 +250,8 @@ All ISO 20022 messages for the `payments` domain are constructable from this SoE
 
 | Item | Context | Effort |
 |------|---------|--------|
-| BlocklistContext REST API | BlocklistContext | Small — schema complete |
+| OSS single-tenant fork | Platform-wide | Medium — strip tenant/customer, simplify auth |
+| Rename `alvera.gen.*` mix tasks | Generators | Small — cosmetic, repo-neutral naming |
 | E2E controller tests | All domain contexts | Medium |
 
 ---
