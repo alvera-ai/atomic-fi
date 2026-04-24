@@ -95,8 +95,10 @@ defmodule PaymentCompliancePlatform.BeneficialOwnerContextTest do
     } do
       beneficial_owner = insert(:beneficial_owner, tenant_id: session.tenant_id)
 
+      # ownership_pct outside 0..100 trips validate_number — nil values are stripped
+      # by ExOpenApiUtils.Mapper and don't propagate, so use a live invalid value.
       request = %BeneficialOwnerRequest{
-        control_type: nil,
+        ownership_pct: 150.0,
         verification_status: :pending,
         chain_screening: false
       }

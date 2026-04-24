@@ -9,10 +9,12 @@ defmodule PaymentCompliancePlatform.RoleContextTest do
 
     import PaymentCompliancePlatform.Factory
 
+    # Reserved role name trips validate_exclusion — nil values are stripped by
+    # ExOpenApiUtils.Mapper and don't propagate, so use a live invalid value.
     @invalid_attrs %RoleRequest{
-      name: nil,
-      description: nil,
-      metadata: nil,
+      name: "root",
+      description: "reserved name should be rejected",
+      metadata: %{},
       tenant_id: nil,
       customer_id: nil
     }

@@ -331,12 +331,14 @@ defmodule PaymentCompliancePlatform.AccountActivitySnapshotContextTest do
     } do
       snapshot = insert(:account_activity_snapshot, tenant_id: session.tenant_id)
 
+      # Non-existent account_holder_id trips foreign_key_constraint; nil values are
+      # stripped by ExOpenApiUtils.Mapper, so use a live bad value.
       request = %AccountActivitySnapshotRequest{
-        snapshot_type: nil,
-        period_start: nil,
-        period_end: nil,
-        account_holder_id: nil,
-        tenant_id: nil
+        snapshot_type: snapshot.snapshot_type,
+        period_start: snapshot.period_start,
+        period_end: snapshot.period_end,
+        account_holder_id: Ecto.UUID.generate(),
+        tenant_id: session.tenant_id
       }
 
       assert {:error, %Ecto.Changeset{}} =

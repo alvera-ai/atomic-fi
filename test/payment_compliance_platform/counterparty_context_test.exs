@@ -112,8 +112,11 @@ defmodule PaymentCompliancePlatform.CounterpartyContextTest do
     test "update_counterparty/3 with invalid data returns error changeset", %{session: session} do
       counterparty = insert(:counterparty, tenant_id: session.tenant_id)
 
+      # Non-existent legal_entity_id trips foreign_key_constraint — nil values are
+      # stripped by ExOpenApiUtils.Mapper and don't propagate, so use a live bad value.
       request = %CounterpartyRequest{
-        status: nil,
+        legal_entity_id: Ecto.UUID.generate(),
+        status: :suspended,
         chain_screening: false
       }
 

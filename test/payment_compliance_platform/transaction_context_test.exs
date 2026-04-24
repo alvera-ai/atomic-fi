@@ -255,12 +255,14 @@ defmodule PaymentCompliancePlatform.TransactionContextTest do
     test "update_transaction/3 with invalid data returns error changeset", %{session: session} do
       transaction = insert(:transaction, tenant_id: session.tenant_id)
 
+      # Non-existent account_holder_id trips foreign_key_constraint; nil values are
+      # stripped by ExOpenApiUtils.Mapper, so use a live bad value.
       request = %TransactionRequest{
-        transaction_type: nil,
-        amount: nil,
-        currency: nil,
-        account_holder_id: nil,
-        tenant_id: nil
+        transaction_type: transaction.transaction_type,
+        amount: transaction.amount,
+        currency: transaction.currency,
+        account_holder_id: Ecto.UUID.generate(),
+        tenant_id: session.tenant_id
       }
 
       assert {:error, %Ecto.Changeset{}} =

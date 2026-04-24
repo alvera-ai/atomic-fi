@@ -193,12 +193,14 @@ defmodule PaymentCompliancePlatform.DocumentContextTest do
     test "update_document/3 with invalid data returns error changeset", %{session: session} do
       document = insert(:document, tenant_id: session.tenant_id)
 
+      # Non-existent account_holder_id trips foreign_key_constraint; nil values are
+      # stripped by ExOpenApiUtils.Mapper, so use a live bad value.
       request = %DocumentRequest{
-        document_type: nil,
-        name: nil,
-        primary: nil,
-        account_holder_id: nil,
-        tenant_id: nil
+        account_holder_id: Ecto.UUID.generate(),
+        document_type: document.document_type,
+        name: document.name,
+        primary: document.primary,
+        tenant_id: session.tenant_id
       }
 
       assert {:error, %Ecto.Changeset{}} =

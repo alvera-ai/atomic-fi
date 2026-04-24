@@ -174,12 +174,14 @@ defmodule PaymentCompliancePlatform.KycRequirementContextTest do
     } do
       kyc_requirement = insert(:kyc_requirement, tenant_id: session.tenant_id)
 
+      # Non-existent account_holder_id trips foreign_key_constraint; nil values are
+      # stripped by ExOpenApiUtils.Mapper, so use a live bad value.
       request = %KycRequirementRequest{
-        scope: nil,
-        requirement_type: nil,
-        account_holder_id: nil,
-        legal_entity_id: nil,
-        tenant_id: nil
+        scope: kyc_requirement.scope,
+        requirement_type: kyc_requirement.requirement_type,
+        account_holder_id: Ecto.UUID.generate(),
+        legal_entity_id: kyc_requirement.legal_entity_id,
+        tenant_id: session.tenant_id
       }
 
       assert {:error, %Ecto.Changeset{}} =

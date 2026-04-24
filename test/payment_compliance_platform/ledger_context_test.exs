@@ -100,9 +100,12 @@ defmodule PaymentCompliancePlatform.LedgerContextTest do
     test "update_ledger/3 with invalid data returns error changeset", %{session: session} do
       ledger = insert(:ledger, tenant_id: session.tenant_id)
 
+      # Non-existent account_holder_id trips foreign_key_constraint; nil values are
+      # stripped by ExOpenApiUtils.Mapper, so use a live bad value.
       request = %LedgerRequest{
-        account_holder_id: nil,
-        currency: nil,
+        account_holder_id: Ecto.UUID.generate(),
+        currency: "USD",
+        status: ledger.status,
         tenant_id: session.tenant_id
       }
 

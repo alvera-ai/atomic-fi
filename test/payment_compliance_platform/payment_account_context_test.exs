@@ -191,10 +191,12 @@ defmodule PaymentCompliancePlatform.PaymentAccountContextTest do
     } do
       payment_account = insert(:payment_account, tenant_id: session.tenant_id)
 
+      # Non-existent account_holder_id trips foreign_key_constraint; nil values are
+      # stripped by ExOpenApiUtils.Mapper, so use a live bad value.
       request = %PaymentAccountRequest{
-        account_type: nil,
-        account_holder_id: nil,
-        tenant_id: nil
+        account_type: payment_account.account_type,
+        account_holder_id: Ecto.UUID.generate(),
+        tenant_id: session.tenant_id
       }
 
       assert {:error, %Ecto.Changeset{}} =
