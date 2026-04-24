@@ -380,4 +380,11 @@ defmodule PaymentCompliancePlatform.OpenApiSchema do
     PartyActivitySnapshotResponse,
     "party_activity_snapshots"
   )
+
+  # RiskClassification list response - wraps RiskClassificationResponse in paginated format
+  OpenApiSchemaHelpers.deflistresponse(
+    RiskClassificationListResponse,
+    RiskClassificationResponse,
+    "risk_classifications"
+  )
 end

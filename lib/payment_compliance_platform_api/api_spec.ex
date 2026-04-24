@@ -181,7 +181,12 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
           "PartyActivitySnapshotRequest" => OpenApiSchema.PartyActivitySnapshotRequest.schema(),
           "PartyActivitySnapshotResponse" => OpenApiSchema.PartyActivitySnapshotResponse.schema(),
           "PartyActivitySnapshotListResponse" =>
-            OpenApiSchema.PartyActivitySnapshotListResponse.schema()
+            OpenApiSchema.PartyActivitySnapshotListResponse.schema(),
+          # Request/Response schemas for RiskClassification (ISO 20022 auth:018 · FATF Rec 10)
+          "RiskClassificationRequest" => OpenApiSchema.RiskClassificationRequest.schema(),
+          "RiskClassificationResponse" => OpenApiSchema.RiskClassificationResponse.schema(),
+          "RiskClassificationListResponse" =>
+            OpenApiSchema.RiskClassificationListResponse.schema()
         }
       },
       tags: [
@@ -303,6 +308,15 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
               "Intraday snapshots map to camt:052 BankToCustomerAccountReport; " <>
               "daily/weekly/monthly snapshots map to camt:053 BankToCustomerStatement. " <>
               "AML fields (flagged_for_review, sar_reference) support FinCEN SAR filing under 31 CFR §1020.320."
+        },
+        %Tag{
+          name: "Risk Classifications",
+          description:
+            "Formal risk-level records per AccountHolder (ISO 20022 auth:018 · FATF Rec 10). " <>
+              "Drives the LedgerAccount limit cascade — the MASTER LedgerAccount velocity limit " <>
+              "is a function of the active RiskClassification.risk_level. Exactly one is_active=true " <>
+              "record exists per (holder, tenant) at a time; creating / activating a new one " <>
+              "deactivates the prior active record atomically."
         },
         %Tag{
           name: "Party Activity Snapshots",

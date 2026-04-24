@@ -173,6 +173,13 @@ defmodule PaymentCompliancePlatformApi.Routes do
         put "/blocklist-entries/:id", BlocklistEntryController, :update
         delete "/blocklist-entries/:id", BlocklistEntryController, :delete
 
+        # Risk classification CRUD endpoints (ISO 20022 auth:018 · FATF Rec 10)
+        get "/risk-classifications", RiskClassificationController, :index
+        get "/risk-classifications/:id", RiskClassificationController, :show
+        post "/risk-classifications", RiskClassificationController, :create
+        put "/risk-classifications/:id", RiskClassificationController, :update
+        delete "/risk-classifications/:id", RiskClassificationController, :delete
+
         # Party activity snapshot CRUD endpoints (FATF Rec 10 · FinCEN AML period snapshot)
         get "/party-activity-snapshots", PartyActivitySnapshotController, :index
         get "/party-activity-snapshots/:id", PartyActivitySnapshotController, :show
