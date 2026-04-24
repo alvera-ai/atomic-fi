@@ -26,7 +26,7 @@ WATCHMAN_DATA := $(CURDIR)/custom-watchlist.jsonl
 
 run-watchman:
 	@echo "Starting Watchman sanctions screening service..."
-	@docker run -d \
+	@docker run --rm  \
 		--name watchman-local \
 		-p 8084:8084 \
 		-p 9094:9094 \
