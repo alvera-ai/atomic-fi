@@ -17,7 +17,7 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
   Servers are configured in config/*.exs:
 
       config :payment_compliance_platform, :openapi_servers, [
-        %{url: "http://localhost:4000", description: "Local development"},
+        %{url: "http://localhost:4100", description: "Local development"},
         %{url: "https://api.example.com", description: "Production"}
       ]
 
@@ -313,7 +313,7 @@ defmodule PaymentCompliancePlatformApi.ApiSpec do
 
   defp servers do
     :openapi_servers
-    |> Config.get([%{url: "http://localhost:4000", description: "Development server"}])
+    |> Config.get([%{url: "http://localhost:4100", description: "Development server"}])
     |> Enum.map(fn server_config ->
       %Server{
         url: server_config.url,

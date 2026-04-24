@@ -36,7 +36,7 @@ config :payment_compliance_platform, PaymentCompliancePlatform.Repo,
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :payment_compliance_platform, PaymentCompliancePlatformWeb.Endpoint,
-  http: [ip: {127, 0, 0, 1}, port: 4002],
+  http: [ip: {127, 0, 0, 1}, port: 4102],
   secret_key_base: "Gmo/T2R4qAj3tgdRvXjkFTeDk9KK4iqI/DbGpWH/8zaCM2GojJ9j/AbMGv5dSMP1",
   server: false
 

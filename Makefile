@@ -43,7 +43,7 @@ stop-watchman:
 
 server:
 	@echo "🚀 Starting Phoenix server with remote console support..."
-	@echo "📝 Server: http://localhost:4000"
+	@echo "📝 Server: http://localhost:4100"
 	@echo "🔧 Remote console: make console"
 	@iex --sname phoenix@localhost -S mix phx.server
 
