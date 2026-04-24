@@ -17,6 +17,8 @@ defmodule PaymentCompliancePlatform.Application do
       PaymentCompliancePlatform.Vault,
       # Start the Ecto repository
       PaymentCompliancePlatform.Repo,
+      # Start the BackgroundTask supervisor for fire-and-forget side effects
+      {Task.Supervisor, name: PaymentCompliancePlatform.BackgroundTask},
       # Start Cachex for API session caching
       {Cachex, name: :api_session_cache},
       # Start SessionCleaner for periodic cleanup

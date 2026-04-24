@@ -9,6 +9,7 @@ import Config
 
 config :payment_compliance_platform,
   ecto_repos: [PaymentCompliancePlatform.Repo],
+  env: config_env(),
   # Generator defaults: binary IDs and microsecond timestamps
   generators: [binary_id: true, timestamp_type: :utc_datetime_usec],
   # Row-Level Security (RLS) hierarchy

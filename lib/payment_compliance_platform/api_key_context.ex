@@ -206,8 +206,9 @@ defmodule PaymentCompliancePlatform.ApiKeyContext do
         {:error, :invalid_api_key}
 
       api_key ->
-        # Update last_used_at timestamp (async, don't block authentication)
-        Task.start(fn ->
+        # Update last_used_at timestamp (async in prod/dev, sync in test so the
+        # work doesn't outlive the Sandbox-owned connection).
+        PaymentCompliancePlatform.BackgroundTask.run(fn ->
           api_key
           |> Ecto.Changeset.change(last_used_at: DateTime.utc_now())
           |> Repo.update(skip_multi_tenancy_check: true)
