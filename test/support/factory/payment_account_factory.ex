@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.PaymentAccountFactory do
+defmodule AtomicFi.Factory.PaymentAccountFactory do
   @moduledoc """
   Factory for PaymentAccount context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.PaymentAccountContext.PaymentAccount
+      alias AtomicFi.PaymentAccountContext.PaymentAccount
 
       def payment_account_factory(attrs \\ %{}) do
         tenant_id =

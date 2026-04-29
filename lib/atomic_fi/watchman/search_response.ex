@@ -1,0 +1,23 @@
+defmodule AtomicFi.Watchman.SearchResponse do
+  @moduledoc """
+  Provides struct and type for a SearchResponse
+  """
+
+  @type t :: %__MODULE__{
+          entities: [AtomicFi.Watchman.Entity.t()] | nil,
+          query: AtomicFi.Watchman.Entity.t() | nil
+        }
+
+  defstruct [:entities, :query]
+
+  @doc false
+  @spec __fields__(atom) :: keyword
+  def __fields__(type \\ :t)
+
+  def __fields__(:t) do
+    [
+      entities: [{AtomicFi.Watchman.Entity, :t}],
+      query: {AtomicFi.Watchman.Entity, :t}
+    ]
+  end
+end

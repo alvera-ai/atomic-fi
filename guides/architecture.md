@@ -44,7 +44,7 @@ The template follows a traditional Phoenix layered architecture with multi-tenan
 
 ```
 lib/
-├── payment_compliance_platform/          # Business logic
+├── atomic_fi/          # Business logic
 │   ├── application.ex                        # OTP application
 │   ├── repo.ex                              # Ecto repository
 │   ├── schema.ex                            # Base schema module
@@ -65,7 +65,7 @@ lib/
 │       ├── scope.ex                         # Permissions
 │       └── ...
 │
-├── payment_compliance_platform_web/      # Web interface
+├── atomic_fi_web/      # Web interface
 │   ├── endpoint.ex                          # HTTP endpoint
 │   ├── router.ex                            # URL routing
 │   ├── telemetry.ex                         # Metrics
@@ -88,7 +88,7 @@ lib/
 │   └── plugs/                               # Custom plugs
 │       └── audit_logger.ex                  # Audit logging
 │
-└── payment_compliance_platform_api/      # REST API
+└── atomic_fi_api/      # REST API
     └── controllers/                         # API controllers
         └── ...
 ```
@@ -97,14 +97,14 @@ lib/
 
 ### 1. Repository (Repo)
 
-**File**: `lib/payment_compliance_platform/repo.ex`
+**File**: `lib/atomic_fi/repo.ex`
 
 The Ecto repository handles all database interactions:
 
 ```elixir
-defmodule PaymentCompliancePlatform.Repo do
+defmodule AtomicFi.Repo do
   use Ecto.Repo,
-    otp_app: :payment_compliance_platform,
+    otp_app: :atomic_fi,
     adapter: Ecto.Adapters.Postgres
 end
 ```
@@ -117,12 +117,12 @@ end
 
 ### 2. Schema Base Module
 
-**File**: `lib/payment_compliance_platform/schema.ex`
+**File**: `lib/atomic_fi/schema.ex`
 
 Base module for all schemas with TypedEctoSchema and OpenAPI support:
 
 ```elixir
-defmodule PaymentCompliancePlatform.Schema do
+defmodule AtomicFi.Schema do
   defmacro __using__(_) do
     quote do
       use TypedEctoSchema
@@ -144,9 +144,9 @@ Contexts encapsulate business logic and data access:
 
 **Pattern**:
 ```elixir
-defmodule PaymentCompliancePlatform.UserContext do
-  alias PaymentCompliancePlatform.Repo
-  alias PaymentCompliancePlatform.UserContext.User
+defmodule AtomicFi.UserContext do
+  alias AtomicFi.Repo
+  alias AtomicFi.UserContext.User
 
   # List with tenant scoping
   def list_users(tenant_id, params \\ %{}) do
@@ -173,13 +173,13 @@ end
 
 ### 4. Web Endpoint
 
-**File**: `lib/payment_compliance_platform_web/endpoint.ex`
+**File**: `lib/atomic_fi_web/endpoint.ex`
 
 The HTTP endpoint handles all incoming requests:
 
 ```elixir
-defmodule PaymentCompliancePlatformWeb.Endpoint do
-  use Phoenix.Endpoint, otp_app: :payment_compliance_platform
+defmodule AtomicFiWeb.Endpoint do
+  use Phoenix.Endpoint, otp_app: :atomic_fi
 
   # WebSocket for LiveView
   socket "/live", Phoenix.LiveView.Socket
@@ -195,13 +195,13 @@ end
 
 ### 5. Router
 
-**File**: `lib/payment_compliance_platform_web/router.ex`
+**File**: `lib/atomic_fi_web/router.ex`
 
 Defines URL routing and pipelines:
 
 ```elixir
-defmodule PaymentCompliancePlatformWeb.Router do
-  use PaymentCompliancePlatformWeb, :router
+defmodule AtomicFiWeb.Router do
+  use AtomicFiWeb, :router
 
   # Pipelines
   pipeline :browser do
@@ -218,13 +218,13 @@ defmodule PaymentCompliancePlatformWeb.Router do
   end
 
   # Routes
-  scope "/", PaymentCompliancePlatformWeb do
+  scope "/", AtomicFiWeb do
     pipe_through :browser
 
     get "/", PageController, :home
   end
 
-  scope "/api", PaymentCompliancePlatformApi do
+  scope "/api", AtomicFiApi do
     pipe_through :api
 
     resources "/users", UserController
@@ -244,7 +244,7 @@ typed_schema "users" do
   # ... other fields ...
 
   # Tenant association
-  belongs_to :owner, PaymentCompliancePlatform.TenantContext.Tenant
+  belongs_to :owner, AtomicFi.TenantContext.Tenant
 
   timestamps()
 end
@@ -304,10 +304,10 @@ end
 On-mount hooks for cross-cutting concerns:
 
 ```elixir
-defmodule PaymentCompliancePlatformWeb.SomeLive do
-  use PaymentCompliancePlatformWeb, :live_view
+defmodule AtomicFiWeb.SomeLive do
+  use AtomicFiWeb, :live_view
 
-  on_mount {PaymentCompliancePlatformWeb.UserOnMountHooks, :require_authenticated_user}
+  on_mount {AtomicFiWeb.UserOnMountHooks, :require_authenticated_user}
 
   def mount(_params, _session, socket) do
     # current_user is available in socket.assigns
@@ -324,17 +324,17 @@ end
 
 ### 1. Background Jobs (Oban)
 
-**File**: `lib/payment_compliance_platform/application.ex`
+**File**: `lib/atomic_fi/application.ex`
 
 ```elixir
 children = [
-  {Oban, Application.fetch_env!(:payment_compliance_platform, Oban)}
+  {Oban, Application.fetch_env!(:atomic_fi, Oban)}
 ]
 ```
 
 **Job example**:
 ```elixir
-defmodule PaymentCompliancePlatform.Workers.EmailWorker do
+defmodule AtomicFi.Workers.EmailWorker do
   use Oban.Worker, queue: :mailers
 
   @impl Oban.Worker
@@ -352,7 +352,7 @@ end
 
 ### 2. Audit Logging
 
-**File**: `lib/payment_compliance_platform_web/plugs/audit_logger.ex`
+**File**: `lib/atomic_fi_web/plugs/audit_logger.ex`
 
 Logs every user action to console (piped to S3):
 
@@ -370,7 +370,7 @@ Logger.info("audit_log",
 
 ### 3. Telemetry
 
-**File**: `lib/payment_compliance_platform/telemetry.ex`
+**File**: `lib/atomic_fi/telemetry.ex`
 
 Monitors slow operations:
 
@@ -384,11 +384,11 @@ end
 
 ### 4. Email (Swoosh)
 
-**File**: `lib/payment_compliance_platform/mailer.ex`
+**File**: `lib/atomic_fi/mailer.ex`
 
 ```elixir
-defmodule PaymentCompliancePlatform.Mailer do
-  use Swoosh.Mailer, otp_app: :payment_compliance_platform
+defmodule AtomicFi.Mailer do
+  use Swoosh.Mailer, otp_app: :atomic_fi
 end
 ```
 
@@ -425,9 +425,9 @@ test/
 │   ├── conn_case.ex          # Controller tests
 │   ├── factory.ex            # Test data factories
 │   └── fixtures/             # Context fixtures
-├── payment_compliance_platform/
+├── atomic_fi/
 │   └── *_test.exs            # Context tests
-└── payment_compliance_platform_web/
+└── atomic_fi_web/
     ├── controllers/
     │   └── *_controller_test.exs
     └── live/

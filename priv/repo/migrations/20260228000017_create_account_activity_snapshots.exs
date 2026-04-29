@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.CreateAccountActivitySnapshots do
+defmodule AtomicFi.Repo.Migrations.CreateAccountActivitySnapshots do
   use Ecto.Migration
 
   def change do

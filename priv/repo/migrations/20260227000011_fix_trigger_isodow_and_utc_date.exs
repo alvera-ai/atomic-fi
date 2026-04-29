@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.FixTriggerIsodowAndUtcDate do
+defmodule AtomicFi.Repo.Migrations.FixTriggerIsodowAndUtcDate do
   use Ecto.Migration
 
   def change do

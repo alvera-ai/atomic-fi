@@ -1,20 +1,20 @@
-defmodule PaymentCompliancePlatform.Factory do
+defmodule AtomicFi.Factory do
   @moduledoc """
   Main factory module that aggregates all context-specific factories.
 
   Each context has its own factory module in test/support/factory/
   """
-  use ExMachina.Ecto, repo: PaymentCompliancePlatform.Repo
+  use ExMachina.Ecto, repo: AtomicFi.Repo
 
-  use PaymentCompliancePlatform.Factory.TenantFactory
-  use PaymentCompliancePlatform.Factory.UserFactory
-  use PaymentCompliancePlatform.Factory.RoleFactory
-  use PaymentCompliancePlatform.Factory.ApiKeyFactory
-  use PaymentCompliancePlatform.Factory.UserRoleMappingFactory
-  use PaymentCompliancePlatform.Factory.SessionFactory
-  use PaymentCompliancePlatform.Factory.CustomerFactory
-  use PaymentCompliancePlatform.Factory.AccountHolderFactory
-  use PaymentCompliancePlatform.Factory.BlocklistEntryFactory
+  use AtomicFi.Factory.TenantFactory
+  use AtomicFi.Factory.UserFactory
+  use AtomicFi.Factory.RoleFactory
+  use AtomicFi.Factory.ApiKeyFactory
+  use AtomicFi.Factory.UserRoleMappingFactory
+  use AtomicFi.Factory.SessionFactory
+  use AtomicFi.Factory.CustomerFactory
+  use AtomicFi.Factory.AccountHolderFactory
+  use AtomicFi.Factory.BlocklistEntryFactory
 
   @doc """
   Helper to insert a tenant and initialize its blocklist cache.
@@ -30,22 +30,22 @@ defmodule PaymentCompliancePlatform.Factory do
   """
   def insert_tenant_with_cache(attrs \\ %{}) do
     tenant = insert(:tenant, attrs)
-    PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant.id)
+    AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant.id)
     tenant
   end
 
-  use PaymentCompliancePlatform.Factory.LegalEntityFactory
-  use PaymentCompliancePlatform.Factory.BeneficialOwnerFactory
-  use PaymentCompliancePlatform.Factory.CounterpartyFactory
-  use PaymentCompliancePlatform.Factory.LedgerFactory
-  use PaymentCompliancePlatform.Factory.LedgerAccountFactory
-  use PaymentCompliancePlatform.Factory.LedgerEntryFactory
-  use PaymentCompliancePlatform.Factory.KycRequirementFactory
-  use PaymentCompliancePlatform.Factory.DocumentFactory
-  use PaymentCompliancePlatform.Factory.PaymentAccountFactory
-  use PaymentCompliancePlatform.Factory.TransactionFactory
-  use PaymentCompliancePlatform.Factory.AccountActivitySnapshotFactory
-  use PaymentCompliancePlatform.Factory.LegalEntityChangeEventFactory
-  use PaymentCompliancePlatform.Factory.PartyActivitySnapshotFactory
-  use PaymentCompliancePlatform.Factory.RiskClassificationFactory
+  use AtomicFi.Factory.LegalEntityFactory
+  use AtomicFi.Factory.BeneficialOwnerFactory
+  use AtomicFi.Factory.CounterpartyFactory
+  use AtomicFi.Factory.LedgerFactory
+  use AtomicFi.Factory.LedgerAccountFactory
+  use AtomicFi.Factory.LedgerEntryFactory
+  use AtomicFi.Factory.KycRequirementFactory
+  use AtomicFi.Factory.DocumentFactory
+  use AtomicFi.Factory.PaymentAccountFactory
+  use AtomicFi.Factory.TransactionFactory
+  use AtomicFi.Factory.AccountActivitySnapshotFactory
+  use AtomicFi.Factory.LegalEntityChangeEventFactory
+  use AtomicFi.Factory.PartyActivitySnapshotFactory
+  use AtomicFi.Factory.RiskClassificationFactory
 end

@@ -5,7 +5,7 @@ defmodule Mix.Tasks.Ecto.Migrate.Enhanced do
   Enhanced version of mix ecto.migrate that runs migrations from configured paths.
 
   This task is a minimal wrapper around the original ecto.migrate that:
-  1. Reads migration paths from Application config (:payment_compliance_platform, :migration_paths)
+  1. Reads migration paths from Application config (:atomic_fi, :migration_paths)
   2. For each repo, calls ecto.migrate with each configured path
   3. Ensures test_migrations are run in test environment
 
@@ -27,7 +27,7 @@ defmodule Mix.Tasks.Ecto.Migrate.Enhanced do
 
     # Get migration paths configuration
     migration_paths_config =
-      Application.get_env(:payment_compliance_platform, :migration_paths, %{})
+      Application.get_env(:atomic_fi, :migration_paths, %{})
 
     # Run migrations for each repo
     for repo <- repos do
@@ -53,9 +53,9 @@ defmodule Mix.Tasks.Ecto.Migrate.Enhanced do
 
   defp do_migrate_path(repo, path, args) do
     # Check if path exists (for debugging)
-    repo_config = Application.get_env(:payment_compliance_platform, repo, [])
+    repo_config = Application.get_env(:atomic_fi, repo, [])
 
-    app = Keyword.get(repo_config, :otp_app, :payment_compliance_platform)
+    app = Keyword.get(repo_config, :otp_app, :atomic_fi)
     absolute_path = Application.app_dir(app, path)
     path_exists = File.exists?(absolute_path)
 

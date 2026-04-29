@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.TenantFactory do
+defmodule AtomicFi.Factory.TenantFactory do
   @moduledoc """
   Factory for Tenant context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.TenantContext.Tenant
+      alias AtomicFi.TenantContext.Tenant
 
       def tenant_factory do
         unique_suffix = String.slice(Ecto.UUID.generate(), 0, 8)

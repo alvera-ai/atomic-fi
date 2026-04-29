@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.DropDecisions do
+defmodule AtomicFi.Repo.Migrations.DropDecisions do
   use Ecto.Migration
 
   def up do

@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.RoleFactory do
+defmodule AtomicFi.Factory.RoleFactory do
   @moduledoc """
   Factory for Role context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.RoleContext.Role
+      alias AtomicFi.RoleContext.Role
 
       def role_factory(attrs \\ %{}) do
         unique_suffix = String.slice(Ecto.UUID.generate(), 0, 8)

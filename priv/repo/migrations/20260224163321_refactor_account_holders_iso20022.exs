@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.RefactorAccountHoldersIso20022 do
+defmodule AtomicFi.Repo.Migrations.RefactorAccountHoldersIso20022 do
   use Ecto.Migration
 
   def up do

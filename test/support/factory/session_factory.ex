@@ -1,15 +1,15 @@
-defmodule PaymentCompliancePlatform.Factory.SessionFactory do
+defmodule AtomicFi.Factory.SessionFactory do
   @moduledoc """
   Factory for Session context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.SessionContext.Session
+      alias AtomicFi.SessionContext.Session
 
       def session_factory(attrs \\ %{}) do
-        alias PaymentCompliancePlatform.RoleContext.UserRoleMapping
-        alias PaymentCompliancePlatform.Repo
+        alias AtomicFi.RoleContext.UserRoleMapping
+        alias AtomicFi.Repo
 
         # Determine type - default to :user
         type = Map.get(attrs, :type, :user)
@@ -68,7 +68,7 @@ defmodule PaymentCompliancePlatform.Factory.SessionFactory do
                       api_key.role_id
                     else
                       # If api_key_id was passed directly, fetch the api_key
-                      Repo.get!(PaymentCompliancePlatform.ApiKeyContext.ApiKey, api_key_id,
+                      Repo.get!(AtomicFi.ApiKeyContext.ApiKey, api_key_id,
                         skip_multi_tenancy_check: true
                       ).role_id
                     end

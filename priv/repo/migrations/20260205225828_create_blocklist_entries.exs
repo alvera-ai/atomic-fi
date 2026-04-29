@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.CreateBlocklistEntries do
+defmodule AtomicFi.Repo.Migrations.CreateBlocklistEntries do
   use Ecto.Migration
 
   def change do

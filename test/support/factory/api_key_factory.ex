@@ -1,12 +1,12 @@
-defmodule PaymentCompliancePlatform.Factory.ApiKeyFactory do
+defmodule AtomicFi.Factory.ApiKeyFactory do
   @moduledoc """
   Factory for ApiKey context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.ApiKeyContext.ApiKey
-      alias PaymentCompliancePlatform.Vault
+      alias AtomicFi.ApiKeyContext.ApiKey
+      alias AtomicFi.Vault
 
       def api_key_factory(attrs \\ %{}) do
         unique_suffix = String.slice(Ecto.UUID.generate(), 0, 8)

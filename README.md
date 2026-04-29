@@ -1,48 +1,92 @@
-# Payments Compliance Platform
+# AtomicFi
 
-**The KYC/KYB/AML compliance SoE for payment companies**
+**Payments and compliance, welded into one atomic database transaction.**
 
-[![License](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Elixir](https://img.shields.io/badge/Elixir-1.18-purple.svg)](https://elixir-lang.org)
 [![Phoenix](https://img.shields.io/badge/Phoenix-1.8-orange.svg)](https://phoenixframework.org)
 
 ---
 
-## Overview
+## Why AtomicFi
 
-The Payments Compliance Platform is a **System of Engagement (SoE)**. It gives payment companies — fintechs, payment processors, e-money institutions, neobanks — a compliance backbone for KYC (Know Your Customer), KYB (Know Your Business), and AML (Anti-Money Laundering) that sits alongside their existing Stripe, JPMC, or Adyen integration without replacing it.
+Money is starting to move at the pace of AI. Agents open accounts, classify counterparties, and initiate payments in seconds; humans are no longer the rate-limiting step in the loop. The constraint shifts from *speed* to *correctness under speed* — money has to move that fast, **without mistakes**.
 
-**MDM subject:** `AccountHolder` (ISO 20022 acmt:007, acmt:019)
-**Standard:** ISO 20022 — acmt, pain, pacs, camt, auth message families
-**Competes with:** Alloy, Sardine, Marqeta
+The mistakes that matter are not arithmetic. They are state mistakes: paying a counterparty whose sanctions screening was valid yesterday and stale today; posting a debit past a limit that the risk engine has since lowered; activating a corporate account whose UBO chain was never completed. In every payments stack today, the ledger and the compliance engine live in different systems and reconcile after the fact. The gap between them is glue code, and glue code only "usually" gets it right. *Usually* is what fails an examination.
 
-### What You Can Build
+AtomicFi closes the gap by turning correctness into **invariants that cannot be violated**. The screening gate, the ledger post, the limit check, and the rolling-window balance update all live inside the same Postgres transaction; if any one would violate an invariant, all of them roll back. You cannot move money for a sanctioned party. You cannot post past a limit. You cannot activate a corporate without a complete UBO chain. Not as a policy — as a property of the database.
 
-| Vertical | Examples |
-|----------|----------|
-| **Fintechs** | Neobanks, challenger banks, digital wallets |
-| **Payment Processors** | PSPs, acquirers, ISO/MSPs |
-| **E-Money Institutions** | EMIs, prepaid card issuers |
-| **Embedded Finance** | BaaS platforms, lending, BNPL |
-| **Crypto / Digital Assets** | VASPs, exchanges requiring Travel Rule compliance |
+That is the product, and it is open source so the part of the stack that decides whether money is allowed to move can be read line by line, on your own infrastructure.
 
 ---
 
-## Where It Fits
+## What it does
 
-```
-SoR (Legacy)          SoE (This repo)                 Downstream Consumers
-────────────          ────────────────                ──────────────────────
-Stripe                Payments Compliance             Data lakes
-JPMC          ──►     Platform                  ───►  Agent workflows
-Adyen                 ├── PostgreSQL (owner)          Analytics engines
-                      ├── Outbound CDC cursor         MCP servers
-                      └── REST API + OpenAPI
-```
+One system. Two jobs it does very well.
 
-The SoE starts alongside existing payment providers. As data accumulates and the SoE earns operational trust, it can become the System of Record. Downstream consumers receive read-only CDC copies; they do not modify SoE data.
+### Job 1 — Compliance as first-class state
 
-For optional integration with the Alvera Platform (SoI) — MDM, agentic workflows, AI query layer — see [guides/platform-integration.md](guides/platform-integration.md).
+AtomicFi stores every compliance artifact a regulator or examiner would ask for:
+
+- **`LegalEntity`** — the identity record (name, DOB, tax ID, LEI, registered address). All PII encrypted at rest.
+- **`AccountHolder`** — the MDM subject, linked to its `LegalEntity`, with `kyc_status`, `risk_level`, enabled currencies. ISO 20022 `acmt:007` / `acmt:019`.
+- **`BeneficialOwner`** — the UBO chain. Enforces the FinCEN CDD Rule (31 CFR §1010.230): ≥25% ownership threshold and at least one control person. Incomplete chain blocks corporate activation.
+- **`KycRequirement`** — gating rules at four scopes (account holder, counterparty, payment account, beneficial owner). Covers FATF Rec 10 (CDD), Rec 16 (Wire Transfer Rule), Rec 19 (Higher-risk countries / EDD), Rec 24 (UBO Transparency).
+- **`ComplianceScreening`** — OFAC, PEP, AML, adverse media. Integrates Moov Watchman against SDN / EU / UN consolidated lists. Every hit stored as a `SanctionsMatch` row with dedup across re-screenings (false-positive qualifier, list version at time of match).
+- **`Document`** — uploaded identity and compliance files. Passive record; status lives in `KycRequirement`.
+
+**ISO 20022 message families covered:** `acmt` (account management), `pain` (payment initiation), `pacs` (clearing/settlement), `camt` (cash management/statements), `auth` (regulatory reporting). If a regulator asks for a `camt:053` statement, it is generated from the data model directly.
+
+### Job 2 — A proper double-entry ledger, in the same database
+
+- **`Ledger`** — one per currency per account holder.
+- **`LedgerAccount`** — hierarchical (`MASTER → DEBIT/CREDIT → PAIR`). Self-referential with a materialised ancestor path for O(1) ancestor lookup.
+- **`LedgerEntry`** — the debit or credit posting. Every entry carries a snapshot of the risk-engine limit at time of posting.
+- **`LedgerAccountBalance`** — per-day rolling totals (daily / weekly / monthly / YTD), trigger-maintained. CHECK constraints enforce that the rolling total never exceeds the last known limit.
+
+The ledger understands risk classification. A low-risk account gets a $50K/day master limit; a high-risk one gets $5K/day. Counterparties carry their own debit and credit limits. The effective limit on any leaf account is `min(master, counterparty, screening_pair_result)`. The hierarchy enforces this by construction.
+
+---
+
+## Why "atomic" is the whole pitch
+
+The database is PostgreSQL 17 with row-level security for multi-tenancy and a single trigger (`propagate_ledger_entry_to_balances`) that, on every entry post, updates the direct account's balance and every ancestor's balance and upserts the rolling-period rows in the same transaction. CHECK constraints fire synchronously.
+
+If a limit is violated, the whole transaction rolls back — entry, balance, rolling totals, everything. You cannot move money for a sanctioned party, even accidentally, because the screening gate is in the same transaction as the ledger post. **No nightly reconciliation. No Tuesday-vs-Wednesday drift.**
+
+---
+
+## Where AtomicFi sits alongside other systems
+
+AtomicFi is not trying to replace the systems already doing parts of this well. It sits **alongside** them and provides the invariant layer underneath:
+
+| Adjacent system | What it provides | What AtomicFi adds |
+|-----------------|------------------|--------------------|
+| **TigerBeetle** | Atomic accounting | Compliance state — screening, KYC gates, UBO chains, audit artifacts — inside the same transaction |
+| **Alloy / Sardine / ComplyAdvantage** | KYC/KYB/AML orchestration | A ledger that *honours* the decision inside the same transaction as the money movement |
+| **Modern Treasury / Increase** | Ledger + payment ops | FATF-aligned compliance scopes, OFAC screening welded to posting, UBO enforcement at the schema level |
+| **Marqeta / Unit** | Issuing-focused BaaS | The compliance-to-ledger substrate underneath the issuing layer |
+| **Stripe / Adyen** | Card acceptance, payouts | Your own books and your own compliance state, instead of renting them |
+
+The boundary is consistent: each of these systems produces a *decision* or a *posting*. Today the engineer writes glue to make sure the decision is still valid when the posting commits. AtomicFi removes the glue — both halves move into the same Postgres transaction, and the invariant is enforced by the database.
+
+Because the invariants live in the code that decides whether money is allowed to move, that code has to be readable. AtomicFi is MIT-licensed so the enforcement logic can be audited end-to-end on your own infrastructure, without negotiating with a vendor or trusting a black box.
+
+---
+
+## Status
+
+- **Core domain model complete.** All compliance and ledger contexts implemented end-to-end: LegalEntity, AccountHolder, BeneficialOwner, ComplianceScreening, Counterparty, Ledger, LedgerAccount, LedgerEntry, LedgerAccountBalance, KycRequirement, Document, PaymentAccount, Transaction, AccountActivitySnapshot, PartyActivitySnapshot, RiskClassification, LegalEntityChangeEvent.
+- **Tests passing** against the full domain model — ExUnit, no mocks, real PostgreSQL.
+- **Full REST API with OpenAPI spec** at `/api/openapi`, Scalar UI at `/api/docs`. Agent-readable surface live end-to-end.
+- **Multi-tenant from day one** — Postgres row-level security via `def_with_rls_and_logging/3`. Every query is tenant-scoped by construction.
+- **Sanctions screening operational** — OFAC/SDN/EU/UN consolidated lists via Moov Watchman (run alongside). Hits dedup across re-screenings with list-version-at-time-of-match stored for audit.
+- **Atomic ledger trigger** (`propagate_ledger_entry_to_balances`) live — ancestor path propagation + rolling-window balance upserts in a single transaction, CHECK-constraint-enforced.
+- **UBO enforcement** — FinCEN CDD ≥25% threshold and control-person requirement enforced at the schema level; incomplete chains block corporate activation.
+
+### Next up
+
+- **k6 load tests against native PostgreSQL** — performance benchmarking. Goal: stay in the same performance band as TigerBeetle while doing compliance gating inside the transaction.
 
 ---
 
@@ -60,7 +104,7 @@ AccountHolder (MDM Subject — ISO 20022 acmt:007, acmt:019)
   has_many   :kyc_requirements          ← CDD gates (FATF Recs 10/16/19/24)
   has_many   :documents                 ← identity documents (acmt:007 SupportingDocument)
 
-BeneficialOwner                         ← ISO 20022 acmt:007 BeneficialOwnership section
+BeneficialOwner                         ← FinCEN CDD §1010.230 + FATF Rec 24
   belongs_to :account_holder            ← the company being owned
   belongs_to :legal_entity              ← the person or entity who owns it
   field :ownership_pct                  ← FinCEN CDD ≥25% ownership threshold
@@ -146,7 +190,7 @@ Ledger (AccountHolder's book)
                   owned by: PaymentAccount
 ```
 
-**Balance trigger**: Every `ledger_entries` INSERT/UPDATE(voided) fires `propagate_ledger_entry_to_balances` — updates `ledger_accounts.balance` and upserts `ledger_account_balances` rows for the direct account AND all ancestors (via materialized `ancestor_ids`). CHECK constraints on `ledger_account_balances` enforce limits from the risk engine.
+**Balance trigger**: every `ledger_entries` `INSERT`/`UPDATE(voided)` fires `propagate_ledger_entry_to_balances` — updates `ledger_accounts.balance` and upserts `ledger_account_balances` rows for the direct account AND all ancestors (via materialized `ancestor_ids`). CHECK constraints on `ledger_account_balances` enforce limits from the risk engine.
 
 ---
 
@@ -155,13 +199,13 @@ Ledger (AccountHolder's book)
 | Regulation | Enforcement |
 |-----------|-------------|
 | **FATF Rec 10** — Customer Due Diligence | `ComplianceScreening` `:account_holder` scope + `KycRequirement` gate account activation |
-| **FATF Rec 16** — Wire Transfer Rule | `:payment_account`-scope `KycRequirement` gates individual payment instruction |
-| **FATF Rec 19** — Enhanced Due Diligence | High-risk accounts trigger `:counterparty`-scope screening and EDD requirements |
+| **FATF Rec 16** — Wire Transfer Rule (incl. VASP Travel Rule, 2019 guidance) | `:payment_account`-scope `KycRequirement` gates individual payment instruction |
+| **FATF Rec 19** — Higher-risk countries / EDD | High-risk accounts trigger `:counterparty`-scope screening and EDD requirements |
 | **FATF Rec 24** — UBO Transparency | `BeneficialOwner` chain must be complete and verified; incomplete UBO blocks `AccountHolder` activation |
-| **FinCEN CDD Rule** (31 CFR §1010.230) | `ownership_pct ≥ 25%` + control person verification enforced via `BeneficialOwner` |
+| **FinCEN CDD Rule** (31 CFR §1010.230) | `ownership_pct ≥ 25%` + control-person verification enforced via `BeneficialOwner` |
 | **OFAC Sanctions** | Watchman (Moov) screens every entity against SDN/EU/UN lists; `SanctionsMatch` per hit with false-positive dedup across re-screenings |
 | **PCI-DSS 4.0** | Bank/card details encrypted at rest via Cloak |
-| **BSA Data Retention** | `ComplianceScreening` + `SanctionsMatch` + `BlocklistMatch` provide 5-year audit trail |
+| **BSA Recordkeeping** (31 CFR §1010.430, 5-year retention) | `ComplianceScreening` + `SanctionsMatch` + `BlocklistMatch` provide the audit trail |
 
 ---
 
@@ -184,57 +228,7 @@ All ISO 20022 messages for this domain are constructable from the data model:
 | camt:054 | Debit/Credit Notification | Transaction |
 | camt:060 | Account Reporting Request | LedgerAccount |
 | auth:018 | Risk Classification Report | RiskClassification + ComplianceScreening |
-| camt:998 | Sanctions Screening | ComplianceScreening + SanctionsMatch |
-
----
-
-## Implementation Status
-
-All contexts in the project. ISO 20022 alignment tracked in [#9](https://github.com/alvera-ai/payments-compliance-platform/issues/9).
-
-| Context | Regulation | Schema | Docs | Tests | RLS | API | Status |
-|---------|------------|--------|------|-------|-----|-----|--------|
-| Tenant | — | ✅ | ✅ | ✅ | N/A | ✅ | 4/5 |
-| User | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| Role | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| Customer | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| ApiKey | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| Session | — | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| LegalEntity | ISO 20022 acmt:007 · FATF Rec 10/24 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| AccountHolder | ISO 20022 acmt:007, acmt:019 · FATF Rec 10 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| BeneficialOwner | ISO 20022 acmt:023 · FATF Rec 24 · FinCEN CDD §1010.230 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| BlocklistEntry | Tenant-managed internal blocklist | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| ComplianceScreening | ISO 20022 camt:998, auth:018 · FATF Rec 19 · OFAC | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| Counterparty | ISO 20022 pain:001 · FATF Rec 19 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| Ledger | ISO 20022 camt:052, camt:053 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| LedgerAccount | ISO 20022 camt:052, camt:053 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| LedgerEntry | ISO 20022 camt:052, camt:053 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| LedgerAccountBalance | ISO 20022 camt:053 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| KycRequirement | ISO 20022 acmt:007, acmt:008 · FATF Rec 10/16/19/24 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| Document | ISO 20022 acmt:007, acmt:008 · FATF Rec 10 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| PaymentAccount | ISO 20022 pain:001 · FATF Rec 16 · PCI-DSS 4.0 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| Transaction | ISO 20022 pain:001, pacs:008, pacs:002, pacs:004, camt:054 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| AccountActivitySnapshot | ISO 20022 camt:052, camt:053 · FinCEN AML (ledger-level) | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| LegalEntityChangeEvent | ISO 20022 acmt:006 · acmt:002 · AML account takeover | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| PartyActivitySnapshot | FATF Rec 10 · FinCEN AML (party-level) | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-| RiskClassification | ISO 20022 auth:018 · FATF Rec 10 | ✅ | ✅ | ✅ | ✅ | ✅ | 5/5 |
-
-**AccountActivitySnapshot vs PartyActivitySnapshot:**
-
-- **AccountActivitySnapshot** aggregates *ledger-level* debit/credit activity for
-  a specific PaymentAccount over a period — maps to ISO 20022 camt:052/camt:053.
-- **PartyActivitySnapshot** aggregates *party-level* compliance signals for an
-  AccountHolder over a period — KYC/risk-level transitions, screening volume and
-  hit rate, SAR candidacy — supporting FATF Rec 10 (ongoing CDD) and FinCEN
-  31 CFR §1020.320 (SAR filing).
-
-**Column definitions:**
-
-- **Schema**: Ecto schema + migration, TypedEctoSchema, ISO 20022 field alignment, column comments
-- **Docs**: `@moduledoc` with FATF Recommendation / ISO 20022 cross-references
-- **Tests**: ExUnit DataCase tests, no mocks, real PostgreSQL
-- **RLS**: Row-level security via `tenant_id` scoping in `def_with_rls_and_logging/3`
-- **API**: REST endpoints with OpenAPI Request/Response schemas via ExOpenApiUtils, documented at `/api/docs`
+| camt:998 | Proprietary Message (sanctions screening) | ComplianceScreening + SanctionsMatch |
 
 ---
 
@@ -266,7 +260,7 @@ All endpoints under `/api`, documented at `/api/docs` (Scalar UI).
 | `POST /api/compliance-screenings/screen-beneficial-owner` | BeneficialOwner (FinCEN CDD UBO chain) |
 | `POST /api/compliance-screenings/screen-counterparty` | Counterparty pair |
 
-### chain_screening (Automatic on Create)
+### `chain_screening` (automatic on create)
 
 Creating any AccountHolder, BeneficialOwner, or Counterparty automatically enqueues an Oban compliance screening job (`chain_screening: true` by default):
 
@@ -285,105 +279,37 @@ Set `"chain_screening": false` to skip — useful for bulk imports or seeding.
 
 ## Architecture
 
-### Directory Structure
+### Multi-tenancy (RLS)
 
-```
-lib/
-├── payment_compliance_platform/
-│   ├── account_holder_context/         # AccountHolder + ISO 20022 acmt
-│   ├── beneficial_owner_context/       # BeneficialOwner + FinCEN CDD
-│   ├── counterparty_context/           # Counterparty + ISO 20022 pain/pacs
-│   ├── legal_entity_context/           # Shared identity + PII
-│   ├── compliance_screening_context/   # OFAC/SDN/PEP screening + Watchman
-│   │   ├── compliance_screening.ex     # Parent screening record (auth:018, camt:998)
-│   │   ├── screening_worker.ex         # Oban worker: :compliance_screening queue
-│   │   ├── blocklist_match.ex          # Per-hit internal blocklist result
-│   │   └── sanctions_match.ex          # Per-hit Watchman/OFAC result
-│   ├── kyc_requirement_context/        # KYC gates (FATF Rec 10/16/19/24)
-│   ├── document_context/               # Compliance documents (ISO 20022 acmt:007)
-│   ├── decision_context/
-│   │   └── screening_engine.ex         # Watchman API client
-│   ├── blocklist_context/              # Internal blocklist management
-│   ├── ledger_context/                 # Ledger (camt:052/camt:053 container)
-│   ├── ledger_account_context/         # LedgerAccount + LedgerAccountBalance
-│   ├── ledger_entry_context/           # LedgerEntry + limit snapshots
-│   ├── tenant_context/                 # Multi-tenancy
-│   ├── user_context/                   # User auth (bcrypt + TOTP)
-│   ├── role_context/                   # RBAC
-│   ├── customer_context/               # B2B customer orgs
-│   ├── api_key_context/                # Machine-to-machine auth
-│   └── session_context/                # Session management
-│
-├── payment_compliance_platform_api/
-│   └── controllers/
-│       ├── account_holder_controller.ex
-│       ├── beneficial_owner_controller.ex
-│       ├── counterparty_controller.ex
-│       ├── legal_entity_controller.ex
-│       ├── compliance_screening_controller.ex
-│       ├── ledger_controller.ex
-│       ├── ledger_account_controller.ex
-│       ├── ledger_entry_controller.ex
-│       ├── ledger_account_balance_controller.ex
-│       ├── kyc_requirement_controller.ex
-│       └── document_controller.ex
-│
-└── payment_compliance_platform_web/    # LiveView UI (future)
+Every domain record is scoped to `tenant_id`. Row-level security enforced at the repo level via `AtomicFi.LoggerMacro.def_with_rls_and_logging/3`.
 
-priv/repo/migrations/                   # All DB migrations in timestamp order
-
-test/
-├── payment_compliance_platform/        # Context tests (ExUnit, no mocks)
-└── payment_compliance_platform_api/    # Controller tests (ConnCase)
-```
-
-### OpenAPI Schema Pattern (ExOpenApiUtils)
-
-Schemas use `open_api_schema` annotations to auto-generate `*Request` / `*Response` structs:
-
-- `AccountHolder` → `AccountHolderRequest` (writeOnly fields excluded) + `AccountHolderResponse` (readOnly fields only)
-- `readOnly: true` on `open_api_property` → field appears only in Response struct (server-generated: `id`, timestamps)
-- `writeOnly: true` → field appears only in Request struct (sensitive input: passwords, tokens)
-- No flag → field appears in both Request and Response structs
-- Controllers receive typed `%AccountHolderRequest{}` structs — no map conversion needed
-- `ExOpenApiUtils.Changeset.cast/3` handles `Mapper.to_map` internally — pass struct directly to `changeset/2`
-
-### Multi-Tenancy (RLS)
-
-Every domain record is scoped to `tenant_id`. Row-level security enforced at the repo level via `PaymentCompliancePlatform.LoggerMacro.def_with_rls_and_logging/3`.
-
-### Background Jobs (Oban)
+### Background jobs (Oban)
 
 | Queue | Worker | Trigger |
 |-------|--------|---------|
 | `compliance_screening` | `ScreeningWorker` | `chain_screening: true` on create, or manual screen action |
+| `compliance_screening` | rolling-window rescreening | scheduled rescreens of existing AccountHolders, BeneficialOwners, and Counterparties against the latest Watchman list versions — every match writes a fresh `SanctionsMatch` row with the list version at time of match, so changes between screenings are visible in the audit trail |
 
-### PostgreSQL Trigger — Balance Propagation
+### PostgreSQL trigger — balance propagation
 
-The `propagate_ledger_entry_to_balances` trigger fires on every `ledger_entries` INSERT or UPDATE (when `status → :voided`):
+`propagate_ledger_entry_to_balances` fires on every `ledger_entries` `INSERT` or `UPDATE` (when `status → :voided`):
 
-1. Computes debit/credit delta and collects `ancestor_ids` from the direct account
-2. Updates `ledger_accounts.balance` for direct account + all ancestors in one `UPDATE WHERE id = ANY(v_account_ids)`
-3. Upserts one `ledger_account_balances` row per account per day — stores cumulative daily/weekly/monthly/yearly debit+credit totals
-4. Copies limit snapshots from the entry's `*_limit_at_entry` fields to `last_*_limit` columns on the balance row
-5. CHECK constraints on `ledger_account_balances` enforce `last_*_limit IS NULL OR balance_total <= last_*_limit`
+1. Computes debit/credit delta and collects `ancestor_ids` from the direct account.
+2. Updates `ledger_accounts.balance` for direct account + all ancestors in one `UPDATE WHERE id = ANY(v_account_ids)`.
+3. Upserts one `ledger_account_balances` row per account per day — stores cumulative daily/weekly/monthly/yearly debit+credit totals.
+4. Copies limit snapshots from the entry's `*_limit_at_entry` fields to `last_*_limit` columns on the balance row.
+5. CHECK constraints on `ledger_account_balances` enforce `last_*_limit IS NULL OR balance_total <= last_*_limit`.
 
----
+### OpenAPI schema pattern (ExOpenApiUtils)
 
-## Change Data Capture (Outbound)
+Schemas use `open_api_schema` annotations to auto-generate `*Request` / `*Response` structs:
 
-The SoE exposes an outbound CDC feed via an Oban cron job (every 5 minutes):
-
-```
-Local PostgreSQL
-  └── Oban cron job (updated_at cursor)
-        └── Batch changed rows since last_synced_at
-              └── POST to configurable ingest endpoint
-```
-
-Downstream consumers subscribe to this feed and hold read-only copies of SoE data. The ingest endpoint is configurable via environment variable; no coupling to any specific consumer.
-
-An inbound sync worker polls a consumer events API on a configurable schedule and writes returned results (screening decisions, MDM merges, workflow outputs) back to the local DB.
+- `AccountHolder` → `AccountHolderRequest` (writeOnly fields excluded) + `AccountHolderResponse` (readOnly fields only)
+- `readOnly: true` → field appears only in Response struct (server-generated: `id`, timestamps)
+- `writeOnly: true` → field appears only in Request struct (sensitive input: passwords, tokens)
+- No flag → field appears in both Request and Response structs
+- Controllers receive typed `%AccountHolderRequest{}` structs — no map conversion needed
+- `ExOpenApiUtils.Changeset.cast/3` handles `Mapper.to_map` internally — pass the struct directly to `changeset/2`
 
 ---
 
@@ -421,8 +347,8 @@ mix phx.server
 
 **Visit:**
 
-- **API Docs**: http://localhost:4001/api/docs
-- **OpenAPI Spec**: http://localhost:4001/api/openapi
+- **API Docs**: http://localhost:4100/api/docs
+- **OpenAPI Spec**: http://localhost:4100/api/openapi
 
 ### Verify Watchman
 
@@ -437,13 +363,13 @@ curl -s "http://localhost:8084/v2/search?name=Viktor+Petrov&source=custom_watchl
 curl -s "http://localhost:8084/v2/search?name=Golden+Dragon+Trading&source=custom_watchlist"
 ```
 
-### Environment Variables
+### Environment variables
 
 ```bash
-DATABASE_URL=ecto://postgres:postgres@localhost/payments_compliance_platform_dev
+DATABASE_URL=ecto://postgres:postgres@localhost/atomic_fi_dev
 SECRET_KEY_BASE=generate_with_mix_phx_gen_secret
 PHX_HOST=localhost
-PORT=4001
+PORT=4100
 
 # Watchman sanctions screening service
 WATCHMAN_BASE_URL=http://localhost:8084
@@ -458,15 +384,13 @@ ADMIN_PASSWORD=change_me_in_production
 
 ## Development
 
-### Running Tests
-
 ```bash
 # Run all tests (494 tests, 0 failures)
 mix test
 
 # Run specific domain tests
-mix test test/payment_compliance_platform/account_holder_context_test.exs
-mix test test/payment_compliance_platform/ledger_account_balance_context_test.exs
+mix test test/atomic_fi/account_holder_context_test.exs
+mix test test/atomic_fi/ledger_account_balance_context_test.exs
 
 # Quality checks
 mix format
@@ -496,15 +420,16 @@ mix compile --warnings-as-errors
 
 ## Contributing
 
+AtomicFi is open source under the MIT license. Issues and PRs welcome.
+
 Before committing:
 
 1. `mix format && mix credo --strict && mix test`
 2. GPG-sign all commits (`git commit -S`)
-3. Update this README's capability matrix when completing dataset work
-4. Conventional commits: `feat:`, `fix:`, `refactor:`, `test:`, `docs:`
+3. Conventional commits: `feat:`, `fix:`, `refactor:`, `test:`, `docs:` (release-please consumes these)
 
 ---
 
 ## License
 
-Copyright © 2026. All rights reserved.
+Licensed under the [MIT License](LICENSE).

@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.CreateLedgerAccountBalances do
+defmodule AtomicFi.Repo.Migrations.CreateLedgerAccountBalances do
   use Ecto.Migration
 
   def change do

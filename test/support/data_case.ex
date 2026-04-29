@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.DataCase do
+defmodule AtomicFi.DataCase do
   @moduledoc """
   This module defines the setup for tests requiring
   access to the application's data layer.
@@ -10,7 +10,7 @@ defmodule PaymentCompliancePlatform.DataCase do
   we enable the SQL sandbox, so changes done to the database
   are reverted at the end of every test. If you are using
   PostgreSQL, you can even run database tests asynchronously
-  by setting `use PaymentCompliancePlatform.DataCase, async: true`, although
+  by setting `use AtomicFi.DataCase, async: true`, although
   this option is not recommended for other databases.
   """
 
@@ -18,26 +18,26 @@ defmodule PaymentCompliancePlatform.DataCase do
 
   import Ecto.Query
 
-  alias PaymentCompliancePlatform.{Config, Repo}
-  alias PaymentCompliancePlatform.TenantContext.Tenant
-  alias PaymentCompliancePlatform.UserContext.User
-  alias PaymentCompliancePlatform.RoleContext.{Role, RoleConstants}
-  alias PaymentCompliancePlatform.SessionContext.Session
+  alias AtomicFi.{Config, Repo}
+  alias AtomicFi.TenantContext.Tenant
+  alias AtomicFi.UserContext.User
+  alias AtomicFi.RoleContext.{Role, RoleConstants}
+  alias AtomicFi.SessionContext.Session
 
   using do
     quote do
-      alias PaymentCompliancePlatform.Repo
+      alias AtomicFi.Repo
 
       import Ecto
       import Ecto.Changeset
       import Ecto.Query
-      import PaymentCompliancePlatform.DataCase
-      import PaymentCompliancePlatform.Factory
+      import AtomicFi.DataCase
+      import AtomicFi.Factory
     end
   end
 
   setup tags do
-    PaymentCompliancePlatform.DataCase.setup_sandbox(tags)
+    AtomicFi.DataCase.setup_sandbox(tags)
     {:ok, tenant: system_tenant(), session: system_session()}
   end
 
@@ -46,7 +46,7 @@ defmodule PaymentCompliancePlatform.DataCase do
   """
   def setup_sandbox(tags) do
     pid =
-      Ecto.Adapters.SQL.Sandbox.start_owner!(PaymentCompliancePlatform.Repo,
+      Ecto.Adapters.SQL.Sandbox.start_owner!(AtomicFi.Repo,
         shared: not tags[:async]
       )
 
@@ -135,7 +135,7 @@ defmodule PaymentCompliancePlatform.DataCase do
 
   """
   def init_blocklist_cache(tenant_id) do
-    PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant_id)
+    AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant_id)
   end
 
   @doc """
@@ -144,7 +144,7 @@ defmodule PaymentCompliancePlatform.DataCase do
   Creates the same blocklist entries as seeds.exs for testing purposes.
   """
   def seed_blocklist_for_tenant(tenant_id) do
-    alias PaymentCompliancePlatform.BlocklistContext.BlocklistEntry
+    alias AtomicFi.BlocklistContext.BlocklistEntry
 
     demo_entries = [
       # Exact matches - First names
@@ -246,6 +246,6 @@ defmodule PaymentCompliancePlatform.DataCase do
     end)
 
     # Refresh cache after seeding
-    PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant_id)
+    AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant_id)
   end
 end

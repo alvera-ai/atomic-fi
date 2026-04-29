@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.LegalEntityFactory do
+defmodule AtomicFi.Factory.LegalEntityFactory do
   @moduledoc """
   Factory for LegalEntity context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.LegalEntityContext.LegalEntity
+      alias AtomicFi.LegalEntityContext.LegalEntity
 
       def legal_entity_factory(attrs \\ %{}) do
         unique_suffix = String.slice(Ecto.UUID.generate(), 0, 8)

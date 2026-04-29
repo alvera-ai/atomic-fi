@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.CreateBeneficialOwners do
+defmodule AtomicFi.Repo.Migrations.CreateBeneficialOwners do
   use Ecto.Migration
 
   def change do

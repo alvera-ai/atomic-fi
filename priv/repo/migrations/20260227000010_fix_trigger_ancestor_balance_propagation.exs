@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.FixTriggerAncestorBalancePropagation do
+defmodule AtomicFi.Repo.Migrations.FixTriggerAncestorBalancePropagation do
   use Ecto.Migration
 
   def change do

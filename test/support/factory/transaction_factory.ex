@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.TransactionFactory do
+defmodule AtomicFi.Factory.TransactionFactory do
   @moduledoc """
   Factory for Transaction context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.TransactionContext.Transaction
+      alias AtomicFi.TransactionContext.Transaction
 
       def transaction_factory(attrs \\ %{}) do
         tenant_id =

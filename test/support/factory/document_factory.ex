@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.DocumentFactory do
+defmodule AtomicFi.Factory.DocumentFactory do
   @moduledoc """
   Factory for Document context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.DocumentContext.Document
+      alias AtomicFi.DocumentContext.Document
 
       def document_factory(attrs \\ %{}) do
         tenant_id =

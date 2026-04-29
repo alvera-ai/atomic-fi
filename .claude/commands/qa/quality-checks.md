@@ -173,35 +173,35 @@ Verify test files only mock external boundaries. Run:
 
 ```bash
 grep -rn "Mimic\.\(copy\|stub\|expect\)(Platform\." test/ --include="*.exs" \
-  | grep -v "PaymentCompliancePlatform.DatalakeRepo" \
-  | grep -v "PaymentCompliancePlatform.RegulatedDatalakeRepo"
+  | grep -v "AtomicFi.DatalakeRepo" \
+  | grep -v "AtomicFi.RegulatedDatalakeRepo"
 ```
 
 If any results appear, review each one. Only these external boundaries may be stubbed with Mimic:
-- `PaymentCompliancePlatform.DatalakeRepo` — repo routing
-- `PaymentCompliancePlatform.RegulatedDatalakeRepo` — regulated repo routing
+- `AtomicFi.DatalakeRepo` — repo routing
+- `AtomicFi.RegulatedDatalakeRepo` — regulated repo routing
 - `ExAws` — AWS SDK
 - `System` — system commands
 
 Also allowed: `Req.Test.stub` (HTTP boundary — any module) and `Mox.stub(ExAws.Mock, ...)` (AWS SDK via the Mox-wired `@s3_client`).
 
-**FORBIDDEN:** Mimic on any other `PaymentCompliancePlatform.*` module (e.g., `PaymentCompliancePlatform.Messages`, `PaymentCompliancePlatform.Templates`, `PaymentCompliancePlatform.AgenticWorkflows`, **`PaymentCompliancePlatform.CloudStorageProtocol`**). Cloud storage must be exercised through the real protocol dispatch with `Mox.stub(ExAws.Mock, :request/:request!/:stream!, ...)` at the AWS boundary — not by stubbing the protocol itself. Use real implementations with `setup :setup_healthcare_context` (or `setup_core_banking_context`, `setup_payment_risk_context`, `setup_alvera_context`, `setup_trading_context`, `setup_accounts_receivable_context`, `setup_service_commerce_context` — one per supported domain) instead.
+**FORBIDDEN:** Mimic on any other `AtomicFi.*` module (e.g., `AtomicFi.Messages`, `AtomicFi.Templates`, `AtomicFi.AgenticWorkflows`, **`AtomicFi.CloudStorageProtocol`**). Cloud storage must be exercised through the real protocol dispatch with `Mox.stub(ExAws.Mock, :request/:request!/:stream!, ...)` at the AWS boundary — not by stubbing the protocol itself. Use real implementations with `setup :setup_healthcare_context` (or `setup_core_banking_context`, `setup_payment_risk_context`, `setup_alvera_context`, `setup_trading_context`, `setup_accounts_receivable_context`, `setup_service_commerce_context` — one per supported domain) instead.
 
 ### Step 8: Check for Anti-Patterns
 
 **Direct datalake-repo calls outside `with_dynamic_repo`:**
 
-All datalake persistence routes through `PaymentCompliancePlatform.DatalakeRepo` / `PaymentCompliancePlatform.RegulatedDatalakeRepo` inside a `with_dynamic_repo(repo_pid, …)` block — there are no industry-specific datalake repo modules in `lib/`. Context functions that call `PaymentCompliancePlatform.DatalakeRepo.all/insert/update/delete` without having set up dynamic routing will crash at runtime; surface that statically:
+All datalake persistence routes through `AtomicFi.DatalakeRepo` / `AtomicFi.RegulatedDatalakeRepo` inside a `with_dynamic_repo(repo_pid, …)` block — there are no industry-specific datalake repo modules in `lib/`. Context functions that call `AtomicFi.DatalakeRepo.all/insert/update/delete` without having set up dynamic routing will crash at runtime; surface that statically:
 
 ```bash
-# Callers of PaymentCompliancePlatform.(Regulated)DatalakeRepo must appear inside a with_dynamic_repo block
-grep -rn "Platform\.\(Regulated\)\?DatalakeRepo\.\(all\|insert\|update\|delete\|one\|get\|get!\|transaction\)" lib/payment_compliance_platform/ --include="*.ex" \
+# Callers of AtomicFi.(Regulated)DatalakeRepo must appear inside a with_dynamic_repo block
+grep -rn "Platform\.\(Regulated\)\?DatalakeRepo\.\(all\|insert\|update\|delete\|one\|get\|get!\|transaction\)" lib/atomic_fi/ --include="*.ex" \
   | grep -v "with_dynamic_repo" \
   | grep -v "_repo.ex" \
   | grep -v "datalakes/migration"
 ```
 
-Any result is a bug — wrap the call in `with_dynamic_repo(get_datalake_repo(datalake), PaymentCompliancePlatform.DatalakeRepo) do … end`.
+Any result is a bug — wrap the call in `with_dynamic_repo(get_datalake_repo(datalake), AtomicFi.DatalakeRepo) do … end`.
 
 **Missing checksum protocol implementations:**
 ```bash
@@ -214,10 +214,10 @@ Verify all datalake resources have `protocols.ex` files implementing ChecksumPro
 **No PATCH endpoints in the API routes** (platform-wide policy — see [cheatsheet/developer_guide.cheatmd § REST API Endpoints](../../../guides/cheatsheet/developer_guide.cheatmd#rest-api-endpoints)):
 ```bash
 # Explicit `patch "..." declarations
-grep -nE '^\s*patch\s+"' lib/payment_compliance_platform_api/routes.ex
+grep -nE '^\s*patch\s+"' lib/atomic_fi_api/routes.ex
 
 # `resources ... :update` which secretly generates both PUT and PATCH
-grep -nE 'resources.*:update' lib/payment_compliance_platform_api/routes.ex
+grep -nE 'resources.*:update' lib/atomic_fi_api/routes.ex
 ```
 
 Both greps must return **zero results**. If either is non-empty, the PR is
@@ -227,7 +227,7 @@ with a full resource body.
 
 **No `Mapper.to_map` or `request_to_attrs` in controllers:**
 ```bash
-grep -rnE 'Mapper\.to_map|request_to_attrs' lib/payment_compliance_platform_api/controllers/
+grep -rnE 'Mapper\.to_map|request_to_attrs' lib/atomic_fi_api/controllers/
 ```
 
 Must return zero results. Controllers pass the Request struct directly to
@@ -255,22 +255,22 @@ If modules fail:
 
 ### Step 9b: Test Coverage Declaration (Top-Level Contexts)
 
-Every modified file matching `lib/payment_compliance_platform/*.ex` (top-level only — not nested modules) with a real `@moduledoc` MUST declare a `## Test Coverage` section listing the exact test files that exercise it. `@moduledoc false` modules are exempt.
+Every modified file matching `lib/atomic_fi/*.ex` (top-level only — not nested modules) with a real `@moduledoc` MUST declare a `## Test Coverage` section listing the exact test files that exercise it. `@moduledoc false` modules are exempt.
 
-**Why:** Top-level `lib/payment_compliance_platform/*.ex` files are the business-logic context boundaries. Their tests are often decomposed across context tests, LiveView integration tests, and component tests. `mix coveralls.json` requires all relevant test files on the CLI — without a central reference in the moduledoc itself, CI scripts and reviewers cannot know which tests to run for accurate coverage.
+**Why:** Top-level `lib/atomic_fi/*.ex` files are the business-logic context boundaries. Their tests are often decomposed across context tests, LiveView integration tests, and component tests. `mix coveralls.json` requires all relevant test files on the CLI — without a central reference in the moduledoc itself, CI scripts and reviewers cannot know which tests to run for accurate coverage.
 
 **Pattern:**
 
 ```elixir
-defmodule PaymentCompliancePlatform.Datalakes do
+defmodule AtomicFi.Datalakes do
   @moduledoc """
   Context for datalake management.
 
   ## Test Coverage
 
       mix coveralls.json -- \\
-        test/payment_compliance_platform/datalakes_test.exs \\
-        test/payment_compliance_platform_web/live/datalake_live/index_test.exs
+        test/atomic_fi/datalakes_test.exs \\
+        test/atomic_fi_web/live/datalake_live/index_test.exs
   """
 end
 ```
@@ -278,7 +278,7 @@ end
 **Check:**
 
 ```bash
-for f in $(git diff --name-only HEAD | grep -E '^lib/payment_compliance_platform/[^/]+\.ex$'); do
+for f in $(git diff --name-only HEAD | grep -E '^lib/atomic_fi/[^/]+\.ex$'); do
   grep -q '@moduledoc false' "$f" && continue
   grep -q '^\s*## Test Coverage' "$f" || echo "FAIL: $f missing ## Test Coverage section in @moduledoc"
 done
@@ -368,7 +368,7 @@ end
 
 **Missing moduledoc:**
 ```elixir
-defmodule PaymentCompliancePlatform.Healthcare.Patients do
+defmodule AtomicFi.Healthcare.Patients do
   @moduledoc """
   Context for managing Patient resources in healthcare datalakes.
   """
@@ -380,7 +380,7 @@ end
 
 ```bash
 # See uncovered lines
-mix coveralls.detail --filter lib/payment_compliance_platform/path/to/file.ex
+mix coveralls.detail --filter lib/atomic_fi/path/to/file.ex
 
 # Use increase-test-coverage command
 /qa:increase-test-coverage
@@ -394,14 +394,14 @@ def list_patients(%Datalake{} = datalake) do
   HealthcareDatalakeRepo.all(Patient)  # ❌
 end
 
-# CORRECT - Using PaymentCompliancePlatform.DatalakeRepo with with_dynamic_repo
+# CORRECT - Using AtomicFi.DatalakeRepo with with_dynamic_repo
 def list_patients(%Datalake{} = datalake) do
-  repo_pid = PaymentCompliancePlatform.Datalakes.get_datalake_repo(datalake)
+  repo_pid = AtomicFi.Datalakes.get_datalake_repo(datalake)
   
-  with_dynamic_repo(repo_pid, PaymentCompliancePlatform.DatalakeRepo) do
+  with_dynamic_repo(repo_pid, AtomicFi.DatalakeRepo) do
     Patient
     |> preload(^@patient_preloads)
-    |> PaymentCompliancePlatform.DatalakeRepo.all()  # ✅
+    |> AtomicFi.DatalakeRepo.all()  # ✅
   end
 end
 ```

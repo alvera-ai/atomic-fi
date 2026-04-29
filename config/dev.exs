@@ -1,7 +1,7 @@
 import Config
 
 # System entities for seeding (CRM pattern - just names, not full configs)
-config :payment_compliance_platform,
+config :atomic_fi,
   tenant_name: "System",
   admin_user: "admin@system.local",
   admin_pass: "admin-password-dev",
@@ -9,7 +9,7 @@ config :payment_compliance_platform,
   root_api_key: "alvera_root_api_key_dev"
 
 # Configure encryption vault
-config :payment_compliance_platform, PaymentCompliancePlatform.Vault,
+config :atomic_fi, AtomicFi.Vault,
   ciphers: [
     default:
       {Cloak.Ciphers.AES.GCM,
@@ -17,11 +17,11 @@ config :payment_compliance_platform, PaymentCompliancePlatform.Vault,
   ]
 
 # Configure your database
-config :payment_compliance_platform, PaymentCompliancePlatform.Repo,
+config :atomic_fi, AtomicFi.Repo,
   username: "postgres",
   password: "postgres",
   hostname: "localhost",
-  database: "payment_compliance_platform_dev",
+  database: "atomic_fi_dev",
   stacktrace: true,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
@@ -32,7 +32,7 @@ config :payment_compliance_platform, PaymentCompliancePlatform.Repo,
 # The watchers configuration can be used to run external
 # watchers to your application. For example, we use it
 # with esbuild to bundle .js and .css sources.
-config :payment_compliance_platform, PaymentCompliancePlatformWeb.Endpoint,
+config :atomic_fi, AtomicFiWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
   http: [ip: {127, 0, 0, 1}, port: 4100],
@@ -69,17 +69,17 @@ config :payment_compliance_platform, PaymentCompliancePlatformWeb.Endpoint,
 # different ports.
 
 # Watch static and templates for browser reloading.
-config :payment_compliance_platform, PaymentCompliancePlatformWeb.Endpoint,
+config :atomic_fi, AtomicFiWeb.Endpoint,
   live_reload: [
     patterns: [
       ~r"priv/static/.*(js|css|png|jpeg|jpg|gif|svg)$",
       ~r"priv/gettext/.*(po)$",
-      ~r"lib/payment_compliance_platform_web/(controllers|live|components)/.*(ex|heex)$"
+      ~r"lib/atomic_fi_web/(controllers|live|components)/.*(ex|heex)$"
     ]
   ]
 
 # Enable dev routes for dashboard and mailbox
-config :payment_compliance_platform, dev_routes: true
+config :atomic_fi, dev_routes: true
 
 # Do not include metadata nor timestamps in development logs
 config :logger, :console, format: "[$level] $message\n"
@@ -98,8 +98,8 @@ config :swoosh, :api_client, false
 config :oapi_generator,
   watchman: [
     output: [
-      base_module: PaymentCompliancePlatform.Watchman,
-      location: "lib/payment_compliance_platform/watchman"
+      base_module: AtomicFi.Watchman,
+      location: "lib/atomic_fi/watchman"
     ]
   ]
 

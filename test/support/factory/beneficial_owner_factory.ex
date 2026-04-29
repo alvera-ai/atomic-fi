@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.BeneficialOwnerFactory do
+defmodule AtomicFi.Factory.BeneficialOwnerFactory do
   @moduledoc """
   Factory for BeneficialOwner context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.BeneficialOwnerContext.BeneficialOwner
+      alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
 
       def beneficial_owner_factory(attrs \\ %{}) do
         tenant_id =

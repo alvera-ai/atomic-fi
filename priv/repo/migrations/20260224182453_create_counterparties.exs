@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.CreateCounterparties do
+defmodule AtomicFi.Repo.Migrations.CreateCounterparties do
   use Ecto.Migration
 
   def change do

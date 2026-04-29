@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.CreateKycRequirements do
+defmodule AtomicFi.Repo.Migrations.CreateKycRequirements do
   use Ecto.Migration
 
   def change do

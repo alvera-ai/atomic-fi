@@ -28,7 +28,7 @@ are needed.
 
 **Example:**
 ```
-/qa:increase-test-coverage lib/payment_compliance_platform/healthcare/patients.ex
+/qa:increase-test-coverage lib/atomic_fi/healthcare/patients.ex
 ```
 
 ## Instructions
@@ -63,8 +63,8 @@ exercise the target's code paths. Apply judgment:
 These test the module's public API directly (context functions, schema
 changesets, worker perform/1). Use globs where possible:
 
-    test/payment_compliance_platform/<module>/*_test.exs
-    test/payment_compliance_platform/<module>/workers/*_test.exs
+    test/atomic_fi/<module>/*_test.exs
+    test/atomic_fi/<module>/workers/*_test.exs
 
 **Step 2b: Identify integration/lifecycle tests (1 degree deeper)**
 
@@ -73,14 +73,14 @@ flows (e.g., athena lifecycle tests exercise DAC pagination, row processing,
 MDM resolution). Include them — they cover the deep pipeline paths that
 unit tests miss.
 
-    test/payment_compliance_platform/<module>/athena/*_test.exs
-    test/payment_compliance_platform/<module>/open_banking/*_test.exs
+    test/atomic_fi/<module>/athena/*_test.exs
+    test/atomic_fi/<module>/open_banking/*_test.exs
 
 **Step 2c: Identify HTTP/controller tests**
 
 If the module is called by a controller, include the controller's test files:
 
-    test/payment_compliance_platform_api/controllers/<related>_test.exs
+    test/atomic_fi_api/controllers/<related>_test.exs
 
 **Step 2d: Write the curated list into the module's `@moduledoc`**
 
@@ -94,15 +94,15 @@ curated globs. This persists the judgment call for future coverage runs:
 ## Test Coverage
 
     Direct (unit + context tests):
-        test/payment_compliance_platform/data_activation_clients/*_test.exs
-        test/payment_compliance_platform/data_activation_clients/workers/*_test.exs
+        test/atomic_fi/data_activation_clients/*_test.exs
+        test/atomic_fi/data_activation_clients/workers/*_test.exs
 
     Integration (lifecycle + flow tests):
-        test/payment_compliance_platform/data_activation_clients/athena/*_test.exs
-        test/payment_compliance_platform/data_activation_clients/open_banking/*_test.exs
+        test/atomic_fi/data_activation_clients/athena/*_test.exs
+        test/atomic_fi/data_activation_clients/open_banking/*_test.exs
 
     HTTP (controller tests):
-        test/payment_compliance_platform_api/controllers/data_activation_client_*_test.exs
+        test/atomic_fi_api/controllers/data_activation_client_*_test.exs
 """
 ```
 
@@ -159,7 +159,7 @@ for sf in data['source_files']:
 
 **Example output:**
 ```
-lib/payment_compliance_platform/healthcare/patients.ex: 163/166 = 98.2%
+lib/atomic_fi/healthcare/patients.ex: 163/166 = 98.2%
 Uncovered lines: [235, 277, 315]
 ```
 
@@ -171,8 +171,8 @@ Read the uncovered lines to understand what needs tests:
 
 ```bash
 # View specific uncovered lines (adjust numbers from Step 3)
-sed -n '230,240p' lib/payment_compliance_platform/<module>.ex
-sed -n '273,282p' lib/payment_compliance_platform/<module>.ex
+sed -n '230,240p' lib/atomic_fi/<module>.ex
+sed -n '273,282p' lib/atomic_fi/<module>.ex
 ```
 
 **Common uncovered patterns:**
@@ -206,7 +206,7 @@ Use TodoWrite to track uncovered lines:
 
 ```elixir
 test "returns error when datalake invalid", %{user: user, client: client} do
-  invalid_datalake = %PaymentCompliancePlatform.Datalakes.Datalake{
+  invalid_datalake = %AtomicFi.Datalakes.Datalake{
     id: Ecto.UUID.generate(),
     db_schema: "nonexistent"
   }
@@ -254,10 +254,10 @@ After adding each test:
 
 ```bash
 # Run tests
-zsh -l -c 'source ~/.zshrc && MIX_ENV=test mix test test/payment_compliance_platform/<module>_test.exs --color 2>&1 | tee /tmp/test.txt'
+zsh -l -c 'source ~/.zshrc && MIX_ENV=test mix test test/atomic_fi/<module>_test.exs --color 2>&1 | tee /tmp/test.txt'
 
 # Regenerate coverage
-zsh -l -c 'source ~/.zshrc && MIX_ENV=test mix coveralls.json --color -- test/payment_compliance_platform/<module>_test.exs 2>&1 | tee /tmp/coverage.txt'
+zsh -l -c 'source ~/.zshrc && MIX_ENV=test mix coveralls.json --color -- test/atomic_fi/<module>_test.exs 2>&1 | tee /tmp/coverage.txt'
 
 # Check coverage increase
 python3 -c "
@@ -288,7 +288,7 @@ Repeat Steps 6-7 until all lines are covered.
 
 ```bash
 # Run full test suite for module
-zsh -l -c 'source ~/.zshrc && MIX_ENV=test mix coveralls.json --color -- test/payment_compliance_platform/<module>_test.exs 2>&1 | tee /tmp/coverage.txt'
+zsh -l -c 'source ~/.zshrc && MIX_ENV=test mix coveralls.json --color -- test/atomic_fi/<module>_test.exs 2>&1 | tee /tmp/coverage.txt'
 
 # Confirm 100%
 python3 -c "
@@ -354,7 +354,7 @@ for sf in sorted(data['source_files'], key=lambda x: x['name']):
 
 **Solution:** Add debug output or trace the test:
 ```bash
-zsh -l -c 'source ~/.zshrc && MIX_ENV=test mix test test/payment_compliance_platform/<module>_test.exs:<line> --trace --color 2>&1 | tee /tmp/test.txt'
+zsh -l -c 'source ~/.zshrc && MIX_ENV=test mix test test/atomic_fi/<module>_test.exs:<line> --trace --color 2>&1 | tee /tmp/test.txt'
 ```
 
 ### Issue 2: Private Function Uncovered
@@ -438,7 +438,7 @@ Wrap the whole Logger call (or the tiny helper it delegates to) in
 points at the existing test that exercises the path:
 
 ```elixir
-# coveralls-ignore-start: multi-line Logger keyword-args excoveralls artifact — path tested via test/payment_compliance_platform/foo_test.exs:123
+# coveralls-ignore-start: multi-line Logger keyword-args excoveralls artifact — path tested via test/atomic_fi/foo_test.exs:123
 Logger.warning(
   op: "something",
   error_code: :some_code,

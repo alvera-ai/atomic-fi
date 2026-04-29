@@ -172,7 +172,7 @@ zsh -l -c 'source ~/.zshrc && mix test.ddls --max-cases 4 --color 2>&1 | tee /tm
 zsh -l -c 'source ~/.zshrc && mix test.core test/path/to/test.exs:42 --trace --color 2>&1 | tee /tmp/test.txt'
 
 # Look for factory call in stack trace:
-# PaymentCompliancePlatform.Factories.Healthcare.Patient.patient_factory/1
+# AtomicFi.Factories.Healthcare.Patient.patient_factory/1
 ```
 
 ### Step 2: Check Factory Definition
@@ -222,7 +222,7 @@ end
 ```elixir
 # BAD - Wrong namespace
 test "creates patient" do
-  patient = insert(:patient)  # ← Fails: no :patient factory in PaymentCompliancePlatform.Repo namespace
+  patient = insert(:patient)  # ← Fails: no :patient factory in AtomicFi.Repo namespace
 end
 
 # GOOD - Namespace qualify
@@ -264,8 +264,8 @@ zsh -l -c 'source ~/.zshrc && mix test.core test/path/to/test.exs --color 2>&1 |
 
 ```elixir
 # BAD - Missing setup
-defmodule PaymentCompliancePlatform.Healthcare.PatientsTest do
-  use PaymentCompliancePlatform.DataCase
+defmodule AtomicFi.Healthcare.PatientsTest do
+  use AtomicFi.DataCase
   # Missing: setup :setup_healthcare_context
 
   test "creates patient", %{datalake: datalake} do  # ← datalake not available
@@ -274,8 +274,8 @@ defmodule PaymentCompliancePlatform.Healthcare.PatientsTest do
 end
 
 # GOOD - Add setup
-defmodule PaymentCompliancePlatform.Healthcare.PatientsTest do
-  use PaymentCompliancePlatform.DataCase
+defmodule AtomicFi.Healthcare.PatientsTest do
+  use AtomicFi.DataCase
   setup :setup_healthcare_context  # ← Provides datalake, user, client
 
   test "creates patient", %{datalake: datalake} do
@@ -319,7 +319,7 @@ Patients.create_patient(datalake, user, client, batch_id, attrs)
 ```elixir
 # BAD - Missing preload
 def list_patients(%Datalake{} = datalake) do
-  repo_pid = PaymentCompliancePlatform.Datalakes.get_datalake_repo(datalake)
+  repo_pid = AtomicFi.Datalakes.get_datalake_repo(datalake)
   with_dynamic_repo(repo_pid, HealthcareDatalakeRepo) do
     Patient
     |> HealthcareDatalakeRepo.all(prefix: datalake.db_schema)
@@ -331,7 +331,7 @@ end
 @patient_preloads [:marital_status, name: [], telecom: [], address: []]
 
 def list_patients(%Datalake{} = datalake) do
-  repo_pid = PaymentCompliancePlatform.Datalakes.get_datalake_repo(datalake)
+  repo_pid = AtomicFi.Datalakes.get_datalake_repo(datalake)
   with_dynamic_repo(repo_pid, HealthcareDatalakeRepo) do
     Patient
     |> preload(^@patient_preloads)  # ← In query
@@ -371,14 +371,14 @@ mix ecto.gen.migration add_missing_association --repo <RepoModule>
 
 ```elixir
 # BAD - Async with shared state
-use PaymentCompliancePlatform.DataCase, async: true
+use AtomicFi.DataCase, async: true
 
 test "uses datalake" do
   datalake = insert(:datalake)  # ← May conflict with other async tests
 end
 
 # GOOD - Use async: false for tests with shared state
-use PaymentCompliancePlatform.DataCase, async: false  # ← Safer for datalake tests
+use AtomicFi.DataCase, async: false  # ← Safer for datalake tests
 ```
 
 ### Step 2: Use Proper Isolation
@@ -511,7 +511,7 @@ MIX_ENV=test iex -S mix
 
 # Load test helpers
 iex> Code.require_file("test/support/data_case.ex")
-iex> import PaymentCompliancePlatform.DataCase
+iex> import AtomicFi.DataCase
 
 # Test factory
 iex> PublicHealthcareFactory.build(:patient)
@@ -519,7 +519,7 @@ iex> PublicHealthcareFactory.build(:patient)
 # Test context function
 iex> org = insert(:org)
 iex> datalake = insert(:datalake, org: org)
-iex> PaymentCompliancePlatform.Healthcare.Patients.list_patients(datalake)
+iex> AtomicFi.Healthcare.Patients.list_patients(datalake)
 ```
 
 ### ExUnit Tracing

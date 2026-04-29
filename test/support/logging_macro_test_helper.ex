@@ -1,13 +1,13 @@
-defmodule PaymentCompliancePlatform.LoggingMacroTestHelper do
+defmodule AtomicFi.LoggingMacroTestHelper do
   @moduledoc """
   Test helper module to verify def_with_rls_and_logging macro works correctly.
   """
 
   require Logger
-  import PaymentCompliancePlatform.LoggerMacro, only: [def_with_rls_and_logging: 3]
+  import AtomicFi.LoggerMacro, only: [def_with_rls_and_logging: 3]
 
-  alias PaymentCompliancePlatform.RoleContext.Role
-  alias PaymentCompliancePlatform.SessionContext.Session
+  alias AtomicFi.RoleContext.Role
+  alias AtomicFi.SessionContext.Session
 
   @doc """
   Simple success case - returns {:ok, :success}

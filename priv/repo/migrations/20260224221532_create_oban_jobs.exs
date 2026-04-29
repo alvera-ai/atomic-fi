@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.CreateObanJobs do
+defmodule AtomicFi.Repo.Migrations.CreateObanJobs do
   use Ecto.Migration
 
   def up do

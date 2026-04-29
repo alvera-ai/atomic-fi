@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.RiskClassificationFactory do
+defmodule AtomicFi.Factory.RiskClassificationFactory do
   @moduledoc """
   Factory for RiskClassification context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.RiskClassificationContext.RiskClassification
+      alias AtomicFi.RiskClassificationContext.RiskClassification
 
       def risk_classification_factory(attrs \\ %{}) do
         tenant_id =

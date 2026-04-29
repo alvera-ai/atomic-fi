@@ -48,14 +48,14 @@ cd my-app
 
 ### 2. Rename Project (Optional)
 
-If you want to rename from `PaymentCompliancePlatform` to your app name:
+If you want to rename from `AtomicFi` to your app name:
 
 ```bash
 # Install dependencies first
 mix deps.get
 
 # Rename project
-mix rename PaymentCompliancePlatform MyApp payment_compliance_platform my_app
+mix rename AtomicFi MyApp atomic_fi my_app
 ```
 
 ### 3. Configure Environment
@@ -154,7 +154,7 @@ mix test
 mix coveralls
 
 # Run specific test file
-mix test test/payment_compliance_platform/accounts_test.exs
+mix test test/atomic_fi/accounts_test.exs
 ```
 
 ### Run Quality Checks

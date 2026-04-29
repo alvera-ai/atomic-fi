@@ -25,12 +25,12 @@ test/
 │       ├── accounts_fixtures.ex
 │       └── ...
 │
-├── payment_compliance_platform/
+├── atomic_fi/
 │   ├── user_context_test.exs
 │   ├── tenant_context_test.exs
 │   └── ...
 │
-├── payment_compliance_platform_web/
+├── atomic_fi_web/
 │   ├── controllers/
 │   │   └── user_controller_test.exs
 │   ├── live/
@@ -48,23 +48,23 @@ test/
 **File**: `test/support/data_case.ex`
 
 ```elixir
-defmodule PaymentCompliancePlatform.DataCase do
+defmodule AtomicFi.DataCase do
   use ExUnit.CaseTemplate
 
   using do
     quote do
-      alias PaymentCompliancePlatform.Repo
+      alias AtomicFi.Repo
 
       import Ecto
       import Ecto.Changeset
       import Ecto.Query
-      import PaymentCompliancePlatform.DataCase
-      import PaymentCompliancePlatform.Factory
+      import AtomicFi.DataCase
+      import AtomicFi.Factory
     end
   end
 
   setup tags do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(PaymentCompliancePlatform.Repo, shared: not tags[:async])
+    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(AtomicFi.Repo, shared: not tags[:async])
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
     :ok
   end
@@ -84,36 +84,36 @@ end
 **File**: `test/support/conn_case.ex`
 
 ```elixir
-defmodule PaymentCompliancePlatformWeb.ConnCase do
+defmodule AtomicFiWeb.ConnCase do
   use ExUnit.CaseTemplate
 
   using do
     quote do
       import Plug.Conn
       import Phoenix.ConnTest
-      import PaymentCompliancePlatformWeb.ConnCase
-      import PaymentCompliancePlatform.Factory
+      import AtomicFiWeb.ConnCase
+      import AtomicFi.Factory
 
-      alias PaymentCompliancePlatformWeb.Router.Helpers, as: Routes
+      alias AtomicFiWeb.Router.Helpers, as: Routes
 
-      @endpoint PaymentCompliancePlatformWeb.Endpoint
+      @endpoint AtomicFiWeb.Endpoint
     end
   end
 
   setup tags do
-    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(PaymentCompliancePlatform.Repo, shared: not tags[:async])
+    pid = Ecto.Adapters.SQL.Sandbox.start_owner!(AtomicFi.Repo, shared: not tags[:async])
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
 
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
   def register_and_log_in_user(%{conn: conn}) do
-    user = PaymentCompliancePlatform.Factory.insert(:user)
+    user = AtomicFi.Factory.insert(:user)
     %{conn: log_in_user(conn, user), user: user}
   end
 
   def log_in_user(conn, user) do
-    token = PaymentCompliancePlatform.UserContext.generate_user_session_token(user)
+    token = AtomicFi.UserContext.generate_user_session_token(user)
 
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
@@ -127,11 +127,11 @@ end
 **File**: `test/support/factory.ex`
 
 ```elixir
-defmodule PaymentCompliancePlatform.Factory do
-  use ExMachina.Ecto, repo: PaymentCompliancePlatform.Repo
+defmodule AtomicFi.Factory do
+  use ExMachina.Ecto, repo: AtomicFi.Repo
 
   def tenant_factory do
-    %PaymentCompliancePlatform.TenantContext.Tenant{
+    %AtomicFi.TenantContext.Tenant{
       name: sequence(:name, &"Tenant #{&1}"),
       slug: sequence(:slug, &"tenant-#{&1}"),
       status: "active"
@@ -141,7 +141,7 @@ defmodule PaymentCompliancePlatform.Factory do
   def user_factory do
     tenant = insert(:tenant)
 
-    %PaymentCompliancePlatform.UserContext.User{
+    %AtomicFi.UserContext.User{
       email: sequence(:email, &"user#{&1}@example.com"),
       hashed_password: Bcrypt.hash_pwd_salt("password123!"),
       confirmed_at: ~U[2024-01-01 00:00:00Z],
@@ -153,7 +153,7 @@ defmodule PaymentCompliancePlatform.Factory do
   def role_factory do
     tenant = insert(:tenant)
 
-    %PaymentCompliancePlatform.RoleContext.Role{
+    %AtomicFi.RoleContext.Role{
       name: sequence(:role_name, &"Role #{&1}"),
       description: "Test role",
       owner: tenant
@@ -167,12 +167,12 @@ end
 ### Basic Context Tests
 
 ```elixir
-defmodule PaymentCompliancePlatform.UserContextTest do
-  use PaymentCompliancePlatform.DataCase, async: true
+defmodule AtomicFi.UserContextTest do
+  use AtomicFi.DataCase, async: true
 
   @moduletag :refactored  # For coverage tracking
 
-  alias PaymentCompliancePlatform.UserContext
+  alias AtomicFi.UserContext
 
   describe "list_users/2" do
     test "returns all users for a tenant" do
@@ -280,8 +280,8 @@ end
 ### HTTP Controller Tests
 
 ```elixir
-defmodule PaymentCompliancePlatformApi.UserControllerTest do
-  use PaymentCompliancePlatformWeb.ConnCase, async: true
+defmodule AtomicFiApi.UserControllerTest do
+  use AtomicFiWeb.ConnCase, async: true
 
   import OpenApiSpex.TestAssertions
 
@@ -337,8 +337,8 @@ end
 ### Basic LiveView Tests
 
 ```elixir
-defmodule PaymentCompliancePlatformWeb.UserLiveTest do
-  use PaymentCompliancePlatformWeb.ConnCase, async: true
+defmodule AtomicFiWeb.UserLiveTest do
+  use AtomicFiWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
 
@@ -408,26 +408,26 @@ end
 **File**: `test/support/feature_case.ex`
 
 ```elixir
-defmodule PaymentCompliancePlatformWeb.FeatureCase do
+defmodule AtomicFiWeb.FeatureCase do
   use ExUnit.CaseTemplate
 
   using do
     quote do
       use Wallaby.Feature
 
-      import PaymentCompliancePlatform.Factory
-      import PaymentCompliancePlatformWeb.FeatureCase
+      import AtomicFi.Factory
+      import AtomicFiWeb.FeatureCase
     end
   end
 
   setup tags do
-    :ok = Ecto.Adapters.SQL.Sandbox.checkout(PaymentCompliancePlatform.Repo)
+    :ok = Ecto.Adapters.SQL.Sandbox.checkout(AtomicFi.Repo)
 
     unless tags[:async] do
-      Ecto.Adapters.SQL.Sandbox.mode(PaymentCompliancePlatform.Repo, {:shared, self()})
+      Ecto.Adapters.SQL.Sandbox.mode(AtomicFi.Repo, {:shared, self()})
     end
 
-    metadata = Phoenix.Ecto.SQL.Sandbox.metadata_for(PaymentCompliancePlatform.Repo, self())
+    metadata = Phoenix.Ecto.SQL.Sandbox.metadata_for(AtomicFi.Repo, self())
     {:ok, session} = Wallaby.start_session(metadata: metadata)
     {:ok, session: session}
   end
@@ -437,8 +437,8 @@ end
 ### E2E Tests
 
 ```elixir
-defmodule PaymentCompliancePlatformWeb.UserRegistrationTest do
-  use PaymentCompliancePlatformWeb.FeatureCase, async: true
+defmodule AtomicFiWeb.UserRegistrationTest do
+  use AtomicFiWeb.FeatureCase, async: true
 
   feature "user can register", %{session: session} do
     session
@@ -467,18 +467,18 @@ end
 **File**: `test/test_helper.exs`
 
 ```elixir
-Mimic.copy(PaymentCompliancePlatform.Mailer)
+Mimic.copy(AtomicFi.Mailer)
 Mimic.copy(HTTPoison)  # For external API calls
 
 ExUnit.start()
-Ecto.Adapters.SQL.Sandbox.mode(PaymentCompliancePlatform.Repo, :manual)
+Ecto.Adapters.SQL.Sandbox.mode(AtomicFi.Repo, :manual)
 ```
 
 ### Mocking in Tests
 
 ```elixir
-defmodule PaymentCompliancePlatform.UserContextTest do
-  use PaymentCompliancePlatform.DataCase, async: false
+defmodule AtomicFi.UserContextTest do
+  use AtomicFi.DataCase, async: false
 
   import Mimic
 
@@ -487,7 +487,7 @@ defmodule PaymentCompliancePlatform.UserContextTest do
   describe "register_user/1" do
     test "sends confirmation email" do
       # Mock mailer
-      expect(PaymentCompliancePlatform.Mailer, :deliver, fn email ->
+      expect(AtomicFi.Mailer, :deliver, fn email ->
         assert email.to == [{"", "test@example.com"}]
         {:ok, email}
       end)
@@ -582,7 +582,7 @@ mix coveralls --min-coverage 80
 
 ```elixir
 # Most tests can run async
-use PaymentCompliancePlatform.DataCase, async: true
+use AtomicFi.DataCase, async: true
 
 # Only use async: false when:
 # - Using Mimic
@@ -634,10 +634,10 @@ test "test validation"
 mix test
 
 # Run specific file
-mix test test/payment_compliance_platform/user_context_test.exs
+mix test test/atomic_fi/user_context_test.exs
 
 # Run specific line
-mix test test/payment_compliance_platform/user_context_test.exs:42
+mix test test/atomic_fi/user_context_test.exs:42
 
 # Run with coverage
 mix coveralls

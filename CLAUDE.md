@@ -85,11 +85,11 @@ Follow git-flow branching model:
 Row-Level Security (RLS) fields are configured in `config/config.exs`:
 
 ```elixir
-config :payment_compliance_platform,
+config :atomic_fi,
   rls_fields: [:tenant_id],
   rls_primary_field: :tenant_id,
   rls_primary_table: :tenants,
-  rls_primary_module: PaymentCompliancePlatform.TenantContext.Tenant
+  rls_primary_module: AtomicFi.TenantContext.Tenant
 ```
 
 ### Generators
@@ -108,7 +108,7 @@ The **Tenant schema itself** requires special handling since it's the top-level 
 
 2. **Modify the schema** to use a virtual `tenant_id` field that mirrors `id`:
    ```elixir
-   # In lib/payment_compliance_platform/tenant_context/tenant.ex
+   # In lib/atomic_fi/tenant_context/tenant.ex
    # Remove: belongs_to :tenant, Tenant
 
    # Add instead:
@@ -144,8 +144,8 @@ ExOpenApiUtils automatically generates separate Request and Response schemas fro
 
 **Naming Convention:**
 - Schema title `"AccountHolder"` generates:
-  - `PaymentCompliancePlatform.OpenApiSchema.AccountHolderRequest` (for API requests)
-  - `PaymentCompliancePlatform.OpenApiSchema.AccountHolderResponse` (for API responses)
+  - `AtomicFi.OpenApiSchema.AccountHolderRequest` (for API requests)
+  - `AtomicFi.OpenApiSchema.AccountHolderResponse` (for API responses)
 
 **Important:** Title must match module name exactly (no spaces):
 - ✅ `title: "AccountHolder"`
@@ -232,7 +232,7 @@ AccountHolderContext.create_account_holder(session, attrs)
 
 ### Context functions own the struct conversion
 
-`use PaymentCompliancePlatform.Schema` → `use ExOpenApiUtils` replaces `Ecto.Changeset.cast/3`
+`use AtomicFi.Schema` → `use ExOpenApiUtils` replaces `Ecto.Changeset.cast/3`
 with `ExOpenApiUtils.Changeset.cast/3`, which calls `Mapper.to_map(params)` internally.
 This means **the struct can be passed directly to `changeset/2`** — no manual conversion needed.
 

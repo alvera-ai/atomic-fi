@@ -22,10 +22,10 @@ mix alvera.gen.context Accounts User users \
 
 ## Generated Files
 
-- `lib/payment_compliance_platform/<context>/<schema>.ex` - Schema with TypedEctoSchema + OpenAPI annotations
-- `lib/payment_compliance_platform/<context>.ex` - Context module with complete CRUD
+- `lib/atomic_fi/<context>/<schema>.ex` - Schema with TypedEctoSchema + OpenAPI annotations
+- `lib/atomic_fi/<context>.ex` - Context module with complete CRUD
 - `priv/repo/migrations/TIMESTAMP_create_<plural>.exs` - Migration with column comments
-- `test/payment_compliance_platform/<context>_test.exs` - Complete tests with @moduletag :refactored
+- `test/atomic_fi/<context>_test.exs` - Complete tests with @moduletag :refactored
 - `test/support/fixtures/<context>_fixtures.ex` - Factory definitions
 
 ## Pattern Checklist
@@ -33,8 +33,8 @@ mix alvera.gen.context Accounts User users \
 ### Schema (with TypedEctoSchema + Flop + @typedoc)
 
 ```elixir
-defmodule PaymentCompliancePlatform.Accounts.User do
-  use PaymentCompliancePlatform.Schema  # Includes TypedEctoSchema + ExOpenApiUtils
+defmodule AtomicFi.Accounts.User do
+  use AtomicFi.Schema  # Includes TypedEctoSchema + ExOpenApiUtils
 
   # Flop configuration for pagination, filtering, and sorting
   @derive {
@@ -88,7 +88,7 @@ defmodule PaymentCompliancePlatform.Accounts.User do
     field :status, :string, default: "active"
 
     # Multi-tenancy: tenant_id references tenants for RLS
-    belongs_to :tenant, PaymentCompliancePlatform.TenantContext.Tenant
+    belongs_to :tenant, AtomicFi.TenantContext.Tenant
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -106,10 +106,10 @@ end
 ### Context Module (with Flop + Preloads)
 
 ```elixir
-defmodule PaymentCompliancePlatform.Accounts do
+defmodule AtomicFi.Accounts do
   import Ecto.Query
-  alias PaymentCompliancePlatform.Repo
-  alias PaymentCompliancePlatform.Accounts.User
+  alias AtomicFi.Repo
+  alias AtomicFi.Accounts.User
 
   # Preloads for User responses (defined once, used everywhere)
   @user_preloads [:tenant]
@@ -254,7 +254,7 @@ Accounts.list_users(user, %{
 **IMPORTANT**: All migrations must include both table comments and column comments. This documentation is visible in the database schema and should match the @typedoc descriptions in schemas.
 
 ```elixir
-defmodule PaymentCompliancePlatform.Repo.Migrations.CreateUsers do
+defmodule AtomicFi.Repo.Migrations.CreateUsers do
   use Ecto.Migration
 
   def change do
@@ -311,12 +311,12 @@ end
 ### Tests (with @moduletag :refactored)
 
 ```elixir
-defmodule PaymentCompliancePlatform.AccountsTest do
-  use PaymentCompliancePlatform.DataCase, async: true
+defmodule AtomicFi.AccountsTest do
+  use AtomicFi.DataCase, async: true
 
   @moduletag :refactored  # For coverage tracking
 
-  alias PaymentCompliancePlatform.Accounts
+  alias AtomicFi.Accounts
 
   describe "list_users/2" do
     test "returns all users for a tenant" do
@@ -358,7 +358,7 @@ end
 ## Multi-Tenancy Pattern
 
 All resources MUST include:
-- `belongs_to :owner, PaymentCompliancePlatform.TenantContext.Tenant`
+- `belongs_to :owner, AtomicFi.TenantContext.Tenant`
 - `owner_id` field in schema and migrations
 - Composite unique indexes: `unique_index(:table, [:field, :owner_id])`
 - Context functions scoped by `owner_id`
@@ -458,12 +458,12 @@ The generator automatically updates both schemas with `many_to_many` association
 
 ```elixir
 # In User schema
-many_to_many :roles, PaymentCompliancePlatform.RoleContext.Role,
+many_to_many :roles, AtomicFi.RoleContext.Role,
   join_through: "user_roles",
   on_replace: :delete
 
 # In Role schema
-many_to_many :users, PaymentCompliancePlatform.UserContext.User,
+many_to_many :users, AtomicFi.UserContext.User,
   join_through: "user_roles",
   on_replace: :delete
 ```

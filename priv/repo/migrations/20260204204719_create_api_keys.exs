@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.CreateApiKeys do
+defmodule AtomicFi.Repo.Migrations.CreateApiKeys do
   use Ecto.Migration
 
   def change do
