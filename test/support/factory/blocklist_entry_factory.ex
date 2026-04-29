@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.BlocklistEntryFactory do
+defmodule AtomicFi.Factory.BlocklistEntryFactory do
   @moduledoc """
   Factory for BlocklistEntry context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.BlocklistContext.BlocklistEntry
+      alias AtomicFi.BlocklistContext.BlocklistEntry
 
       def blocklist_entry_factory do
         unique_suffix = String.slice(Ecto.UUID.generate(), 0, 8)

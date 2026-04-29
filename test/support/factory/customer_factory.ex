@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.CustomerFactory do
+defmodule AtomicFi.Factory.CustomerFactory do
   @moduledoc """
   Factory for Customer context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.CustomerContext.Customer
+      alias AtomicFi.CustomerContext.Customer
 
       def customer_factory(attrs \\ %{}) do
         unique_suffix = String.slice(Ecto.UUID.generate(), 0, 8)

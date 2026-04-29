@@ -260,12 +260,12 @@ All ISO 20022 messages for the `payments` domain are constructable from this SoE
 
 ```elixir
 # Context tests use DataCase + real DB (no mocks)
-defmodule PaymentCompliancePlatform.AccountHolderContextTest do
-  use PaymentCompliancePlatform.DataCase
-  import PaymentCompliancePlatform.Factory
+defmodule AtomicFi.AccountHolderContextTest do
+  use AtomicFi.DataCase
+  import AtomicFi.Factory
 
-  alias PaymentCompliancePlatform.AccountHolderContext
-  alias PaymentCompliancePlatform.OpenApiSchema.AccountHolderRequest
+  alias AtomicFi.AccountHolderContext
+  alias AtomicFi.OpenApiSchema.AccountHolderRequest
 
   test "create_account_holder/2 with valid data creates an account_holder", %{session: session} do
     legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
@@ -293,10 +293,10 @@ end
 
 ```bash
 # Run all context tests
-mix test test/payment_compliance_platform/
+mix test test/atomic_fi/
 
 # Run all controller tests
-mix test test/payment_compliance_platform_api/
+mix test test/atomic_fi_api/
 
 # Full suite (292 tests, 0 failures)
 mix test

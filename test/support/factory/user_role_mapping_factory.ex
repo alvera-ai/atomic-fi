@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.UserRoleMappingFactory do
+defmodule AtomicFi.Factory.UserRoleMappingFactory do
   @moduledoc """
   Factory for UserRoleMapping join table schema.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.RoleContext.UserRoleMapping
+      alias AtomicFi.RoleContext.UserRoleMapping
 
       def user_role_mapping_factory(attrs \\ %{}) do
         # Only create user if neither :user nor :user_id is provided

@@ -1,10 +1,10 @@
-defmodule PaymentCompliancePlatform.AccountHolderContextFixtures do
+defmodule AtomicFi.AccountHolderContextFixtures do
   @moduledoc """
   This module defines test helpers for creating
-  entities via the `PaymentCompliancePlatform.AccountHolderContext` context.
+  entities via the `AtomicFi.AccountHolderContext` context.
   """
 
-  import PaymentCompliancePlatform.Factory
+  import AtomicFi.Factory
 
   @doc """
   Generate an account_holder.

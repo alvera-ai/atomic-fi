@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatformWeb.ConnCase do
+defmodule AtomicFiWeb.ConnCase do
   @moduledoc """
   This module defines the test case to be used by
   tests that require setting up a connection.
@@ -11,7 +11,7 @@ defmodule PaymentCompliancePlatformWeb.ConnCase do
   we enable the SQL sandbox, so changes done to the database
   are reverted at the end of every test. If you are using
   PostgreSQL, you can even run database tests asynchronously
-  by setting `use PaymentCompliancePlatformWeb.ConnCase, async: true`, although
+  by setting `use AtomicFiWeb.ConnCase, async: true`, although
   this option is not recommended for other databases.
   """
 
@@ -20,20 +20,20 @@ defmodule PaymentCompliancePlatformWeb.ConnCase do
   using do
     quote do
       # The default endpoint for testing
-      @endpoint PaymentCompliancePlatformWeb.Endpoint
+      @endpoint AtomicFiWeb.Endpoint
 
-      use PaymentCompliancePlatformWeb, :verified_routes
+      use AtomicFiWeb, :verified_routes
 
       # Import conveniences for testing with connections
       import Plug.Conn
       import Phoenix.ConnTest
-      import PaymentCompliancePlatformWeb.ConnCase
-      import PaymentCompliancePlatform.Factory
+      import AtomicFiWeb.ConnCase
+      import AtomicFi.Factory
     end
   end
 
   setup tags do
-    PaymentCompliancePlatform.DataCase.setup_sandbox(tags)
+    AtomicFi.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
@@ -55,17 +55,15 @@ defmodule PaymentCompliancePlatformWeb.ConnCase do
 
   """
   def init_blocklist_cache do
-    alias PaymentCompliancePlatform.{Repo}
-    alias PaymentCompliancePlatform.TenantContext.Tenant
+    alias AtomicFi.{Repo}
+    alias AtomicFi.TenantContext.Tenant
     import Ecto.Query
 
     platform_tenant =
       from(t in Tenant, where: t.tenant_type == :platform)
       |> Repo.one!(skip_multi_tenancy_check: true)
 
-    PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(
-      platform_tenant.id
-    )
+    AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache(platform_tenant.id)
   end
 
   @doc """
@@ -83,7 +81,7 @@ defmodule PaymentCompliancePlatformWeb.ConnCase do
 
   """
   def init_blocklist_cache(tenant_id) do
-    PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant_id)
+    AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant_id)
   end
 
   @doc """
@@ -92,9 +90,9 @@ defmodule PaymentCompliancePlatformWeb.ConnCase do
   Creates the same blocklist entries as seeds.exs for testing purposes.
   """
   def seed_blocklist_for_platform_tenant do
-    alias PaymentCompliancePlatform.{Repo}
-    alias PaymentCompliancePlatform.TenantContext.Tenant
-    alias PaymentCompliancePlatform.BlocklistContext.BlocklistEntry
+    alias AtomicFi.{Repo}
+    alias AtomicFi.TenantContext.Tenant
+    alias AtomicFi.BlocklistContext.BlocklistEntry
     import Ecto.Query
 
     platform_tenant =
@@ -150,9 +148,7 @@ defmodule PaymentCompliancePlatformWeb.ConnCase do
       |> Repo.insert!(skip_multi_tenancy_check: true)
     end)
 
-    PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(
-      platform_tenant.id
-    )
+    AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache(platform_tenant.id)
   end
 
   @doc """
@@ -167,12 +163,12 @@ defmodule PaymentCompliancePlatformWeb.ConnCase do
   in the test context.
   """
   def setup_platform_admin_api(%{conn: conn}) do
-    alias PaymentCompliancePlatform.Repo
-    alias PaymentCompliancePlatform.ApiKeyContext.ApiKey
-    alias PaymentCompliancePlatform.SessionContext.Session
-    alias PaymentCompliancePlatform.RoleContext.Role
-    alias PaymentCompliancePlatform.TenantContext.Tenant
-    alias PaymentCompliancePlatform.Vault
+    alias AtomicFi.Repo
+    alias AtomicFi.ApiKeyContext.ApiKey
+    alias AtomicFi.SessionContext.Session
+    alias AtomicFi.RoleContext.Role
+    alias AtomicFi.TenantContext.Tenant
+    alias AtomicFi.Vault
     import Ecto.Query
 
     # Get platform tenant
@@ -247,7 +243,7 @@ defmodule PaymentCompliancePlatformWeb.ConnCase do
   # test context.
   # """
   # def register_and_log_in_user(%{conn: conn}) do
-  #   user = PaymentCompliancePlatform.Factory.insert(:user)
+  #   user = AtomicFi.Factory.insert(:user)
   #   %{conn: log_in_user(conn, user), user: user}
   # end
 

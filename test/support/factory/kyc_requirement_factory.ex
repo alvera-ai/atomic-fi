@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.KycRequirementFactory do
+defmodule AtomicFi.Factory.KycRequirementFactory do
   @moduledoc """
   Factory for KycRequirement context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.KycRequirementContext.KycRequirement
+      alias AtomicFi.KycRequirementContext.KycRequirement
 
       def kyc_requirement_factory(attrs \\ %{}) do
         tenant_id =

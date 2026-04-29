@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.CreateUsersTokensAndSessionUserTokenId do
+defmodule AtomicFi.Repo.Migrations.CreateUsersTokensAndSessionUserTokenId do
   use Ecto.Migration
 
   def change do

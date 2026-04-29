@@ -24,11 +24,11 @@ User
 
 ### User Schema
 
-**File**: `lib/payment_compliance_platform/user_context/user.ex`
+**File**: `lib/atomic_fi/user_context/user.ex`
 
 ```elixir
-defmodule PaymentCompliancePlatform.UserContext.User do
-  use PaymentCompliancePlatform.Schema
+defmodule AtomicFi.UserContext.User do
+  use AtomicFi.Schema
 
   typed_schema "users" do
     field :email, :string
@@ -37,10 +37,10 @@ defmodule PaymentCompliancePlatform.UserContext.User do
     field :confirmed_at, :utc_datetime
     field :status, :string, default: "active"
 
-    belongs_to :owner, PaymentCompliancePlatform.TenantContext.Tenant
+    belongs_to :owner, AtomicFi.TenantContext.Tenant
 
-    has_many :tokens, PaymentCompliancePlatform.UserContext.UserToken
-    has_one :totp, PaymentCompliancePlatform.UserContext.UserTotp
+    has_many :tokens, AtomicFi.UserContext.UserToken
+    has_one :totp, AtomicFi.UserContext.UserTotp
 
     timestamps(type: :utc_datetime)
   end
@@ -92,7 +92,7 @@ end
 ### Registration
 
 ```elixir
-defmodule PaymentCompliancePlatform.UserContext do
+defmodule AtomicFi.UserContext do
   def register_user(attrs) do
     %User{}
     |> User.registration_changeset(attrs)
@@ -134,11 +134,11 @@ end
 
 ### Session Management
 
-**File**: `lib/payment_compliance_platform/user_context/user_token.ex`
+**File**: `lib/atomic_fi/user_context/user_token.ex`
 
 ```elixir
-defmodule PaymentCompliancePlatform.UserContext.UserToken do
-  use PaymentCompliancePlatform.Schema
+defmodule AtomicFi.UserContext.UserToken do
+  use AtomicFi.Schema
 
   @hash_algorithm :sha256
   @session_validity_in_days 60
@@ -148,7 +148,7 @@ defmodule PaymentCompliancePlatform.UserContext.UserToken do
     field :context, :string
     field :sent_to, :string
 
-    belongs_to :user, PaymentCompliancePlatform.UserContext.User
+    belongs_to :user, AtomicFi.UserContext.User
 
     timestamps(updated_at: false)
   end
@@ -174,17 +174,17 @@ end
 
 ### TOTP Schema
 
-**File**: `lib/payment_compliance_platform/user_context/user_totp.ex`
+**File**: `lib/atomic_fi/user_context/user_totp.ex`
 
 ```elixir
-defmodule PaymentCompliancePlatform.UserContext.UserTotp do
-  use PaymentCompliancePlatform.Schema
+defmodule AtomicFi.UserContext.UserTotp do
+  use AtomicFi.Schema
 
   typed_schema "user_totps" do
     field :secret, :string, redact: true
     field :backup_codes, {:array, :string}, redact: true
 
-    belongs_to :user, PaymentCompliancePlatform.UserContext.User
+    belongs_to :user, AtomicFi.UserContext.User
 
     timestamps(type: :utc_datetime)
   end
@@ -295,11 +295,11 @@ end
 
 ### Auth Controller
 
-**File**: `lib/payment_compliance_platform_web/controllers/auth_controller.ex`
+**File**: `lib/atomic_fi_web/controllers/auth_controller.ex`
 
 ```elixir
-defmodule PaymentCompliancePlatformWeb.AuthController do
-  use PaymentCompliancePlatformWeb, :controller
+defmodule AtomicFiWeb.AuthController do
+  use AtomicFiWeb, :controller
   plug Ueberauth
 
   def callback(%{assigns: %{ueberauth_auth: auth}} = conn, _params) do
@@ -332,10 +332,10 @@ end
 
 ### Plugs
 
-**File**: `lib/payment_compliance_platform_web/user_auth.ex`
+**File**: `lib/atomic_fi_web/user_auth.ex`
 
 ```elixir
-defmodule PaymentCompliancePlatformWeb.UserAuth do
+defmodule AtomicFiWeb.UserAuth do
   import Plug.Conn
   import Phoenix.Controller
 
@@ -403,11 +403,11 @@ pipeline :browser do
   plug :fetch_live_flash
   plug :protect_from_forgery
   plug :put_secure_browser_headers
-  plug PaymentCompliancePlatformWeb.UserAuth, :fetch_current_user
+  plug AtomicFiWeb.UserAuth, :fetch_current_user
 end
 
 # Public routes
-scope "/", PaymentCompliancePlatformWeb do
+scope "/", AtomicFiWeb do
   pipe_through :browser
 
   get "/register", UserRegistrationController, :new
@@ -417,7 +417,7 @@ scope "/", PaymentCompliancePlatformWeb do
 end
 
 # Authenticated routes
-scope "/", PaymentCompliancePlatformWeb do
+scope "/", AtomicFiWeb do
   pipe_through [:browser, :require_authenticated_user]
 
   get "/settings", UserSettingsController, :edit
@@ -426,7 +426,7 @@ scope "/", PaymentCompliancePlatformWeb do
 end
 
 # OAuth routes (if enabled)
-scope "/auth", PaymentCompliancePlatformWeb do
+scope "/auth", AtomicFiWeb do
   pipe_through :browser
 
   get "/:provider", AuthController, :request
@@ -436,10 +436,10 @@ end
 
 ### LiveView Hooks
 
-**File**: `lib/payment_compliance_platform_web/live/hooks/user_on_mount_hooks.ex`
+**File**: `lib/atomic_fi_web/live/hooks/user_on_mount_hooks.ex`
 
 ```elixir
-defmodule PaymentCompliancePlatformWeb.UserOnMountHooks do
+defmodule AtomicFiWeb.UserOnMountHooks do
   import Phoenix.LiveView
   import Phoenix.Component
 
@@ -485,12 +485,12 @@ end
 
 ```elixir
 def register_and_log_in_user(%{conn: conn}) do
-  user = PaymentCompliancePlatform.AccountsFixtures.user_fixture()
+  user = AtomicFi.AccountsFixtures.user_fixture()
   %{conn: log_in_user(conn, user), user: user}
 end
 
 def log_in_user(conn, user) do
-  token = PaymentCompliancePlatform.UserContext.generate_user_session_token(user)
+  token = AtomicFi.UserContext.generate_user_session_token(user)
 
   conn
   |> Phoenix.ConnTest.init_test_session(%{})

@@ -28,28 +28,28 @@ mix alvera.gen.live Accounts User users \
 
 ## Generated Files
 
-- `lib/payment_compliance_platform_web/live/user_live/index.ex` (with data table)
-- `lib/payment_compliance_platform_web/live/user_live/edit.ex` (instead of show)
-- `lib/payment_compliance_platform_web/live/user_live/form_component.ex`
-- `lib/payment_compliance_platform_web/live/user_live/index.html.heex`
-- `lib/payment_compliance_platform_web/live/user_live/edit.html.heex`
-- `lib/payment_compliance_platform_web/live/user_live/form_component.html.heex`
-- `test/payment_compliance_platform_web/live/user_live_test.exs`
+- `lib/atomic_fi_web/live/user_live/index.ex` (with data table)
+- `lib/atomic_fi_web/live/user_live/edit.ex` (instead of show)
+- `lib/atomic_fi_web/live/user_live/form_component.ex`
+- `lib/atomic_fi_web/live/user_live/index.html.heex`
+- `lib/atomic_fi_web/live/user_live/edit.html.heex`
+- `lib/atomic_fi_web/live/user_live/form_component.html.heex`
+- `test/atomic_fi_web/live/user_live_test.exs`
 
 ## Pattern Checklist
 
 ### LiveView Index (with Data Table)
 
 ```elixir
-defmodule PaymentCompliancePlatformWeb.UserLive.Index do
-  use PaymentCompliancePlatformWeb, :live_view
-  use PaymentCompliancePlatformWeb.ProComponents
+defmodule AtomicFiWeb.UserLive.Index do
+  use AtomicFiWeb, :live_view
+  use AtomicFiWeb.ProComponents
 
   # Authentication hook
-  on_mount {PaymentCompliancePlatformWeb.UserOnMountHooks, :require_authenticated_user}
+  on_mount {AtomicFiWeb.UserOnMountHooks, :require_authenticated_user}
 
-  alias PaymentCompliancePlatform.Accounts
-  alias PaymentCompliancePlatform.Accounts.User
+  alias AtomicFi.Accounts
+  alias AtomicFi.Accounts.User
 
   @impl true
   def mount(_params, _session, socket) do
@@ -143,7 +143,7 @@ end
   on_cancel={JS.patch(~p"/admin/users")}
 >
   <.live_component
-    module={PaymentCompliancePlatformWeb.UserLive.FormComponent}
+    module={AtomicFiWeb.UserLive.FormComponent}
     id={@user.id || :new}
     user={@user}
     action={@live_action}
@@ -155,11 +155,11 @@ end
 ### Form Component
 
 ```elixir
-defmodule PaymentCompliancePlatformWeb.UserLive.FormComponent do
-  use PaymentCompliancePlatformWeb, :live_component
-  use PaymentCompliancePlatformWeb.ProComponents
+defmodule AtomicFiWeb.UserLive.FormComponent do
+  use AtomicFiWeb, :live_component
+  use AtomicFiWeb.ProComponents
 
-  alias PaymentCompliancePlatform.Accounts
+  alias AtomicFi.Accounts
 
   @impl true
   def update(%{user: user} = assigns, socket) do
@@ -243,10 +243,10 @@ end
 
 ## Router Integration
 
-Add routes to `lib/payment_compliance_platform_web/router.ex`:
+Add routes to `lib/atomic_fi_web/router.ex`:
 
 ```elixir
-scope "/admin", PaymentCompliancePlatformWeb do
+scope "/admin", AtomicFiWeb do
   pipe_through [:browser, :require_authenticated_user]
 
   live "/users", UserLive.Index, :index
@@ -258,7 +258,7 @@ end
 
 ## On-Mount Hooks
 
-Hooks are defined in `lib/payment_compliance_platform_web/live/hooks/user_on_mount_hooks.ex`:
+Hooks are defined in `lib/atomic_fi_web/live/hooks/user_on_mount_hooks.ex`:
 
 - `:require_authenticated_user` - Ensures user is logged in
 - `:require_confirmed_user` - Ensures email is confirmed
@@ -267,11 +267,11 @@ Hooks are defined in `lib/payment_compliance_platform_web/live/hooks/user_on_mou
 ## Testing Pattern
 
 ```elixir
-defmodule PaymentCompliancePlatformWeb.UserLiveTest do
-  use PaymentCompliancePlatformWeb.ConnCase, async: true
+defmodule AtomicFiWeb.UserLiveTest do
+  use AtomicFiWeb.ConnCase, async: true
 
   import Phoenix.LiveViewTest
-  import PaymentCompliancePlatform.AccountsFixtures
+  import AtomicFi.AccountsFixtures
 
   setup :register_and_log_in_user
 

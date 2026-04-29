@@ -136,7 +136,7 @@ defmodule Mix.Tasks.Alvera.Gen.JoinTable do
     module_name = Macro.camelize("create_#{table_name}")
 
     content = """
-    defmodule PaymentCompliancePlatform.Repo.Migrations.#{module_name} do
+    defmodule AtomicFi.Repo.Migrations.#{module_name} do
       use Ecto.Migration
 
       def change do
@@ -166,30 +166,30 @@ defmodule Mix.Tasks.Alvera.Gen.JoinTable do
     context = if schema2 == "Role", do: "RoleContext", else: determine_context(schema1)
 
     mapping_file =
-      "lib/payment_compliance_platform/#{Macro.underscore(context)}/#{Macro.underscore(mapping_name)}.ex"
+      "lib/atomic_fi/#{Macro.underscore(context)}/#{Macro.underscore(mapping_name)}.ex"
 
     # Get full module names
     schema1_module =
       find_schema_module(schema1) ||
-        "PaymentCompliancePlatform.#{determine_context(schema1)}.#{schema1}"
+        "AtomicFi.#{determine_context(schema1)}.#{schema1}"
 
     schema2_module =
       find_schema_module(schema2) ||
-        "PaymentCompliancePlatform.#{determine_context(schema2)}.#{schema2}"
+        "AtomicFi.#{determine_context(schema2)}.#{schema2}"
 
     # Derive association names
     assoc1 = Macro.underscore(schema1)
     assoc2 = Macro.underscore(schema2)
 
     content = """
-    defmodule PaymentCompliancePlatform.#{context}.#{mapping_name} do
+    defmodule AtomicFi.#{context}.#{mapping_name} do
       @moduledoc \"\"\"
       Join table schema linking #{schema1} to #{schema2} for many-to-many relationships.
 
       This is a mapping table without id or timestamps, using composite primary key.
       Allows use of cast_assoc for managing #{String.downcase(schema1)}-#{String.downcase(schema2)} relationships.
       \"\"\"
-      use PaymentCompliancePlatform.Schema
+      use AtomicFi.Schema
 
       alias #{schema1_module}
       alias #{schema2_module}
@@ -233,14 +233,14 @@ defmodule Mix.Tasks.Alvera.Gen.JoinTable do
     factory2 = String.to_atom(assoc2)
 
     content = """
-    defmodule PaymentCompliancePlatform.Factory.#{mapping_name}Factory do
+    defmodule AtomicFi.Factory.#{mapping_name}Factory do
       @moduledoc \"\"\"
       Factory for #{mapping_name} join table schema.
       \"\"\"
 
       defmacro __using__(_opts) do
         quote do
-          alias PaymentCompliancePlatform.RoleContext.#{mapping_name}
+          alias AtomicFi.RoleContext.#{mapping_name}
 
           def #{Macro.underscore(mapping_name)}_factory(attrs \\\\ %{}) do
             # Only create #{assoc1} if neither :#{assoc1} nor :#{field1} is provided
@@ -292,16 +292,16 @@ defmodule Mix.Tasks.Alvera.Gen.JoinTable do
       mapping_field =
         "#{Macro.underscore(mapping_name) |> String.replace("_mapping", "")}_mappings"
 
-      schema2_module = find_schema_module(schema2) || "PaymentCompliancePlatform.#{schema2}"
-      _mapping_module = "PaymentCompliancePlatform.RoleContext.#{mapping_name}"
+      schema2_module = find_schema_module(schema2) || "AtomicFi.#{schema2}"
+      _mapping_module = "AtomicFi.RoleContext.#{mapping_name}"
 
       # Add alias for mapping if not present
       content =
         unless content =~ ~r/alias.*#{mapping_name}/ do
           String.replace(
             content,
-            ~r/(  use PaymentCompliancePlatform\.Schema\n)/,
-            "\\1\n  alias PaymentCompliancePlatform.RoleContext.#{mapping_name}"
+            ~r/(  use AtomicFi\.Schema\n)/,
+            "\\1\n  alias AtomicFi.RoleContext.#{mapping_name}"
           )
         else
           content
@@ -345,13 +345,13 @@ defmodule Mix.Tasks.Alvera.Gen.JoinTable do
 
     if File.exists?(factory_file) do
       content = File.read!(factory_file)
-      factory_line = "  use PaymentCompliancePlatform.Factory.#{mapping_name}Factory"
+      factory_line = "  use AtomicFi.Factory.#{mapping_name}Factory"
 
       unless content =~ ~r/#{mapping_name}Factory/ do
         updated_content =
           String.replace(
             content,
-            ~r/(  use PaymentCompliancePlatform\.Factory\..*Factory\n)(?!.*Factory)/,
+            ~r/(  use AtomicFi\.Factory\..*Factory\n)(?!.*Factory)/,
             "\\1#{factory_line}\n"
           )
 
@@ -366,7 +366,7 @@ defmodule Mix.Tasks.Alvera.Gen.JoinTable do
     schema_file = find_schema_file(schema_name)
 
     if schema_file do
-      case Regex.run(~r/lib\/payment_compliance_platform\/(\w+_context)/, schema_file) do
+      case Regex.run(~r/lib\/atomic_fi\/(\w+_context)/, schema_file) do
         [_, context] -> Macro.camelize(context)
         _ -> "#{schema_name}Context"
       end

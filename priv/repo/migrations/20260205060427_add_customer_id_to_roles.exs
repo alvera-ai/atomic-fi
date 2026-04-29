@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.AddCustomerIdToRoles do
+defmodule AtomicFi.Repo.Migrations.AddCustomerIdToRoles do
   use Ecto.Migration
 
   def change do

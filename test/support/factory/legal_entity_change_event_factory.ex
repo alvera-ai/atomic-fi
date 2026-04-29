@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.LegalEntityChangeEventFactory do
+defmodule AtomicFi.Factory.LegalEntityChangeEventFactory do
   @moduledoc """
   Factory for LegalEntityChangeEvent context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.LegalEntityChangeEventContext.LegalEntityChangeEvent
+      alias AtomicFi.LegalEntityChangeEventContext.LegalEntityChangeEvent
 
       def legal_entity_change_event_factory(attrs \\ %{}) do
         tenant_id =

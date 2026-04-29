@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.PartyActivitySnapshotFactory do
+defmodule AtomicFi.Factory.PartyActivitySnapshotFactory do
   @moduledoc """
   Factory for PartyActivitySnapshot context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.PartyActivitySnapshotContext.PartyActivitySnapshot
+      alias AtomicFi.PartyActivitySnapshotContext.PartyActivitySnapshot
 
       def party_activity_snapshot_factory(attrs \\ %{}) do
         tenant_id =

@@ -44,7 +44,7 @@ defmodule Mix.Tasks.Alvera.Gen.Api do
 
   Add these routes to your `router.ex`:
 
-      scope "/api", PaymentCompliancePlatformApi do
+      scope "/api", AtomicFiApi do
         pipe_through [:api, :api_authenticated]
 
         resources "/users", UserController, except: [:new, :edit]
@@ -105,8 +105,8 @@ defmodule Mix.Tasks.Alvera.Gen.Api do
     if File.exists?(file_path) do
       content = File.read!(file_path)
 
-      # Only enhance if not already using PaymentCompliancePlatform.Schema
-      if String.contains?(content, "use PaymentCompliancePlatform.Schema") do
+      # Only enhance if not already using AtomicFi.Schema
+      if String.contains?(content, "use AtomicFi.Schema") do
         :already_enhanced
       else
         context_name = schema.module |> Module.split() |> Enum.slice(0..-2//1) |> Enum.join(".")

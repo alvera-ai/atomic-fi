@@ -1,10 +1,10 @@
-defmodule PaymentCompliancePlatform.LegalEntityContextFixtures do
+defmodule AtomicFi.LegalEntityContextFixtures do
   @moduledoc """
   This module defines test helpers for creating
-  entities via the `PaymentCompliancePlatform.LegalEntityContext` context.
+  entities via the `AtomicFi.LegalEntityContext` context.
   """
 
-  import PaymentCompliancePlatform.Factory
+  import AtomicFi.Factory
 
   @doc """
   Generate a legal_entity.

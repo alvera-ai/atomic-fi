@@ -27,8 +27,8 @@ tag, and a full test file with 3-layer schema-validated assertions.
 ```
 
 `resource_name` — e.g. `DataActivationClient`, `AiAgent`
-`context_module` — e.g. `PaymentCompliancePlatform.DataActivationClients`
-`schema_module` — e.g. `PaymentCompliancePlatform.DataActivationClients.DataActivationClient`
+`context_module` — e.g. `AtomicFi.DataActivationClients`
+`schema_module` — e.g. `AtomicFi.DataActivationClients.DataActivationClient`
 
 ---
 
@@ -39,7 +39,7 @@ allowed reach depends on which credential authenticated the request:
 
 | Lane | Header | Backing subject | Typical use | PHI / regulated reach |
 |---|---|---|---|---|
-| **M2M** | `x-api-key` | `PaymentCompliancePlatform.ApiKeys` (role `:api`) | Ingestion endpoints (DAC push, workflow trigger), system integrations | **No** — narrow role scope |
+| **M2M** | `x-api-key` | `AtomicFi.ApiKeys` (role `:api`) | Ingestion endpoints (DAC push, workflow trigger), system integrations | **No** — narrow role scope |
 | **Bearer / Connected App** | `Authorization: Bearer …` | Delegated human session via a Connected App | Humans reading/writing tenant data | **Yes** — gated by user role + RLS |
 | **Bearer / AI agent** | `Authorization: Bearer …` | AI agent session | Agents executing inside DAC / Workflow runtimes | **No** — agent `data_access` pins it to tokenized/unregulated lanes |
 
@@ -53,21 +53,21 @@ capability; whichever credential holder has the right role + agent
 
 ## Substrate
 
-- `PaymentCompliancePlatform.Schema` — includes `ExOpenApiUtils`. **Never** also
+- `AtomicFi.Schema` — includes `ExOpenApiUtils`. **Never** also
   `use ExOpenApiUtils` (duplicate module definition).
 - `ExOpenApiUtils` — `open_api_property/1` + `open_api_schema/1` generate
   `*Request` (POST/PUT body) + `*Response` (GET output) schemas at
   compile time.
 - `OpenApiSpex.ControllerSpecs` — `operation :action, …` blocks bind
   request/response schemas to controller actions.
-- `PaymentCompliancePlatformApi.ApiSpec` — assembled from the schemas in
-  `lib/payment_compliance_platform_api/schemas/`; consumed at runtime by the
+- `AtomicFiApi.ApiSpec` — assembled from the schemas in
+  `lib/atomic_fi_api/schemas/`; consumed at runtime by the
   `OpenApiSpex.Plug.PutApiSpec` plug and at test time by
   `assert_schema/3`.
-- `PaymentCompliancePlatform.Api.Helpers` — response builders
+- `AtomicFi.Api.Helpers` — response builders
   (`ApiHelpers.json_response/3`, `list_resources_as_map/3`) that call
   `ExOpenApiUtils.Mapper.to_map/1` on each row.
-- `PaymentCompliancePlatform.Test.ApiHelpers` — `setup_api_context/2`, `put_api_key/2`,
+- `AtomicFi.Test.ApiHelpers` — `setup_api_context/2`, `put_api_key/2`,
   path builders. Use these from tests; don't reinvent fixtures.
 
 ---
@@ -79,7 +79,7 @@ capability; whichever credential holder has the right role + agent
 ```elixir
 # ❌ wrong — module ref is a compile-time alias, not a schema struct
 open_api_property(
-  schema: %OASchema{oneOf: [PaymentCompliancePlatform.Some.Schema, %OASchema{type: :string}]},
+  schema: %OASchema{oneOf: [AtomicFi.Some.Schema, %OASchema{type: :string}]},
   key: :value
 )
 
@@ -87,7 +87,7 @@ open_api_property(
 open_api_property(
   schema: %OASchema{
     nullable: true,
-    allOf: [PaymentCompliancePlatform.OpenApiSchema.DatalakeResponse.schema()]
+    allOf: [AtomicFi.OpenApiSchema.DatalakeResponse.schema()]
   },
   key: :datalake
 )
@@ -98,7 +98,7 @@ open_api_property(
 
 ### 2. Pass the OpenAPI request struct *directly* to the context
 
-`PaymentCompliancePlatform.Schema`'s generated changeset uses
+`AtomicFi.Schema`'s generated changeset uses
 `ExOpenApiUtils.Changeset.cast/4` which accepts the `%FooRequest{}`
 struct. Do **not** `Map.from_struct/1` in the controller.
 
@@ -129,8 +129,8 @@ Routes use `put/4` only.
 ## Step 1 — Annotate the Ecto schema
 
 ```elixir
-defmodule PaymentCompliancePlatform.DataActivationClients.DataActivationClient do
-  use PaymentCompliancePlatform.Schema
+defmodule AtomicFi.DataActivationClients.DataActivationClient do
+  use AtomicFi.Schema
 
   open_api_property(schema: %OASchema{type: :string, format: :uuid}, key: :id, readOnly: true)
   open_api_property(schema: %OASchema{type: :string}, key: :name, description: "Client name")
@@ -158,27 +158,27 @@ end
 ```
 
 At compile time this generates
-`PaymentCompliancePlatform.OpenApiSchema.DataActivationClientRequest` (write) and
-`PaymentCompliancePlatform.OpenApiSchema.DataActivationClientResponse` (read).
+`AtomicFi.OpenApiSchema.DataActivationClientRequest` (write) and
+`AtomicFi.OpenApiSchema.DataActivationClientResponse` (read).
 
 ---
 
 ## Step 2 — Controller
 
-`lib/payment_compliance_platform_api/controllers/<resource>_controller.ex`:
+`lib/atomic_fi_api/controllers/<resource>_controller.ex`:
 
 ```elixir
-defmodule PaymentCompliancePlatformApi.DataActivationClientsController do
-  use PaymentCompliancePlatformApi, :controller
+defmodule AtomicFiApi.DataActivationClientsController do
+  use AtomicFiApi, :controller
   use OpenApiSpex.ControllerSpecs
 
-  alias PaymentCompliancePlatform.Api.Helpers, as: ApiHelpers
-  alias PaymentCompliancePlatform.DataActivationClients
-  alias PaymentCompliancePlatform.OpenApiSchema.DataActivationClientRequest
-  alias PaymentCompliancePlatform.OpenApiSchema.DataActivationClientResponse
-  alias PaymentCompliancePlatform.OpenApiSchema.DataActivationClientListResponse
+  alias AtomicFi.Api.Helpers, as: ApiHelpers
+  alias AtomicFi.DataActivationClients
+  alias AtomicFi.OpenApiSchema.DataActivationClientRequest
+  alias AtomicFi.OpenApiSchema.DataActivationClientResponse
+  alias AtomicFi.OpenApiSchema.DataActivationClientListResponse
 
-  action_fallback PaymentCompliancePlatformApi.FallbackController
+  action_fallback AtomicFiApi.FallbackController
 
   tags ["Data Activation Clients"]
 
@@ -218,16 +218,16 @@ end
 
 ## Step 3 — Routes (tenant + datalake scoped)
 
-`lib/payment_compliance_platform_api/router.ex`:
+`lib/atomic_fi_api/router.ex`:
 
 ```elixir
 pipeline :api_authenticated do
   plug :accepts, ["json"]
   plug :fetch_api_key                     # X-API-Key OR Authorization: Bearer
-  plug OpenApiSpex.Plug.PutApiSpec, module: PaymentCompliancePlatformApi.ApiSpec
+  plug OpenApiSpex.Plug.PutApiSpec, module: AtomicFiApi.ApiSpec
 end
 
-scope "/api/v1/tenants/:tenant_slug/datalakes/:datalake_slug", PaymentCompliancePlatformApi do
+scope "/api/v1/tenants/:tenant_slug/datalakes/:datalake_slug", AtomicFiApi do
   pipe_through :api_authenticated
 
   get    "/data-activation-clients",      DataActivationClientsController, :index
@@ -246,7 +246,7 @@ Tags are **1:1 with controllers** (client generators emit one class per tag).
 `x-tagGroups` organise tags by capability area (maps to the how-to guides).
 
 ```elixir
-# lib/payment_compliance_platform_api/api_spec.ex
+# lib/atomic_fi_api/api_spec.ex
 tags: [
   …,
   %OpenApiSpex.Tag{name: "Data Activation Clients", description: "DAC CRUD"}
@@ -265,21 +265,21 @@ Use the **tag name** (not group name) in the controller's `tags [...]`.
 
 ## Step 5 — Tests (3-layer schema validation)
 
-`test/payment_compliance_platform_api/controllers/<resource>_controller_test.exs`:
+`test/atomic_fi_api/controllers/<resource>_controller_test.exs`:
 
 ```elixir
-defmodule PaymentCompliancePlatformApi.DataActivationClientsControllerTest do
-  use PaymentCompliancePlatformWeb.ConnCase, async: true
+defmodule AtomicFiApi.DataActivationClientsControllerTest do
+  use AtomicFiWeb.ConnCase, async: true
 
   import OpenApiSpex.TestAssertions
-  import PaymentCompliancePlatform.Test.ApiHelpers
+  import AtomicFi.Test.ApiHelpers
 
-  alias PaymentCompliancePlatform.OpenApiSchema.DatalakeResponse
-  alias PaymentCompliancePlatform.OpenApiSchema.DataActivationClientResponse
-  alias PaymentCompliancePlatform.OpenApiSchema.DataActivationClientListResponse
-  alias PaymentCompliancePlatform.OpenApiSchema.PaginationMeta
-  alias PaymentCompliancePlatform.OpenApiSchema.TenantResponse
-  alias PaymentCompliancePlatformApi.ApiSpec
+  alias AtomicFi.OpenApiSchema.DatalakeResponse
+  alias AtomicFi.OpenApiSchema.DataActivationClientResponse
+  alias AtomicFi.OpenApiSchema.DataActivationClientListResponse
+  alias AtomicFi.OpenApiSchema.PaginationMeta
+  alias AtomicFi.OpenApiSchema.TenantResponse
+  alias AtomicFiApi.ApiSpec
 
   setup %{conn: conn} do
     ctx = setup_api_context(conn, data_domain: :healthcare)
@@ -344,12 +344,12 @@ defmodule PaymentCompliancePlatformApi.DataActivationClientsControllerTest do
                cast = assert_schema(response, "DataActivationClientResponse", ApiSpec.spec())
 
       # Layer 3 — the DB row actually matches the response
-      assert %PaymentCompliancePlatform.DataActivationClients.DataActivationClient{
+      assert %AtomicFi.DataActivationClients.DataActivationClient{
                name: "New",
                source_type: :api,
                tenant_id: ^tenant_id,
                datalake_id: ^datalake_id
-             } = PaymentCompliancePlatform.DataActivationClients.get_client!(session, cast.id)
+             } = AtomicFi.DataActivationClients.get_client!(session, cast.id)
     end
   end
 
@@ -402,7 +402,7 @@ on unknown id).
 ## Step 6 — Generate spec YAML
 
 ```bash
-zsh -l -c 'source ~/.zshrc && mix openapi.spec.yaml --spec PaymentCompliancePlatformApi.ApiSpec'
+zsh -l -c 'source ~/.zshrc && mix openapi.spec.yaml --spec AtomicFiApi.ApiSpec'
 ```
 
 Output: `priv/static/openapi.yaml`. Check `git diff` to review the
@@ -413,20 +413,20 @@ generated shape before committing.
 ## Step 7 — Verify
 
 ```bash
-zsh -l -c 'source ~/.zshrc && mix test test/payment_compliance_platform_api/controllers/data_activation_clients_controller_test.exs --color 2>&1 | tee /tmp/test.txt'
+zsh -l -c 'source ~/.zshrc && mix test test/atomic_fi_api/controllers/data_activation_clients_controller_test.exs --color 2>&1 | tee /tmp/test.txt'
 ```
 
 Then hand off:
 
 ```
-/qa:check-api-quality lib/payment_compliance_platform_api/controllers/data_activation_clients_controller.ex
+/qa:check-api-quality lib/atomic_fi_api/controllers/data_activation_clients_controller.ex
 ```
 
 ---
 
 ## Checklist
 
-- [ ] Schema uses `use PaymentCompliancePlatform.Schema` (NOT also `use ExOpenApiUtils`)
+- [ ] Schema uses `use AtomicFi.Schema` (NOT also `use ExOpenApiUtils`)
 - [ ] All fields have `open_api_property`
 - [ ] `open_api_schema` block emits Request + Response
 - [ ] No `oneOf`/`allOf` with bare module references — `.schema()` calls or `$ref`
@@ -436,7 +436,7 @@ Then hand off:
 - [ ] Routes are tenant+datalake scoped and use `put/4` (never `patch/4`)
 - [ ] Pipeline uses `:fetch_api_key` (M2M + Bearer both accepted)
 - [ ] Tag registered in `ApiSpec` and added to the right `x-tagGroup`
-- [ ] Tests import `PaymentCompliancePlatform.Test.ApiHelpers` + `OpenApiSpex.TestAssertions`
+- [ ] Tests import `AtomicFi.Test.ApiHelpers` + `OpenApiSpex.TestAssertions`
 - [ ] Every 2xx response goes through `assert_schema/3`
 - [ ] Create/update tests cross-check DB via context function
 - [ ] `mix openapi.spec.yaml` regenerated
@@ -448,7 +448,7 @@ Then hand off:
 ## Related
 
 - [test/support/api_helpers/api_helpers.ex](../../../test/support/api_helpers/api_helpers.ex) — shared test setup
-- [lib/payment_compliance_platform_api/api_spec.ex](../../../lib/payment_compliance_platform_api/api_spec.ex) — `ApiSpec.spec()`
-- [lib/payment_compliance_platform_api/helpers/api_helpers.ex](../../../lib/payment_compliance_platform_api/helpers/api_helpers.ex) — response builders
+- [lib/atomic_fi_api/api_spec.ex](../../../lib/atomic_fi_api/api_spec.ex) — `ApiSpec.spec()`
+- [lib/atomic_fi_api/helpers/api_helpers.ex](../../../lib/atomic_fi_api/helpers/api_helpers.ex) — response builders
 - [guides/core-infra/access_control.md](../../../guides/core-infra/access_control.md) — role + RLS model
 - [guides/cheatsheet/quality_gates.cheatmd](../../../guides/cheatsheet/quality_gates.cheatmd) — commit gate

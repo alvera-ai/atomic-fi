@@ -1,17 +1,17 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.SeedSystemEntities do
+defmodule AtomicFi.Repo.Migrations.SeedSystemEntities do
   use Ecto.Migration
 
   import Ecto.Query
-  alias PaymentCompliancePlatform.{Config, Repo}
-  alias PaymentCompliancePlatform.TenantContext.Tenant
-  alias PaymentCompliancePlatform.UserContext.User
-  alias PaymentCompliancePlatform.RoleContext.{Role, RoleConstants}
-  alias PaymentCompliancePlatform.ApiKeyContext.ApiKey
+  alias AtomicFi.{Config, Repo}
+  alias AtomicFi.TenantContext.Tenant
+  alias AtomicFi.UserContext.User
+  alias AtomicFi.RoleContext.{Role, RoleConstants}
+  alias AtomicFi.ApiKeyContext.ApiKey
 
   def up do
     # Start Vault temporarily for encrypting API keys (migrations run before app supervisor)
     vault_started_by_migration =
-      case PaymentCompliancePlatform.Vault.start_link() do
+      case AtomicFi.Vault.start_link() do
         {:ok, _pid} -> true
         {:error, {:already_started, _pid}} -> false
       end
@@ -134,7 +134,7 @@ defmodule PaymentCompliancePlatform.Repo.Migrations.SeedSystemEntities do
     root_api_key_hash = :crypto.hash(:sha256, root_api_key_value) |> Base.encode16(case: :lower)
 
     # Manually encrypt the key_value using Vault (Cloak doesn't auto-encrypt in migrations)
-    encrypted_key_value = PaymentCompliancePlatform.Vault.encrypt!(root_api_key_value)
+    encrypted_key_value = AtomicFi.Vault.encrypt!(root_api_key_value)
 
     %ApiKey{}
     |> ApiKey.changeset(%{
@@ -150,7 +150,7 @@ defmodule PaymentCompliancePlatform.Repo.Migrations.SeedSystemEntities do
     platform_admin_api_key_value = "platform_admin_#{:crypto.strong_rand_bytes(32) |> Base.encode64()}"
     platform_admin_api_key_hash =
       :crypto.hash(:sha256, platform_admin_api_key_value) |> Base.encode16(case: :lower)
-    encrypted_platform_admin_key = PaymentCompliancePlatform.Vault.encrypt!(platform_admin_api_key_value)
+    encrypted_platform_admin_key = AtomicFi.Vault.encrypt!(platform_admin_api_key_value)
 
     %ApiKey{}
     |> ApiKey.changeset(%{
@@ -164,7 +164,7 @@ defmodule PaymentCompliancePlatform.Repo.Migrations.SeedSystemEntities do
     after
       # Stop Vault if we started it, so the application supervisor can start it properly
       if vault_started_by_migration do
-        Supervisor.stop(PaymentCompliancePlatform.Vault)
+        Supervisor.stop(AtomicFi.Vault)
       end
     end
   end

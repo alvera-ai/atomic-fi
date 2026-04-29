@@ -55,7 +55,7 @@ Create `config/test.secret.exs` in the worktree by copying the main repo's versi
 - `"platform_regulated_datalake_test#{...}"` → `"platform_regulated_datalake_test{{suffix}}#{...}"`
 - And all industry-specific variants: healthcare, core_banking, alvera, payment_risk, service_commerce, subscription, trading, accounts_receivable (both public and regulated)
 
-**Endpoint port change** — update the default port in the `PaymentCompliancePlatformWeb.Endpoint` config:
+**Endpoint port change** — update the default port in the `AtomicFiWeb.Endpoint` config:
 - `System.get_env("PORT") || "4003"` → `System.get_env("PORT") || "{{test_port}}"`
 - Where `{{test_port}}` = `N003` (e.g. `5003` for prefix 5)
 

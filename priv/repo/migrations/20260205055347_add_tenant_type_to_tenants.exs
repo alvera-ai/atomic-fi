@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.AddTenantTypeToTenants do
+defmodule AtomicFi.Repo.Migrations.AddTenantTypeToTenants do
   use Ecto.Migration
 
   def change do

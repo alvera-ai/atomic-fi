@@ -1,9 +1,9 @@
-defmodule PaymentCompliancePlatform.MixProject do
+defmodule AtomicFi.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :payment_compliance_platform,
+      app: :atomic_fi,
       version: "0.1.0",
       elixir: "~> 1.18",
       elixirc_paths: elixirc_paths(Mix.env()),
@@ -11,7 +11,24 @@ defmodule PaymentCompliancePlatform.MixProject do
       aliases: aliases(),
       deps: deps(),
       docs: docs(),
+      description: description(),
+      package: package(),
+      source_url: "https://github.com/alvera-ai/atomicfi",
+      homepage_url: "https://github.com/alvera-ai/atomicfi",
       listeners: [Phoenix.CodeReloader]
+    ]
+  end
+
+  defp description do
+    "Payments and compliance, welded into one atomic database transaction. " <>
+      "Compliance gating (KYC/KYB/AML, OFAC, UBO) and a double-entry ledger commit or fail together."
+  end
+
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/alvera-ai/atomicfi"},
+      maintainers: ["AtomicFi contributors"]
     ]
   end
 
@@ -20,7 +37,7 @@ defmodule PaymentCompliancePlatform.MixProject do
   # Type `mix help compile.app` for more information.
   def application do
     [
-      mod: {PaymentCompliancePlatform.Application, []},
+      mod: {AtomicFi.Application, []},
       extra_applications: [:logger, :runtime_tools]
     ]
   end
@@ -142,7 +159,7 @@ defmodule PaymentCompliancePlatform.MixProject do
 
   defp docs do
     [
-      name: "Alvera Phoenix Template",
+      name: "AtomicFi",
       main: "introduction",
       extras: extras(),
       groups_for_extras: groups_for_extras()

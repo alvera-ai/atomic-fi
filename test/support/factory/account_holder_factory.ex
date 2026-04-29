@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.AccountHolderFactory do
+defmodule AtomicFi.Factory.AccountHolderFactory do
   @moduledoc """
   Factory for AccountHolder context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.AccountHolderContext.AccountHolder
+      alias AtomicFi.AccountHolderContext.AccountHolder
 
       def account_holder_factory(attrs \\ %{}) do
         tenant_id =

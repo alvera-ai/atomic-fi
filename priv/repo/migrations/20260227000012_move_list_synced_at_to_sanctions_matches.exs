@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.MoveListSyncedAtToSanctionsMatches do
+defmodule AtomicFi.Repo.Migrations.MoveListSyncedAtToSanctionsMatches do
   use Ecto.Migration
 
   def change do

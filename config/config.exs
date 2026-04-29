@@ -7,8 +7,8 @@
 # General application configuration
 import Config
 
-config :payment_compliance_platform,
-  ecto_repos: [PaymentCompliancePlatform.Repo],
+config :atomic_fi,
+  ecto_repos: [AtomicFi.Repo],
   env: config_env(),
   # Generator defaults: binary IDs and microsecond timestamps
   generators: [binary_id: true, timestamp_type: :utc_datetime_usec],
@@ -20,27 +20,27 @@ config :payment_compliance_platform,
     %{
       field: :tenant_id,
       table: :tenants,
-      module: PaymentCompliancePlatform.TenantContext.Tenant
+      module: AtomicFi.TenantContext.Tenant
     },
     %{
       field: :customer_id,
       table: :customers,
-      module: PaymentCompliancePlatform.CustomerContext.Customer
+      module: AtomicFi.CustomerContext.Customer
     }
   ]
 
 # Configures the endpoint
-config :payment_compliance_platform, PaymentCompliancePlatformWeb.Endpoint,
+config :atomic_fi, AtomicFiWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
     formats: [
-      html: PaymentCompliancePlatformWeb.ErrorHTML,
-      json: PaymentCompliancePlatformWeb.ErrorJSON
+      html: AtomicFiWeb.ErrorHTML,
+      json: AtomicFiWeb.ErrorJSON
     ],
     layout: false
   ],
-  pubsub_server: PaymentCompliancePlatform.PubSub,
+  pubsub_server: AtomicFi.PubSub,
   live_view: [signing_salt: "Q6eC1J8a"]
 
 # Configures the mailer
@@ -50,8 +50,7 @@ config :payment_compliance_platform, PaymentCompliancePlatformWeb.Endpoint,
 #
 # For production it's recommended to configure a different adapter
 # at the `config/runtime.exs`.
-config :payment_compliance_platform, PaymentCompliancePlatform.Mailer,
-  adapter: Swoosh.Adapters.Local
+config :atomic_fi, AtomicFi.Mailer, adapter: Swoosh.Adapters.Local
 
 # Configure esbuild (the version is required)
 config :esbuild,
@@ -96,23 +95,22 @@ config :logger, :console,
 config :phoenix, :json_library, Jason
 
 # Configure Flop for pagination
-config :flop, repo: PaymentCompliancePlatform.Repo, default_limit: 20
+config :flop, repo: AtomicFi.Repo, default_limit: 20
 
 # Watchman sanctions screening service
-config :payment_compliance_platform, :watchman_base_url, "http://localhost:8084"
+config :atomic_fi, :watchman_base_url, "http://localhost:8084"
 
 # Oban background job processing
-config :payment_compliance_platform, Oban,
+config :atomic_fi, Oban,
   prefix: "oban",
-  repo: PaymentCompliancePlatform.Repo,
+  repo: AtomicFi.Repo,
   queues: [compliance_screening: 10]
 
 # Quantum scheduler - cron-like job scheduling
-config :payment_compliance_platform, PaymentCompliancePlatform.Scheduler,
+config :atomic_fi, AtomicFi.Scheduler,
   jobs: [
     # Refresh blocklist cache every hour
-    {"0 * * * *",
-     {PaymentCompliancePlatform.DecisionContext.BlocklistCache, :refresh_all_caches, []}}
+    {"0 * * * *", {AtomicFi.DecisionContext.BlocklistCache, :refresh_all_caches, []}}
   ]
 
 # Import environment specific config. This must remain at the bottom

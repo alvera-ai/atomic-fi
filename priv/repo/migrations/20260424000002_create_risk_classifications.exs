@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.CreateRiskClassifications do
+defmodule AtomicFi.Repo.Migrations.CreateRiskClassifications do
   use Ecto.Migration
 
   def change do

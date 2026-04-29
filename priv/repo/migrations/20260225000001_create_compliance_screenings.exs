@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.CreateComplianceScreenings do
+defmodule AtomicFi.Repo.Migrations.CreateComplianceScreenings do
   use Ecto.Migration
 
   def change do

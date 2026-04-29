@@ -5,19 +5,19 @@
 # We recommend using the bang functions (`insert!`, `update!`
 # and so on) as they will fail if something goes wrong.
 
-alias PaymentCompliancePlatform.{Config, Repo}
-alias PaymentCompliancePlatform.TenantContext.Tenant
-alias PaymentCompliancePlatform.UserContext.User
-alias PaymentCompliancePlatform.RoleContext.{Role, RoleConstants}
-alias PaymentCompliancePlatform.ApiKeyContext.ApiKey
-alias PaymentCompliancePlatform.BlocklistContext.BlocklistEntry
+alias AtomicFi.{Config, Repo}
+alias AtomicFi.TenantContext.Tenant
+alias AtomicFi.UserContext.User
+alias AtomicFi.RoleContext.{Role, RoleConstants}
+alias AtomicFi.ApiKeyContext.ApiKey
+alias AtomicFi.BlocklistContext.BlocklistEntry
 
 require Logger
 
 Logger.info("Starting database seeding...")
 
 # Start Vault for encryption
-case PaymentCompliancePlatform.Vault.start_link() do
+case AtomicFi.Vault.start_link() do
   {:ok, _} -> Logger.info("Vault started")
   {:error, {:already_started, _}} -> Logger.info("Vault already running")
 end
@@ -163,7 +163,7 @@ Logger.info("Created bot user: #{bot_user_email}")
 
 # Create root API key for programmatic access
 root_api_key_hash = :crypto.hash(:sha256, root_api_key_value) |> Base.encode16(case: :lower)
-encrypted_key_value = PaymentCompliancePlatform.Vault.encrypt!(root_api_key_value)
+encrypted_key_value = AtomicFi.Vault.encrypt!(root_api_key_value)
 
 %ApiKey{}
 |> ApiKey.changeset(%{
@@ -185,7 +185,7 @@ platform_admin_api_key_hash =
   :crypto.hash(:sha256, platform_admin_api_key_value) |> Base.encode16(case: :lower)
 
 encrypted_platform_admin_key =
-  PaymentCompliancePlatform.Vault.encrypt!(platform_admin_api_key_value)
+  AtomicFi.Vault.encrypt!(platform_admin_api_key_value)
 
 %ApiKey{}
 |> ApiKey.changeset(%{
@@ -410,7 +410,7 @@ Logger.info(
 )
 
 # Refresh the blocklist cache after seeding
-PaymentCompliancePlatform.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant.id)
+AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant.id)
 Logger.info("✓ Refreshed blocklist cache for tenant #{tenant.id}")
 
 Logger.info("""

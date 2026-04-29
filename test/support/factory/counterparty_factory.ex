@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.CounterpartyFactory do
+defmodule AtomicFi.Factory.CounterpartyFactory do
   @moduledoc """
   Factory for Counterparty context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.CounterpartyContext.Counterparty
+      alias AtomicFi.CounterpartyContext.Counterparty
 
       def counterparty_factory(attrs \\ %{}) do
         tenant_id =

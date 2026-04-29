@@ -1,11 +1,11 @@
-defmodule PaymentCompliancePlatform.Factory.LedgerAccountFactory do
+defmodule AtomicFi.Factory.LedgerAccountFactory do
   @moduledoc """
   Factory for LedgerAccount context schemas.
   """
 
   defmacro __using__(_opts) do
     quote do
-      alias PaymentCompliancePlatform.LedgerAccountContext.LedgerAccount
+      alias AtomicFi.LedgerAccountContext.LedgerAccount
 
       def ledger_account_factory(attrs \\ %{}) do
         tenant_id =

@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.AddLatestChangeEventToLegalEntities do
+defmodule AtomicFi.Repo.Migrations.AddLatestChangeEventToLegalEntities do
   use Ecto.Migration
 
   def change do

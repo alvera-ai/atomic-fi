@@ -1,4 +1,4 @@
-defmodule PaymentCompliancePlatform.Repo.Migrations.CreateAccountHolders do
+defmodule AtomicFi.Repo.Migrations.CreateAccountHolders do
   use Ecto.Migration
 
   def change do

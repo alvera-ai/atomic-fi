@@ -4,10 +4,10 @@ defmodule <%= inspect context.module %> do
   """
 
   import Ecto.Query, warn: false
-  use PaymentCompliancePlatform.LoggerMacro
+  use AtomicFi.LoggerMacro
 
-  alias PaymentCompliancePlatform.Repo
-  alias PaymentCompliancePlatform.SessionContext.Session
+  alias AtomicFi.Repo
+  alias AtomicFi.SessionContext.Session
   alias <%= inspect schema.module %>
 
   # Preloads for <%= schema.alias %> responses
