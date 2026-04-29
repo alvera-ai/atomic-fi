@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.1.0](https://github.com/alvera-ai/atomic-fi/compare/v1.0.0...v1.1.0) (2026-04-29)
+
+
+### Features
+
+* rebrand to AtomicFi, adopt MIT license, prep for open source ([060fdc8](https://github.com/alvera-ai/atomic-fi/commit/060fdc8be0335a82be72ba6c3836b552cb3a1bb0))
+* rebrand to AtomicFi, adopt MIT license, prep for open source ([a1c2963](https://github.com/alvera-ai/atomic-fi/commit/a1c2963084dfe82f13d8198bfbdf4cfcba8f877c)), closes [#12](https://github.com/alvera-ai/atomic-fi/issues/12)
+
 ## 1.0.0 (2026-04-24)
 
 
