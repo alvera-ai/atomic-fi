@@ -2,7 +2,7 @@
   "mcpServers": {
     "tidewave": {
       "type": "http",
-      "url": "http://localhost:4000/tidewave/mcp"
+      "url": "http://localhost:4100/tidewave/mcp"
     }
   }
 }

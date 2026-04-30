@@ -113,6 +113,13 @@ config :atomic_fi, AtomicFi.Scheduler,
     {"0 * * * *", {AtomicFi.DecisionContext.BlocklistCache, :refresh_all_caches, []}}
   ]
 
+# Migration paths: schema migrations run first, then seed_migrations bootstrap
+# the system tenant, roles, admin/bot users, and root API key. This makes the
+# platform usable after a single `mix ecto.migrate`. Mirrors platform pattern.
+config :atomic_fi, :migration_paths, %{
+  AtomicFi.Repo => ["priv/repo/migrations", "priv/repo/seed_migrations"]
+}
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

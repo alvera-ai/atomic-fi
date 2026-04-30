@@ -1,12 +1,17 @@
 import Config
 
-# System entities for seeding (CRM pattern - just names, not full configs)
-config :atomic_fi,
-  tenant_name: "System",
-  admin_user: "admin@system.local",
-  admin_pass: "admin-password-dev",
-  bot_user: "bot@system.local",
-  root_api_key: "alvera_root_api_key_dev"
+# System entities for seeding (platform pattern — nested per-resource config)
+config :atomic_fi, :system_tenant,
+  name: "atomic-fi-tenant",
+  slug: "atomic-fi-tenant"
+
+config :atomic_fi, :admin_user,
+  email: "admin@atomic-fi.local",
+  password: "admin-password-dev"
+
+config :atomic_fi, :bot_user, email: "bot@atomic-fi.local"
+
+config :atomic_fi, :root_api_key, "alvera_root_api_key_dev"
 
 # Configure encryption vault
 config :atomic_fi, AtomicFi.Vault,
