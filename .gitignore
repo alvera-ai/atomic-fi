@@ -35,3 +35,10 @@ phoenix_template_server-*.tar
 npm-debug.log
 /assets/node_modules/
 
+# pnpm workspace
+node_modules/
+.pnpm-store/
+
+# Per-runId integration-test state — never commit.
+/integration-tests/vitest-state/
+

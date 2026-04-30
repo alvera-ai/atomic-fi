@@ -1,0 +1,24 @@
+{
+  "name": "atomic-fi-integration-tests",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "state:create": "tsx scripts/state.ts create",
+    "state:create:clean": "tsx scripts/state.ts create:clean",
+    "state:clean": "tsx scripts/state.ts clean",
+    "test": "vitest run",
+    "test:e2e": "vitest run tests/e2e",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@atomic-fi/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "dotenv": "^16.4.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

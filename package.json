@@ -1,0 +1,12 @@
+{
+  "name": "atomic-fi-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sdk:build": "pnpm --filter @atomic-fi/sdk build",
+    "sdk:check": "pnpm --filter @atomic-fi/sdk check",
+    "test:e2e": "pnpm --filter atomic-fi-integration-tests test:e2e"
+  },
+  "packageManager": "pnpm@9.15.0"
+}
