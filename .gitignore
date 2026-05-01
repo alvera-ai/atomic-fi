@@ -42,3 +42,6 @@ node_modules/
 # Per-runId integration-test state — never commit.
 /integration-tests/vitest-state/
 
+# Bootstrap credentials dumped by `mix atomic_fi.dump_bootstrap_creds` for E2E tests.
+/priv/repo/.bootstrap_creds.json
+
