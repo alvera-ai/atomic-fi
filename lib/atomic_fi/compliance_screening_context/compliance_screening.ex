@@ -81,7 +81,13 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
   open_api_property(
     schema: %Schema{
       type: :string,
-      enum: ["account_holder", "beneficial_owner", "counterparty", "payment_account", "transaction"]
+      enum: [
+        "account_holder",
+        "beneficial_owner",
+        "counterparty",
+        "payment_account",
+        "transaction"
+      ]
     },
     key: :scope
   )

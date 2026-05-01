@@ -486,7 +486,13 @@ defmodule AtomicFi.ComplianceScreeningContext do
          screening_type
        ) do
     attrs =
-      build_screening_attrs(:beneficial_owner, screening_result, screening_type, list_info, tenant_id)
+      build_screening_attrs(
+        :beneficial_owner,
+        screening_result,
+        screening_type,
+        list_info,
+        tenant_id
+      )
       |> Map.merge(%{
         account_holder_id: account_holder_id,
         beneficial_owner_id: beneficial_owner_id
