@@ -84,7 +84,9 @@ defmodule AtomicFi.ComplianceScreeningContext.ScreeningWorker do
   end
 
   defp build_session(tenant_id) do
-    tenant = Repo.get!(Tenant, tenant_id)
+    # Oban worker runs outside any HTTP session, so explicitly bypass the
+    # multi-tenancy guard when loading the tenant by id.
+    tenant = Repo.get!(Tenant, tenant_id, skip_multi_tenancy_check: true)
     %{tenant_id: tenant_id, tenant: tenant}
   end
 end

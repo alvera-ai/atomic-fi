@@ -67,7 +67,7 @@ config :tailwind,
   version: "3.2.4",
   default: [
     args: ~w(
-      --config=tailwind.config.js
+      --config=tailwind.config.cjs
       --input=css/app.css
       --output=../priv/static/assets/app.css
     ),
@@ -112,6 +112,13 @@ config :atomic_fi, AtomicFi.Scheduler,
     # Refresh blocklist cache every hour
     {"0 * * * *", {AtomicFi.DecisionContext.BlocklistCache, :refresh_all_caches, []}}
   ]
+
+# Migration paths: schema migrations run first, then seed_migrations bootstrap
+# the system tenant, roles, admin/bot users, and root API key. This makes the
+# platform usable after a single `mix ecto.migrate`. Mirrors platform pattern.
+config :atomic_fi, :migration_paths, %{
+  AtomicFi.Repo => ["priv/repo/migrations", "priv/repo/seed_migrations"]
+}
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

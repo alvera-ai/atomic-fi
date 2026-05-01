@@ -36,14 +36,21 @@ if config_env() == :prod do
       default: {Cloak.Ciphers.AES.GCM, tag: "AES.GCM.V1", key: Base.decode64!(cloak_key)}
     ]
 
-  # System entities for seeding (CRM pattern - from ENV vars)
+  # System entities for seeding (platform pattern — nested per-resource config from ENV vars)
   tenant_name =
     System.get_env("TENANT_NAME") ||
       raise """
       environment variable TENANT_NAME is missing.
       """
 
-  admin_user =
+  tenant_slug =
+    System.get_env("TENANT_SLUG") ||
+      tenant_name
+      |> String.downcase()
+      |> String.replace(~r/[^a-z0-9]+/, "-")
+      |> String.trim("-")
+
+  admin_email =
     System.get_env("ADMIN_USER") ||
       raise """
       environment variable ADMIN_USER is missing.
@@ -55,8 +62,8 @@ if config_env() == :prod do
       environment variable ADMIN_PASS is missing.
       """
 
-  bot_user =
-    System.get_env("BOT_USER") || "bot@#{tenant_name}.local"
+  bot_email =
+    System.get_env("BOT_USER") || "bot@#{tenant_slug}.local"
 
   root_api_key =
     System.get_env("ROOT_API_KEY") ||
@@ -65,12 +72,17 @@ if config_env() == :prod do
       This should be a secure, randomly generated API key for root access.
       """
 
-  config :atomic_fi,
-    tenant_name: tenant_name,
-    admin_user: admin_user,
-    admin_pass: admin_pass,
-    bot_user: bot_user,
-    root_api_key: root_api_key
+  config :atomic_fi, :system_tenant,
+    name: tenant_name,
+    slug: tenant_slug
+
+  config :atomic_fi, :admin_user,
+    email: admin_email,
+    password: admin_pass
+
+  config :atomic_fi, :bot_user, email: bot_email
+
+  config :atomic_fi, :root_api_key, root_api_key
 
   database_url =
     System.get_env("DATABASE_URL") ||

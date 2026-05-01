@@ -35,3 +35,17 @@ phoenix_template_server-*.tar
 npm-debug.log
 /assets/node_modules/
 
+# pnpm workspace
+node_modules/
+.pnpm-store/
+
+# Per-runId integration-test state — never commit.
+/integration-tests/vitest-state/
+
+# Bootstrap credentials dumped by `mix atomic_fi.dump_bootstrap_creds` for E2E tests.
+/priv/repo/.bootstrap_creds.json
+
+# Local IDE / tooling caches — keep .claude/ tracked (intentional), ignore the rest.
+/.vscode/
+/.playwright-cli/
+

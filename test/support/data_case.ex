@@ -57,7 +57,7 @@ defmodule AtomicFi.DataCase do
   Returns the system tenant seeded by migrations.
   """
   def system_tenant do
-    tenant_name = Config.fetch!(:tenant_name)
+    tenant_name = Config.fetch!([:system_tenant, :name])
 
     Tenant
     |> where(name: ^tenant_name)
@@ -70,7 +70,7 @@ defmodule AtomicFi.DataCase do
   """
   def system_session do
     tenant = system_tenant()
-    admin_email = Config.fetch!(:admin_user)
+    admin_email = Config.fetch!([:admin_user, :email])
 
     # Get admin user
     user =

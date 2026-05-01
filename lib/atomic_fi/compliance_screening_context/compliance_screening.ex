@@ -81,7 +81,13 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
   open_api_property(
     schema: %Schema{
       type: :string,
-      enum: ["account_holder", "counterparty", "payment_account", "transaction"]
+      enum: [
+        "account_holder",
+        "beneficial_owner",
+        "counterparty",
+        "payment_account",
+        "transaction"
+      ]
     },
     key: :scope
   )
@@ -279,7 +285,7 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
 
   typed_schema "compliance_screenings" do
     field :scope, Ecto.Enum,
-      values: [:account_holder, :counterparty, :payment_account, :transaction]
+      values: [:account_holder, :beneficial_owner, :counterparty, :payment_account, :transaction]
 
     field :screening_type, Ecto.Enum, values: [:sanctions, :pep, :aml, :adverse_media]
 
@@ -330,6 +336,7 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
     belongs_to :account_holder, AccountHolder
 
     # Soft refs — counterparty/payment_account/transaction tables not yet created
+    field :beneficial_owner_id, :binary_id
     field :counterparty_id, :binary_id
     field :payment_account_id, :binary_id
     field :transaction_id, :binary_id
@@ -373,6 +380,7 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
       :escalation_level,
       :compliance_screening_number,
       :account_holder_id,
+      :beneficial_owner_id,
       :counterparty_id,
       :payment_account_id,
       :transaction_id,

@@ -100,7 +100,7 @@ defmodule AtomicFi.Repo do
     # Assumes session.role is preloaded by get_session!
     cond do
       # Skip RLS for platform admin roles
-      is_platform_admin?(session) ->
+      platform_admin?(session) ->
         {query, opts}
 
       # Apply normal RLS filtering
@@ -126,23 +126,23 @@ defmodule AtomicFi.Repo do
 
   # Check if session has platform admin role (bypasses RLS)
   # Requires session.role to be preloaded - raises if not
-  defp is_platform_admin?(%Session{role: %{name: role_name}}) when is_binary(role_name) do
+  defp platform_admin?(%Session{role: %{name: role_name}}) when is_binary(role_name) do
     RoleConstants.reserved?(role_name)
   end
 
-  defp is_platform_admin?(%Session{role: %Ecto.Association.NotLoaded{}}) do
+  defp platform_admin?(%Session{role: %Ecto.Association.NotLoaded{}}) do
     raise """
     Session role must be preloaded to check for platform admin bypass.
     Ensure SessionContext.get_session!/2 preloads the :role association.
     """
   end
 
-  defp is_platform_admin?(%Session{role: nil}) do
+  defp platform_admin?(%Session{role: nil}) do
     raise "Session must have an associated role for RLS checks"
   end
 
   # Non-Session structs (legacy User pattern) - no platform admin bypass
-  defp is_platform_admin?(_), do: false
+  defp platform_admin?(_), do: false
 
   # Extract role scope from Session or User struct
   defp extract_role_scope(%{__struct__: Session} = session) do

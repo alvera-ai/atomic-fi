@@ -462,7 +462,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
       assert is_list(response)
       [screening] = response
-      assert screening["scope"] == "account_holder"
+      assert screening["scope"] == "beneficial_owner"
       assert screening["screened_entity_name"] == "Clara Bennet"
       assert screening["screening_status"] in ["pass", "potential_match", "blocked"]
     end

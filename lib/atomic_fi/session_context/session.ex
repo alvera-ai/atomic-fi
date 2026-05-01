@@ -374,7 +374,7 @@ defmodule AtomicFi.SessionContext.Session do
         true
 
       # Customer admin can assume employee role in same customer
-      is_customer_admin?(actor_roles, target_role) and
+      customer_admin?(actor_roles, target_role) and
           target_role.name == RoleConstants.employee() ->
         same_customer?(actor_roles, target_role.customer_id)
 
@@ -388,7 +388,7 @@ defmodule AtomicFi.SessionContext.Session do
   end
 
   # Check if actor has customer_admin role for target role's customer
-  defp is_customer_admin?(actor_roles, target_role) do
+  defp customer_admin?(actor_roles, target_role) do
     Enum.any?(actor_roles, fn role ->
       role.name == RoleConstants.customer_admin() and
         role.customer_id == target_role.customer_id
