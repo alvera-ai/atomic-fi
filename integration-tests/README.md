@@ -40,9 +40,9 @@ TARGET_ENV=local pnpm --filter atomic-fi-integration-tests test
 | documents | DocumentController | `documents.test.ts` | ✅ 10/10 |
 | kyc_requirements | KycRequirementController | `kyc_requirements.test.ts` | ✅ 10/10 |
 | risk_classifications | RiskClassificationController | `risk_classifications.test.ts` | ⏳ |
-| payment_accounts | PaymentAccountController | `payment_accounts.test.ts` | ⏳ |
-| ledgers | LedgerController | `ledgers.test.ts` | ⏳ |
-| ledger_accounts | LedgerAccountController | `ledger_accounts.test.ts` | ⏳ |
+| payment_accounts | PaymentAccountController | `payment_accounts.test.ts` | ✅ 10/10 |
+| ledgers | LedgerController | `ledgers.test.ts` | ✅ 10/10 |
+| ledger_accounts | LedgerAccountController | `ledger_accounts.test.ts` | ✅ 10/10 |
 | ledger_entries | LedgerEntryController | `ledger_entries.test.ts` | ⏳ |
 | ledger_account_balances | LedgerAccountBalanceController | `ledger_account_balances.test.ts` | ⏳ |
 | counterparties | CounterpartyController | `counterparties.test.ts` | ⏳ |
