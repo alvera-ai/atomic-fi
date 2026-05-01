@@ -37,8 +37,8 @@ TARGET_ENV=local pnpm --filter atomic-fi-integration-tests test
 | legal_entity_change_events | LegalEntityChangeEventController | `legal_entity_change_events.test.ts` | ✅ 10/10 |
 | beneficial_owners | BeneficialOwnerController | `beneficial_owners.test.ts` | ✅ 10/10 |
 | account_holders | AccountHolderController | `account_holders.test.ts` | ✅ 10/10 |
-| documents | DocumentController | `documents.test.ts` | ⏳ |
-| kyc_requirements | KycRequirementController | `kyc_requirements.test.ts` | ⏳ |
+| documents | DocumentController | `documents.test.ts` | ✅ 10/10 |
+| kyc_requirements | KycRequirementController | `kyc_requirements.test.ts` | ✅ 10/10 |
 | risk_classifications | RiskClassificationController | `risk_classifications.test.ts` | ⏳ |
 | payment_accounts | PaymentAccountController | `payment_accounts.test.ts` | ⏳ |
 | ledgers | LedgerController | `ledgers.test.ts` | ⏳ |
