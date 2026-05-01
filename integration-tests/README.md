@@ -43,10 +43,10 @@ TARGET_ENV=local pnpm --filter atomic-fi-integration-tests test
 | payment_accounts | PaymentAccountController | `payment_accounts.test.ts` | ✅ 10/10 |
 | ledgers | LedgerController | `ledgers.test.ts` | ✅ 10/10 |
 | ledger_accounts | LedgerAccountController | `ledger_accounts.test.ts` | ✅ 10/10 |
-| ledger_entries | LedgerEntryController | `ledger_entries.test.ts` | ⏳ |
-| ledger_account_balances | LedgerAccountBalanceController | `ledger_account_balances.test.ts` | ⏳ |
-| counterparties | CounterpartyController | `counterparties.test.ts` | ⏳ |
-| transactions | TransactionController | `transactions.test.ts` | ⏳ |
+| ledger_entries | LedgerEntryController | `ledger_entries.test.ts` | ✅ 10/10 |
+| ledger_account_balances | LedgerAccountBalanceController | `ledger_account_balances.test.ts` | ✅ 6/6 (read-only) |
+| counterparties | CounterpartyController | `counterparties.test.ts` | ✅ 10/10 |
+| transactions | TransactionController | `transactions.test.ts` | ✅ 11/11 |
 | compliance_screenings | ComplianceScreeningController | `compliance_screenings.test.ts` | ⏳ (real Watchman + custom list) |
 | account_activity_snapshots | AccountActivitySnapshotController | `account_activity_snapshots.test.ts` | ⏳ |
 | party_activity_snapshots | PartyActivitySnapshotController | `party_activity_snapshots.test.ts` | ⏳ |
