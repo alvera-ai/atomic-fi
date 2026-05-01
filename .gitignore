@@ -45,3 +45,7 @@ node_modules/
 # Bootstrap credentials dumped by `mix atomic_fi.dump_bootstrap_creds` for E2E tests.
 /priv/repo/.bootstrap_creds.json
 
+# Local IDE / tooling caches — keep .claude/ tracked (intentional), ignore the rest.
+/.vscode/
+/.playwright-cli/
+
