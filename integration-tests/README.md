@@ -33,7 +33,7 @@ TARGET_ENV=local pnpm --filter atomic-fi-integration-tests test
 | api_keys | ApiKeyController | `api_keys.test.ts` | ✅ 10/10 |
 | tenants | TenantController | `tenants.test.ts` | ✅ 11/11 |
 | blocklist_entries | BlocklistEntryController | `blocklist_entries.test.ts` | ✅ 11/11 |
-| legal_entities | LegalEntityController | `legal_entities.test.ts` | ✅ 9/10 + 1 it.fails (#17) |
+| legal_entities | LegalEntityController | `legal_entities.test.ts` | ✅ 10/10 (#17 fixed) |
 | legal_entity_change_events | LegalEntityChangeEventController | `legal_entity_change_events.test.ts` | ✅ 10/10 |
 | beneficial_owners | BeneficialOwnerController | `beneficial_owners.test.ts` | ✅ 10/10 |
 | account_holders | AccountHolderController | `account_holders.test.ts` | ✅ 10/10 |
@@ -47,7 +47,7 @@ TARGET_ENV=local pnpm --filter atomic-fi-integration-tests test
 | ledger_account_balances | LedgerAccountBalanceController | `ledger_account_balances.test.ts` | ✅ 6/6 (read-only) |
 | counterparties | CounterpartyController | `counterparties.test.ts` | ✅ 10/10 |
 | transactions | TransactionController | `transactions.test.ts` | ✅ 11/11 |
-| compliance_screenings | ComplianceScreeningController | `compliance_screenings.test.ts` | ⏳ (real Watchman + custom list) |
+| compliance_screenings | ComplianceScreeningController | `compliance_screenings.test.ts` | ✅ 9/9 (real Watchman, #18 fixed) |
 | account_activity_snapshots | AccountActivitySnapshotController | `account_activity_snapshots.test.ts` | ⏳ |
 | party_activity_snapshots | PartyActivitySnapshotController | `party_activity_snapshots.test.ts` | ⏳ |
 | sessions (revoke + expired) | SessionController | `sessions.test.ts` | ⏳ |
