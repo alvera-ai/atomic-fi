@@ -32,7 +32,7 @@ TARGET_ENV=local pnpm --filter atomic-fi-integration-tests test
 | customers | CustomerController | `customers.test.ts` | ✅ 10/10 |
 | api_keys | ApiKeyController | `api_keys.test.ts` | ✅ 10/10 |
 | tenants | TenantController | `tenants.test.ts` | ✅ 11/11 |
-| blocklist_entries | BlocklistEntryController | `blocklist_entries.test.ts` | ⏳ |
+| blocklist_entries | BlocklistEntryController | `blocklist_entries.test.ts` | ✅ 11/11 |
 | legal_entities | LegalEntityController | `legal_entities.test.ts` | ⏳ |
 | legal_entity_change_events | LegalEntityChangeEventController | `legal_entity_change_events.test.ts` | ⏳ |
 | beneficial_owners | BeneficialOwnerController | `beneficial_owners.test.ts` | ⏳ |
