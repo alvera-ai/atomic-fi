@@ -88,9 +88,12 @@ describe('roles — /api/roles', () => {
   })
 
   it('GET /api/roles → 200 list contains created', async () => {
-    // page_size=100 (max) so newly-created roles are reachable regardless of
-    // how many seed roles already exist in the tenant.
-    const res = await fetch(`${config.baseUrl}/api/roles?page_size=100`, { headers: bearerHeaders(bearer) })
+    // Order by inserted_at desc so the freshly-created role lands on page 1
+    // regardless of how many seed/historical roles already exist.
+    const res = await fetch(
+      `${config.baseUrl}/api/roles?page_size=100&order_by=inserted_at&order_directions=desc`,
+      { headers: bearerHeaders(bearer) },
+    )
     expect(res.status).toBe(200)
     const body = (await res.json()) as { data: AnyJson[]; meta: AnyJson }
     expect(body.meta.total_count as number).toBeGreaterThanOrEqual(1)

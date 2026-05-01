@@ -134,18 +134,17 @@ describe('legal_entities — /api/legal-entities', () => {
     expect(res.status).toBe(404)
   })
 
-  // Known bug — see #17. legal_entity_change_events.legal_entity_id FK has
-  // no on_delete:delete_all, so deleting a legal_entity that has ever been
-  // updated 500s. it.fails passes while the bug exists and flips red the
-  // moment it's fixed (forcing this case to be promoted to expect(204)).
-  it.fails(
-    'DELETE /api/legal-entities/:id → 204 (BUG: 500 when entity has been updated)',
-    async () => {
-      const del = await fetch(`${config.baseUrl}/api/legal-entities/${entityId}`, {
-        method: 'DELETE',
-        headers: bearerHeaders(bearer),
-      })
-      expect(del.status).toBe(204)
-    },
-  )
+  it('DELETE /api/legal-entities/:id → 204 + GET 404', async () => {
+    const del = await fetch(`${config.baseUrl}/api/legal-entities/${entityId}`, {
+      method: 'DELETE',
+      headers: bearerHeaders(bearer),
+    })
+    expect(del.status).toBe(204)
+
+    const get = await fetch(`${config.baseUrl}/api/legal-entities/${entityId}`, {
+      headers: bearerHeaders(bearer),
+    })
+    expect(get.status).toBe(404)
+    entityId = ''
+  })
 })
