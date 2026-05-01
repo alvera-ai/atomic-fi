@@ -14,4 +14,11 @@ export * from '../generated/sdk.gen.ts'
 export { client } from '../generated/client.gen.ts'
 export type * from '../generated/types.gen.ts'
 
-export { buildBearerSdk, buildApiKeySdk, type Sdk } from './auth.ts'
+export {
+  buildBearerSdk,
+  buildApiKeySdk,
+  mintSecondaryTenant,
+  type Sdk,
+  type SecondaryTenant,
+  type MintSecondaryTenantArgs,
+} from './auth.ts'
