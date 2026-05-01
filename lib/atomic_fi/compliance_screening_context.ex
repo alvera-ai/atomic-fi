@@ -335,9 +335,10 @@ defmodule AtomicFi.ComplianceScreeningContext do
          suppressed_ids <- fetch_suppressed_source_ids(tenant_id),
          {:ok, result} <- screen_entity(tenant_id, entity, suppressed_ids),
          {:ok, screening} <-
-           persist_account_holder_screening(
+           persist_beneficial_owner_screening(
              session,
              account_holder_id,
+             beneficial_owner_id,
              tenant_id,
              list_info,
              result,
@@ -471,6 +472,25 @@ defmodule AtomicFi.ComplianceScreeningContext do
     attrs =
       build_screening_attrs(:counterparty, screening_result, screening_type, list_info, tenant_id)
       |> Map.merge(%{account_holder_id: account_holder_id, counterparty_id: counterparty_id})
+
+    insert_screening(session, attrs)
+  end
+
+  defp persist_beneficial_owner_screening(
+         session,
+         account_holder_id,
+         beneficial_owner_id,
+         tenant_id,
+         list_info,
+         screening_result,
+         screening_type
+       ) do
+    attrs =
+      build_screening_attrs(:beneficial_owner, screening_result, screening_type, list_info, tenant_id)
+      |> Map.merge(%{
+        account_holder_id: account_holder_id,
+        beneficial_owner_id: beneficial_owner_id
+      })
 
     insert_screening(session, attrs)
   end
