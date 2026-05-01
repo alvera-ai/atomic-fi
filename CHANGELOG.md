@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.2.0](https://github.com/alvera-ai/atomic-fi/compare/v1.1.0...v1.2.0) (2026-05-01)
+
+
+### Features
+
+* claude skills added ([520726e](https://github.com/alvera-ai/atomic-fi/commit/520726ec10a6155b2180dea9f76a05fc58861952))
+* **integration-tests:** 100% E2E OpenAPI coverage ([5ec096f](https://github.com/alvera-ai/atomic-fi/commit/5ec096f2503a44803f8f872d7538b396c74beeb8))
+* **sdk:** add mintSecondaryTenant() for RLS isolation tests ([b4e0b7d](https://github.com/alvera-ai/atomic-fi/commit/b4e0b7d0b1c40992b81bb620d31d2b447c3abd68))
+* **seeds:** split platform bootstrap into seed_migrations, fix login deadlock ([cac17e7](https://github.com/alvera-ai/atomic-fi/commit/cac17e76573ab2111fd260eea86ee828e9aa9885))
+
+
+### Bug Fixes
+
+* **compliance_screening:** persist BO screenings with scope=:beneficial_owner ([be635b5](https://github.com/alvera-ai/atomic-fi/commit/be635b5ec97414734ca545aa8d88ae6ba8a6e5fc))
+* **legal_entities:** cascade-delete change events on legal_entity delete ([0f77341](https://github.com/alvera-ai/atomic-fi/commit/0f77341a0449fb02693bebd5db3f7e3f7ff90273))
+* **migrations:** bump timestamps to avoid collision with seed migration ([a030dd0](https://github.com/alvera-ai/atomic-fi/commit/a030dd0a635b79434fbfae85fc156762be6064cf))
+
 ## [1.1.0](https://github.com/alvera-ai/atomic-fi/compare/v1.0.0...v1.1.0) (2026-04-29)
 
 
