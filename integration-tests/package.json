@@ -8,7 +8,7 @@
     "state:create:clean": "tsx scripts/state.ts create:clean",
     "state:clean": "tsx scripts/state.ts clean",
     "test": "vitest run",
-    "test:e2e": "vitest run tests/e2e",
+    "test:e2e": "vitest run tests",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

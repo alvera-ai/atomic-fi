@@ -31,9 +31,10 @@
  */
 import { describe, expect, it } from 'vitest'
 
-import { config } from '../../src/env.ts'
-import { buildApiKeySdk, buildBearerSdk } from '../../src/sdk.ts'
-import { loadSpec, saveSpec, type BootstrapState } from '../../src/state.ts'
+import { buildApiKeySdk, buildBearerSdk } from '@atomic-fi/sdk'
+
+import { config } from '../src/env.ts'
+import { loadSpec, saveSpec, type BootstrapState } from '../src/state.ts'
 
 const SPEC = 'bootstrap'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -105,7 +106,7 @@ describe('e2e/bootstrap', () => {
 
   it('GET /api/sessions/verify with Bearer returns a user-typed session', async () => {
     expect(s.bearer, 'previous step must have set bearer').toBeTruthy()
-    const sdk = buildBearerSdk(s.bearer!)
+    const sdk = buildBearerSdk(config.baseUrl, s.bearer!)
 
     const res = await fetch(`${config.baseUrl}/api/sessions/verify`, {
       headers: { authorization: `Bearer ${s.bearer}`, accept: 'application/json' },
@@ -126,7 +127,7 @@ describe('e2e/bootstrap', () => {
   })
 
   it('GET /api/sessions/verify with x-api-key returns an api-typed session', async () => {
-    const sdk = buildApiKeySdk(config.rootApiKey)
+    const sdk = buildApiKeySdk(config.baseUrl, config.rootApiKey)
 
     const res = await fetch(`${config.baseUrl}/api/sessions/verify`, {
       headers: { 'x-api-key': config.rootApiKey, accept: 'application/json' },

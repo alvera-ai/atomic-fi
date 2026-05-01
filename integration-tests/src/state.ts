@@ -57,7 +57,7 @@ export function requireBootstrap(): BootstrapState {
   const s = loadSpec<BootstrapState>('bootstrap')
   if (!s) {
     throw new Error(
-      'bootstrap state missing — run tests/e2e/bootstrap.test.ts first ' +
+      'bootstrap state missing — run tests/bootstrap.test.ts first ' +
         '(it must complete before any other spec).',
     )
   }
