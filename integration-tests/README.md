@@ -34,7 +34,7 @@ TARGET_ENV=local pnpm --filter atomic-fi-integration-tests test
 | tenants | TenantController | `tenants.test.ts` | ✅ 11/11 |
 | blocklist_entries | BlocklistEntryController | `blocklist_entries.test.ts` | ✅ 11/11 |
 | legal_entities | LegalEntityController | `legal_entities.test.ts` | ✅ 9/10 + 1 it.fails (#17) |
-| legal_entity_change_events | LegalEntityChangeEventController | `legal_entity_change_events.test.ts` | ⏳ |
+| legal_entity_change_events | LegalEntityChangeEventController | `legal_entity_change_events.test.ts` | ✅ 10/10 |
 | beneficial_owners | BeneficialOwnerController | `beneficial_owners.test.ts` | ⏳ |
 | account_holders | AccountHolderController | `account_holders.test.ts` | ⏳ |
 | documents | DocumentController | `documents.test.ts` | ⏳ |
