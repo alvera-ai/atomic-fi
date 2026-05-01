@@ -1,5 +1,10 @@
 /**
  * Loads .env.<TARGET_ENV> before any test imports `src/env.ts`.
+ *
+ * No global authentication or DB reset here — each spec is self-contained
+ * and authenticates in its own beforeAll. vitest.setup.ts is intentionally
+ * minimal: just put the right env vars on process.env so src/env.ts can
+ * pick them up.
  */
 import { config as loadDotenv } from 'dotenv'
 import { existsSync } from 'node:fs'

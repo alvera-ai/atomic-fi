@@ -64,9 +64,9 @@ describe('e2e/bootstrap', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({
-        email: config.rootEmail,
-        password: config.rootPassword,
-        tenant_slug: config.rootTenantSlug,
+        email: config.adminEmail,
+        password: config.adminPassword,
+        tenant_slug: config.tenantSlug,
         // Long enough that re-running specs in the same runId always finds a
         // valid bearer; specs intentionally exercising expiry should mint
         // their own short-lived session.
@@ -82,10 +82,10 @@ describe('e2e/bootstrap', () => {
     expect(body.api_key_id).toBeNull()
     expect(body.bearer).toEqual(expect.any(String))
     expect(body.bearer!.length).toBeGreaterThan(8)
-    expect(body.tenant.slug).toBe(config.rootTenantSlug)
+    expect(body.tenant.slug).toBe(config.tenantSlug)
     expect(body.tenant.id).toMatch(UUID_RE)
     expect(body.role.name).toBe('root')
-    expect(body.user!.email).toBe(config.rootEmail)
+    expect(body.user!.email).toBe(config.adminEmail)
     expect(body.user!.id).toMatch(UUID_RE)
     expect(body.expires_at).toEqual(expect.any(String))
 
@@ -117,8 +117,8 @@ describe('e2e/bootstrap', () => {
     expect(body.type).toBe('user')
     expect(body.active).toBe(true)
     expect(body.api_key_id).toBeNull()
-    expect(body.user!.email).toBe(config.rootEmail)
-    expect(body.tenant.slug).toBe(config.rootTenantSlug)
+    expect(body.user!.email).toBe(config.adminEmail)
+    expect(body.tenant.slug).toBe(config.tenantSlug)
     expect(body.role.name).toBe('root')
     expect(body.expires_at).toBe(s.bearerExpiresAt)
 
@@ -143,7 +143,7 @@ describe('e2e/bootstrap', () => {
     expect(body.api_key?.id).toBe(body.api_key_id)
     // API keys don't expire by default.
     expect(body.expires_at).toBeNull()
-    expect(body.tenant.slug).toBe(config.rootTenantSlug)
+    expect(body.tenant.slug).toBe(config.tenantSlug)
     expect(body.role.name).toBe('root')
 
     s.apiKeyId = body.api_key_id
