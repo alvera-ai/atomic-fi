@@ -81,7 +81,7 @@ describe('legal_entity_change_events — /api/legal-entity-change-events', () =>
   })
 
   it('GET /api/legal-entity-change-events → 200 contains created', async () => {
-    const res = await fetch(`${config.baseUrl}/api/legal-entity-change-events?page_size=100`, {
+    const res = await fetch(`${config.baseUrl}/api/legal-entity-change-events?page_size=100&order_by=inserted_at&order_directions=desc`, {
       headers: bearerHeaders(bearer),
     })
     expect(res.status).toBe(200)

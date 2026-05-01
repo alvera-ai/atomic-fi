@@ -73,7 +73,7 @@ describe('tenants — /api/tenants', () => {
   })
 
   it('GET /api/tenants → 200 contains created', async () => {
-    const res = await fetch(`${config.baseUrl}/api/tenants?page_size=100`, {
+    const res = await fetch(`${config.baseUrl}/api/tenants?page_size=100&order_by=inserted_at&order_directions=desc`, {
       headers: adminHeaders,
     })
     expect(res.status).toBe(200)

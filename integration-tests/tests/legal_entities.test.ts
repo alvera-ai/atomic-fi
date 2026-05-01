@@ -59,7 +59,7 @@ describe('legal_entities — /api/legal-entities', () => {
   })
 
   it('GET /api/legal-entities → 200 contains created', async () => {
-    const res = await fetch(`${config.baseUrl}/api/legal-entities?page_size=100`, {
+    const res = await fetch(`${config.baseUrl}/api/legal-entities?page_size=100&order_by=inserted_at&order_directions=desc`, {
       headers: bearerHeaders(bearer),
     })
     expect(res.status).toBe(200)

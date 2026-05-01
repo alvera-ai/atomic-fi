@@ -82,7 +82,7 @@ describe('payment_accounts — /api/payment-accounts', () => {
   })
 
   it('GET /api/payment-accounts → 200 contains created', async () => {
-    const res = await fetch(`${config.baseUrl}/api/payment-accounts?page_size=100`, {
+    const res = await fetch(`${config.baseUrl}/api/payment-accounts?page_size=100&order_by=inserted_at&order_directions=desc`, {
       headers: bearerHeaders(bearer),
     })
     expect(res.status).toBe(200)

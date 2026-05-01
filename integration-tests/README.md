@@ -39,7 +39,7 @@ TARGET_ENV=local pnpm --filter atomic-fi-integration-tests test
 | account_holders | AccountHolderController | `account_holders.test.ts` | ✅ 10/10 |
 | documents | DocumentController | `documents.test.ts` | ✅ 10/10 |
 | kyc_requirements | KycRequirementController | `kyc_requirements.test.ts` | ✅ 10/10 |
-| risk_classifications | RiskClassificationController | `risk_classifications.test.ts` | ⏳ |
+| risk_classifications | RiskClassificationController | `risk_classifications.test.ts` | ✅ 10/10 |
 | payment_accounts | PaymentAccountController | `payment_accounts.test.ts` | ✅ 10/10 |
 | ledgers | LedgerController | `ledgers.test.ts` | ✅ 10/10 |
 | ledger_accounts | LedgerAccountController | `ledger_accounts.test.ts` | ✅ 10/10 |
@@ -48,10 +48,10 @@ TARGET_ENV=local pnpm --filter atomic-fi-integration-tests test
 | counterparties | CounterpartyController | `counterparties.test.ts` | ✅ 10/10 |
 | transactions | TransactionController | `transactions.test.ts` | ✅ 11/11 |
 | compliance_screenings | ComplianceScreeningController | `compliance_screenings.test.ts` | ✅ 9/9 (real Watchman, #18 fixed) |
-| account_activity_snapshots | AccountActivitySnapshotController | `account_activity_snapshots.test.ts` | ⏳ |
-| party_activity_snapshots | PartyActivitySnapshotController | `party_activity_snapshots.test.ts` | ⏳ |
-| sessions (revoke + expired) | SessionController | `sessions.test.ts` | ⏳ |
-| info / openapi / docs (meta) | ApiInfoController, OpenApiSpecController, ScalarController | `meta.test.ts` | ⏳ |
+| account_activity_snapshots | AccountActivitySnapshotController | `account_activity_snapshots.test.ts` | ✅ 10/10 |
+| party_activity_snapshots | PartyActivitySnapshotController | `party_activity_snapshots.test.ts` | ✅ 10/10 |
+| sessions (revoke + expired) | SessionController | `sessions.test.ts` | ✅ 4/4 |
+| info / openapi / docs (meta) | ApiInfoController, OpenApiSpecController, ScalarController | `meta.test.ts` | ✅ 5/5 |
 
 Legend: ✅ green · 🚧 in progress · ⏳ pending · ❌ failing/blocked
 

@@ -88,7 +88,7 @@ describe('ledger_account_balances — /api/ledger-account-balances', () => {
   })
 
   it('GET /api/ledger-account-balances → 200', async () => {
-    const res = await fetch(`${config.baseUrl}/api/ledger-account-balances?page_size=100`, {
+    const res = await fetch(`${config.baseUrl}/api/ledger-account-balances?page_size=100&order_by=inserted_at&order_directions=desc`, {
       headers: bearerHeaders(bearer),
     })
     expect(res.status).toBe(200)

@@ -100,7 +100,7 @@ describe('beneficial_owners — /api/beneficial-owners', () => {
   })
 
   it('GET /api/beneficial-owners → 200 contains created', async () => {
-    const res = await fetch(`${config.baseUrl}/api/beneficial-owners?page_size=100`, {
+    const res = await fetch(`${config.baseUrl}/api/beneficial-owners?page_size=100&order_by=inserted_at&order_directions=desc`, {
       headers: bearerHeaders(bearer),
     })
     expect(res.status).toBe(200)

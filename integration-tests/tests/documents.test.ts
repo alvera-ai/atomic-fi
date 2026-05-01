@@ -92,7 +92,7 @@ describe('documents — /api/documents', () => {
   })
 
   it('GET /api/documents → 200 contains created', async () => {
-    const res = await fetch(`${config.baseUrl}/api/documents?page_size=100`, { headers: bearerHeaders(bearer) })
+    const res = await fetch(`${config.baseUrl}/api/documents?page_size=100&order_by=inserted_at&order_directions=desc`, { headers: bearerHeaders(bearer) })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { data: AnyJson[] }
     expect(body.data.some((d) => d.id === documentId)).toBe(true)

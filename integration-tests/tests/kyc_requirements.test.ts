@@ -88,7 +88,7 @@ describe('kyc_requirements — /api/kyc-requirements', () => {
   })
 
   it('GET /api/kyc-requirements → 200 contains created', async () => {
-    const res = await fetch(`${config.baseUrl}/api/kyc-requirements?page_size=100`, {
+    const res = await fetch(`${config.baseUrl}/api/kyc-requirements?page_size=100&order_by=inserted_at&order_directions=desc`, {
       headers: bearerHeaders(bearer),
     })
     expect(res.status).toBe(200)

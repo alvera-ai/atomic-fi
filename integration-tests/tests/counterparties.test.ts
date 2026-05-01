@@ -84,7 +84,7 @@ describe('counterparties — /api/counterparties', () => {
   })
 
   it('GET /api/counterparties → 200 contains created', async () => {
-    const res = await fetch(`${config.baseUrl}/api/counterparties?page_size=100`, {
+    const res = await fetch(`${config.baseUrl}/api/counterparties?page_size=100&order_by=inserted_at&order_directions=desc`, {
       headers: bearerHeaders(bearer),
     })
     expect(res.status).toBe(200)

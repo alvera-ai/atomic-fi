@@ -113,7 +113,7 @@ describe('api_keys — /api/api-keys', () => {
   })
 
   it('GET /api/api-keys → 200 contains created (raw_key null on read)', async () => {
-    const res = await fetch(`${config.baseUrl}/api/api-keys?page_size=100`, {
+    const res = await fetch(`${config.baseUrl}/api/api-keys?page_size=100&order_by=inserted_at&order_directions=desc`, {
       headers: bearerHeaders(bearer),
     })
     expect(res.status).toBe(200)

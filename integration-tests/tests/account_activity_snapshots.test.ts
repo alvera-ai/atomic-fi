@@ -1,5 +1,5 @@
 /**
- * transactions — full CRUD + RLS for /api/transactions.
+ * account_activity_snapshots — full CRUD + RLS for /api/account-activity-snapshots.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
@@ -21,12 +21,15 @@ async function postJson(path: string, headers: Record<string, string>, body: unk
   return (await res.json()) as AnyJson
 }
 
-describe('transactions — /api/transactions', () => {
+const periodEnd = new Date().toISOString()
+const periodStart = new Date(Date.now() - 86_400_000).toISOString()
+
+describe('account_activity_snapshots — /api/account-activity-snapshots', () => {
   let bearer: string
   let primaryTenantId: string
   let secondary: SecondaryTenant
   let accountHolderId: string
-  let txId: string
+  let snapshotId: string
 
   beforeAll(async () => {
     const session = await postAdminSession()
@@ -35,12 +38,12 @@ describe('transactions — /api/transactions', () => {
     secondary = await mintSecondaryTenant({
       baseUrl: config.baseUrl,
       platformAdminApiKey: config.platformAdminApiKey,
-      prefix: 'rls-transactions',
+      prefix: 'rls-aas',
     })
 
     const le = await postJson('/api/legal-entities', bearerHeaders(bearer), {
       legal_entity_type: 'individual',
-      first_name: 'TxParent',
+      first_name: 'AASParent',
       last_name: 'X',
       date_of_birth: '1990-01-01',
       citizenship_country: 'US',
@@ -60,17 +63,17 @@ describe('transactions — /api/transactions', () => {
   })
 
   afterAll(async () => {
-    if (txId) await safeDelete(`/api/transactions/${txId}`, bearerHeaders(bearer))
+    if (snapshotId) await safeDelete(`/api/account-activity-snapshots/${snapshotId}`, bearerHeaders(bearer))
   })
 
-  it('POST /api/transactions → 201', async () => {
-    const res = await fetch(`${config.baseUrl}/api/transactions`, {
+  it('POST /api/account-activity-snapshots → 201', async () => {
+    const res = await fetch(`${config.baseUrl}/api/account-activity-snapshots`, {
       method: 'POST',
       headers: bearerHeaders(bearer),
       body: JSON.stringify({
-        transaction_type: 'credit_transfer',
-        amount: 10000,
-        currency: 'USD',
+        snapshot_type: 'daily',
+        period_start: periodStart,
+        period_end: periodEnd,
         account_holder_id: accountHolderId,
         tenant_id: primaryTenantId,
       }),
@@ -78,47 +81,52 @@ describe('transactions — /api/transactions', () => {
     expect(res.status, await res.clone().text()).toBe(201)
     const body = (await res.json()) as AnyJson
     expect(body.id).toMatch(UUID_RE)
-    expect(body.amount).toBe(10000)
-    expect(body.transaction_type).toBe('credit_transfer')
-    txId = body.id as string
+    expect(body.snapshot_type).toBe('daily')
+    snapshotId = body.id as string
   })
 
-  it('GET /api/transactions → 200 contains created', async () => {
-    const res = await fetch(`${config.baseUrl}/api/transactions?page_size=100&order_by=inserted_at&order_directions=desc`, {
+  it('GET /api/account-activity-snapshots → 200 contains created', async () => {
+    const res = await fetch(
+      `${config.baseUrl}/api/account-activity-snapshots?page_size=100&order_by=inserted_at&order_directions=desc`,
+      { headers: bearerHeaders(bearer) },
+    )
+    expect(res.status).toBe(200)
+    const body = (await res.json()) as { data: AnyJson[] }
+    expect(body.data.some((s) => s.id === snapshotId)).toBe(true)
+  })
+
+  it('GET /api/account-activity-snapshots/:id → 200', async () => {
+    const res = await fetch(`${config.baseUrl}/api/account-activity-snapshots/${snapshotId}`, {
       headers: bearerHeaders(bearer),
     })
     expect(res.status).toBe(200)
-    const body = (await res.json()) as { data: AnyJson[] }
-    expect(body.data.some((t) => t.id === txId)).toBe(true)
-  })
-
-  it('GET /api/transactions/:id → 200', async () => {
-    const res = await fetch(`${config.baseUrl}/api/transactions/${txId}`, { headers: bearerHeaders(bearer) })
-    expect(res.status).toBe(200)
     const body = (await res.json()) as AnyJson
-    expect(body.id).toBe(txId)
+    expect(body.id).toBe(snapshotId)
   })
 
-  it('PUT /api/transactions/:id → 200', async () => {
-    const res = await fetch(`${config.baseUrl}/api/transactions/${txId}`, {
+  it('PUT /api/account-activity-snapshots/:id → 200', async () => {
+    const res = await fetch(`${config.baseUrl}/api/account-activity-snapshots/${snapshotId}`, {
       method: 'PUT',
       headers: bearerHeaders(bearer),
       body: JSON.stringify({
-        transaction_type: 'credit_transfer',
-        status: 'settled',
-        amount: 10000,
-        currency: 'USD',
+        snapshot_type: 'daily',
+        status: 'computed',
+        period_start: periodStart,
+        period_end: periodEnd,
+        total_debit_count: 5,
+        total_credit_count: 3,
         account_holder_id: accountHolderId,
         tenant_id: primaryTenantId,
       }),
     })
     expect(res.status, await res.clone().text()).toBe(200)
     const body = (await res.json()) as AnyJson
-    expect(body.status).toBe('settled')
+    expect(body.status).toBe('computed')
+    expect(body.total_debit_count).toBe(5)
   })
 
-  it('GET /api/transactions?page=1&page_size=5 → 200 paginated', async () => {
-    const res = await fetch(`${config.baseUrl}/api/transactions?page=1&page_size=5`, {
+  it('GET /api/account-activity-snapshots?page=1&page_size=5 → 200 paginated', async () => {
+    const res = await fetch(`${config.baseUrl}/api/account-activity-snapshots?page=1&page_size=5`, {
       headers: bearerHeaders(bearer),
     })
     expect(res.status).toBe(200)
@@ -127,13 +135,13 @@ describe('transactions — /api/transactions', () => {
     expect(body.meta.page_size).toBe(5)
   })
 
-  it('POST /api/transactions → 422 on missing amount', async () => {
-    const res = await fetch(`${config.baseUrl}/api/transactions`, {
+  it('POST /api/account-activity-snapshots → 422 on missing snapshot_type', async () => {
+    const res = await fetch(`${config.baseUrl}/api/account-activity-snapshots`, {
       method: 'POST',
       headers: bearerHeaders(bearer),
       body: JSON.stringify({
-        transaction_type: 'credit_transfer',
-        currency: 'USD',
+        period_start: periodStart,
+        period_end: periodEnd,
         account_holder_id: accountHolderId,
         tenant_id: primaryTenantId,
       }),
@@ -141,49 +149,38 @@ describe('transactions — /api/transactions', () => {
     expect(res.status).toBe(422)
   })
 
-  it('POST /api/transactions → 422 on amount <= 0', async () => {
-    const res = await fetch(`${config.baseUrl}/api/transactions`, {
-      method: 'POST',
-      headers: bearerHeaders(bearer),
-      body: JSON.stringify({
-        transaction_type: 'credit_transfer',
-        amount: 0,
-        currency: 'USD',
-        account_holder_id: accountHolderId,
-        tenant_id: primaryTenantId,
-      }),
-    })
-    expect(res.status).toBe(422)
-  })
-
-  it('GET /api/transactions/:id → 404 for unknown id', async () => {
-    const res = await fetch(`${config.baseUrl}/api/transactions/00000000-0000-0000-0000-000000000000`, {
+  it('GET /api/account-activity-snapshots/:id → 404 for unknown id', async () => {
+    const res = await fetch(`${config.baseUrl}/api/account-activity-snapshots/00000000-0000-0000-0000-000000000000`, {
       headers: bearerHeaders(bearer),
     })
     expect(res.status).toBe(404)
   })
 
-  it('GET /api/transactions → 401 without auth', async () => {
-    const res = await fetch(`${config.baseUrl}/api/transactions`, { headers: { accept: 'application/json' } })
+  it('GET /api/account-activity-snapshots → 401 without auth', async () => {
+    const res = await fetch(`${config.baseUrl}/api/account-activity-snapshots`, {
+      headers: { accept: 'application/json' },
+    })
     expect(res.status).toBe(401)
   })
 
-  it('RLS: secondary tenant cannot see primary tx → 404', async () => {
-    const res = await fetch(`${config.baseUrl}/api/transactions/${txId}`, {
+  it('RLS: secondary tenant cannot see primary snapshot → 404', async () => {
+    const res = await fetch(`${config.baseUrl}/api/account-activity-snapshots/${snapshotId}`, {
       headers: apiKeyHeaders(secondary.apiKey),
     })
     expect(res.status).toBe(404)
   })
 
-  it('DELETE /api/transactions/:id → 204 + GET 404', async () => {
-    const del = await fetch(`${config.baseUrl}/api/transactions/${txId}`, {
+  it('DELETE /api/account-activity-snapshots/:id → 204 + GET 404', async () => {
+    const del = await fetch(`${config.baseUrl}/api/account-activity-snapshots/${snapshotId}`, {
       method: 'DELETE',
       headers: bearerHeaders(bearer),
     })
     expect(del.status).toBe(204)
 
-    const get = await fetch(`${config.baseUrl}/api/transactions/${txId}`, { headers: bearerHeaders(bearer) })
+    const get = await fetch(`${config.baseUrl}/api/account-activity-snapshots/${snapshotId}`, {
+      headers: bearerHeaders(bearer),
+    })
     expect(get.status).toBe(404)
-    txId = ''
+    snapshotId = ''
   })
 })

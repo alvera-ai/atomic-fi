@@ -89,7 +89,7 @@ describe('ledgers — /api/ledgers', () => {
   })
 
   it('GET /api/ledgers → 200 contains created', async () => {
-    const res = await fetch(`${config.baseUrl}/api/ledgers?page_size=100`, { headers: bearerHeaders(bearer) })
+    const res = await fetch(`${config.baseUrl}/api/ledgers?page_size=100&order_by=inserted_at&order_directions=desc`, { headers: bearerHeaders(bearer) })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { data: AnyJson[] }
     expect(body.data.some((l) => l.id === ledgerId)).toBe(true)

@@ -153,7 +153,7 @@ describe('compliance_screenings — /api/compliance-screenings', () => {
   })
 
   it('GET /api/compliance-screenings → 200 contains the prior screening', async (ctx) => {
-    const res = await fetch(`${config.baseUrl}/api/compliance-screenings?page_size=100`, {
+    const res = await fetch(`${config.baseUrl}/api/compliance-screenings?page_size=100&order_by=inserted_at&order_directions=desc`, {
       headers: bearerHeaders(bearer),
     })
     expect(res.status).toBe(200)
