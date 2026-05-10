@@ -13,8 +13,8 @@ defmodule AtomicFi.MixProject do
       docs: docs(),
       description: description(),
       package: package(),
-      source_url: "https://github.com/alvera-ai/atomicfi",
-      homepage_url: "https://github.com/alvera-ai/atomicfi",
+      source_url: "https://github.com/alvera-ai/atomic-fi",
+      homepage_url: "https://github.com/alvera-ai/atomic-fi",
       listeners: [Phoenix.CodeReloader]
     ]
   end
@@ -27,7 +27,7 @@ defmodule AtomicFi.MixProject do
   defp package do
     [
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/alvera-ai/atomicfi"},
+      links: %{"GitHub" => "https://github.com/alvera-ai/atomic-fi"},
       maintainers: ["AtomicFi contributors"]
     ]
   end
