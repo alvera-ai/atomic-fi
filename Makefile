@@ -70,7 +70,7 @@ seed:
 
 sight:
 	@echo "🎨 Starting atomic-sight-insight dev server..."
-	@cd packages/atomic-sight-insight && pnpm dev
+	@cd example-apps/atomic-sight-insight && pnpm dev
 
 test-integration:
 	@echo "🧪 Running vitest integration suite..."
