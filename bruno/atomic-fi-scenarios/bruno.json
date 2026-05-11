@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "name": "atomic-fi-smoke",
+  "name": "atomic-fi-scenarios",
   "type": "collection",
   "ignore": [
     "node_modules",
