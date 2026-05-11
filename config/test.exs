@@ -15,8 +15,13 @@ config :atomic_fi, :bot_user, email: "bot@atomic-fi.local"
 
 config :atomic_fi, :root_api_key, "alvera_root_api_key_test"
 
-# Watchman client (uses Req.Test mocking in tests)
+# Watchman base URL — used by AtomicFi.Watchman.Operations when delegated to in tests.
 config :atomic_fi, :watchman_base_url, "http://localhost:8084"
+
+# Swap the Watchman client to a Mox mock; test_helper.exs stub_with's the real
+# Operations module so existing tests keep hitting the live :8084 container, while
+# new tests can override per-call with Mox.expect/3.
+config :atomic_fi, :watchman_client, AtomicFi.WatchmanMock
 
 # Configure encryption vault
 config :atomic_fi, AtomicFi.Vault,

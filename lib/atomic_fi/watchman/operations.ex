@@ -3,6 +3,8 @@ defmodule AtomicFi.Watchman.Operations do
   Provides API endpoints related to operations
   """
 
+  @behaviour AtomicFi.Watchman.Behaviour
+
   @default_client AtomicFi.Watchman.Client
 
   @doc """

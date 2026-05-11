@@ -200,38 +200,190 @@ defmodule AtomicFi.DecisionContext.ScreeningEngineTest do
     end
   end
 
-  describe "Watchman unavailable (network error)" do
-    setup do
-      original_url = Application.get_env(:atomic_fi, :watchman_base_url)
-      # Point the client at an unreachable host to exercise error branches
-      Application.put_env(:atomic_fi, :watchman_base_url, "http://127.0.0.1:1/")
-      on_exit(fn -> Application.put_env(:atomic_fi, :watchman_base_url, original_url) end)
+  describe "Watchman error branches (Mox stub)" do
+    import Mox
+
+    test "get_watchman_list_info/0 propagates {:error, _}" do
+      expect(AtomicFi.WatchmanMock, :v2_listinfo_get, fn _ -> {:error, :boom} end)
+      assert {:error, :boom} = ScreeningEngine.get_watchman_list_info()
+    end
+
+    test "get_watchman_list_info/0 maps bare :error → :watchman_listinfo_unavailable" do
+      expect(AtomicFi.WatchmanMock, :v2_listinfo_get, fn _ -> :error end)
+      assert {:error, :watchman_listinfo_unavailable} = ScreeningEngine.get_watchman_list_info()
+    end
+
+    test "screen_individual propagates {:error, _}", %{tenant: tenant} do
+      BlocklistCache.refresh_tenant_cache(tenant.id)
+      expect(AtomicFi.WatchmanMock, :v2_search_get, fn _ -> {:error, :boom} end)
+
+      assert {:error, :boom} =
+               ScreeningEngine.screen_individual(tenant.id, %{
+                 first_name: "Clean",
+                 last_name: "Person#{System.unique_integer([:positive])}"
+               })
+    end
+
+    test "screen_individual maps bare :error → :watchman_search_unavailable",
+         %{tenant: tenant} do
+      BlocklistCache.refresh_tenant_cache(tenant.id)
+      expect(AtomicFi.WatchmanMock, :v2_search_get, fn _ -> :error end)
+
+      assert {:error, :watchman_search_unavailable} =
+               ScreeningEngine.screen_individual(tenant.id, %{
+                 first_name: "Clean",
+                 last_name: "Person#{System.unique_integer([:positive])}"
+               })
+    end
+
+    test "screen_company maps bare :error → :watchman_search_unavailable",
+         %{tenant: tenant} do
+      BlocklistCache.refresh_tenant_cache(tenant.id)
+      expect(AtomicFi.WatchmanMock, :v2_search_get, fn _ -> :error end)
+
+      assert {:error, :watchman_search_unavailable} =
+               ScreeningEngine.screen_company(tenant.id, %{
+                 name: "Co#{System.unique_integer([:positive])}"
+               })
+    end
+  end
+
+  describe "Watchman response shape edge cases (Mox stub)" do
+    import Mox
+
+    alias AtomicFi.Watchman.{Entity, ListInfoResponse, Person, SearchResponse}
+
+    setup %{tenant: tenant} do
+      BlocklistCache.refresh_tenant_cache(tenant.id)
       :ok
     end
 
-    test "get_watchman_list_info/0 returns {:error, _}" do
-      assert {:error, _reason} = ScreeningEngine.get_watchman_list_info()
-    end
-
-    test "screen_individual/3 returns {:error, _} when Watchman unreachable",
+    test "match >= 0.95 classifies as :exact + normalize_*(nil) branches fire",
          %{tenant: tenant} do
-      BlocklistCache.refresh_tenant_cache(tenant.id)
+      expect(AtomicFi.WatchmanMock, :v2_search_get, fn _ ->
+        {:ok,
+         %SearchResponse{
+           entities: [
+             %Entity{
+               name: "Exact Match",
+               entityType: "person",
+               match: 0.99,
+               sourceID: "X1",
+               sourceList: "us_ofac",
+               person: %Person{name: "Exact Match", gender: "M"},
+               business: nil,
+               contact: nil,
+               addresses: nil,
+               sourceData: %{any: "x"}
+             }
+           ]
+         }}
+      end)
 
-      assert {:error, _reason} =
+      assert {:ok, result} =
                ScreeningEngine.screen_individual(tenant.id, %{
                  first_name: "Anyone",
-                 last_name: "Unreachable#{System.unique_integer([:positive])}"
+                 last_name: "Eligible#{System.unique_integer([:positive])}"
                })
+
+      assert result.screening_status == :blocked
+      assert match = hd(result.sanctions_matches)
+      assert match.sanctions_match_type == :exact
+      # Exercises normalize_business(nil), normalize_contact(nil), normalize_addresses(nil)
+      assert match.business_data == nil
+      assert match.contact_data == nil
+      assert match.addresses == []
+      # Exercises normalize_person non-nil + the nationalities line (Person struct has
+      # no :nationality field, so List.wrap(nil) → [] but the line still executes)
+      assert match.person_data.nationalities == []
+      assert match.source_data == %{any: "x"}
     end
 
-    test "screen_company/3 returns {:error, _} when Watchman unreachable",
-         %{tenant: tenant} do
-      BlocklistCache.refresh_tenant_cache(tenant.id)
+    test "plain-map nested fields exercise get_field(map, key)", %{tenant: tenant} do
+      # Pass plain maps for business/contact/addresses instead of structs to trigger
+      # the `get_field(map, key) when is_map(map)` branch.
+      expect(AtomicFi.WatchmanMock, :v2_search_get, fn _ ->
+        {:ok,
+         %SearchResponse{
+           entities: [
+             %Entity{
+               name: "Bizmatch",
+               entityType: "business",
+               match: 0.85,
+               sourceID: "B1",
+               sourceList: "us_ofac",
+               business: %{name: "AcmeCo", identifier: "REG-1"},
+               contact: %{emailAddresses: ["x@y.z"], phoneNumbers: [], websites: nil},
+               addresses: [%{address1: "1 Way", city: "NYC", country: "US"}],
+               sourceData: nil
+             }
+           ]
+         }}
+      end)
 
-      assert {:error, _reason} =
-               ScreeningEngine.screen_company(tenant.id, %{
-                 name: "Any Co #{System.unique_integer([:positive])}"
+      assert {:ok, result} =
+               ScreeningEngine.screen_company(tenant.id, %{name: "Probe Co"})
+
+      m = hd(result.sanctions_matches)
+      assert m.business_data.name == "AcmeCo"
+      assert m.business_data.registration_number == "REG-1"
+      assert m.contact_data.emails == ["x@y.z"]
+      assert m.contact_data.websites == []
+      assert [%{line1: "1 Way", city: "NYC", country: "US"} | _] = m.addresses
+    end
+
+    test "to_map/1 handles a nil sourceData (entity-shape edge case)", %{tenant: tenant} do
+      expect(AtomicFi.WatchmanMock, :v2_search_get, fn _ ->
+        {:ok,
+         %SearchResponse{
+           entities: [
+             %Entity{
+               name: "X",
+               entityType: "person",
+               match: 0.8,
+               sourceID: "S",
+               sourceList: "l",
+               sourceData: nil
+             }
+           ]
+         }}
+      end)
+
+      assert {:ok, result} =
+               ScreeningEngine.screen_individual(tenant.id, %{
+                 first_name: "F",
+                 last_name: "L#{System.unique_integer([:positive])}"
                })
+
+      assert hd(result.sanctions_matches).source_data == nil
+    end
+
+    test "parse_datetime accepts non-binary input → DateTime.utc_now()" do
+      expect(AtomicFi.WatchmanMock, :v2_listinfo_get, fn _ ->
+        {:ok,
+         %ListInfoResponse{
+           startedAt: nil,
+           lists: %{"us_ofac" => 0},
+           version: "v1"
+         }}
+      end)
+
+      assert {:ok, info} = ScreeningEngine.get_watchman_list_info()
+      assert %DateTime{} = info.started_at
+    end
+
+    test "parse_datetime maps malformed ISO8601 to DateTime.utc_now()" do
+      expect(AtomicFi.WatchmanMock, :v2_listinfo_get, fn _ ->
+        {:ok,
+         %ListInfoResponse{
+           startedAt: "not-a-real-iso8601",
+           lists: %{},
+           version: "v1"
+         }}
+      end)
+
+      assert {:ok, info} = ScreeningEngine.get_watchman_list_info()
+      assert %DateTime{} = info.started_at
     end
   end
 end
