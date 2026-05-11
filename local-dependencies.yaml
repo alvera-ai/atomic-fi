@@ -1,6 +1,11 @@
 services:
   watchman:
-    image: ghcr.io/alvera-ai/watchman:latest
+    image: moov/watchman:v0.61.1
     ports:
       - "8084:8084"
       - "9094:9094"
+    volumes:
+      - ./config.all-lists.yml:/app/config.yml:ro
+      - ./custom-watchlist.jsonl:/data/custom_watchlist.jsonl:ro
+    environment:
+      APP_CONFIG: /app/config.yml

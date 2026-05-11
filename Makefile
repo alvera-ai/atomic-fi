@@ -3,15 +3,17 @@
 COMPOSE_FILE := local-dependencies.yaml
 
 run-backing-services:
-	@echo "Starting local backing services..."
+	@echo "Starting local backing services (docker compose: watchman)..."
 	@docker compose -f $(COMPOSE_FILE) up -d
-	@$(MAKE) run-watchman
 	@echo "Backing services ready. Run 'make deps.logs' to follow."
+	@echo "Note: compose-managed watchman uses upstream moov/watchman with the"
+	@echo "      same config + custom watchlist as 'make run-watchman'."
+	@echo "      The standalone target remains available for running watchman"
+	@echo "      outside compose (e.g. on a host without docker compose)."
 
 stop-backing-services:
-	@echo "Stopping local backing services..."
+	@echo "Stopping local backing services (docker compose)..."
 	@docker compose -f $(COMPOSE_FILE) down
-	@$(MAKE) stop-watchman
 	@echo "Backing services stopped."
 
 deps.logs:
