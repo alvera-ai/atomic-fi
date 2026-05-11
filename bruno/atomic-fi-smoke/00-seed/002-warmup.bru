@@ -1,0 +1,40 @@
+meta {
+  name: 002 — Warm BlocklistCache for the tenant
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/tenants/refresh-blocklist-cache
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  accept: application/json
+}
+
+docs {
+  AtomicFi screens every entity through `BlocklistCache` (an in-memory ETS
+  table per tenant) before invoking Watchman. On a fresh tenant — or right
+  after a Phoenix restart — the cache is empty for that tenant and the
+  screening worker fails fast with:
+
+      BlocklistCache not initialized for tenant <uuid>
+
+  Quantum normally repopulates the cache hourly, but on first boot we
+  cannot wait for that. POST /api/tenants/refresh-blocklist-cache
+  triggers an immediate refresh, populating the cache so the AH/CP
+  creates downstream of this request can be screened.
+
+  Safe to re-run: idempotent, returns 200 quickly even if the cache is
+  already warm.
+}
+
+assert {
+  res.status: in [200, 204]
+}

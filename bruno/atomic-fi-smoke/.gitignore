@@ -1,0 +1,3 @@
+# Real env file holds dev creds — never committed.
+# Copy `local.example.bru` → `local.bru` and edit.
+environments/local.bru
