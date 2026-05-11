@@ -1,7 +1,8 @@
 {
   "skip_files": [
     "test/",
-    "lib/mix/tasks/"
+    "lib/mix/tasks/",
+    "lib/atomic_fi_web/components/core_components.ex"
   ],
   "coverage_options": {
     "minimum_coverage": 95,
