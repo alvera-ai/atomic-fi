@@ -25,6 +25,12 @@ defmodule AtomicFi.DecisionContext.ScreeningEngine do
   alias AtomicFi.DecisionContext.{BlocklistCache, BlocklistValidator}
   alias AtomicFi.Watchman.Operations
 
+  # Watchman client — swappable via config/test.exs to a Mox mock at compile time.
+  # Production: AtomicFi.Watchman.Operations (real client).
+  # Test: AtomicFi.WatchmanMock; default-stubbed in test_helper.exs to delegate
+  # to the real client unless an individual test overrides with Mox.expect/3.
+  @watchman Application.compile_env(:atomic_fi, :watchman_client, Operations)
+
   @type individual_attrs :: %{
           first_name: String.t(),
           last_name: String.t(),
@@ -112,7 +118,7 @@ defmodule AtomicFi.DecisionContext.ScreeningEngine do
   """
   @spec get_watchman_list_info() :: {:ok, list_info()} | {:error, term()}
   def get_watchman_list_info do
-    case Operations.v2_listinfo_get() do
+    case @watchman.v2_listinfo_get([]) do
       {:ok, response} ->
         {:ok,
          %{
@@ -264,7 +270,7 @@ defmodule AtomicFi.DecisionContext.ScreeningEngine do
   end
 
   defp perform_watchman_search(entity_type, entity_name, search_params, suppressed_source_ids) do
-    case Operations.v2_search_get(search_params) do
+    case @watchman.v2_search_get(search_params) do
       {:ok, %{entities: entities}} ->
         sanctions_matches = build_sanctions_matches(entities || [], suppressed_source_ids)
         active_matches = Enum.reject(sanctions_matches, & &1.suppressed)

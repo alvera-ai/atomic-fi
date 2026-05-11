@@ -129,6 +129,7 @@ defmodule AtomicFi.MixProject do
       {:wallaby, "~> 0.30", runtime: false, only: :test},
       {:ex_machina, "~> 2.8", only: :test},
       {:mimic, "~> 1.10", only: :test},
+      {:mox, "~> 1.2", only: :test},
       {:exvcr, "~> 0.15", only: :test},
 
       # Code quality
