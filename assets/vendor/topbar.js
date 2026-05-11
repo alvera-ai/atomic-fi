@@ -3,7 +3,12 @@
  * topbar 2.0.0, 2023-02-04
  * https://buunguyen.github.io/topbar
  * Copyright (c) 2021 Buu Nguyen
+ *
+ * ESM-wrapped for atomic-fi (workspace package.json sets "type": "module").
+ * UMD CommonJS / AMD branches dropped; only the bundled-ESM consumer path
+ * (assets/js/app.js → esbuild) is supported now.
  */
+let topbarExport;
 (function (window, document) {
   "use strict";
 
@@ -153,13 +158,7 @@
       },
     };
 
-  if (typeof module === "object" && typeof module.exports === "object") {
-    module.exports = topbar;
-  } else if (typeof define === "function" && define.amd) {
-    define(function () {
-      return topbar;
-    });
-  } else {
-    this.topbar = topbar;
-  }
-}.call(this, window, document));
+  topbarExport = topbar;
+})(window, document);
+
+export default topbarExport;
