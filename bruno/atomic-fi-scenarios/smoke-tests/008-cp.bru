@@ -1,0 +1,72 @@
+meta {
+  name: 008 — Create counterparty (with nested legal entity)
+  type: http
+  seq: 08
+}
+
+post {
+  url: {{baseUrl}}/api/counterparties
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  const ahIds = JSON.parse(bru.getEnvVar("ahIds") || "[]");
+  if (!ahIds.length) {
+    throw new Error("No seeded AHs in env. 003-ah and 004-ah must run before this request.");
+  }
+  bru.setVar("randomAhId", ahIds[Math.floor(Math.random() * ahIds.length)]);
+
+  const year  = 1960 + Math.floor(Math.random() * 40);
+  const month = String(1 + Math.floor(Math.random() * 12)).padStart(2, "0");
+  const day   = String(1 + Math.floor(Math.random() * 28)).padStart(2, "0");
+  bru.setVar("cpDob", `${year}-${month}-${day}`);
+
+  const countries = ["US","US","US","US","US","US","GB","DE","FR","BR","MX"];
+  bru.setVar("cpCountry", countries[Math.floor(Math.random() * countries.length)]);
+
+  // External SoE identifier — randomised per request so a fresh smoke run
+  // does not collide with prior runs' counterparty_numbers (get-or-create
+  // would return the prior record otherwise).
+  bru.setVar("cpExternalNumber", `SMOKE-CP-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "status": "active",
+    "account_holder_id": "{{randomAhId}}",
+    "counterparty_number": "{{cpExternalNumber}}",
+    "chain_screening": false,
+    "tenant_id": "{{tenantId}}",
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "{{$randomFirstName}}",
+      "last_name": "{{$randomLastName}}",
+      "date_of_birth": "{{cpDob}}",
+      "citizenship_country": "{{cpCountry}}",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    }
+  }
+}
+
+script:post-response {
+  const cpIds = JSON.parse(bru.getEnvVar("cpIds") || "[]");
+  cpIds.push(res.body.id);
+  bru.setEnvVar("cpIds", JSON.stringify(cpIds));
+}
+
+assert {
+  res.status: eq 201
+  res.body.id: matches ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+  res.body.legal_entity_id: matches ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+}

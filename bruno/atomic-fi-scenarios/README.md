@@ -1,6 +1,6 @@
 # atomic-fi-scenarios (Bruno collection)
 
-The single Bruno collection for every atomic-fi scenario — one folder per scenario group. Today contains **`00-smoke-tests/`** (the click-to-run smoke that also leaves enough realistic data behind for a UI demo). Future folders (`01-aml/`, `02-ofac-sanctions/`, `03-fraud/`, etc.) will mirror the regulatory regimes in [`guides/use-cases.md`](../../guides/use-cases.md), one .bru file per scenario, all driven by Bruno's "Recursive Run" from the collection root.
+The single Bruno collection for every atomic-fi scenario — one folder per scenario group. Today contains **`smoke-tests/`** (the click-to-run smoke that also leaves enough realistic data behind for a UI demo). Future folders (`01-aml/`, `02-ofac-sanctions/`, `03-fraud/`, etc.) will mirror the regulatory regimes in [`guides/use-cases.md`](../../guides/use-cases.md), one .bru file per scenario, all driven by Bruno's "Recursive Run" from the collection root.
 
 ## Layout
 
@@ -11,7 +11,7 @@ bruno/atomic-fi-scenarios/
 ├── environments/
 │   ├── local.example.bru   ← committed template
 │   └── local.bru           ← gitignored, you fill in
-└── 00-smoke-tests/         ← 29 requests; one Recursive Run = full smoke
+└── smoke-tests/         ← 29 requests; one Recursive Run = full smoke
     ├── 001-auth.bru
     ├── 002-warmup.bru
     ├── 003-ah.bru          (×2)
@@ -34,7 +34,7 @@ bruno/atomic-fi-scenarios/
 
 ## Run the smoke (single click)
 
-1. Click on the **`00-smoke-tests`** folder in the sidebar
+1. Click on the **`smoke-tests`** folder in the sidebar
 2. Switch to the **Runner** tab in the main panel
 3. Click **Recursive Run** (recurses through any subfolders that may exist later)
 
@@ -67,7 +67,7 @@ A `mix` task would be 5× faster but invisible. Bruno is the slower-but-watchabl
 As scenarios from [`guides/use-cases.md`](../../guides/use-cases.md) are wired up, each regulatory regime gets its own folder under this collection:
 
 ```
-00-smoke-tests/                          ← exists today
+smoke-tests/                          ← exists today
 01-aml-cip/                              ← future (BSA §326 — scenarios 6-10)
 02-ofac-sanctions/                       ← future (OFAC SDN + 50% rule + bands)
 03-edd-geo-corridor/                     ← future

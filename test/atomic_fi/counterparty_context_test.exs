@@ -72,9 +72,8 @@ defmodule AtomicFi.CounterpartyContextTest do
                CounterpartyContext.create_counterparty(session, request)
     end
 
-    test "create_counterparty/2 enforces unique (account_holder_id, legal_entity_id)", %{
-      session: session
-    } do
+    test "create_counterparty/2 enforces unique (account_holder_id, legal_entity_id) when no counterparty_number is supplied",
+         %{session: session} do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
       legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
 
@@ -87,6 +86,95 @@ defmodule AtomicFi.CounterpartyContextTest do
       }
 
       assert {:ok, _} = CounterpartyContext.create_counterparty(session, request)
+
+      assert {:error, %Ecto.Changeset{}} =
+               CounterpartyContext.create_counterparty(session, request)
+    end
+
+    test "create_counterparty/2 is get-or-create on counterparty_number (external SoE id)",
+         %{session: session} do
+      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+      legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
+
+      request = %CounterpartyRequest{
+        account_holder_id: account_holder.id,
+        legal_entity_id: legal_entity.id,
+        counterparty_number: "EXT-CP-42",
+        status: :active,
+        tenant_id: session.tenant_id,
+        chain_screening: false
+      }
+
+      assert {:ok, %Counterparty{id: id1, counterparty_number: "EXT-CP-42"}} =
+               CounterpartyContext.create_counterparty(session, request)
+
+      # Re-POST with same counterparty_number — returns existing record (idempotent),
+      # even if other fields (status, FKs) would differ. External-system idempotency
+      # key wins; updates go through PUT.
+      other_le = insert(:legal_entity, tenant_id: session.tenant_id)
+
+      request2 = %CounterpartyRequest{
+        account_holder_id: account_holder.id,
+        legal_entity_id: other_le.id,
+        counterparty_number: "EXT-CP-42",
+        status: :suspended,
+        tenant_id: session.tenant_id,
+        chain_screening: false
+      }
+
+      assert {:ok, %Counterparty{id: id2, legal_entity_id: le_id2, status: status2}} =
+               CounterpartyContext.create_counterparty(session, request2)
+
+      assert id1 == id2
+      assert le_id2 == legal_entity.id
+      assert status2 == :active
+    end
+
+    test "create_counterparty/2 with nested legal_entity creates both atomically",
+         %{session: session} do
+      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+
+      request = %CounterpartyRequest{
+        account_holder_id: account_holder.id,
+        legal_entity: %{
+          legal_entity_type: :individual,
+          first_name: "Jane",
+          last_name: "External",
+          date_of_birth: ~D[1985-03-15],
+          citizenship_country: "US",
+          politically_exposed_person: false,
+          tenant_id: session.tenant_id
+        },
+        status: :active,
+        tenant_id: session.tenant_id,
+        chain_screening: false
+      }
+
+      assert {:ok, %Counterparty{legal_entity_id: le_id} = counterparty} =
+               CounterpartyContext.create_counterparty(session, request)
+
+      assert is_binary(le_id)
+      assert counterparty.account_holder_id == account_holder.id
+      assert counterparty.status == :active
+
+      le =
+        AtomicFi.LegalEntityContext.get_legal_entity!(session, le_id)
+
+      assert le.first_name == "Jane"
+      assert le.last_name == "External"
+      assert le.tenant_id == session.tenant_id
+    end
+
+    test "create_counterparty/2 requires either legal_entity_id or nested legal_entity",
+         %{session: session} do
+      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+
+      request = %CounterpartyRequest{
+        account_holder_id: account_holder.id,
+        status: :active,
+        tenant_id: session.tenant_id,
+        chain_screening: false
+      }
 
       assert {:error, %Ecto.Changeset{}} =
                CounterpartyContext.create_counterparty(session, request)

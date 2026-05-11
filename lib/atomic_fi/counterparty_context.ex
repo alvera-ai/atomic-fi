@@ -17,6 +17,8 @@ defmodule AtomicFi.CounterpartyContext do
   alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.SessionContext.Session
 
+  @preloads [legal_entity: [:addresses, :phone_numbers, :identifications]]
+
   @doc """
   Returns the list of counterparties with pagination and filtering.
 
@@ -33,6 +35,7 @@ defmodule AtomicFi.CounterpartyContext do
   def_with_rls_and_logging list_counterparties(session, flop_params \\ %{}),
     log_fields: [:flop_params] do
     Counterparty
+    |> preload_query()
     |> Flop.validate_and_run(flop_params,
       for: Counterparty,
       repo: Repo,
@@ -56,7 +59,9 @@ defmodule AtomicFi.CounterpartyContext do
   """
   @spec get_counterparty!(Session.t(), Ecto.UUID.t()) :: Counterparty.t()
   def_with_rls_and_logging get_counterparty!(session, id), log_fields: [:id] do
-    Repo.get!(Counterparty, id, session: session)
+    Counterparty
+    |> preload_query()
+    |> Repo.get!(id, session: session)
   end
 
   @doc """
@@ -78,24 +83,61 @@ defmodule AtomicFi.CounterpartyContext do
                              %CounterpartyRequest{} = request
                            ),
                            log_fields: [] do
-    with {:ok, counterparty} <-
-           %Counterparty{}
-           |> Counterparty.changeset(request)
-           |> Repo.insert(session: session) do
-      if request.chain_screening do
-        %{
-          subject: "counterparty",
-          account_holder_id: counterparty.account_holder_id,
-          counterparty_id: counterparty.id,
-          tenant_id: counterparty.tenant_id
-        }
-        |> ScreeningWorker.new()
-        |> Oban.insert!()
-      end
+    case maybe_get_by_external_id(session, request) do
+      %Counterparty{} = existing ->
+        {:ok, existing}
 
-      {:ok, counterparty}
+      nil ->
+        with {:ok, counterparty} <-
+               %Counterparty{}
+               |> Counterparty.changeset(request)
+               |> Repo.insert(session: session)
+               |> preload_after_write() do
+          if request.chain_screening do
+            %{
+              subject: "counterparty",
+              account_holder_id: counterparty.account_holder_id,
+              counterparty_id: counterparty.id,
+              tenant_id: counterparty.tenant_id
+            }
+            |> ScreeningWorker.new()
+            |> Oban.insert!()
+          end
+
+          {:ok, counterparty}
+        end
     end
   end
+
+  # Get-or-create: the SoE-supplied counterparty_number is the external idempotency key.
+  # When the client repeats a POST with the same counterparty_number, return the existing
+  # record (RLS scopes to the calling tenant via session). When no counterparty_number is
+  # given, fall through to normal insert (the (account_holder_id, legal_entity_id) unique
+  # constraint still prevents accidental duplicates).
+  defp maybe_get_by_external_id(_session, %CounterpartyRequest{counterparty_number: nil}),
+    do: nil
+
+  defp maybe_get_by_external_id(session, %CounterpartyRequest{counterparty_number: number})
+       when is_binary(number) and number != "" do
+    Counterparty
+    |> preload_query()
+    |> Ecto.Query.where(counterparty_number: ^number)
+    |> Repo.one(session: session)
+  end
+
+  defp maybe_get_by_external_id(_session, _request), do: nil
+
+  # Pipes the preload into the query so Flop and Repo.get! always load associations.
+  defp preload_query(query) do
+    preload(query, ^@preloads)
+  end
+
+  # Adds preloads to a freshly-inserted/updated record.
+  defp preload_after_write({:ok, %Counterparty{} = counterparty}) do
+    {:ok, Repo.preload(counterparty, @preloads, skip_multi_tenancy_check: true)}
+  end
+
+  defp preload_after_write({:error, changeset}), do: {:error, changeset}
 
   @doc """
   Updates a counterparty.
@@ -120,6 +162,7 @@ defmodule AtomicFi.CounterpartyContext do
     counterparty
     |> Counterparty.changeset(request)
     |> Repo.update(session: session)
+    |> preload_after_write()
   end
 
   @doc """
