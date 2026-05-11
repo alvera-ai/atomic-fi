@@ -1,0 +1,50 @@
+meta {
+  name: 023 — Create transaction
+  type: http
+  seq: 23
+}
+
+post {
+  url: {{baseUrl}}/api/transactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  const ahIds = JSON.parse(bru.getEnvVar("ahIds") || "[]");
+  const cpIds = JSON.parse(bru.getEnvVar("cpIds") || "[]");
+  if (!ahIds.length || !cpIds.length) {
+    throw new Error("No seeded AHs/CPs in env. Earlier requests in the Run All sequence must complete first.");
+  }
+  bru.setVar("randomAhId", ahIds[Math.floor(Math.random() * ahIds.length)]);
+  bru.setVar("randomCpId", cpIds[Math.floor(Math.random() * cpIds.length)]);
+  const amountMinor = 500 + Math.floor(Math.random() * 499500);
+  bru.setVar("randomAmount", amountMinor);
+  const types = ["credit_transfer","credit_transfer","credit_transfer","credit_transfer","card_payment","internal_transfer"];
+  bru.setVar("randomTxType", types[Math.floor(Math.random() * types.length)]);
+}
+
+body:json {
+  {
+    "transaction_type": "{{randomTxType}}",
+    "amount": {{randomAmount}},
+    "currency": "USD",
+    "account_holder_id": "{{randomAhId}}",
+    "creditor_counterparty_id": "{{randomCpId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.id: matches ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+}
