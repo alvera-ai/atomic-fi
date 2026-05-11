@@ -1,0 +1,97 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": { "x": 100, "y": 160 }
+    },
+    {
+      "id": "de_minimis_limits",
+      "type": "decisionTableNode",
+      "name": "De Minimis Limits",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "hitPolicy": "first",
+        "inputs": [
+          {
+            "id": "in_txn_type",
+            "type": "expression",
+            "name": "Transaction Type",
+            "field": "transaction.transaction_type"
+          }
+        ],
+        "outputs": [
+          { "id": "out_rule", "type": "expression", "name": "Rule", "field": "transaction.rule" },
+          { "id": "out_max_amount", "type": "expression", "name": "Max Amount", "field": "transaction.max_amount" },
+          { "id": "out_daily_debit", "type": "expression", "name": "Daily Debit Limit", "field": "transaction.daily_debit_limit" },
+          { "id": "out_weekly_debit", "type": "expression", "name": "Weekly Debit Limit", "field": "transaction.weekly_debit_limit" },
+          { "id": "out_monthly_debit", "type": "expression", "name": "Monthly Debit Limit", "field": "transaction.monthly_debit_limit" },
+          { "id": "out_yearly_debit", "type": "expression", "name": "Yearly Debit Limit", "field": "transaction.yearly_debit_limit" },
+          { "id": "out_daily_credit", "type": "expression", "name": "Daily Credit Limit", "field": "transaction.daily_credit_limit" },
+          { "id": "out_weekly_credit", "type": "expression", "name": "Weekly Credit Limit", "field": "transaction.weekly_credit_limit" },
+          { "id": "out_monthly_credit", "type": "expression", "name": "Monthly Credit Limit", "field": "transaction.monthly_credit_limit" },
+          { "id": "out_yearly_credit", "type": "expression", "name": "Yearly Credit Limit", "field": "transaction.yearly_credit_limit" }
+        ],
+        "rules": [
+          {
+            "_id": "rule_ach_de_minimis",
+            "_description": "ACH credit transfer de minimis threshold",
+            "in_txn_type": "\"credit_transfer\"",
+            "out_rule": "\"ach_de_minimis\"",
+            "out_max_amount": "2500",
+            "out_daily_debit": "10000",
+            "out_weekly_debit": "50000",
+            "out_monthly_debit": "100000",
+            "out_yearly_debit": "500000",
+            "out_daily_credit": "10000",
+            "out_weekly_credit": "50000",
+            "out_monthly_credit": "100000",
+            "out_yearly_credit": "500000"
+          },
+          {
+            "_id": "rule_stablecoin_de_minimis",
+            "_description": "Stablecoin internal transfer de minimis threshold",
+            "in_txn_type": "\"internal_transfer\"",
+            "out_rule": "\"stablecoin_de_minimis\"",
+            "out_max_amount": "2500",
+            "out_daily_debit": "10000",
+            "out_weekly_debit": "50000",
+            "out_monthly_debit": "100000",
+            "out_yearly_debit": "500000",
+            "out_daily_credit": "10000",
+            "out_weekly_credit": "50000",
+            "out_monthly_credit": "100000",
+            "out_yearly_credit": "500000"
+          },
+          {
+            "_id": "rule_default",
+            "_description": "No de minimis rule matched",
+            "in_txn_type": "",
+            "out_rule": "\"default\"",
+            "out_max_amount": "0",
+            "out_daily_debit": "",
+            "out_weekly_debit": "",
+            "out_monthly_debit": "",
+            "out_yearly_debit": "",
+            "out_daily_credit": "",
+            "out_weekly_credit": "",
+            "out_monthly_credit": "",
+            "out_yearly_credit": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": { "x": 700, "y": 160 }
+    }
+  ],
+  "edges": [
+    { "id": "edge_request_table", "type": "edge", "sourceId": "request", "targetId": "de_minimis_limits" },
+    { "id": "edge_table_response", "type": "edge", "sourceId": "de_minimis_limits", "targetId": "response" }
+  ]
+}
