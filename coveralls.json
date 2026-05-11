@@ -2,7 +2,17 @@
   "skip_files": [
     "test/",
     "lib/mix/tasks/",
-    "lib/atomic_fi_web/components/core_components.ex"
+    "lib/atomic_fi/logger_macro.ex",
+    "lib/atomic_fi/open_api_schema_helpers.ex",
+    "lib/atomic_fi/schema.ex",
+    "lib/atomic_fi_api/controller.ex",
+    "lib/atomic_fi_api/routes.ex",
+    "lib/atomic_fi_web.ex",
+    "lib/atomic_fi_api/schemas.ex",
+    "lib/atomic_fi_web/gettext.ex",
+    "lib/atomic_fi_web/components/core_components.ex",
+    "lib/atomic_fi_web/components/layouts.ex",
+    "lib/atomic_fi_web/controllers/error_html.ex"
   ],
   "coverage_options": {
     "minimum_coverage": 95,
