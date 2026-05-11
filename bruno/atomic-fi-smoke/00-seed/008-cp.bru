@@ -1,0 +1,48 @@
+meta {
+  name: 008 — Create counterparty
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/counterparties
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  const isIndividual = Math.random() < 0.75;
+  const countries = ["US","US","US","US","US","US","GB","DE","FR","BR","MX"];
+  bru.setVar("cpType", isIndividual ? "individual" : "business");
+  bru.setVar("cpCountry", countries[Math.floor(Math.random() * countries.length)]);
+}
+
+body:json {
+  {
+    "name": "{{$randomFullName}}",
+    "counterparty_type": "{{cpType}}",
+    "country_code": "{{cpCountry}}",
+    "chain_screening": false,
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  const cpIds = JSON.parse(bru.getEnvVar("cpIds") || "[]");
+  cpIds.push(res.body.id);
+  bru.setEnvVar("cpIds", JSON.stringify(cpIds));
+}
+
+assert {
+  res.status: eq 201
+  res.body.id: matches ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+}
