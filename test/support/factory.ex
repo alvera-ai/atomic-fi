@@ -12,7 +12,6 @@ defmodule AtomicFi.Factory do
   use AtomicFi.Factory.ApiKeyFactory
   use AtomicFi.Factory.UserRoleMappingFactory
   use AtomicFi.Factory.SessionFactory
-  use AtomicFi.Factory.CustomerFactory
   use AtomicFi.Factory.AccountHolderFactory
   use AtomicFi.Factory.BlocklistEntryFactory
 

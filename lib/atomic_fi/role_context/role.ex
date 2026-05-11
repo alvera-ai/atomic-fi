@@ -10,7 +10,7 @@ defmodule AtomicFi.RoleContext.Role do
 
   @derive {
     Flop.Schema,
-    filterable: [:id, :name, :description, :tenant_id, :customer_id],
+    filterable: [:id, :name, :description, :tenant_id],
     sortable: [:id, :name, :description, :inserted_at, :updated_at],
     default_limit: 20,
     max_limit: 100
@@ -19,21 +19,18 @@ defmodule AtomicFi.RoleContext.Role do
   @typedoc """
   Represents an authorization role for users and API keys.
 
-  Roles define permissions and access levels within a tenant or customer. Roles can be:
-  - Reserved roles (root, platform_admin, system, system_api) - created via migrations only
-  - Tenant roles (tenant_admin, user, api) - no customer_id, tenant-scoped
-  - Customer roles (customer_admin, employee, customer_api) - with customer_id, customer-scoped
+  Roles define permissions and access levels within a tenant. Roles can be:
+  - Reserved roles (root, platform_admin, system, system_api) — created via migrations only
+  - Tenant roles (tenant_admin, user, api) — tenant-scoped
 
   ## Attributes
 
   * `id` - UUID of the role
-  * `name` - Role name (e.g., admin, member, viewer, employee, customer_admin)
+  * `name` - Role name (e.g., admin, member, viewer)
   * `description` - Human-readable description of role purpose and permissions
   * `metadata` - Additional role configuration (permissions, features, limits)
   * `tenant_id` - FK to tenant for multi-tenancy isolation (RLS)
   * `tenant` - Belongs to association with Tenant
-  * `customer_id` - Optional FK to customer for customer-scoped roles (nullable)
-  * `customer` - Optional belongs to association with Customer
   * `users` - Many-to-many association with users via user_role_mappings
   * `api_keys` - One-to-many association with API keys (API keys have single role)
   * `inserted_at` - Timestamp when role was created
@@ -48,11 +45,6 @@ defmodule AtomicFi.RoleContext.Role do
   open_api_property(schema: %Schema{type: :string}, key: :description)
   open_api_property(schema: %Schema{type: :object, nullable: true}, key: :metadata)
   open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :tenant_id)
-
-  open_api_property(
-    schema: %Schema{type: :string, format: :uuid, nullable: true},
-    key: :customer_id
-  )
 
   open_api_property(
     schema: %Schema{type: :string, format: :"date-time", readOnly: true},
@@ -74,7 +66,6 @@ defmodule AtomicFi.RoleContext.Role do
       :description,
       :metadata,
       :tenant_id,
-      :customer_id,
       :inserted_at,
       :updated_at
     ]
@@ -87,9 +78,6 @@ defmodule AtomicFi.RoleContext.Role do
 
     # Multi-tenancy: tenant_id references tenants for RLS
     belongs_to :tenant, Tenant
-
-    # Optional: customer_id for customer-scoped roles (nullable)
-    belongs_to :customer, AtomicFi.CustomerContext.Customer
 
     # Users: many-to-many (users can have multiple roles)
     many_to_many :users, AtomicFi.UserContext.User,
@@ -105,26 +93,11 @@ defmodule AtomicFi.RoleContext.Role do
   @doc false
   def changeset(role, attrs) do
     role
-    |> cast(attrs, [:name, :description, :metadata, :tenant_id, :customer_id])
+    |> cast(attrs, [:name, :description, :metadata, :tenant_id])
     |> validate_required([:name, :description, :tenant_id])
     |> validate_exclusion(:name, RoleConstants.reserved_roles(),
       message: "is reserved and can only be created via migrations"
     )
-    |> validate_customer_role_has_customer_id()
-    |> foreign_key_constraint(:customer_id)
-    |> unique_constraint(:name, name: :roles_tenant_unique_index)
-    |> unique_constraint(:name, name: :roles_customer_unique_index)
-  end
-
-  # Validate customer-scoped roles have customer_id
-  defp validate_customer_role_has_customer_id(changeset) do
-    name = get_field(changeset, :name)
-    customer_id = get_field(changeset, :customer_id)
-
-    if RoleConstants.customer_role?(name) and is_nil(customer_id) do
-      add_error(changeset, :customer_id, "is required for customer-scoped roles")
-    else
-      changeset
-    end
+    |> unique_constraint(:name, name: :roles_name_tenant_id_index)
   end
 end

@@ -86,26 +86,6 @@ defmodule AtomicFi.RepoTest do
       assert Enum.any?(users, fn u -> u.tenant_id == other_tenant.id end)
     end
 
-    test "session with customer_id includes it in scope" do
-      tenant = insert(:tenant)
-      role = insert(:role, tenant_id: tenant.id, name: "scoped-#{System.unique_integer([:positive])}")
-      customer_id = Ecto.UUID.generate()
-
-      session = %Session{
-        id: Ecto.UUID.generate(),
-        type: :user,
-        active: true,
-        role_id: role.id,
-        tenant_id: tenant.id,
-        customer_id: customer_id,
-        role: role,
-        tenant: %Tenant{id: tenant.id}
-      }
-
-      # Query schema (User) does not have customer_id field, but tenant_id is first in
-      # hierarchy and Map.has_key?(role, :tenant_id) is true, so it filters by tenant_id.
-      assert is_list(Repo.all(User, session: session))
-    end
   end
 
   describe "platform_admin? guards" do

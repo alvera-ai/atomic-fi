@@ -29,7 +29,6 @@ TARGET_ENV=local pnpm --filter atomic-fi-integration-tests test
 | sessions (auth transports) | SessionController | `bootstrap.test.ts` | ✅ partial (verify + 401s) |
 | users | UserController | `users.test.ts` | ✅ 10/10 |
 | roles | RoleController | `roles.test.ts` | ✅ 11/11 |
-| customers | CustomerController | `customers.test.ts` | ✅ 10/10 |
 | api_keys | ApiKeyController | `api_keys.test.ts` | ✅ 10/10 |
 | tenants | TenantController | `tenants.test.ts` | ✅ 11/11 |
 | blocklist_entries | BlocklistEntryController | `blocklist_entries.test.ts` | ✅ 11/11 |

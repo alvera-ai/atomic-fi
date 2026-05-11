@@ -30,7 +30,7 @@ defmodule AtomicFi.SessionContext.SessionManager do
   @default_bearer_expires_in 86_400
   @max_bearer_expires_in 2_592_000
 
-  @session_preloads [:user, :user_token, :api_key, :role, :tenant, :customer]
+  @session_preloads [:user, :user_token, :api_key, :role, :tenant]
 
   @doc """
   Get or create session for an API key.
@@ -173,7 +173,6 @@ defmodule AtomicFi.SessionContext.SessionManager do
         user_token_id: user_token.id,
         role_id: role.id,
         tenant_id: tenant.id,
-        customer_id: role.customer_id,
         active: true,
         session_token: :crypto.strong_rand_bytes(32),
         metadata: metadata,
@@ -280,7 +279,6 @@ defmodule AtomicFi.SessionContext.SessionManager do
       api_key_id: api_key.id,
       role_id: api_key.role_id,
       tenant_id: api_key.tenant_id,
-      customer_id: api_key.customer_id,
       active: true,
       session_token: session_token,
       metadata: session_metadata,

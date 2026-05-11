@@ -95,8 +95,7 @@ defmodule AtomicFiApi.RoleController do
     Creates a new role scoped to the authenticated tenant.
 
     Reserved role names (`root`, `platform_admin`, `system`, `system_api`) cannot be
-    created through this endpoint — those are migration-managed. Customer-scoped roles
-    require `customer_id`.
+    created through this endpoint — those are migration-managed.
     """,
     request_body: {"Role params", "application/json", RoleRequest.schema(), required: true},
     responses: [

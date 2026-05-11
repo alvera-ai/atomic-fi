@@ -162,10 +162,9 @@ defmodule AtomicFi.TenantContext do
     ]
 
     # Idempotent insert: on conflict do nothing
-    # Use unsafe_fragment for partial unique index (has WHERE customer_id IS NULL)
     Repo.insert_all(Role, roles,
       on_conflict: :nothing,
-      conflict_target: {:unsafe_fragment, "(name, tenant_id) WHERE customer_id IS NULL"},
+      conflict_target: [:name, :tenant_id],
       skip_multi_tenancy_check: true
     )
 
