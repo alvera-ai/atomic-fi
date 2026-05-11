@@ -15,14 +15,11 @@ defmodule AtomicFi.Factory.RoleFactory do
             insert(:tenant).id
           end)
 
-        customer_id = Map.get(attrs, :customer_id, nil)
-
         %Role{
           name: "role-#{unique_suffix}",
           description: "Role description for #{unique_suffix}",
           metadata: %{},
-          tenant_id: tenant_id,
-          customer_id: customer_id
+          tenant_id: tenant_id
         }
       end
     end

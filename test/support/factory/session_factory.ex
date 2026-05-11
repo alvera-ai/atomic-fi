@@ -78,8 +78,6 @@ defmodule AtomicFi.Factory.SessionFactory do
               {nil, api_key_id, role_id}
           end
 
-        customer_id = Map.get(attrs, :customer_id, nil)
-
         %Session{
           type: type,
           active: Map.get(attrs, :active, true),
@@ -94,8 +92,7 @@ defmodule AtomicFi.Factory.SessionFactory do
           user_id: user_id,
           api_key_id: api_key_id,
           role_id: role_id,
-          tenant_id: tenant_id,
-          customer_id: customer_id
+          tenant_id: tenant_id
         }
       end
     end

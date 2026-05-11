@@ -387,11 +387,4 @@ defmodule AtomicFi.OpenApiSchema do
     RiskClassificationResponse,
     "risk_classifications"
   )
-
-  # Customer list response - wraps CustomerResponse in paginated format
-  OpenApiSchemaHelpers.deflistresponse(
-    CustomerListResponse,
-    CustomerResponse,
-    "customers"
-  )
 end

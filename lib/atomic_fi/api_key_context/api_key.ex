@@ -6,7 +6,7 @@ defmodule AtomicFi.ApiKeyContext.ApiKey do
 
   @derive {
     Flop.Schema,
-    filterable: [:id, :name, :last_used_at, :tenant_id, :customer_id, :role_id],
+    filterable: [:id, :name, :last_used_at, :tenant_id, :role_id],
     sortable: [:id, :name, :last_used_at, :inserted_at, :updated_at],
     default_limit: 20,
     max_limit: 100
@@ -28,8 +28,6 @@ defmodule AtomicFi.ApiKeyContext.ApiKey do
   * `current_role` - Virtual field for current role (set at runtime during API authentication)
   * `tenant_id` - FK to tenant for multi-tenancy isolation (RLS)
   * `tenant` - Belongs to association with Tenant
-  * `customer_id` - Optional FK to customer for customer-scoped API keys (nullable)
-  * `customer` - Optional belongs to association with Customer
   * `role_id` - FK to role (API key has ONE role)
   * `role` - Belongs to association with Role
   * `inserted_at` - Timestamp when API key was created
@@ -56,11 +54,6 @@ defmodule AtomicFi.ApiKeyContext.ApiKey do
   open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :role_id)
 
   open_api_property(
-    schema: %Schema{type: :string, format: :uuid, nullable: true},
-    key: :customer_id
-  )
-
-  open_api_property(
     schema: %Schema{type: :string, format: :"date-time", readOnly: true},
     key: :inserted_at
   )
@@ -82,7 +75,6 @@ defmodule AtomicFi.ApiKeyContext.ApiKey do
       :last_used_at,
       :tenant_id,
       :role_id,
-      :customer_id,
       :inserted_at,
       :updated_at
     ]
@@ -103,9 +95,6 @@ defmodule AtomicFi.ApiKeyContext.ApiKey do
     # Multi-tenancy: tenant_id references tenants for RLS
     belongs_to :tenant, Tenant
 
-    # Optional: customer_id for customer-scoped API keys
-    belongs_to :customer, AtomicFi.CustomerContext.Customer
-
     # API key has ONE role (not many-to-many)
     belongs_to :role, AtomicFi.RoleContext.Role
 
@@ -121,11 +110,9 @@ defmodule AtomicFi.ApiKeyContext.ApiKey do
       :key_value,
       :last_used_at,
       :tenant_id,
-      :customer_id,
       :role_id
     ])
     |> validate_required([:name, :key_hash, :key_value, :tenant_id, :role_id])
-    |> foreign_key_constraint(:customer_id)
     |> foreign_key_constraint(:role_id)
   end
 end

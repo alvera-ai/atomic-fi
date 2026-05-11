@@ -20,7 +20,6 @@ defmodule AtomicFi.SessionContext.Session do
     filterable: [
       :id,
       :tenant_id,
-      :customer_id,
       :type,
       :active,
       :expires_at,
@@ -56,8 +55,6 @@ defmodule AtomicFi.SessionContext.Session do
   * `role` - Belongs to association with Role
   * `tenant_id` - FK to tenant for multi-tenancy isolation (RLS)
   * `tenant` - Belongs to association with Tenant
-  * `customer_id` - Optional FK to customer for customer-scoped RLS (nullable)
-  * `customer` - Optional belongs to association with Customer
   * `inserted_at` - Timestamp when session was created
   * `updated_at` - Timestamp when session was last updated
   """
@@ -265,9 +262,6 @@ defmodule AtomicFi.SessionContext.Session do
     # Multi-tenancy: tenant_id for RLS
     belongs_to :tenant, Tenant
 
-    # Customer context for RLS (optional, nullable)
-    belongs_to :customer, AtomicFi.CustomerContext.Customer
-
     timestamps(type: :utc_datetime_usec)
   end
 
@@ -284,8 +278,7 @@ defmodule AtomicFi.SessionContext.Session do
       :api_key_id,
       :user_token_id,
       :role_id,
-      :tenant_id,
-      :customer_id
+      :tenant_id
     ])
     |> validate_required([:type, :active, :session_token, :role_id, :tenant_id])
     |> validate_conditional_foreign_keys()
@@ -294,7 +287,6 @@ defmodule AtomicFi.SessionContext.Session do
     |> foreign_key_constraint(:user_token_id)
     |> foreign_key_constraint(:role_id)
     |> foreign_key_constraint(:tenant_id)
-    |> foreign_key_constraint(:customer_id)
     |> unique_constraint(:session_token)
     |> validate_role_assumption()
   end
@@ -373,11 +365,6 @@ defmodule AtomicFi.SessionContext.Session do
       Enum.any?(actor_roles, &RoleConstants.reserved?(&1.name)) ->
         true
 
-      # Customer admin can assume employee role in same customer
-      customer_admin?(actor_roles, target_role) and
-          target_role.name == RoleConstants.employee() ->
-        same_customer?(actor_roles, target_role.customer_id)
-
       # Otherwise, actor must already have this exact role
       Enum.any?(actor_roles, &(&1.id == target_role.id)) ->
         true
@@ -385,18 +372,5 @@ defmodule AtomicFi.SessionContext.Session do
       true ->
         false
     end
-  end
-
-  # Check if actor has customer_admin role for target role's customer
-  defp customer_admin?(actor_roles, target_role) do
-    Enum.any?(actor_roles, fn role ->
-      role.name == RoleConstants.customer_admin() and
-        role.customer_id == target_role.customer_id
-    end)
-  end
-
-  # Check if actor has any role in the same customer
-  defp same_customer?(actor_roles, customer_id) do
-    Enum.any?(actor_roles, &(&1.customer_id == customer_id))
   end
 end

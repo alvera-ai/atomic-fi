@@ -22,8 +22,6 @@ defmodule AtomicFi.Factory.ApiKeyFactory do
             insert(:role, tenant_id: tenant_id).id
           end)
 
-        customer_id = Map.get(attrs, :customer_id, nil)
-
         # Generate both hash (for validation) and encrypted value (for UI display)
         key_hash = :crypto.hash(:sha256, raw_key) |> Base.encode16(case: :lower)
         key_value = Vault.encrypt!(raw_key)
@@ -34,8 +32,7 @@ defmodule AtomicFi.Factory.ApiKeyFactory do
           key_value: key_value,
           last_used_at: nil,
           tenant_id: tenant_id,
-          role_id: role_id,
-          customer_id: customer_id
+          role_id: role_id
         }
       end
 

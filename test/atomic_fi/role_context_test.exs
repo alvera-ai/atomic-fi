@@ -16,7 +16,6 @@ defmodule AtomicFi.RoleContextTest do
       description: "reserved name should be rejected",
       metadata: %{},
       tenant_id: nil,
-      customer_id: nil
     }
 
     test "list_roles/2 returns all roles", %{session: session} do
@@ -38,7 +37,6 @@ defmodule AtomicFi.RoleContextTest do
         description: "some description",
         metadata: %{},
         tenant_id: session.tenant_id,
-        customer_id: nil
       }
 
       assert {:ok, %Role{} = role} = RoleContext.create_role(session, valid_attrs)
@@ -59,7 +57,6 @@ defmodule AtomicFi.RoleContextTest do
         description: "some updated description",
         metadata: %{},
         tenant_id: session.tenant_id,
-        customer_id: nil
       }
 
       assert {:ok, %Role{} = role} = RoleContext.update_role(session, role, update_attrs)

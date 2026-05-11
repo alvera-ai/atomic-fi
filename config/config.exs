@@ -13,19 +13,12 @@ config :atomic_fi,
   # Generator defaults: binary IDs and microsecond timestamps
   generators: [binary_id: true, timestamp_type: :utc_datetime_usec],
   # Row-Level Security (RLS) hierarchy
-  # Architecture: Tenant-based multi-tenancy with customer isolation
-  # Hierarchy is evaluated in order: tenant_id (required), then customer_id (optional)
-  # If session has customer_id, RLS filters by both tenant_id and customer_id
+  # Architecture: single-tenant per deployment; every row scoped by tenant_id.
   rls_hierarchy: [
     %{
       field: :tenant_id,
       table: :tenants,
       module: AtomicFi.TenantContext.Tenant
-    },
-    %{
-      field: :customer_id,
-      table: :customers,
-      module: AtomicFi.CustomerContext.Customer
     }
   ]
 
