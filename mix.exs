@@ -15,7 +15,18 @@ defmodule AtomicFi.MixProject do
       package: package(),
       source_url: "https://github.com/alvera-ai/atomic-fi",
       homepage_url: "https://github.com/alvera-ai/atomic-fi",
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.json": :test,
+        "coveralls.xml": :test,
+        "coveralls.lcov": :test,
+        "coveralls.cobertura": :test
+      ]
     ]
   end
 
