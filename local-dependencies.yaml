@@ -9,3 +9,21 @@ services:
       - ./custom-watchlist.jsonl:/data/custom_watchlist.jsonl:ro
     environment:
       APP_CONFIG: /app/config.yml
+
+  # ZenRule — GoRules Agent (open source, MIT): headless rules engine over REST.
+  # Built from the vendored subtree at external-deps/zenrule (GoRules publishes
+  # amd64-only images; building locally gives a native image on arm64).
+  # Loads JSON Decision Model (JDM) files from priv/zenrule/<project>/<decision>.json
+  # (bind-mounted; the agent polls + hot-reloads every POLL_INTERVAL ms).
+  # Evaluate: POST /api/projects/atomic-fi/evaluate/<decision>.json  body {"context": {...}}
+  zenrule:
+    build:
+      context: ./external-deps
+      dockerfile: zenrule.Dockerfile
+    image: gorules/agent:local
+    ports:
+      - "8090:8080"
+    volumes:
+      - ./priv/zenrule:/home/nonroot/data:ro
+    environment:
+      PROVIDER__TYPE: Filesystem
