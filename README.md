@@ -196,6 +196,15 @@ Ledger (AccountHolder's book)
 
 ## Compliance Coverage
 
+> AtomicFi is built **compliance-first, on a speed baseline**. The premise: if regulation and latency are solved as foundational invariants — rather than reconciled after the fact — every subsequent business problem reduces to a layer above a known-good substrate.
+>
+> Each pillar of the baseline is proven by a peer artefact:
+>
+> - **Compliance:** [guides/use-cases.md](./guides/use-cases.md) — regulator- and counsel-facing scenario catalog; every control, the authority compelling it, and the dedicated end-to-end test that proves it fires (live).
+> - **Speed:** YCSB-style payment-flow benchmark suite — quantified latency / throughput envelope per workload, replayed against the same synthetic corpus the use-case catalog uses (forthcoming, [#25 Block 2](https://github.com/alvera-ai/atomic-fi/issues/25)).
+
+The matrix below maps each regulation to the schema-level enforcement point. The catalog above walks the same regulations as runnable scenarios.
+
 | Regulation | Enforcement |
 |-----------|-------------|
 | **FATF Rec 10** — Customer Due Diligence | `ComplianceScreening` `:account_holder` scope + `KycRequirement` gate account activation |
