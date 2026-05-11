@@ -44,8 +44,20 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
   )
 
   open_api_property(
-    schema: %Schema{type: :string, format: :uuid},
+    schema: %Schema{type: :string, format: :uuid, nullable: true},
     key: :legal_entity_id
+  )
+
+  open_api_property(
+    schema: %OpenApiSpex.Reference{"$ref": "#/components/schemas/LegalEntityRequest"},
+    key: :legal_entity,
+    writeOnly: true
+  )
+
+  open_api_property(
+    schema: %OpenApiSpex.Reference{"$ref": "#/components/schemas/LegalEntityResponse"},
+    key: :legal_entity,
+    readOnly: true
   )
 
   open_api_property(
@@ -91,12 +103,14 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
     title: "Counterparty",
     description:
       "External payer/payee (ISO 20022 <Dbtr>/<Cdtr>) that an AccountHolder transacts with. " <>
-        "All PII lives in the linked LegalEntity.",
-    required: [:account_holder_id, :legal_entity_id, :status],
+        "All PII lives in the linked LegalEntity. " <>
+        "Pass either `legal_entity_id` (FK to an existing LegalEntity) or a nested `legal_entity` object to create one atomically.",
+    required: [:account_holder_id, :status],
     properties: [
       :id,
       :account_holder_id,
       :legal_entity_id,
+      :legal_entity,
       :status,
       :counterparty_number,
       :tenant_id,
@@ -132,12 +146,41 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
       :counterparty_number,
       :tenant_id
     ])
-    |> validate_required([:account_holder_id, :legal_entity_id, :status, :tenant_id])
+    |> maybe_cast_assoc_legal_entity(attrs)
+    |> validate_required([:account_holder_id, :status, :tenant_id])
+    |> validate_legal_entity_present()
     |> foreign_key_constraint(:account_holder_id)
     |> foreign_key_constraint(:legal_entity_id)
     |> foreign_key_constraint(:tenant_id)
     |> unique_constraint([:account_holder_id, :legal_entity_id],
       name: :counterparties_account_holder_legal_entity_unique
     )
+  end
+
+  # Cast nested legal_entity only when the key is present in attrs (not a nil default).
+  defp maybe_cast_assoc_legal_entity(changeset, attrs) do
+    case Map.fetch(attrs, :legal_entity) do
+      {:ok, value} when not is_nil(value) ->
+        cast_assoc(changeset, :legal_entity, required: true)
+
+      _ ->
+        changeset
+    end
+  end
+
+  # Require either legal_entity_id (FK to existing) or a nested legal_entity change.
+  defp validate_legal_entity_present(changeset) do
+    legal_entity_id = get_field(changeset, :legal_entity_id)
+    has_nested = Map.has_key?(changeset.changes, :legal_entity)
+
+    if is_nil(legal_entity_id) and not has_nested do
+      add_error(
+        changeset,
+        :legal_entity_id,
+        "must provide either legal_entity_id or a nested legal_entity"
+      )
+    else
+      changeset
+    end
   end
 end

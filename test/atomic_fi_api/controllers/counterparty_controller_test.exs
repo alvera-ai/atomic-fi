@@ -230,6 +230,109 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
 
       assert json_response(conn, 401)
     end
+
+    test "creates counterparty with nested legal_entity (cast_assoc)", %{
+      conn: conn,
+      session: session,
+      platform_tenant: platform_tenant,
+      account_holder: account_holder
+    } do
+      attrs = %{
+        status: "active",
+        account_holder_id: account_holder.id,
+        tenant_id: platform_tenant.id,
+        chain_screening: false,
+        legal_entity: %{
+          legal_entity_type: "individual",
+          first_name: "Jane",
+          last_name: "External",
+          date_of_birth: "1985-03-15",
+          citizenship_country: "US",
+          politically_exposed_person: false,
+          tenant_id: platform_tenant.id
+        }
+      }
+
+      conn = post(conn, ~p"/api/counterparties", attrs)
+      response = json_response(conn, 201)
+      api_spec = ApiSpec.spec()
+
+      assert_schema(response, "CounterpartyResponse", api_spec)
+
+      assert %{
+               "id" => id,
+               "status" => "active",
+               "account_holder_id" => returned_ah_id,
+               "legal_entity_id" => le_id,
+               "legal_entity" => le_payload
+             } = response
+
+      assert is_binary(id)
+      assert returned_ah_id == account_holder.id
+      assert is_binary(le_id)
+
+      # Nested LE is serialised in the response (no second round-trip needed).
+      assert le_payload["first_name"] == "Jane"
+      assert le_payload["last_name"] == "External"
+      assert le_payload["tenant_id"] == platform_tenant.id
+
+      # Cross-check via the real session that the LE was actually persisted.
+      le = AtomicFi.LegalEntityContext.get_legal_entity!(session, le_id)
+      assert le.first_name == "Jane"
+      assert le.last_name == "External"
+      assert le.tenant_id == platform_tenant.id
+    end
+
+    test "POST is get-or-create on counterparty_number (idempotent)", %{
+      conn: conn,
+      platform_tenant: platform_tenant,
+      account_holder: account_holder,
+      legal_entity: legal_entity
+    } do
+      attrs =
+        create_attrs(platform_tenant.id, account_holder.id, legal_entity.id)
+        |> Map.put(:counterparty_number, "CP-EXT-IDEMPOTENT-1")
+
+      conn1 = post(conn, ~p"/api/counterparties", attrs)
+      response1 = json_response(conn1, 201)
+      api_spec = ApiSpec.spec()
+      assert_schema(response1, "CounterpartyResponse", api_spec)
+      id1 = response1["id"]
+
+      # Re-POST with same counterparty_number, even with different status / FK
+      # values, returns the original record unchanged (external SoE id wins).
+      other_le = insert(:legal_entity, tenant_id: platform_tenant.id)
+
+      attrs2 =
+        attrs
+        |> Map.put(:legal_entity_id, other_le.id)
+        |> Map.put(:status, "suspended")
+
+      conn2 = post(conn, ~p"/api/counterparties", attrs2)
+      response2 = json_response(conn2, 201)
+      assert_schema(response2, "CounterpartyResponse", api_spec)
+
+      assert response2["id"] == id1
+      assert response2["legal_entity_id"] == legal_entity.id
+      assert response2["status"] == "active"
+      assert response2["counterparty_number"] == "CP-EXT-IDEMPOTENT-1"
+    end
+
+    test "renders 422 when neither legal_entity_id nor nested legal_entity is supplied", %{
+      conn: conn,
+      platform_tenant: platform_tenant,
+      account_holder: account_holder
+    } do
+      attrs = %{
+        status: "active",
+        account_holder_id: account_holder.id,
+        tenant_id: platform_tenant.id,
+        chain_screening: false
+      }
+
+      conn = post(conn, ~p"/api/counterparties", attrs)
+      assert json_response(conn, 422)
+    end
   end
 
   describe "update (PUT /api/counterparties/:id)" do
