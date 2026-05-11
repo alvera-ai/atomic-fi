@@ -1,564 +1,357 @@
 ---
 name: fix-failing-tests
-description: Systematic workflow to debug and fix failing tests
+description: Systematic workflow to debug and fix failing atomic-fi tests iteratively with `mix test --failed`
 when_to_use:
   - Tests failing after changes
   - Systematic test debugging needed
   - Coverage regression or test suite issues
-related_guides:
-  - guides/cheatsheet/quality_gates.cheatmd
-  - guides/core-infra/datalakes.md
 related_commands:
-  - /qa:increase-test-coverage (run before committing)
-  - /qa:quality-checks (run before committing - REQUIRED)
+  - /qa:increase-test-coverage (after green, push coverage)
+  - /qa:check-api-quality (if a controller / schema test failed)
+  - /qa:quality-checks (run before committing — REQUIRED)
 ---
+
 # Recipe: Fix Failing Tests
 
-Systematic workflow for debugging and fixing failing tests — oriented
-around the tiered test suite (`mix test.core` for the fast inner
-loop, `mix test.ddls` for the slow DB/migration tier).
+Systematic workflow for debugging and fixing failing tests in atomic-fi.
+atomic-fi has a single test suite (`mix test`) — no tiered split. Coverage
+runs through `mix coveralls`.
 
 **When to use:**
 - Tests failing after refactoring or dependency updates
 - Random test failures
 - New tests failing during development
 
-**Related guides:**
-- [guides/cheatsheet/quality_gates.cheatmd](../../../guides/cheatsheet/quality_gates.cheatmd) — three-tier quality model + commit gate
-- [guides/core-infra/datalakes.md](../../../guides/core-infra/datalakes.md) — multi-repo + migration patterns
+**Related project conventions:**
+- [CLAUDE.md](../../../CLAUDE.md) — testing standards (NO mocks/stubs — use real implementations),
+  Controller / Context Contract, OpenAPI Schema Patterns, Multi-Tenancy Pattern
+- [coveralls.json](../../../coveralls.json) — coverage skip list + 95% minimum target
 
 ---
 
-## The core loop (this is the workflow — don't skip steps)
+## §1 The iteration loop — `mix test --failed` is the workflow
+
+This is the canonical loop. Internalise it before reading anything else.
 
 ```
-  mix ecto.reset
+  MIX_ENV=test mix ecto.reset       (only if schema drift suspected)
        │
        ▼
-  mix test.core               ← discover failures
+  mix test                          ← full run; collect every failure
        │
        ▼
-  mix test.core --failed      ← iterate; fix ONE file at a time
-       │                         (repeat until this is green)
+  pick FIRST failure                ← do not skim others; read this one
+       │
        ▼
-  mix test.core               ← full re-run; confirm nothing else broke
+  mix test path/to/that_test.exs:<line>   ← isolated reproduction
        │
-       ├─ green ──► done. touch mix test.ddls ONLY if:
-       │             • the user explicitly asks, or
-       │             • something is still broken that core doesn't see
+       ▼
+  diagnose + fix
        │
-       └─ red ────► back to mix test.core --failed
+       ▼
+  mix test --failed                 ← re-runs ONLY the previously-failed tests
+       │                              elixir reads _build/test/lib/atomic_fi/.mix_test_failures
+       ▼
+  did the suite shrink?
+       │
+       ├── yes → pick next first failure, repeat
+       │
+       └── no → the fix didn't take; back to "diagnose + fix"
 ```
 
-**Do not touch `mix test.ddls` unless explicitly told to, or unless
-`mix test.core` is fully green and something is still red.** The ddls
-tier is slow and covers migration / heavy-DDL scenarios; running it
-while core is still iterating wastes minutes per cycle.
+`--failed` is the key. It persists the failed-test list in `_build/`. Each
+iteration runs only that list — as tests turn green, they fall off; as new
+regressions appear, they get added. The list shrinks (or grows) on its own;
+you never need to track it manually.
 
-If you do escalate to `test.ddls`, the same loop applies:
+**Rules of the loop:**
 
-```
-  mix test.ddls --max-cases 4
-       │
-       ▼
-  mix test.ddls --failed --max-cases 4   ← iterate
-       │
-       ▼
-  mix test.ddls --max-cases 4            ← full re-run; confirm
-```
+1. **One test at a time.** Read the FIRST failure's stacktrace + assertion
+   diff. Don't open three failures in three tabs. The first failure is
+   often the cause of the next two.
 
-`--max-cases 4` is mandatory on the ddls tier (PG lock contention
-otherwise).
+2. **Reproduce in isolation before changing anything.** Run
+   `mix test path/to/test.exs:<line>` first. If it fails the same way
+   solo, you have a clean repro. If it passes solo and fails in the suite,
+   skip to §9 — that's a shared-state / order / RLS-leak problem.
 
-**Canonical wrapper** — the shell sandbox strips PATH; every
-invocation below assumes this form:
+3. **Never use `--max-failures`.** atomic-fi's workflow is `--failed`. It
+   does the same thing better — it doesn't abort the run, it scopes the
+   next run.
 
-```bash
-zsh -l -c 'source ~/.zshrc && mix test.core --color 2>&1 | tee /tmp/test.txt'
-```
+4. **Don't widen the fix.** If five tests fail with the same root cause,
+   fix the root cause; `--failed` will collapse all five on the next run.
+   Don't make five separate edits.
 
-**Never** run `mix test*` in background / async mode. Always
-foreground, always piped to `tee` so the log is reviewable.
+5. **Re-run the FULL suite once at the end.** `--failed` only knows about
+   tests that have failed. If your fix broke a previously-passing test,
+   `--failed` won't catch it. Final gate is `mix test` (no flags), then
+   `mix coveralls`.
 
 ---
 
-## Quick Diagnosis
+## §2 When to reset the test database
 
-### Step 1: Classify the failure from `mix test.core` output
+Only reset if the failure pattern smells like schema drift, sequence reuse
+across runs, or RLS rows surviving sandbox rollback:
 
-After `mix ecto.reset` + `mix test.core`, read the output. Most
-failures fall into one of five families:
-
-1. Database / migration → "relation does not exist" / "column does not exist" — **Workflow 1**
-2. Factory → "field is required" / "no function clause" — **Workflow 2**
-3. Setup → "expected 5 arguments, got 4" — **Workflow 3**
-4. Association → "cannot load/preload" — **Workflow 4**
-5. Async / race (random) — **Workflow 5**
-
-Even family 1 (DB/migration) surfaces in `test.core` first — the fix
-is in the migration, but verification still starts with `test.core`.
-**Do not jump straight to `test.ddls`**.
-
-**Quick checklist before diving into a workflow:**
-- [ ] Ran `mix ecto.reset` first?
-- [ ] Ran `mix test.core` to see the full picture before picking a workflow?
-- [ ] Reading the actual error message, not guessing?
-- [ ] Fixing one file at a time (never batching)?
-
----
-
-## Workflow 1: Database/Migration Issues
-
-**Symptoms:** "relation does not exist", "column does not exist", "type does not exist"
-
-### Step 1: Reset Database
 ```bash
 MIX_ENV=test mix ecto.reset
 ```
 
-**If reset fails:**
-```bash
-# Drop database manually
-MIX_ENV=test mix ecto.drop --force
+This drops, recreates, and re-runs every migration under
+`priv/repo/migrations/` plus the test-only migrations in
+`priv/repo/test_migrations/` (which seed the platform tenant +
+`platform_admin_api` API key that `setup_platform_admin_api` expects).
 
-# Create and migrate
-MIX_ENV=test mix ecto.create
-MIX_ENV=test mix ecto.migrate
-```
-
-### Step 2: Verify Migrations
-```bash
-# Check migration status
-MIX_ENV=test mix ecto.migrations
-
-# Expected output:
-# up    20241020000001  create_patients.exs
-# up    20241020000002  create_appointments.exs
-```
-
-### Step 3: Test Rollback
-```bash
-# Ensure migrations are rollback-safe
-MIX_ENV=test mix ecto.rollback --all
-MIX_ENV=test mix ecto.migrate
-```
-
-**If rollback fails:**
-- Check migration uses `change/0` (NOT `up/0` and `down/0`)
-- Check MigrationHelper functions are rollback-safe
-- Fix migration and re-test
-
-### Step 4: Run Tests Again
-```bash
-zsh -l -c 'source ~/.zshrc && mix test.core --color 2>&1 | tee /tmp/test.txt'
-```
-
-If DB errors persist and the user has asked you to touch the ddls
-tier (or core is green and something else is red), then:
-
-```bash
-zsh -l -c 'source ~/.zshrc && mix test.ddls --max-cases 4 --color 2>&1 | tee /tmp/test.txt'
-```
+Don't do this on every iteration — it's slow and resets the `--failed` list.
 
 ---
 
-## Workflow 2: Factory Issues
+## §3 Categorising the first failure
 
-**Symptoms:** "field is required", "no function clause matching", "cannot build association"
-
-### Step 1: Identify Failing Factory
-```bash
-# Run single test with stack trace
-zsh -l -c 'source ~/.zshrc && mix test.core test/path/to/test.exs:42 --trace --color 2>&1 | tee /tmp/test.txt'
-
-# Look for factory call in stack trace:
-# AtomicFi.Factories.Healthcare.Patient.patient_factory/1
-```
-
-### Step 2: Check Factory Definition
-
-Common factory issues:
-
-#### Issue 1: Missing Required Fields
-```elixir
-# BAD - Missing required field
-def patient_factory(attrs) do
-  %Patient{
-    status: :active
-    # Missing: gender (required field)
-  }
-end
-
-# GOOD - Include all required fields
-def patient_factory(attrs) do
-  %Patient{
-    status: :active,
-    gender: :male  # ← Add required field
-  }
-end
-```
-
-#### Issue 2: Circular Dependencies in Mapping Tables
-```elixir
-# BAD - Creates circular dependency
-def slot_service_category_factory(attrs) do
-  %SlotServiceCategory{
-    slot_id: PublicHealthcareFactory.insert(:slot).id,  # Creates slot
-    codeable_concept_id: PublicHealthcareFactory.insert(:codeable_concept).id
-  }
-  # Problem: slot_factory also creates slot_service_category → infinite loop
-end
-
-# GOOD - Require caller to provide IDs
-def slot_service_category_factory(attrs) do
-  %SlotServiceCategory{
-    slot_id: Map.get(attrs, :slot_id),  # ← No default, caller provides
-    codeable_concept_id: Map.get(attrs, :codeable_concept_id)
-  }
-end
-```
-
-#### Issue 3: Wrong Factory Namespace
-```elixir
-# BAD - Wrong namespace
-test "creates patient" do
-  patient = insert(:patient)  # ← Fails: no :patient factory in AtomicFi.Repo namespace
-end
-
-# GOOD - Namespace qualify
-test "creates patient" do
-  patient = PublicHealthcareFactory.insert(:patient)  # ← Correct namespace
-end
-```
-
-#### Issue 4: params_for with Nested build()
-```elixir
-# BAD - build() doesn't serialize in params_for
-params = params_for(:resource, nested: build(:nested))
-
-# GOOD - Use Map.put for nested structures
-params =
-  :resource
-  |> PublicHealthcareFactory.params_for(%{field: value})
-  |> Map.put(:nested, %{field: value})
-```
-
-### Step 3: Fix Factory and Test
-```bash
-# Test factory in isolation
-iex -S mix
-iex> PublicHealthcareFactory.build(:patient)
-# Should return struct without errors
-
-# Run tests
-zsh -l -c 'source ~/.zshrc && mix test.core test/path/to/test.exs --color 2>&1 | tee /tmp/test.txt'
-```
+| Symptom | Section |
+|---|---|
+| `** (KeyError) key :x not found in: %{...}` | §4 schema drift |
+| `** (Postgrex.Error) ... violates not-null constraint` | §4 schema drift |
+| `** (FunctionClauseError) no function clause matching in <Module>.foo/2` | §5 pattern match |
+| `** (RuntimeError) BlocklistCache not initialized for tenant <uuid>` | §6 test setup |
+| `Watchman` HTTP error / timeout / connection refused | §6 test setup |
+| `Map.from_struct` / `Mapper.to_map` in stacktrace | §7 controller/context contract |
+| Assertion fails with `expected: ... got: ...` and the diff is tiny | §8 real bug |
+| Assertion fails on `assert_schema(...)` | §8b OpenAPI drift |
+| Passes solo, fails in suite | §9 shared state |
 
 ---
 
-## Workflow 3: Setup Issues
+## §4 Schema drift / migration issues
 
-**Symptoms:** "expected 5 arguments, got 4", "key :datalake not found in assigns"
+atomic-fi has one Postgres database (`AtomicFi.Repo`) — no per-domain
+datalake repos, no `with_dynamic_repo`. Schemas live under
+`lib/atomic_fi/<context>/<resource>.ex`, migrations in
+`priv/repo/migrations/`.
 
-### Step 1: Check Setup Block
-
-```elixir
-# BAD - Missing setup
-defmodule AtomicFi.Healthcare.PatientsTest do
-  use AtomicFi.DataCase
-  # Missing: setup :setup_healthcare_context
-
-  test "creates patient", %{datalake: datalake} do  # ← datalake not available
-    # ...
-  end
-end
-
-# GOOD - Add setup
-defmodule AtomicFi.Healthcare.PatientsTest do
-  use AtomicFi.DataCase
-  setup :setup_healthcare_context  # ← Provides datalake, user, client
-
-  test "creates patient", %{datalake: datalake} do
-    # ...
-  end
-end
+```bash
+MIX_ENV=test mix ecto.migrations | tail -20
+# look for `down` next to a migration the failing test references
 ```
 
-### Step 2: Check Changeset Arity
+If a migration is `down`, run `MIX_ENV=test mix ecto.migrate` and re-iterate
+with `mix test --failed`.
+
+Verify the live schema matches:
+```bash
+psql atomic_fi_test -c '\d account_holders'
+```
+
+Per [CLAUDE.md § Multi-Tenancy Pattern](../../../CLAUDE.md), every resource
+table has a `tenant_id` FK to `tenants` and composite unique indexes on
+`[:<field>, :tenant_id]`. Direct `Repo.insert!(..., skip_multi_tenancy_check: true)`
+bypasses RLS — acceptable in seed/setup, never for assertions about scoped
+visibility.
+
+---
+
+## §5 Pattern match / function clause failures
+
+### 5a. Context expects a request struct, test passed a map
+
+Per [CLAUDE.md § Controller / Context Contract](../../../CLAUDE.md),
+contexts pattern-match the typed request struct in the function head:
 
 ```elixir
-# BAD - Wrong number of arguments
-def changeset(patient, datalake, attrs) do  # ← Missing user, client, batch_id
-  # ...
-end
-
-# GOOD - Correct arity
-def changeset(patient, %Datalake{} = datalake, %User{} = user, %DataActivationClient{} = client, batch_id, attrs) do
+def_with_rls_and_logging create_account_holder(session, %AccountHolderRequest{} = request),
+  log_fields: [] do
   # ...
 end
 ```
 
-### Step 3: Check Context Function Calls
+If a test passes a plain map (`%{holder_type: "individual", ...}`) instead
+of `%AccountHolderRequest{...}`, the clause won't match. Construct the
+request struct in the test:
 
 ```elixir
-# BAD - Wrong arity
-Patients.create_patient(datalake, attrs)
+request = %AtomicFi.OpenApiSchema.AccountHolderRequest{
+  holder_type: "individual",
+  status: "pending",
+  kyc_status: "not_started",
+  risk_level: "low",
+  enabled_currencies: ["USD"]
+}
 
-# GOOD - Include all required parameters
-Patients.create_patient(datalake, user, client, batch_id, attrs)
+{:ok, ah} = AccountHolderContext.create_account_holder(session, request)
 ```
+
+### 5b. Pattern order: struct vs generic map
+
+`%{field: x}` matches BEFORE `%Struct{field: x}` because structs ARE maps.
+If you reordered function heads, the struct clause may now be unreachable.
+Always put struct-specific clauses FIRST.
 
 ---
 
-## Workflow 4: Association Issues
+## §6 Test-environment infrastructure
 
-**Symptoms:** "cannot load", "cannot preload", "association not loaded"
+### 6a. `BlocklistCache not initialized for tenant <uuid>`
 
-### Step 1: Check Preload Configuration
+The per-tenant ETS table is populated by
+`AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache/1` (hourly via
+Quantum in `:dev` / `:prod`). In `:test`, it's NOT auto-warmed.
 
+Fix in test setup:
 ```elixir
-# BAD - Missing preload
-def list_patients(%Datalake{} = datalake) do
-  repo_pid = AtomicFi.Datalakes.get_datalake_repo(datalake)
-  with_dynamic_repo(repo_pid, HealthcareDatalakeRepo) do
-    Patient
-    |> HealthcareDatalakeRepo.all(prefix: datalake.db_schema)
-    # Missing: |> HealthcareDatalakeRepo.preload(@patient_preloads, ...)
-  end
-end
-
-# GOOD - Add preload
-@patient_preloads [:marital_status, name: [], telecom: [], address: []]
-
-def list_patients(%Datalake{} = datalake) do
-  repo_pid = AtomicFi.Datalakes.get_datalake_repo(datalake)
-  with_dynamic_repo(repo_pid, HealthcareDatalakeRepo) do
-    Patient
-    |> preload(^@patient_preloads)  # ← In query
-    |> HealthcareDatalakeRepo.all(prefix: datalake.db_schema)
-  end
+setup %{tenant: tenant} do
+  AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant.id)
+  :ok
 end
 ```
 
-### Step 2: Check Association Definition
+### 6b. Watchman timeout / connection refused
 
-```elixir
-# BAD - Wrong association type
-has_one :service_type, CodeableConcept  # ← But FHIR says 0..*
-
-# GOOD - Correct cardinality
-has_many :service_type_mappings, ServiceTypeMapping, on_delete: :delete_all
-has_many :service_type, through: [:service_type_mappings, :codeable_concept]
-```
-
-### Step 3: Check Migration Foreign Keys
+The compliance pipeline talks to the real `moov/watchman:v0.61.1` container
+— no mocks per testing standards. Bring it up:
 
 ```bash
-# Check database schema
-MIX_ENV=test mix ecto.migrations
-
-# If association missing in DB:
-mix ecto.gen.migration add_missing_association --repo <RepoModule>
+make run-backing-services        # docker compose up — starts upstream watchman
+# verify
+curl -s http://localhost:8084/ping     # expected: PONG
 ```
+
+If watchman is up and the test still fails on screening, the issue is in
+`AtomicFi.ComplianceScreeningContext`, not the test plumbing.
+
+### 6c. Missing platform tenant / admin API key
+
+ApiKey + Session tests rely on `setup :setup_platform_admin_api` (see
+`test/support/conn_case.ex:165`). That setup reads the platform tenant +
+`platform_admin_api` role + API key seeded by `priv/repo/test_migrations/`.
+If your test bypasses `setup_platform_admin_api`, you must seed manually or
+add the setup line to your describe block.
 
 ---
 
-## Workflow 5: Async Test Issues
+## §7 Controller / Context Contract violations
 
-**Symptoms:** Random failures, "connection already started", "cannot checkout connection"
+Per [CLAUDE.md](../../../CLAUDE.md), controllers NEVER call
+`ExOpenApiUtils.Mapper.to_map/1` or `Map.from_struct/1`. They pass the
+typed request struct directly to the context. If a test stacktrace shows
+`Mapper.to_map` in a controller frame, the controller is wrong — not the
+test.
 
-### Step 1: Check Async Configuration
-
-```elixir
-# BAD - Async with shared state
-use AtomicFi.DataCase, async: true
-
-test "uses datalake" do
-  datalake = insert(:datalake)  # ← May conflict with other async tests
-end
-
-# GOOD - Use async: false for tests with shared state
-use AtomicFi.DataCase, async: false  # ← Safer for datalake tests
+Quick audit:
+```bash
+grep -rnE "Map\.from_struct|Mapper\.to_map" lib/atomic_fi_api/controllers/
+# Expected: zero hits
 ```
 
-### Step 2: Use Proper Isolation
-
-```elixir
-# Each test should create its own data
-setup do
-  org = insert(:org)
-  datalake = insert(:datalake, org: org)
-  {:ok, datalake: datalake}
-end
-
-test "isolated test", %{datalake: datalake} do
-  patient = PublicHealthcareFactory.insert(:patient)  # ← Test-specific data
-  # ...
-end
-```
+Fix the controller, then `mix test --failed`.
 
 ---
 
-## Systematic Fix Process (One File at a Time)
+## §8 Real assertion failures vs OpenAPI drift
 
-### Step 1: Capture Failed Files
-```bash
-# Discover failures — run core, log to file
-zsh -l -c 'source ~/.zshrc && mix test.core --color 2>&1 | tee /tmp/test.txt'
+### §8a. Real bug in code under test
 
-# Extract failed file paths
-grep "(test)" /tmp/test.txt | cut -d":" -f 1 | sort | uniq > platform_failed_files.txt
-cat platform_failed_files.txt
+If the test asserts the right invariant and the assertion fails on data
+values, the code is wrong — not the test. Common atomic-fi sources:
+
+- **Wrong risk level enum** — `:prohibited` vs `:high` vs `:critical` —
+  [guides/use-cases.md](../../../guides/use-cases.md) is the source of
+  truth for which scenario maps to which level.
+- **RLS scope mismatch** — `def_with_rls_and_logging` scopes queries by
+  `session.tenant_id`; if the test session has the wrong tenant_id, you
+  get empty results back.
+- **Off-by-one in screening logic** — e.g. asserting `kyc_status: :approved`
+  but the context returns `:pending` because of a guard clause.
+
+Don't change the test to match buggy behavior. Fix the code.
+
+### §8b. `assert_schema` failures (OpenAPI drift)
+
+Tests using `import OpenApiSpex.TestAssertions` call:
+```elixir
+assert_schema(json, "AccountHolderResponse", ApiSpec.spec())
 ```
 
-### Step 2: Fix One File at a Time
-```bash
-FILE=$(head -n 1 platform_failed_files.txt)
+If this fails:
 
-# Iterate on the one file (re-runs only what's red)
-zsh -l -c 'source ~/.zshrc && mix test.core $FILE --failed --color 2>&1 | tee /tmp/test.txt'
-
-# Full file re-run once you think it's green
-zsh -l -c 'source ~/.zshrc && mix test.core $FILE --color 2>&1 | tee /tmp/test.txt'
-
-# Move to next file only when this one is fully green
-```
-
-**Never use `--max-failures`** — always `--failed`. `--failed` re-runs
-only what was red last time; `--max-failures` stops early and hides
-the real picture.
-
-### Step 3: Verify — `--failed` green, then full re-run
-```bash
-# When mix test.core --failed shows zero failures, run the FULL core
-# tier one more time to catch anything the fixes broke elsewhere.
-zsh -l -c 'source ~/.zshrc && mix test.core --color 2>&1 | tee /tmp/test.txt'
-
-# If test.ddls was also failing, same loop:
-#   zsh -l -c 'source ~/.zshrc && mix test.ddls --failed --max-cases 4 --color 2>&1 | tee /tmp/test.txt'
-#   then:
-#   zsh -l -c 'source ~/.zshrc && mix test.ddls --max-cases 4 --color 2>&1 | tee /tmp/test.txt'
-
-# Coverage (core tier)
-zsh -l -c 'source ~/.zshrc && mix test.core --cover --color 2>&1 | tee /tmp/test.txt'
-# Or browsable HTML report:
-zsh -l -c 'source ~/.zshrc && mix coveralls.html'
-
-# Compile clean
-zsh -l -c 'source ~/.zshrc && MIX_ENV=test mix compile --warnings-as-errors'
-```
+1. **Schema title mismatch.** Per [CLAUDE.md § OpenAPI Schema Patterns](../../../CLAUDE.md),
+   the `open_api_schema(title: "AccountHolder", ...)` title must match the
+   auto-generated module name exactly — `"AccountHolder"` ✓,
+   `"Account Holder"` (with space) ✗.
+2. **Missing `readOnly: true`** on `id`, `inserted_at`, `updated_at`,
+   `tenant_id`. They must each have
+   `open_api_property(schema: %Schema{... readOnly: true}, ...)` so they're
+   excluded from `*Request` and included in `*Response`.
+3. **Tag not registered in `ApiSpec`.** `lib/atomic_fi_api/api_spec.ex`
+   lists all tags. If your controller's `tags ["Foo"]` doesn't appear
+   there, requests pass but the schema lookup fails.
 
 ---
 
-## Common Test Patterns and Fixes
+## §9 Test passes solo, fails in suite
 
-### Pattern 1: Test Setup
-```elixir
-# BEFORE:
-test "creates resource" do
-  datalake = insert(:datalake)
-  attrs = %{status: :active}
-  Context.create_resource(datalake, attrs)  # ← Wrong arity
-end
+Almost always one of:
 
-# AFTER:
-setup :setup_healthcare_context
+### 9a. RLS leak across tests
+A prior test inserted with `skip_multi_tenancy_check: true` and the row
+survived Ecto sandbox rollback because the insert went on a parent
+connection. Audit direct `Repo.insert!` in factories or setup; prefer
+factories that go through changesets.
 
-test "creates resource", %{datalake: datalake, user: user, client: client} do
-  attrs = %{status: :active}
-  Context.create_resource(datalake, user, client, nil, attrs)  # ← Correct
-end
-```
+### 9b. Quantum / Oban firing mid-test
+If `:dev`-style Quantum is somehow active in `:test`, the hourly
+`BlocklistCache.refresh_tenant_cache` may fire mid-assertion. Verify in
+`config/test.exs` that quantum is disabled.
 
-### Pattern 2: Factory Usage
-```elixir
-# BEFORE:
-patient = insert(:patient)  # ← Wrong namespace
+### 9c. ETS state from prior test
+`BlocklistCache` lives in ETS keyed by `tenant_id`. Two tests using the
+same tenant see each other's state. Either use a fresh tenant per test, or
+`BlocklistCache.refresh_tenant_cache(tenant.id)` in setup to reset.
 
-# AFTER:
-patient = PublicHealthcareFactory.insert(:patient)  # ← Correct namespace
-```
-
-### Pattern 3: Nested Associations
-```elixir
-# BEFORE (params_for with build):
-params = params_for(:appointment, participants: [build(:participant)])
-
-# AFTER (Map.put):
-params =
-  :appointment
-  |> PublicHealthcareFactory.params_for()
-  |> Map.put(:participants, [%{practitioner_id: practitioner.id}])
-```
-
-### Pattern 4: TokenizedData
-```elixir
-# BEFORE:
-attrs = %{birth_date: ~D[1990-01-15]}  # ← Wrong type
-
-# AFTER:
-attrs = %{birth_date: %{type: :date, value: ~D[1990-01-15]}}  # ← Correct
-```
+### 9d. `async: true` against a shared resource
+Watchman is one container, BlocklistCache is shared ETS. Any test
+exercising real screening must be `async: false` on its
+`use AtomicFiWeb.ConnCase` / `use AtomicFi.DataCase` line.
 
 ---
 
-## Debugging Tools
+## §10 Final gate after the `--failed` loop drains
 
-### IEx for Interactive Testing
 ```bash
-# Start IEx with test environment
-MIX_ENV=test iex -S mix
-
-# Load test helpers
-iex> Code.require_file("test/support/data_case.ex")
-iex> import AtomicFi.DataCase
-
-# Test factory
-iex> PublicHealthcareFactory.build(:patient)
-
-# Test context function
-iex> org = insert(:org)
-iex> datalake = insert(:datalake, org: org)
-iex> AtomicFi.Healthcare.Patients.list_patients(datalake)
+mix test                       # full run — confirms nothing regressed
+mix coveralls 2>&1 | tail -10  # [TOTAL] xx.x% ≥ pre-change baseline
 ```
 
-### ExUnit Tracing
-```bash
-# Run with trace for detailed output
-zsh -l -c 'source ~/.zshrc && mix test.core test/path/to/test.exs --trace --color 2>&1 | tee /tmp/test.txt'
+If `[TOTAL]` dropped, your fix removed test coverage — add a regression
+test for whatever you fixed and re-run.
 
-# Run with seed for reproducible random failures
-zsh -l -c 'source ~/.zshrc && mix test.core --seed 123456 --color 2>&1 | tee /tmp/test.txt'
-```
-
-### Compiler Warnings
-```bash
-# Check for warnings
-MIX_ENV=test mix compile
-
-# Treat warnings as errors
-MIX_ENV=test mix compile --warnings-as-errors
-```
+Then run [/qa:quality-checks](./quality-checks.md) before committing.
 
 ---
 
-## Prevention Checklist
+## Quick reference
 
-Before committing code:
+```bash
+mix test                                              # full run
+mix test --failed                                     # iterate on failing subset (the canonical loop)
+mix test test/atomic_fi/<path>_test.exs:<line>        # isolated single test
+mix test --trace                                      # verbose names + durations (shared-state diagnosis)
+mix test --seed 0                                     # disable randomisation (order-dependence diagnosis)
+mix coveralls 2>&1 | tail -10                         # coverage gate
+MIX_ENV=test mix ecto.reset                           # nuclear DB reset (only when schema drift suspected)
+make run-backing-services                             # bring up watchman (docker compose)
+curl -s http://localhost:8084/ping                    # watchman smoke
+```
 
-- [ ] Core tier green: `mix test.core` (after `mix test.core --failed` shows no failures)
-- [ ] DDL tier green (only if it was in scope): `mix test.ddls --max-cases 4`
-- [ ] No compiler warnings: `MIX_ENV=test mix compile --warnings-as-errors`
-- [ ] Factories work in isolation
-- [ ] Setup blocks provide all needed assigns
-- [ ] Context functions have correct arity
-- [ ] Migrations are rollback-safe
-- [ ] Coverage maintained: `mix test.core --cover` (or `mix coveralls.html` for browsable)
+Do not use `--max-failures` — `--failed` is the right tool.
 
 ---
 
-## Next Steps
+## Related Commands
 
-- For mechanical multi-file refactors: use [/dev:create-ast-refactor-task](../dev/create-ast-refactor-task.md)
-- For lifting module coverage to 100%: use [/qa:increase-test-coverage](./increase-test-coverage.md)
-- For adding resources: use the per-domain dataset skills under `/dev:*`
+- [/qa:increase-test-coverage](./increase-test-coverage.md) — push coverage on a module after green
+- [/qa:check-api-quality](./check-api-quality.md) — structural drift checker for controllers
+- [/qa:quality-checks](./quality-checks.md) — pre-commit gate (REQUIRED before commit)
+- [/qa:review](./review.md) — multi-agent code review for pre-PR
+- [/dev:create-rest-api](../dev/create-rest-api.md) — the maker side for new endpoints
