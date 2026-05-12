@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ReactFlowProvider } from 'reactflow'
 import { Toolbar } from './workflow/Toolbar'
 import { NodePalette } from './workflow/NodePalette'
 import { Canvas } from './workflow/Canvas'
-import type { WorkflowEdge, WorkflowNode } from './workflow/types'
+import { Inspector } from './workflow/inspector/Inspector'
+import { NodeEditContext } from './workflow/nodes/EditContext'
+import type { NodeData, WorkflowEdge, WorkflowNode } from './workflow/types'
 import {
   downloadJson,
   parseWorkflow,
@@ -12,14 +14,14 @@ import {
   workflowToRulesFile,
 } from './workflow/serialize'
 
-const EMPTY: { nodes: WorkflowNode[]; edges: WorkflowEdge[] } = { nodes: [], edges: [] }
 const SAMPLE_PATH = '/example-rules.json'
 const SAMPLE_NAME = 'de_minimis'
 
 export default function App() {
   const [name, setName] = useState(SAMPLE_NAME)
-  const [graph, setGraph] = useState(EMPTY)
-  const [graphKey, setGraphKey] = useState(0)
+  const [nodes, setNodes] = useState<WorkflowNode[]>([])
+  const [edges, setEdges] = useState<WorkflowEdge[]>([])
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -29,8 +31,9 @@ export default function App() {
         if (!data) return
         const parsed = parseWorkflow(data)
         if (!parsed.ok) return
-        setGraph(rulesFileToGraph(parsed.value))
-        setGraphKey((k) => k + 1)
+        const graph = rulesFileToGraph(parsed.value)
+        setNodes(graph.nodes)
+        setEdges(graph.edges)
       })
       .catch(() => {})
   }, [])
@@ -44,25 +47,53 @@ export default function App() {
         setError(parsed.error)
         return
       }
+      const graph = rulesFileToGraph(parsed.value)
       setName(file.name.replace(/\.json$/i, ''))
-      setGraph(rulesFileToGraph(parsed.value))
-      setGraphKey((k) => k + 1)
+      setNodes(graph.nodes)
+      setEdges(graph.edges)
+      setEditingNodeId(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to read file')
     }
   }, [])
 
   const handleSave = useCallback(() => {
-    const rulesFile = workflowToRulesFile(graph.nodes, graph.edges)
+    const rulesFile = workflowToRulesFile(nodes, edges)
     downloadJson(name || 'untitled-workflow', rulesFile)
-  }, [graph.edges, graph.nodes, name])
+  }, [edges, name, nodes])
 
   const handleReset = useCallback(() => {
     setName('untitled-workflow')
-    setGraph(EMPTY)
-    setGraphKey((k) => k + 1)
+    setNodes([])
+    setEdges([])
+    setEditingNodeId(null)
     setError(null)
   }, [])
+
+  const patchNode = useCallback(
+    (id: string, patch: Partial<NodeData>) => {
+      setNodes((current) =>
+        current.map((n) =>
+          n.id === id ? { ...n, data: { ...n.data, ...patch } } : n,
+        ),
+      )
+    },
+    [],
+  )
+
+  const editingNode = useMemo(
+    () => nodes.find((n) => n.id === editingNodeId) ?? null,
+    [nodes, editingNodeId],
+  )
+
+  useEffect(() => {
+    if (!editingNodeId) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEditingNodeId(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [editingNodeId])
 
   return (
     <div className="flex h-full flex-col bg-slate-100">
@@ -82,14 +113,22 @@ export default function App() {
         <NodePalette />
         <main className="min-h-0 flex-1">
           <ReactFlowProvider>
-            <Canvas
-              key={graphKey}
-              initialNodes={graph.nodes}
-              initialEdges={graph.edges}
-              onGraphChange={(nodes, edges) => setGraph({ nodes, edges })}
-            />
+            <NodeEditContext.Provider value={setEditingNodeId}>
+              <Canvas
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={setNodes}
+                onEdgesChange={setEdges}
+                onOpenNode={setEditingNodeId}
+              />
+            </NodeEditContext.Provider>
           </ReactFlowProvider>
         </main>
+        <Inspector
+          node={editingNode}
+          onChange={(patch) => editingNode && patchNode(editingNode.id, patch)}
+          onClose={() => setEditingNodeId(null)}
+        />
       </div>
     </div>
   )

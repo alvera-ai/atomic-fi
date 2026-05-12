@@ -4,43 +4,50 @@ import ReactFlow, {
   Controls,
   MiniMap,
   addEdge,
-  useEdgesState,
-  useNodesState,
+  applyEdgeChanges,
+  applyNodeChanges,
   type Connection,
+  type EdgeChange,
+  type Node,
+  type NodeChange,
   type ReactFlowInstance,
 } from 'reactflow'
 import { nodeTypes } from './nodes'
 import type { NodeKind, WorkflowEdge, WorkflowNode } from './types'
 
 type Props = {
-  initialNodes: WorkflowNode[]
-  initialEdges: WorkflowEdge[]
-  onGraphChange: (nodes: WorkflowNode[], edges: WorkflowEdge[]) => void
+  nodes: WorkflowNode[]
+  edges: WorkflowEdge[]
+  onNodesChange: (nodes: WorkflowNode[]) => void
+  onEdgesChange: (edges: WorkflowEdge[]) => void
+  onOpenNode: (nodeId: string) => void
 }
 
 let idCounter = 1
 const nextId = () => `n_${Date.now().toString(36)}_${idCounter++}`
 
-export function Canvas({ initialNodes, initialEdges, onGraphChange }: Props) {
-  const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNode['data']>(initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
-  const wrapperRef = useRef<HTMLDivElement>(null)
+export function Canvas({
+  nodes,
+  edges,
+  onNodesChange,
+  onEdgesChange,
+  onOpenNode,
+}: Props) {
   const rfInstance = useRef<ReactFlowInstance | null>(null)
 
-  const emit = useCallback(
-    (n: WorkflowNode[], e: WorkflowEdge[]) => onGraphChange(n, e),
-    [onGraphChange],
+  const handleNodesChange = useCallback(
+    (changes: NodeChange[]) => onNodesChange(applyNodeChanges(changes, nodes) as WorkflowNode[]),
+    [nodes, onNodesChange],
+  )
+
+  const handleEdgesChange = useCallback(
+    (changes: EdgeChange[]) => onEdgesChange(applyEdgeChanges(changes, edges)),
+    [edges, onEdgesChange],
   )
 
   const onConnect = useCallback(
-    (params: Connection) => {
-      setEdges((eds) => {
-        const next = addEdge({ ...params, id: nextId() }, eds)
-        emit(nodes, next)
-        return next
-      })
-    },
-    [emit, nodes, setEdges],
+    (params: Connection) => onEdgesChange(addEdge({ ...params, id: nextId() }, edges)),
+    [edges, onEdgesChange],
   )
 
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -61,31 +68,27 @@ export function Canvas({ initialNodes, initialEdges, onGraphChange }: Props) {
         id: nextId(),
         type: kind,
         position,
-        data: { name: defaultName(kind) },
+        data: { name: defaultName(kind), content: defaultContent(kind) },
       }
-      setNodes((nds) => {
-        const next = nds.concat(newNode)
-        emit(next, edges)
-        return next
-      })
+      onNodesChange(nodes.concat(newNode))
     },
-    [edges, emit, setNodes],
+    [nodes, onNodesChange],
+  )
+
+  const handleNodeDoubleClick = useCallback(
+    (_event: React.MouseEvent, node: Node) => onOpenNode(node.id),
+    [onOpenNode],
   )
 
   return (
-    <div ref={wrapperRef} className="h-full w-full" onDragOver={onDragOver} onDrop={onDrop}>
+    <div className="h-full w-full" onDragOver={onDragOver} onDrop={onDrop}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        onNodesChange={(changes) => {
-          onNodesChange(changes)
-          emit(nodes, edges)
-        }}
-        onEdgesChange={(changes) => {
-          onEdgesChange(changes)
-          emit(nodes, edges)
-        }}
+        onNodesChange={handleNodesChange}
+        onEdgesChange={handleEdgesChange}
         onConnect={onConnect}
+        onNodeDoubleClick={handleNodeDoubleClick}
         onInit={(instance) => (rfInstance.current = instance)}
         nodeTypes={nodeTypes}
         fitView
@@ -104,5 +107,21 @@ function defaultName(kind: NodeKind): string {
     case 'outputNode': return 'Output'
     case 'decisionTableNode': return 'Decision Table'
     case 'functionNode': return 'Function'
+  }
+}
+
+function defaultContent(kind: NodeKind): unknown {
+  switch (kind) {
+    case 'decisionTableNode':
+      return {
+        hitPolicy: 'first',
+        inputs: [{ id: 'in_1', type: 'expression', name: 'Input', field: 'input.value' }],
+        outputs: [{ id: 'out_1', type: 'expression', name: 'Output', field: 'output.value' }],
+        rules: [],
+      }
+    case 'functionNode':
+      return { expression: '' }
+    default:
+      return undefined
   }
 }

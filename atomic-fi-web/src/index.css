@@ -1,8 +1,132 @@
 @import "tailwindcss";
 @import "reactflow/dist/style.css";
 
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
+
+@theme {
+  --color-paper:          oklch(0.985 0.005 80);
+  --color-paper-2:        oklch(0.97  0.006 80);
+  --color-paper-3:        oklch(0.945 0.006 80);
+  --color-rule:           oklch(0.92  0.005 80);
+  --color-rule-strong:    oklch(0.86  0.005 80);
+
+  --color-ink:            oklch(0.22  0.015 280);
+  --color-ink-2:          oklch(0.40  0.012 280);
+  --color-ink-3:          oklch(0.56  0.008 280);
+  --color-ink-4:          oklch(0.72  0.006 280);
+
+  --color-accent:         oklch(0.42  0.16  280);
+  --color-accent-soft:    oklch(0.94  0.04  280);
+
+  --color-sage:           oklch(0.62  0.13  160);
+  --color-sage-soft:      oklch(0.95  0.035 160);
+
+  --color-terracotta:     oklch(0.58  0.16  30);
+  --color-terracotta-soft:oklch(0.95  0.03  30);
+
+  --color-violet:         oklch(0.50  0.16  290);
+  --color-violet-soft:    oklch(0.95  0.035 290);
+
+  --color-amber:          oklch(0.66  0.14  70);
+  --color-amber-soft:     oklch(0.96  0.045 70);
+
+  --color-code-bg:        oklch(0.20  0.012 280);
+  --color-code-ink:       oklch(0.88  0.01  80);
+
+  --font-sans: 'Geist', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, 'JetBrains Mono', Menlo, monospace;
+}
+
 html, body, #root {
   height: 100%;
   margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--color-paper);
+  color: var(--color-ink-2);
+  font-family: var(--font-sans);
+  font-feature-settings: 'ss01', 'cv01', 'cv11';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
+
+/* Editorial eyebrow label */
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.085em;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--color-ink-3);
+}
+
+/* React Flow chrome */
+.react-flow__attribution { display: none !important; }
+.react-flow__background { background: transparent; }
+.react-flow__background path { stroke: oklch(0.93 0.005 80) !important; }
+
+.react-flow__controls {
+  border: 1px solid var(--color-rule) !important;
+  background: var(--color-paper) !important;
+  box-shadow: 0 1px 2px oklch(0.20 0.01 280 / 0.06) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background: var(--color-paper) !important;
+  border-bottom: 1px solid var(--color-rule) !important;
+  color: var(--color-ink-2) !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+.react-flow__controls-button:hover {
+  background: var(--color-paper-2) !important;
+}
+.react-flow__controls-button svg { fill: currentColor !important; }
+
+.react-flow__minimap {
+  border: 1px solid var(--color-rule) !important;
+  background: var(--color-paper) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+}
+
+.react-flow__edge-path {
+  stroke: var(--color-ink-3);
+  stroke-width: 1.25;
+}
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--color-accent);
+  stroke-width: 1.75;
+}
+
+.react-flow__handle {
+  width: 8px !important;
+  height: 8px !important;
+  background: var(--color-paper) !important;
+  border: 1.5px solid var(--color-ink-3) !important;
+}
+.react-flow__handle:hover {
+  background: var(--color-accent) !important;
+  border-color: var(--color-accent) !important;
+}
+
+.react-flow__node.selected > div {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+/* CodeMirror surfaces */
+.cm-editor {
+  font-family: var(--font-mono) !important;
+  font-size: 12.5px;
+  background: transparent !important;
+}
+.cm-editor.cm-focused { outline: none !important; }
+.cm-scroller { font-family: var(--font-mono) !important; }
+.cm-gutters {
+  background: transparent !important;
+  border-right: 1px solid var(--color-rule) !important;
+  color: var(--color-ink-4) !important;
+}
+.cm-activeLineGutter, .cm-activeLine { background: transparent !important; }

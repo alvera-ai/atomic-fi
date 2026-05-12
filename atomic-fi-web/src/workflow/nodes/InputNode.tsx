@@ -2,13 +2,15 @@ import type { NodeProps } from 'reactflow'
 import type { NodeData } from '../types'
 import { BaseNode } from './BaseNode'
 
-export function InputNode({ data }: NodeProps<NodeData>) {
+export function InputNode({ id, data }: NodeProps<NodeData>) {
   return (
     <BaseNode
-      title={data.name}
-      subtitle="Input"
-      accent="bg-emerald-100 text-emerald-800"
+      nodeId={id}
+      kind="Input"
+      accent="sage"
+      name={data.name}
       hasInput={false}
+      meta={data.content ? 'Schema attached' : 'No schema'}
     />
   )
 }
