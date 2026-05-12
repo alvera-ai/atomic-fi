@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ## Project Overview
 
-**Phoenix Template Server** - A bare-bones Elixir/Phoenix template repository. This is a starting point for new Phoenix projects, unlike the full platform implementation.
+**atomic-fi** — an OSS Phoenix compliance platform for payments. Single-tenant per deployment. Domain primitives: `AccountHolder` (internal payer/payee), `Counterparty` (external party), `LegalEntity` (PII holder), `BeneficialOwner` (FinCEN CDD), plus payment-flow primitives (`Ledger`, `LedgerAccount`, `LedgerEntry`, `Transaction`, `PaymentAccount`). Compliance flows: `AtomicFi.ComplianceScreeningContext` → `AtomicFi.DecisionContext.ScreeningEngine` → external services (Watchman for sanctions, ZenRule for decision logic).
 
 ---
 
@@ -71,10 +71,25 @@ Follow git-flow branching model:
 
 ## Testing Standards
 
-- NO mocks/stubs - use real implementations
-- Prefer integration tests over unit tests
-- Fix one test file at a time
-- All tests MUST pass before committing
+- Prefer integration tests against real services (Watchman :8084, Postgres, Oban) over unit tests.
+- The **one exception**: external HTTP services get a Mox seam at the **domain** layer (e.g. `AtomicFi.DecisionContext.ScreeningEngine.Behaviour`), not the transport layer. `DataCase`/`ConnCase` setup auto-`stub_with`s the real impl, so existing tests still hit the live service; per-test `Mox.expect/3` overrides results without setting up service state.
+- Tests fetch domain structs via context getters (`AccountHolderContext.get_account_holder!/2`), never manual `Repo.preload` — context's `@preloads` is the single source of truth.
+- Coverage threshold: 90% (`coveralls.json`). External clients (e.g. `Watchman.Client`) use `# coveralls-ignore` on defensive transport/decode branches — treated like a database driver.
+- Fix one test file at a time (`mix test --failed`, never `--max-failures`).
+- All tests MUST pass before committing.
+
+---
+
+## External Service Boundaries
+
+Pattern for any external HTTP service (Watchman today, ZenRule later):
+
+1. **Plain client** (e.g. `AtomicFi.Watchman.Client`) — uses Req with a small response-step pipeline for decoding. No behaviour on the client itself. Treated like postgres: transport-error and decode-fallback branches use `# coveralls-ignore`.
+2. **Domain behaviour** one level up (e.g. `ScreeningEngine.Behaviour`) — callbacks take fully-preloaded domain structs (`%AccountHolder{}`, `%Counterparty{}`, …), not transport-shaped DTOs. The mock seam lives here.
+3. **Mox mock** generated via `Mox.defmock(AtomicFi.ScreeningEngineMock, for: ScreeningEngine.Behaviour)` in `test/support/mocks.ex`. Compile-env swap in `config/test.exs`: `config :atomic_fi, :screening_engine, AtomicFi.ScreeningEngineMock`. Callers use `@screening_engine = Application.compile_env(...)`.
+4. **DataCase/ConnCase setup hook** calls `Mox.set_mox_from_context(tags)` + `Mox.stub_with(Mock, RealImpl)` so the default behavior is "delegate to real impl".
+
+Reference impls in the platform repo (precedent): `lib/platform/connected_apps/cloudflare_pages_api.ex` (Req + plug-based test seam) and `lib/platform/duck_db_behaviour.ex` (NIF behind a behaviour).
 
 ---
 
@@ -267,12 +282,3 @@ not in controllers. Controllers are dumb: call context, render response.
 
 ---
 
-## Template Repository Notice
-
-This is a **template repository**. It provides a minimal Phoenix setup and should be customized for your specific project needs. Unlike the full platform implementation, this template:
-- Has minimal dependencies
-- No pre-configured resources or domains
-- Serves as a clean starting point for new projects
-- Should be extended based on project requirements
-
-When using this template, update this CLAUDE.md file with project-specific conventions and patterns as your application grows.
