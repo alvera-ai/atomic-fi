@@ -8,7 +8,6 @@ import ReactFlow, {
   applyNodeChanges,
   type Connection,
   type EdgeChange,
-  type Node,
   type NodeChange,
   type ReactFlowInstance,
 } from 'reactflow'
@@ -20,7 +19,6 @@ type Props = {
   edges: WorkflowEdge[]
   onNodesChange: (nodes: WorkflowNode[]) => void
   onEdgesChange: (edges: WorkflowEdge[]) => void
-  onOpenNode: (nodeId: string) => void
 }
 
 let idCounter = 1
@@ -31,7 +29,6 @@ export function Canvas({
   edges,
   onNodesChange,
   onEdgesChange,
-  onOpenNode,
 }: Props) {
   const rfInstance = useRef<ReactFlowInstance | null>(null)
 
@@ -75,11 +72,6 @@ export function Canvas({
     [nodes, onNodesChange],
   )
 
-  const handleNodeDoubleClick = useCallback(
-    (_event: React.MouseEvent, node: Node) => onOpenNode(node.id),
-    [onOpenNode],
-  )
-
   return (
     <div className="h-full w-full" onDragOver={onDragOver} onDrop={onDrop}>
       <ReactFlow
@@ -88,7 +80,6 @@ export function Canvas({
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={onConnect}
-        onNodeDoubleClick={handleNodeDoubleClick}
         onInit={(instance) => (rfInstance.current = instance)}
         nodeTypes={nodeTypes}
         fitView

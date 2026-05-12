@@ -119,7 +119,6 @@ export default function App() {
                 edges={edges}
                 onNodesChange={setNodes}
                 onEdgesChange={setEdges}
-                onOpenNode={setEditingNodeId}
               />
             </NodeEditContext.Provider>
           </ReactFlowProvider>
