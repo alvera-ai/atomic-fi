@@ -28,6 +28,13 @@ if config_env() == :prod do
 
   config :atomic_fi, :watchman_base_url, watchman_url
 
+  # ZenRule rules/limits engine (GoRules Agent)
+  zen_rule_url =
+    System.get_env("ZEN_RULE_URL") ||
+      raise "environment variable ZEN_RULE_URL is missing."
+
+  config :atomic_fi, :zen_rule_base_url, zen_rule_url
+
   # Cloak encryption key for sensitive fields (API keys, tokens, etc.)
   cloak_key = System.get_env("CLOAK_KEY") || raise("CLOAK_KEY is missing")
 

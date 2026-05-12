@@ -24,6 +24,12 @@ config :atomic_fi, :watchman_base_url, "http://localhost:8084"
 # return canned screening results without setting up Watchman state.
 config :atomic_fi, :screening_engine, AtomicFi.ScreeningEngineMock
 
+# ZenRule rules/limits engine — tests hit the real local GoRules Agent on :8090
+# (`make run-backing-services`), mirroring how Watchman tests hit the local
+# Watchman container.
+config :atomic_fi, :zen_rule_base_url, "http://localhost:8090"
+config :atomic_fi, :rule_engine, AtomicFi.ZenRule.HttpClient
+
 # Configure encryption vault
 config :atomic_fi, AtomicFi.Vault,
   ciphers: [
