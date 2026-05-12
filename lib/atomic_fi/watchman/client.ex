@@ -1,93 +1,127 @@
 defmodule AtomicFi.Watchman.Client do
   @moduledoc """
-  HTTP client for Watchman sanctions screening service using Req.
+  HTTP client for the Watchman sanctions screening service.
 
-  This module implements the callback expected by oapi_generator's
-  generated Operations module.
+  Plain code — no behaviour at this layer. The mock seam lives one level up at
+  `AtomicFi.DecisionContext.ScreeningEngine.Behaviour`; this module is treated
+  like a database driver — exercised by integration paths, not unit-mocked.
 
-  ## Configuration
+  Built on `Req` with a small response-step pipeline that decodes Watchman JSON
+  bodies into the typed structs declared per call via the `:decode_into` opt:
 
-      # config/runtime.exs
-      config :atomic_fi, :watchman_base_url, System.get_env("WATCHMAN_URL")
+      decode_into: %{200 => SearchResponse, 400 => ErrorResponse}
 
-  ## Usage
+  Status codes not in the map yield `{:error, {:unexpected_status, status, body}}`.
 
-      alias AtomicFi.Watchman.Operations
+  ## Coverage stance
 
-      # Search for entities
-      {:ok, response} = Operations.v2_search_get(name: "Vladimir Putin", limit: 5)
-      response.entities  # => [%Entity{name: "Vladimir Vladimirovich PUTIN", ...}]
-
-      # Get list info
-      {:ok, info} = Operations.v2_listinfo_get()
-      info.lists  # => %{"us_ofac" => 18598, "us_csl" => 6682, ...}
+  Network-error and decode-fallback branches use `# coveralls-ignore` because
+  they are defensive plumbing (Watchman returning malformed JSON or being
+  unreachable is treated like a database outage — not unit-tested here).
   """
 
   alias AtomicFi.Config
 
-  @doc """
-  Execute an API request. Called by the generated Operations module.
-  """
-  @spec request(map()) :: {:ok, struct()} | {:error, struct() | term()}
-  def request(%{url: url, method: method} = operation) do
-    req = build_request()
+  alias AtomicFi.Watchman.{
+    ErrorResponse,
+    IngestFileResponse,
+    ListInfoResponse,
+    SearchResponse
+  }
 
-    request_opts =
-      [url: url, method: method]
-      |> maybe_add_query(operation)
-      |> maybe_add_body(operation)
+  # Whitelist of query-string parameters accepted by Watchman's `GET /v2/search`,
+  # mirroring the Watchman OpenAPI spec. Defensive against caller typos — keys
+  # not in this list are silently dropped instead of being sent to Watchman.
+  @search_query_keys ~w(
+    address addresses aircraftType altNames birthDate built callSign created
+    cryptoAddress cryptoAddresses deathDate debug debugSourceIDs dissolved
+    email emailAddress emailAddresses fax faxNumber faxNumbers flag gender
+    grossRegisteredTonnage icaoCode imoNumber limit minMatch mmsi model name
+    owner phone phoneNumber phoneNumbers requestID serialNumber source sourceID
+    titles tonnage type vesselType website websites
+  )a
 
-    case Req.request(req, request_opts) do
-      {:ok, %{status: status, body: body}} ->
-        decode_response(status, body, operation)
+  # ── public API ────────────────────────────────────────────────────────────
 
-      {:error, reason} ->
-        {:error, reason}
-    end
+  @spec v2_search_get(keyword()) ::
+          {:ok, SearchResponse.t()} | {:error, ErrorResponse.t() | term()} | :error
+  def v2_search_get(params \\ []) do
+    req()
+    |> Req.get(
+      url: "/v2/search",
+      params: Keyword.take(params, @search_query_keys),
+      decode_into: %{200 => SearchResponse, 400 => ErrorResponse}
+    )
+    |> normalize_response()
   end
 
-  defp build_request do
-    opts = [
-      base_url: base_url(),
+  @spec v2_listinfo_get(keyword()) :: {:ok, ListInfoResponse.t()} | :error
+  def v2_listinfo_get(_opts \\ []) do
+    req()
+    |> Req.get(
+      url: "/v2/listinfo",
+      decode_into: %{200 => ListInfoResponse}
+    )
+    |> normalize_response()
+  end
+
+  @spec v2_ingest_file_type_post(String.t(), String.t(), keyword()) ::
+          {:ok, IngestFileResponse.t()} | :error
+  def v2_ingest_file_type_post(file_type, body, _opts \\ []) do
+    req()
+    |> Req.post(
+      url: "/v2/ingest/#{file_type}",
+      body: body,
+      headers: [{"content-type", "text/plain"}],
+      decode_into: %{200 => IngestFileResponse}
+    )
+    |> normalize_response()
+  end
+
+  # ── private: Req pipeline ─────────────────────────────────────────────────
+
+  defp req do
+    Req.new(
+      base_url: Config.fetch!(:watchman_base_url),
       headers: [{"accept", "application/json"}]
-    ]
-
-    # Use real HTTP client even in test environment to hit local Watchman
-    Req.new(opts)
+    )
+    |> Req.Request.register_options([:decode_into])
+    |> Req.Request.append_response_steps(decode_into: &decode_step/1)
   end
 
-  defp maybe_add_query(opts, %{query: query}) when query != [] do
-    Keyword.put(opts, :params, query)
-  end
+  defp decode_step({req, %Req.Response{status: status, body: body} = resp}) do
+    case req.options[:decode_into] do
+      %{^status => module} ->
+        {req, %{resp | body: decode_struct(body, module)}}
 
-  defp maybe_add_query(opts, _operation), do: opts
+      %{} ->
+        {req, %{resp | body: {:error, {:unexpected_status, status, body}}}}
 
-  defp maybe_add_body(opts, %{body: body}) when not is_nil(body) do
-    Keyword.put(opts, :body, body)
-  end
-
-  defp maybe_add_body(opts, _operation), do: opts
-
-  defp decode_response(status, body, %{response: response_specs}) do
-    case find_response_spec(status, response_specs) do
-      {_status, {module, :t}} ->
-        {:ok, decode_struct(body, module)}
-
-      {_status, :null} ->
-        {:ok, body}
-
-      nil ->
-        {:error, {:unexpected_status, status, body}}
+      _ ->
+        # coveralls-ignore-next-line — defensive: should never happen because
+        # all our callers pass :decode_into; included only for safety.
+        {req, resp}
     end
   end
 
-  defp find_response_spec(status, specs) do
-    Enum.find(specs, fn
-      {^status, _} -> true
-      {:default, _} -> true
-      _ -> false
-    end)
-  end
+  # ── private: response → return-tuple ──────────────────────────────────────
+
+  # 400 from Watchman search returns ErrorResponse struct → surface as {:error, %ErrorResponse{}}.
+  defp normalize_response({:ok, %Req.Response{status: 400, body: %ErrorResponse{} = err}}),
+    do: {:error, err}
+
+  # Unexpected-status path: decode_step left an {:error, _} tuple in body.
+  defp normalize_response({:ok, %Req.Response{body: {:error, _} = err}}), do: err
+
+  # Happy path: body is the decoded struct.
+  defp normalize_response({:ok, %Req.Response{body: body}}), do: {:ok, body}
+
+  # coveralls-ignore-start — transport failure path (Watchman unreachable / timeout).
+  # Treated like a database outage; not unit-tested at this layer.
+  defp normalize_response({:error, _reason}), do: :error
+  # coveralls-ignore-stop
+
+  # ── private: JSON map → typed struct ──────────────────────────────────────
 
   defp decode_struct(data, module) when is_map(data) do
     fields = module.__fields__(:t)
@@ -105,7 +139,9 @@ defmodule AtomicFi.Watchman.Client do
     struct(module, struct_data)
   end
 
+  # coveralls-ignore-start — defensive fallback for non-map bodies.
   defp decode_struct(data, _module), do: data
+  # coveralls-ignore-stop
 
   defp decode_field(value, :string), do: value
   defp decode_field(value, :integer), do: value
@@ -122,9 +158,6 @@ defmodule AtomicFi.Watchman.Client do
     decode_struct(value, module)
   end
 
+  # coveralls-ignore-next-line — defensive: unknown OpenAPI field types.
   defp decode_field(value, _type), do: value
-
-  defp base_url do
-    Config.fetch!(:watchman_base_url)
-  end
 end

@@ -38,18 +38,19 @@ defmodule AtomicFi.DataCase do
 
   setup tags do
     AtomicFi.DataCase.setup_sandbox(tags)
-    AtomicFi.DataCase.setup_watchman_mock(tags)
+    AtomicFi.DataCase.setup_screening_engine_mock(tags)
     {:ok, tenant: system_tenant(), session: system_session()}
   end
 
   @doc """
-  Default: AtomicFi.WatchmanMock delegates to the real AtomicFi.Watchman.Operations
-  client (hitting the local moov/watchman container). Individual tests opt-in to
-  canned responses via `Mox.expect(AtomicFi.WatchmanMock, :v2_search_get, fn _ -> ... end)`.
+  Default: AtomicFi.ScreeningEngineMock delegates to the real engine
+  (which hits the local moov/watchman container). Individual tests opt-in to
+  canned results via `Mox.expect(AtomicFi.ScreeningEngineMock, :screen_account_holder,
+  fn _, _, _ -> ... end)`.
   """
-  def setup_watchman_mock(tags) do
+  def setup_screening_engine_mock(tags) do
     Mox.set_mox_from_context(tags)
-    Mox.stub_with(AtomicFi.WatchmanMock, AtomicFi.Watchman.Operations)
+    Mox.stub_with(AtomicFi.ScreeningEngineMock, AtomicFi.DecisionContext.ScreeningEngine)
     Mox.verify_on_exit!()
     :ok
   end

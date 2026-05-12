@@ -19,6 +19,8 @@ defmodule AtomicFi.BeneficialOwnerContext do
   alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
   alias AtomicFi.SessionContext.Session
 
+  @preloads [legal_entity: [:addresses, :phone_numbers, :identifications]]
+
   @doc """
   Returns the list of beneficial_owners with pagination and filtering.
 
@@ -35,6 +37,7 @@ defmodule AtomicFi.BeneficialOwnerContext do
   def_with_rls_and_logging list_beneficial_owners(session, flop_params \\ %{}),
     log_fields: [:flop_params] do
     BeneficialOwner
+    |> preload_query()
     |> Flop.validate_and_run(flop_params,
       for: BeneficialOwner,
       repo: Repo,
@@ -58,7 +61,9 @@ defmodule AtomicFi.BeneficialOwnerContext do
   """
   @spec get_beneficial_owner!(Session.t(), Ecto.UUID.t()) :: BeneficialOwner.t()
   def_with_rls_and_logging get_beneficial_owner!(session, id), log_fields: [:id] do
-    Repo.get!(BeneficialOwner, id, session: session)
+    BeneficialOwner
+    |> preload_query()
+    |> Repo.get!(id, session: session)
   end
 
   @doc """
@@ -80,23 +85,10 @@ defmodule AtomicFi.BeneficialOwnerContext do
                              %BeneficialOwnerRequest{} = request
                            ),
                            log_fields: [] do
-    with {:ok, beneficial_owner} <-
-           %BeneficialOwner{}
-           |> BeneficialOwner.changeset(request)
-           |> Repo.insert(session: session) do
-      if request.chain_screening do
-        %{
-          subject: "beneficial_owner",
-          account_holder_id: beneficial_owner.account_holder_id,
-          beneficial_owner_id: beneficial_owner.id,
-          tenant_id: beneficial_owner.tenant_id
-        }
-        |> ScreeningWorker.new()
-        |> Oban.insert!()
-      end
-
-      {:ok, beneficial_owner}
-    end
+    %BeneficialOwner{}
+    |> BeneficialOwner.changeset(request)
+    |> Repo.insert(session: session)
+    |> bo_lifecycle(schedule_screening: request.chain_screening)
   end
 
   @doc """
@@ -122,6 +114,7 @@ defmodule AtomicFi.BeneficialOwnerContext do
     beneficial_owner
     |> BeneficialOwner.changeset(request)
     |> Repo.update(session: session)
+    |> bo_lifecycle(schedule_screening: request.chain_screening)
   end
 
   @doc """
@@ -157,5 +150,34 @@ defmodule AtomicFi.BeneficialOwnerContext do
   """
   def change_beneficial_owner(%BeneficialOwner{} = beneficial_owner, attrs \\ %{}) do
     BeneficialOwner.changeset(beneficial_owner, attrs)
+  end
+
+  # ── private: query + post-write lifecycle ────────────────────────────────
+
+  defp preload_query(query), do: preload(query, ^@preloads)
+
+  defp preload(%BeneficialOwner{} = bo) do
+    Repo.preload(bo, @preloads, skip_multi_tenancy_check: true)
+  end
+
+  # Single hook for post-write effects: preload associations and fire any
+  # opt-in side effects (e.g. screening Oban job).
+  defp bo_lifecycle({:ok, %BeneficialOwner{} = bo}, opts) do
+    bo = preload(bo)
+    if opts[:schedule_screening], do: schedule_screening(bo)
+    {:ok, bo}
+  end
+
+  defp bo_lifecycle({:error, _} = err, _opts), do: err
+
+  defp schedule_screening(%BeneficialOwner{} = bo) do
+    %{
+      subject: "beneficial_owner",
+      account_holder_id: bo.account_holder_id,
+      beneficial_owner_id: bo.id,
+      tenant_id: bo.tenant_id
+    }
+    |> ScreeningWorker.new()
+    |> Oban.insert!()
   end
 end

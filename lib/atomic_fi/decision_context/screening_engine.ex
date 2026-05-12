@@ -1,35 +1,50 @@
 defmodule AtomicFi.DecisionContext.ScreeningEngine do
   @moduledoc """
-  Public screening engine — blocklist + Watchman API integration.
+  Screening engine — orchestrates blocklist + Watchman sanctions screening for
+  atomic-fi's domain entities.
 
-  Provides the core screening logic used by both `DecisionContext` (legacy)
-  and `ComplianceScreeningContext` (ISO 20022 aligned). All `Watchman.*` structs
-  are normalized to plain maps before returning — callers never handle Watchman DTOs.
+  All public methods take a fully-preloaded domain struct (AccountHolder,
+  BeneficialOwner, Counterparty, PaymentAccount, Transaction) and return a
+  normalized `screening_result()` map. Watchman-shaped internals stop at this
+  module's gate — callers never see `individual_attrs()` / `company_attrs()`.
 
-  ## Responsibilities
+  ## Mock seam
 
-  - Fetch Watchman list metadata
-  - Screen individuals and companies against the internal blocklist (fail-fast)
-  - Screen against Watchman sanctions lists if blocklist passes
-  - Return typed result maps with no external API types leaking to callers
+  Implements `AtomicFi.DecisionContext.ScreeningEngine.Behaviour`; mocked in
+  tests via `AtomicFi.ScreeningEngineMock` (Mox). The DataCase / ConnCase
+  setup hook calls `Mox.stub_with(ScreeningEngineMock, ScreeningEngine)` so
+  existing tests fall through to the real engine; per-test `Mox.expect/3`
+  overrides the screening result without setting up Watchman state.
+
+  ## Persistence
+
+  The engine is **pure of persistence** — it does not insert ComplianceScreening
+  rows. Callers (ComplianceScreeningContext) persist the result.
 
   ## False Positive Deduplication
 
-  Callers may pass `suppressed_source_ids` (a `MapSet` of Watchman source IDs
-  previously tagged as `manual_override` or `auto_suppressed` for the tenant).
-  Matches with a `source_id` in that set will still be included in the result
-  but flagged with `suppressed: true` so the persistence layer can write them
-  with `false_positive_qualifier: :auto_suppressed` and exclude them from scoring.
+  The engine reads the tenant's suppressed Watchman `source_id`s from prior
+  `SanctionsMatch` rows tagged `:manual_override` or `:auto_suppressed`.
+  Matches against those IDs are included in the result but flagged
+  `suppressed: true`.
   """
 
-  alias AtomicFi.DecisionContext.{BlocklistCache, BlocklistValidator}
-  alias AtomicFi.Watchman.Operations
+  @behaviour AtomicFi.DecisionContext.ScreeningEngine.Behaviour
 
-  # Watchman client — swappable via config/test.exs to a Mox mock at compile time.
-  # Production: AtomicFi.Watchman.Operations (real client).
-  # Test: AtomicFi.WatchmanMock; default-stubbed in test_helper.exs to delegate
-  # to the real client unless an individual test overrides with Mox.expect/3.
-  @watchman Application.compile_env(:atomic_fi, :watchman_client, Operations)
+  import Ecto.Query, warn: false
+
+  alias AtomicFi.AccountHolderContext.AccountHolder
+  alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
+  alias AtomicFi.ComplianceScreeningContext.SanctionsMatch
+  alias AtomicFi.CounterpartyContext.Counterparty
+  alias AtomicFi.DecisionContext.{BlocklistCache, BlocklistValidator}
+  alias AtomicFi.LegalEntityContext.LegalEntity
+  alias AtomicFi.PaymentAccountContext.PaymentAccount
+  alias AtomicFi.Repo
+  alias AtomicFi.TransactionContext.Transaction
+  alias AtomicFi.Watchman.Client
+
+  # ── public types ──────────────────────────────────────────────────────────
 
   @type individual_attrs :: %{
           first_name: String.t(),
@@ -111,14 +126,11 @@ defmodule AtomicFi.DecisionContext.ScreeningEngine do
 
   @type list_info :: %{started_at: DateTime.t(), lists: term(), version: term()}
 
-  @doc """
-  Fetch Watchman list metadata (sync timestamp, list sources, version).
+  # ── behaviour callbacks ───────────────────────────────────────────────────
 
-  Returns `{:ok, list_info()}` or `{:error, term()}`.
-  """
-  @spec get_watchman_list_info() :: {:ok, list_info()} | {:error, term()}
+  @impl true
   def get_watchman_list_info do
-    case @watchman.v2_listinfo_get([]) do
+    case Client.v2_listinfo_get() do
       {:ok, response} ->
         {:ok,
          %{
@@ -135,23 +147,98 @@ defmodule AtomicFi.DecisionContext.ScreeningEngine do
     end
   end
 
+  @impl true
+  def screen_account_holder(session, %AccountHolder{} = ah, _opts \\ []) do
+    do_screen(session, ah.legal_entity)
+  end
+
+  @impl true
+  def screen_beneficial_owner(session, %BeneficialOwner{} = bo, _opts \\ []) do
+    do_screen(session, bo.legal_entity)
+  end
+
+  @impl true
+  def screen_counterparty(session, %Counterparty{} = cp, _opts \\ []) do
+    do_screen(session, cp.legal_entity)
+  end
+
+  @impl true
+  def screen_payment_account(_session, %PaymentAccount{} = _pa, _opts \\ []) do
+    raise "AtomicFi.DecisionContext.ScreeningEngine.screen_payment_account/3 is not implemented yet"
+  end
+
+  @impl true
+  def screen_transaction(_session, %Transaction{} = _txn, _opts \\ []) do
+    raise "AtomicFi.DecisionContext.ScreeningEngine.screen_transaction/3 is not implemented yet"
+  end
+
+  # ── public non-behaviour helper ───────────────────────────────────────────
+
   @doc """
-  Screen an individual against the blocklist and Watchman sanctions lists.
+  Determine the overall screening status from a list of screening results.
 
-  Blocklist is checked first (fail-fast). Watchman is only called if the
-  individual passes the blocklist.
-
-  `suppressed_source_ids` is a `MapSet` of Watchman source IDs already reviewed
-  as false positives for this tenant. Matches found in this set are included in
-  results but flagged `suppressed: true`.
+  Precedence: `blocked` > `potential_match` > `pass`. Not part of the
+  Behaviour because it's a pure function; callers use it directly.
   """
-  @spec screen_individual(String.t(), individual_attrs(), MapSet.t()) ::
-          {:ok, screening_result()} | {:error, term()}
-  def screen_individual(
-        tenant_id,
-        %{first_name: first_name, last_name: last_name} = individual,
-        suppressed_source_ids \\ MapSet.new()
-      ) do
+  @spec determine_overall_status([screening_result()]) :: :pass | :potential_match | :blocked
+  def determine_overall_status(results) do
+    cond do
+      Enum.any?(results, &(&1.screening_status == :blocked)) -> :blocked
+      Enum.any?(results, &(&1.screening_status == :potential_match)) -> :potential_match
+      true -> :pass
+    end
+  end
+
+  # ── private: entity → watchman-shaped dispatch ────────────────────────────
+
+  defp do_screen(%{tenant_id: tenant_id}, %LegalEntity{} = legal_entity) do
+    suppressed_ids = fetch_suppressed_source_ids(tenant_id)
+
+    case legal_entity_to_watchman_entity(legal_entity) do
+      {:individual, attrs} -> screen_individual(tenant_id, attrs, suppressed_ids)
+      {:company, attrs} -> screen_company(tenant_id, attrs, suppressed_ids)
+    end
+  end
+
+  defp legal_entity_to_watchman_entity(%LegalEntity{legal_entity_type: :individual} = le) do
+    {:individual,
+     %{
+       first_name: le.first_name,
+       last_name: le.last_name,
+       birth_date: le.date_of_birth && Date.to_string(le.date_of_birth),
+       gender: nil
+     }}
+  end
+
+  defp legal_entity_to_watchman_entity(%LegalEntity{legal_entity_type: :business} = le) do
+    {:company,
+     %{
+       name: le.business_name,
+       created: le.date_formed && Date.to_string(le.date_formed),
+       dissolved: nil
+     }}
+  end
+
+  defp fetch_suppressed_source_ids(tenant_id) do
+    SanctionsMatch
+    |> where(
+      [sm],
+      sm.tenant_id == ^tenant_id and
+        sm.false_positive_qualifier in [:manual_override, :auto_suppressed]
+    )
+    |> select([sm], sm.source_id)
+    |> Repo.all(skip_multi_tenancy_check: true)
+    |> Enum.reject(&is_nil/1)
+    |> MapSet.new()
+  end
+
+  # ── private: Watchman-shaped screening (used to be public) ────────────────
+
+  defp screen_individual(
+         tenant_id,
+         %{first_name: first_name, last_name: last_name} = individual,
+         suppressed_source_ids
+       ) do
     entity_name = "#{first_name} #{last_name}"
     blocklist_matches = check_individual_blocklist(tenant_id, first_name, last_name)
 
@@ -168,18 +255,7 @@ defmodule AtomicFi.DecisionContext.ScreeningEngine do
     end
   end
 
-  @doc """
-  Screen a company against the blocklist and Watchman sanctions lists.
-
-  Blocklist is checked first (fail-fast). Watchman is only called if the
-  company passes the blocklist.
-
-  `suppressed_source_ids` is a `MapSet` of Watchman source IDs already reviewed
-  as false positives for this tenant.
-  """
-  @spec screen_company(String.t(), company_attrs(), MapSet.t()) ::
-          {:ok, screening_result()} | {:error, term()}
-  def screen_company(tenant_id, %{name: name} = company, suppressed_source_ids \\ MapSet.new()) do
+  defp screen_company(tenant_id, %{name: name} = company, suppressed_source_ids) do
     blocklist_matches = check_company_blocklist(tenant_id, name)
 
     if blocklist_matches != [] do
@@ -195,23 +271,7 @@ defmodule AtomicFi.DecisionContext.ScreeningEngine do
     end
   end
 
-  @doc """
-  Determine the overall screening status from a list of screening results.
-
-  Precedence: `blocked` > `potential_match` > `pass`.
-  """
-  @spec determine_overall_status([screening_result()]) :: :pass | :potential_match | :blocked
-  def determine_overall_status(results) do
-    cond do
-      Enum.any?(results, &(&1.screening_status == :blocked)) -> :blocked
-      Enum.any?(results, &(&1.screening_status == :potential_match)) -> :potential_match
-      true -> :pass
-    end
-  end
-
-  # ---------------------------------------------------------------------------
-  # Private helpers
-  # ---------------------------------------------------------------------------
+  # ── private: blocklist + Watchman internals ───────────────────────────────
 
   defp check_individual_blocklist(tenant_id, first_name, last_name) do
     matches = []
@@ -270,7 +330,7 @@ defmodule AtomicFi.DecisionContext.ScreeningEngine do
   end
 
   defp perform_watchman_search(entity_type, entity_name, search_params, suppressed_source_ids) do
-    case @watchman.v2_search_get(search_params) do
+    case Client.v2_search_get(search_params) do
       {:ok, %{entities: entities}} ->
         sanctions_matches = build_sanctions_matches(entities || [], suppressed_source_ids)
         active_matches = Enum.reject(sanctions_matches, & &1.suppressed)
@@ -344,7 +404,8 @@ defmodule AtomicFi.DecisionContext.ScreeningEngine do
     }
   end
 
-  # Normalize Watchman Address struct → plain map (no Watchman types escape this module)
+  # ── private: Watchman struct → plain-map normalizers ──────────────────────
+
   defp normalize_addresses(nil), do: []
 
   defp normalize_addresses(addresses) do

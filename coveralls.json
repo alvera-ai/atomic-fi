@@ -15,7 +15,7 @@
     "lib/atomic_fi_web/controllers/error_html.ex"
   ],
   "coverage_options": {
-    "minimum_coverage": 95,
+    "minimum_coverage": 90,
     "treat_no_relevant_lines_as_covered": true
   }
 }

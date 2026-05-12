@@ -38,9 +38,19 @@ defmodule AtomicFi.ComplianceScreeningContext do
   alias AtomicFi.ComplianceScreeningContext.SanctionsMatch
   alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.DecisionContext.ScreeningEngine
-  alias AtomicFi.LegalEntityContext.LegalEntity
   alias AtomicFi.Repo
   alias AtomicFi.SessionContext.Session
+
+  # Screening engine — swappable via config/test.exs to a Mox mock at compile time.
+  # Production: AtomicFi.DecisionContext.ScreeningEngine.
+  # Test: AtomicFi.ScreeningEngineMock; default-stubbed via DataCase/ConnCase
+  # setup hooks to delegate to the real engine unless a test overrides with
+  # Mox.expect/3.
+  @screening_engine Application.compile_env(
+                      :atomic_fi,
+                      :screening_engine,
+                      ScreeningEngine
+                    )
 
   # ---------------------------------------------------------------------------
   # CRUD — ComplianceScreening
@@ -286,11 +296,8 @@ defmodule AtomicFi.ComplianceScreeningContext do
       |> Repo.get!(account_holder_id, skip_multi_tenancy_check: true)
       |> Repo.preload(:legal_entity, skip_multi_tenancy_check: true)
 
-    entity = legal_entity_to_watchman_entity(account_holder.legal_entity)
-
-    with {:ok, list_info} <- ScreeningEngine.get_watchman_list_info(),
-         suppressed_ids <- fetch_suppressed_source_ids(tenant_id),
-         {:ok, result} <- screen_entity(tenant_id, entity, suppressed_ids),
+    with {:ok, list_info} <- @screening_engine.get_watchman_list_info(),
+         {:ok, result} <- @screening_engine.screen_account_holder(session, account_holder, []),
          {:ok, screening} <-
            persist_account_holder_screening(
              session,
@@ -329,11 +336,8 @@ defmodule AtomicFi.ComplianceScreeningContext do
       |> Repo.get!(beneficial_owner_id, skip_multi_tenancy_check: true)
       |> Repo.preload(:legal_entity, skip_multi_tenancy_check: true)
 
-    entity = legal_entity_to_watchman_entity(beneficial_owner.legal_entity)
-
-    with {:ok, list_info} <- ScreeningEngine.get_watchman_list_info(),
-         suppressed_ids <- fetch_suppressed_source_ids(tenant_id),
-         {:ok, result} <- screen_entity(tenant_id, entity, suppressed_ids),
+    with {:ok, list_info} <- @screening_engine.get_watchman_list_info(),
+         {:ok, result} <- @screening_engine.screen_beneficial_owner(session, beneficial_owner, []),
          {:ok, screening} <-
            persist_beneficial_owner_screening(
              session,
@@ -373,11 +377,8 @@ defmodule AtomicFi.ComplianceScreeningContext do
       |> Repo.get!(counterparty_id, skip_multi_tenancy_check: true)
       |> Repo.preload(:legal_entity, skip_multi_tenancy_check: true)
 
-    entity = legal_entity_to_watchman_entity(counterparty.legal_entity)
-
-    with {:ok, list_info} <- ScreeningEngine.get_watchman_list_info(),
-         suppressed_ids <- fetch_suppressed_source_ids(tenant_id),
-         {:ok, result} <- screen_entity(tenant_id, entity, suppressed_ids),
+    with {:ok, list_info} <- @screening_engine.get_watchman_list_info(),
+         {:ok, result} <- @screening_engine.screen_counterparty(session, counterparty, []),
          {:ok, screening} <-
            persist_counterparty_screening(
              session,
@@ -393,51 +394,10 @@ defmodule AtomicFi.ComplianceScreeningContext do
   end
 
   # ---------------------------------------------------------------------------
-  # Private helpers
+  # Private helpers — persistence only.
+  # Watchman-shaped screening helpers (legal_entity_to_watchman_entity,
+  # screen_entity, fetch_suppressed_source_ids) live in ScreeningEngine.
   # ---------------------------------------------------------------------------
-
-  defp fetch_suppressed_source_ids(tenant_id) do
-    SanctionsMatch
-    |> where(
-      [sm],
-      sm.tenant_id == ^tenant_id and
-        sm.false_positive_qualifier in [:manual_override, :auto_suppressed]
-    )
-    |> select([sm], sm.source_id)
-    |> Repo.all(skip_multi_tenancy_check: true)
-    |> Enum.reject(&is_nil/1)
-    |> MapSet.new()
-  end
-
-  # Converts a LegalEntity to the map shape expected by ScreeningEngine.
-  # Individuals → screen_individual/3; businesses → screen_company/3.
-  defp legal_entity_to_watchman_entity(%LegalEntity{legal_entity_type: :individual} = le) do
-    {:individual,
-     %{
-       first_name: le.first_name,
-       last_name: le.last_name,
-       birth_date: le.date_of_birth && Date.to_string(le.date_of_birth),
-       gender: nil
-     }}
-  end
-
-  defp legal_entity_to_watchman_entity(%LegalEntity{legal_entity_type: :business} = le) do
-    {:company,
-     %{
-       name: le.business_name,
-       created: le.date_formed && Date.to_string(le.date_formed),
-       dissolved: nil
-     }}
-  end
-
-  # Dispatches to ScreeningEngine based on entity type.
-  defp screen_entity(tenant_id, {:individual, attrs}, suppressed_ids) do
-    ScreeningEngine.screen_individual(tenant_id, attrs, suppressed_ids)
-  end
-
-  defp screen_entity(tenant_id, {:company, attrs}, suppressed_ids) do
-    ScreeningEngine.screen_company(tenant_id, attrs, suppressed_ids)
-  end
 
   defp persist_account_holder_screening(
          session,

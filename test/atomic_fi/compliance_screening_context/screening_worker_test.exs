@@ -77,6 +77,86 @@ defmodule AtomicFi.ComplianceScreeningContext.ScreeningWorkerTest do
     end
   end
 
+  describe "perform/1 — error propagation" do
+    import Mox
+
+    test "account_holder: propagates {:error, _} when Watchman is unreachable",
+         %{session: session} do
+      legal_entity = insert(:legal_entity, tenant_id: session.tenant_id, first_name: "A", last_name: "B")
+      ah = insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
+
+      expect(AtomicFi.ScreeningEngineMock, :get_watchman_list_info, fn ->
+        {:error, :watchman_listinfo_unavailable}
+      end)
+
+      job = %Oban.Job{
+        args: %{
+          "subject" => "account_holder",
+          "account_holder_id" => ah.id,
+          "tenant_id" => session.tenant_id
+        }
+      }
+
+      assert {:error, :watchman_listinfo_unavailable} = ScreeningWorker.perform(job)
+    end
+
+    test "beneficial_owner: propagates {:error, _}", %{session: session} do
+      le = insert(:legal_entity, tenant_id: session.tenant_id, first_name: "A", last_name: "B")
+      ah = insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: le.id)
+      bo_le = insert(:legal_entity, tenant_id: session.tenant_id, first_name: "C", last_name: "D")
+
+      bo =
+        insert(:beneficial_owner,
+          tenant_id: session.tenant_id,
+          account_holder_id: ah.id,
+          legal_entity_id: bo_le.id
+        )
+
+      expect(AtomicFi.ScreeningEngineMock, :get_watchman_list_info, fn ->
+        {:error, :watchman_listinfo_unavailable}
+      end)
+
+      job = %Oban.Job{
+        args: %{
+          "subject" => "beneficial_owner",
+          "account_holder_id" => ah.id,
+          "beneficial_owner_id" => bo.id,
+          "tenant_id" => session.tenant_id
+        }
+      }
+
+      assert {:error, :watchman_listinfo_unavailable} = ScreeningWorker.perform(job)
+    end
+
+    test "counterparty: propagates {:error, _}", %{session: session} do
+      le = insert(:legal_entity, tenant_id: session.tenant_id, first_name: "A", last_name: "B")
+      ah = insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: le.id)
+      cp_le = insert(:legal_entity, tenant_id: session.tenant_id, first_name: "E", last_name: "F")
+
+      cp =
+        insert(:counterparty,
+          tenant_id: session.tenant_id,
+          account_holder_id: ah.id,
+          legal_entity_id: cp_le.id
+        )
+
+      expect(AtomicFi.ScreeningEngineMock, :get_watchman_list_info, fn ->
+        {:error, :watchman_listinfo_unavailable}
+      end)
+
+      job = %Oban.Job{
+        args: %{
+          "subject" => "counterparty",
+          "account_holder_id" => ah.id,
+          "counterparty_id" => cp.id,
+          "tenant_id" => session.tenant_id
+        }
+      }
+
+      assert {:error, :watchman_listinfo_unavailable} = ScreeningWorker.perform(job)
+    end
+  end
+
   describe "perform/1 — counterparty" do
     test "screens a counterparty via the worker", %{session: session} do
       ah_legal_entity =

@@ -1,1 +1,4 @@
-Mox.defmock(AtomicFi.WatchmanMock, for: AtomicFi.Watchman.Behaviour)
+Mox.defmock(
+  AtomicFi.ScreeningEngineMock,
+  for: AtomicFi.DecisionContext.ScreeningEngine.Behaviour
+)
