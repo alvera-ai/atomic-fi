@@ -30,7 +30,8 @@ defmodule AtomicFi.Factory.LedgerAccountFactory do
           account_holder_id: account_holder_id,
           ledger_id: ledger_id,
           currency: "USD",
-          account_type: :asset,
+          side: :credit,
+          regime: "_master",
           status: :active,
           balance: 0,
           tenant_id: tenant_id

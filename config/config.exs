@@ -93,6 +93,12 @@ config :flop, repo: AtomicFi.Repo, default_limit: 20
 # Watchman sanctions screening service
 config :atomic_fi, :watchman_base_url, "http://localhost:8084"
 
+# ZenRule rules/limits engine (GoRules Agent). The rule_engine module is the
+# AtomicFi.RuleEngine behaviour implementation consulted synchronously when a
+# Transaction/AccountHolder/Counterparty is created or updated.
+config :atomic_fi, :zen_rule_base_url, "http://localhost:8090"
+config :atomic_fi, :rule_engine, AtomicFi.ZenRule.HttpClient
+
 # Oban background job processing
 config :atomic_fi, Oban,
   prefix: "oban",
