@@ -4,10 +4,13 @@ defmodule AtomicFi.Repo.Migrations.ReshapeLedgerForVelocityLimits do
   # Reshape the ledger machinery for rule-engine (ZenRule) velocity limits.
   #
   #   * NEW composite type  velocity_limit (period varchar, direction varchar, cap bigint, rule varchar)
-  #   * ledger_accounts  : drop GAAP account_type (+ its unique); add side (credit|debit), regime
-  #                        (generic; mandatory — Ecto sets it incl. a sentinel for the master roots),
-  #                        payment_account_id / counterparty_id FKs (NULL on master roots);
-  #                        3 partial unique indexes on [:ledger_id, :side, …].
+  #   * ledger_accounts  : drop GAAP account_type (+ its unique); add regime (generic; mandatory —
+  #                        Ecto sets it incl. a sentinel for the root / "all" nodes), payment_account_id
+  #                        / counterparty_id FKs (NULL on the AccountHolder root); 3 partial unique
+  #                        indexes on [:ledger_id, …, :regime].  (No credit/debit-side accounts — one
+  #                        LedgerAccount per (entity, regime); each tracks both credit & debit
+  #                        balances via the existing ledger_account_balances columns.)
+  #   * payment_accounts : add enabled_regimes (text[]) — drives the LA tree built at PA create time.
   #   * ledger_entries   : drop the 8 *_limit_at_entry int cols → limits_at_entry velocity_limit[]
   #                        (the rule engine's output for this entry's leaf account: a list of
   #                        {period, direction, cap, rule}).
@@ -38,8 +41,7 @@ defmodule AtomicFi.Repo.Migrations.ReshapeLedgerForVelocityLimits do
 
     alter table(:ledger_accounts) do
       remove :account_type
-      add :side, :string, null: false, default: "credit"
-      add :regime, :string, null: false, default: "_master"
+      add :regime, :string, null: false, default: "_root"
 
       add :payment_account_id,
           references(:payment_accounts, type: :binary_id, on_delete: :restrict)
@@ -48,27 +50,31 @@ defmodule AtomicFi.Repo.Migrations.ReshapeLedgerForVelocityLimits do
           references(:counterparties, type: :binary_id, on_delete: :restrict)
     end
 
-    # Defaults exist only to backfill any pre-existing rows; new rows set side/regime explicitly.
-    execute("ALTER TABLE ledger_accounts ALTER COLUMN side DROP DEFAULT")
+    # Default exists only to backfill any pre-existing rows; new rows set regime explicitly.
     execute("ALTER TABLE ledger_accounts ALTER COLUMN regime DROP DEFAULT")
 
     create index(:ledger_accounts, [:payment_account_id])
     create index(:ledger_accounts, [:counterparty_id])
 
-    create unique_index(:ledger_accounts, [:ledger_id, :side, :regime],
-             name: :ledger_accounts_ledger_side_regime_master_unique,
+    create unique_index(:ledger_accounts, [:ledger_id, :regime],
+             name: :ledger_accounts_ledger_regime_root_unique,
              where: "payment_account_id IS NULL AND counterparty_id IS NULL"
            )
 
-    create unique_index(:ledger_accounts, [:ledger_id, :side, :payment_account_id, :regime],
-             name: :ledger_accounts_ledger_side_pa_regime_unique,
+    create unique_index(:ledger_accounts, [:ledger_id, :payment_account_id, :regime],
+             name: :ledger_accounts_ledger_pa_regime_unique,
              where: "payment_account_id IS NOT NULL"
            )
 
-    create unique_index(:ledger_accounts, [:ledger_id, :side, :counterparty_id, :regime],
-             name: :ledger_accounts_ledger_side_cp_regime_unique,
+    create unique_index(:ledger_accounts, [:ledger_id, :counterparty_id, :regime],
+             name: :ledger_accounts_ledger_cp_regime_unique,
              where: "counterparty_id IS NOT NULL"
            )
+
+    # ── payment_accounts ───────────────────────────────────────────────────────
+    alter table(:payment_accounts) do
+      add :enabled_regimes, {:array, :string}, null: false, default: []
+    end
 
     # ── ledger_entries ─────────────────────────────────────────────────────────
     alter table(:ledger_entries) do
