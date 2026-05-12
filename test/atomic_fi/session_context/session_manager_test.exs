@@ -370,4 +370,47 @@ defmodule AtomicFi.SessionContext.SessionManagerTest do
       assert match?({:ok, _}, SessionManager.invalidate_cache(Ecto.UUID.generate()))
     end
   end
+
+  describe "get_session_by_user_token_id/1 cache miss paths" do
+    alias AtomicFi.UserContext.UserToken
+
+    setup do
+      tenant = Factory.insert_tenant_with_cache()
+      role = Factory.insert(:role, tenant_id: tenant.id)
+      user = Factory.insert(:user, tenant_id: tenant.id)
+
+      Repo.insert!(
+        %AtomicFi.RoleContext.UserRoleMapping{user_id: user.id, role_id: role.id},
+        skip_multi_tenancy_check: true
+      )
+
+      %{tenant: tenant, role: role, user: user}
+    end
+
+    test "returns nil for an unknown user_token_id (cache miss + DB miss)" do
+      assert SessionManager.get_session_by_user_token_id(Ecto.UUID.generate()) == nil
+    end
+
+    test "cache miss + DB hit caches and returns the session",
+         %{user: user, tenant: tenant, role: role} do
+      {_plaintext, session} =
+        SessionManager.create_user_session_api_token(user, tenant, role)
+
+      # Bust the cache that create_user_session_api_token populated
+      cache_key = "user_token_session:#{session.user_token_id}"
+      Cachex.del(:api_session_cache, cache_key)
+
+      # First call: cache miss → DB → re-cache
+      assert %Session{id: id1} = SessionManager.get_session_by_user_token_id(session.user_token_id)
+      assert id1 == session.id
+
+      # Second call: cache hit
+      assert %Session{id: id2} = SessionManager.get_session_by_user_token_id(session.user_token_id)
+      assert id2 == session.id
+
+      # Cleanup so test doesn't leak data between tests
+      Cachex.del(:api_session_cache, cache_key)
+      _ = Repo.get(UserToken, session.user_token_id, skip_multi_tenancy_check: true)
+    end
+  end
 end

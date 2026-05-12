@@ -34,7 +34,7 @@ defmodule AtomicFiWeb.ConnCase do
 
   setup tags do
     AtomicFi.DataCase.setup_sandbox(tags)
-    AtomicFi.DataCase.setup_watchman_mock(tags)
+    AtomicFi.DataCase.setup_screening_engine_mock(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 

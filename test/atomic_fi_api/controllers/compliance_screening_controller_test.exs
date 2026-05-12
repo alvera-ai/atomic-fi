@@ -673,11 +673,13 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       init_blocklist_cache()
     end
 
-    test "screen_account_holder returns 503 when Watchman search is down", %{
+    test "screen_account_holder returns 503 when screening fails", %{
       conn: conn,
       account_holder: account_holder
     } do
-      expect(AtomicFi.WatchmanMock, :v2_search_get, fn _ -> :error end)
+      expect(AtomicFi.ScreeningEngineMock, :screen_account_holder, fn _, _, _ ->
+        {:error, :watchman_search_unavailable}
+      end)
 
       conn =
         post(conn, ~p"/api/compliance-screenings/screen-account-holder",
@@ -689,7 +691,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       assert response["detail"] =~ "screening"
     end
 
-    test "screen_beneficial_owner returns 503 when Watchman search is down", %{
+    test "screen_beneficial_owner returns 503 when screening fails", %{
       conn: conn,
       platform_tenant: platform_tenant,
       account_holder: account_holder
@@ -704,7 +706,9 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
           legal_entity_id: bo_legal_entity.id
         )
 
-      expect(AtomicFi.WatchmanMock, :v2_search_get, fn _ -> :error end)
+      expect(AtomicFi.ScreeningEngineMock, :screen_beneficial_owner, fn _, _, _ ->
+        {:error, :watchman_search_unavailable}
+      end)
 
       conn =
         post(conn, ~p"/api/compliance-screenings/screen-beneficial-owner",
@@ -714,12 +718,14 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       assert json_response(conn, 503)["error"] == "Watchman service unavailable"
     end
 
-    test "screen_counterparty returns 503 when Watchman search is down", %{
+    test "screen_counterparty returns 503 when screening fails", %{
       conn: conn,
       account_holder: account_holder,
       counterparty: counterparty
     } do
-      expect(AtomicFi.WatchmanMock, :v2_search_get, fn _ -> :error end)
+      expect(AtomicFi.ScreeningEngineMock, :screen_counterparty, fn _, _, _ ->
+        {:error, :watchman_search_unavailable}
+      end)
 
       conn =
         post(conn, ~p"/api/compliance-screenings/screen-counterparty",
@@ -733,7 +739,9 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       conn: conn,
       account_holder: account_holder
     } do
-      expect(AtomicFi.WatchmanMock, :v2_listinfo_get, fn _ -> :error end)
+      expect(AtomicFi.ScreeningEngineMock, :get_watchman_list_info, fn ->
+        {:error, :watchman_listinfo_unavailable}
+      end)
 
       conn =
         post(conn, ~p"/api/compliance-screenings/screen-account-holder",
@@ -759,7 +767,9 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
           legal_entity_id: bo_legal_entity.id
         )
 
-      expect(AtomicFi.WatchmanMock, :v2_listinfo_get, fn _ -> :error end)
+      expect(AtomicFi.ScreeningEngineMock, :get_watchman_list_info, fn ->
+        {:error, :watchman_listinfo_unavailable}
+      end)
 
       conn =
         post(conn, ~p"/api/compliance-screenings/screen-beneficial-owner",
@@ -774,7 +784,9 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       account_holder: account_holder,
       counterparty: counterparty
     } do
-      expect(AtomicFi.WatchmanMock, :v2_listinfo_get, fn _ -> :error end)
+      expect(AtomicFi.ScreeningEngineMock, :get_watchman_list_info, fn ->
+        {:error, :watchman_listinfo_unavailable}
+      end)
 
       conn =
         post(conn, ~p"/api/compliance-screenings/screen-counterparty",

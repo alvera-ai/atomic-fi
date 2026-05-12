@@ -710,4 +710,13 @@ defmodule AtomicFiApi.TenantControllerTest do
     tenant = insert(:tenant, tenant_type: :standard, name: "Test Tenant for Update/Delete")
     %{tenant: tenant}
   end
+
+  describe "refresh_blocklist_cache (POST /api/tenants/refresh-blocklist-cache)" do
+    test "200 — refreshes the cache for the calling tenant", %{conn: conn} do
+      conn = post(conn, ~p"/api/tenants/refresh-blocklist-cache", %{})
+      response = json_response(conn, 200)
+      assert response["message"] == "Blocklist cache refreshed successfully"
+      assert response["tenant_id"]
+    end
+  end
 end
