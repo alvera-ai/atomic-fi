@@ -10,7 +10,7 @@ const dotByKind: Record<NodeKind, string> = {
 
 export function NodePalette() {
   const onDragStart = (event: React.DragEvent, kind: NodeKind) => {
-    event.dataTransfer.setData('application/x-jdm-node', kind)
+    event.dataTransfer.setData('application/x-rule-node', kind)
     event.dataTransfer.effectAllowed = 'move'
   }
 
@@ -41,12 +41,6 @@ export function NodePalette() {
           </div>
         ))}
         <div className="border-t border-rule" />
-      </div>
-
-      <div className="mt-auto px-5 py-4">
-        <p className="font-mono text-[10.5px] uppercase tracking-wider text-ink-4">
-          GoRules JDM · POC
-        </p>
       </div>
     </aside>
   )

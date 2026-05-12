@@ -55,7 +55,7 @@ export function Canvas({
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault()
-      const kind = event.dataTransfer.getData('application/x-jdm-node') as NodeKind
+      const kind = event.dataTransfer.getData('application/x-rule-node') as NodeKind
       if (!kind || !rfInstance.current) return
       const position = rfInstance.current.screenToFlowPosition({
         x: event.clientX,

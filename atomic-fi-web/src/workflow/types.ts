@@ -15,8 +15,8 @@ export type WorkflowNode = Node<NodeData>
 export type WorkflowEdge = Edge
 
 /**
- * On-disk format — GoRules JDM (JSON Decision Model).
- * Matches what the Elixir backend persists under priv/zenrule/.
+ * On-disk decision-graph format. Matches what the Elixir backend
+ * persists under priv/zenrule/.
  */
 export type RulesFile = {
   contentType: 'application/vnd.gorules.decision'

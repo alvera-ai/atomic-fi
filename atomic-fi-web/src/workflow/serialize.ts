@@ -11,7 +11,7 @@ export type ParseResult =
   | { ok: false; error: string }
 
 /**
- * Validate and parse a loaded JSON blob into a GoRules JDM file.
+ * Validate and parse a loaded JSON blob into a RulesFile.
  *
  * This is the most interesting decision point of the POC:
  *   - Permissive parsing keeps the demo flowing but lets bad data crash
@@ -24,7 +24,7 @@ export type ParseResult =
  *
  * Validate at minimum:
  *   1. `value` is a plain object
- *   2. `value.contentType === 'application/vnd.gorules.decision'`
+ *   2. `value.contentType` matches the expected decision-graph identifier
  *   3. `value.nodes` is an array; each node has id (string), type (NodeKind),
  *      name (string), position {x,y} (numbers)
  *   4. `value.edges` is an array; each edge has id, sourceId, targetId (strings)
