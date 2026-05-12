@@ -4,6 +4,30 @@ Rule-engine (ZenRule = the open-source GoRules Agent) driven velocity limits on 
 ledger-account hierarchy. Started from "a deliberately minimal TDD with ZenRule"; grew
 into a ledger-subsystem reshape.
 
+**Branch:** `feat/issue-27-block-1-scenarios`
+**HEAD as of this worklog:** `5aa6484` (resume on top of it). Commits, oldest→newest:
+
+| commit | what |
+|---|---|
+| `d2f6c05` | ZenRule local stack: `external-deps/zenrule/` subtree, `external-deps/zenrule.Dockerfile`, `local-dependencies.yaml` `zenrule` service, `priv/zenrule/atomic-fi/de_minimis.json` (smoke-verified) |
+| `6148f82` | schema layer (incl. an early `side` column that `5aa6484` removes) — Ecto types, migrations, schema rewrites, RuleEngine reshape, ZenRule.HttpClient, config |
+| `5aa6484` | `create_entries/3` + `create_transaction` flow; drop `side`; `payment_accounts.enabled_regimes`; this worklog |
+
+## How to run / verify
+
+```bash
+docker compose -f local-dependencies.yaml up -d zenrule   # ZenRule (GoRules Agent) on :8090; or `make run-backing-services`
+MIX_ENV=test mix ecto.reset                                # rebuild test DB — migrations install cleanly today
+mix compile                                                # green today
+# mix test                                                 # RED today — see "Remaining" (existing ledger/txn tests + assert_schema specs)
+
+# ZenRule smoke (the de_minimis decision is currently the OLD shape — to be rewritten in step G):
+curl -s -XPOST localhost:8090/api/projects/atomic-fi/evaluate/de_minimis.json \
+  -H 'content-type: application/json' -d '{"context":{"transaction":{"transaction_type":"credit_transfer"}}}'
+```
+Tests hit the real local ZenRule container (`config/test.exs` → `:zen_rule_base_url` = `http://localhost:8090`),
+mirroring how the Watchman tests hit the local Watchman container.
+
 ## Design (locked)
 
 - **ZenRule** = `gorules/agent` (open-source, MIT). No arm64 image upstream → built from a
@@ -54,34 +78,38 @@ into a ledger-subsystem reshape.
 
 ## Status
 
-### Done & validated
-- `external-deps/zenrule/` subtree + `external-deps/zenrule.Dockerfile` + `local-dependencies.yaml`
-  `zenrule` service; `priv/zenrule/atomic-fi/de_minimis.json` (de-minimis JDM — smoke-verified).
-  (commit `d2f6c05`)
-- Schema layer (commit `6148f82` + uncommitted `side`-removal / `enabled_regimes` corrections):
+### Done & committed (compiling; not yet exercised by tests)
+All in `d2f6c05` / `6148f82` / `5aa6484`:
+- ZenRule local stack: `external-deps/zenrule/` subtree + `external-deps/zenrule.Dockerfile` +
+  `local-dependencies.yaml` `zenrule` service; `priv/zenrule/atomic-fi/de_minimis.json` (OLD
+  shape — smoke-verified, to be rewritten in step **G**).
+- Schema layer:
   - `velocity_limit` PG composite type + `AtomicFi.LedgerAccountContext.VelocityLimit` struct +
     `AtomicFi.Extensions.Ecto.VelocityLimitType` / `VelocityLimitArrayType`.
-  - Migrations: `20260511000001` (transactions `rejected_*`), `20260511000002` (ledger_entries
-    `rejected_*`), `20260512000001` (CREATE TYPE; ledger_accounts regime/pa_id/cp_id + 3 partial
-    uniques, drop account_type; payment_accounts `enabled_regimes`; ledger_entries `limits_at_entry[]`
-    + drop 8 `*_limit_at_entry`; BEFORE-INSERT trigger).
-  - Schema rewrites: `LedgerAccount`, `LedgerEntry`, `Transaction`. `ledger_account_factory` fixed.
+  - Migrations: `priv/repo/migrations/20260511000001_add_rejection_metadata_to_transactions.exs`,
+    `…20260511000002_add_rejection_metadata_to_ledger_entries.exs`,
+    `…20260512000001_reshape_ledger_for_velocity_limits.exs` (CREATE TYPE; `ledger_accounts`
+    `regime`/`payment_account_id`/`counterparty_id` + 3 partial uniques, drop `account_type`;
+    `payment_accounts.enabled_regimes`; `ledger_entries.limits_at_entry[]` + drop 8
+    `*_limit_at_entry`; BEFORE-INSERT trigger). `ledger_account_balances` migration UNCHANGED
+    (keeps 8 `last_*_limit` cols + 8 CHECKs).
+  - Schema rewrites: `LedgerAccount` (regime/pa_id/cp_id, no `side`/`account_type`), `LedgerEntry`
+    (`limits_at_entry` array + `rejected_*`, no 8 `*_limit_at_entry`), `Transaction` (`rejected_*`).
+    `test/support/factory/ledger_account_factory.ex` fixed (regime, no side/account_type).
   - `RuleEngine.get_limits(entity) :: {:ok, %{ledger_account_id => [VelocityLimit.t()]}}`;
-    `RuleEngine.Payload`; `ZenRule.HttpClient`. Config: `:zen_rule_base_url` + `:rule_engine`
-    (config.exs / test.exs / runtime.exs).
-  - `mix compile` green; `MIX_ENV=test mix ecto.reset` green (migrations install cleanly).
-
-### Done (compiling; not yet exercised by tests)
-- **E** — `LedgerEntryContext.create_entries/3`: posts the balanced pair on the leaf LAs
-  (resolved from `limits`'s keys by `payment_account_id`, excluding `"_root"`/`"all"`), each
-  with its leaf's `limits_at_entry`; if either comes back `:voided` (re-read via `Repo.reload!`),
-  re-records both `:voided` carrying the same `rejected_*`. (No `read_after_writes` — uses
-  `Repo.reload!` after insert. No `cast_limits` helper — `VelocityLimitArrayType.cast/1` already
-  passes `[%VelocityLimit{}]` through.)
-- **F** — `TransactionContext.create_transaction`: insert `:pending` → preload tree →
-  `RuleEngine.impl().get_limits(transaction)` → `LedgerEntryContext.create_entries/3` → update
-  txn `:accepted` or `:rejected` + `rejected_*` (from the voided leg). `@rule_engine_preloads`
-  added.
+    `AtomicFi.RuleEngine.Payload` (entity → context); `AtomicFi.ZenRule.HttpClient`.
+    Config: `:zen_rule_base_url` + `:rule_engine` in `config.exs` / `test.exs` / `runtime.exs`.
+- **E** — `LedgerEntryContext.create_entries/3`: posts the balanced debit/credit pair on the leaf
+  LAs (resolved from `limits`'s keys by `payment_account_id`, excluding `"_root"`/`"all"` — see
+  `resolve_leaf_accounts/2`), each with its leaf's `limits_at_entry`; if either comes back
+  `:voided` (re-read via `Repo.reload!` after insert), re-records both `:voided` carrying the same
+  `rejected_*`. (No `read_after_writes` — uses `Repo.reload!`. No `cast_limits` helper —
+  `VelocityLimitArrayType.cast/1` already passes `[%VelocityLimit{}]` through.)
+- **F** — `TransactionContext.create_transaction/2`: insert `:pending` → `Repo.preload`
+  `@rule_engine_preloads` → `RuleEngine.impl().get_limits(transaction)` →
+  `LedgerEntryContext.create_entries/3` → `Repo.update` txn with `transaction_outcome/1`
+  (`:accepted`, or `:rejected` + `rejected_*` from the voided leg).
+- Validated: `mix compile` green; `MIX_ENV=test mix ecto.reset` green (migrations install cleanly).
 
 ### Remaining
 - **D** — onboarding LA-tree creation in `AccountHolderContext` / `PaymentAccountContext` /
