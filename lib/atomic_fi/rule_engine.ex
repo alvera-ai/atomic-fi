@@ -25,7 +25,25 @@ defmodule AtomicFi.RuleEngine do
 
   @callback get_limits(entity :: struct()) :: {:ok, limits()} | {:error, term()}
 
-  @doc "The configured rule engine implementation module."
-  @spec impl() :: module()
-  def impl, do: Application.fetch_env!(:atomic_fi, :rule_engine)
+  @doc """
+  Asks the configured rule engine for velocity limits applicable to `entity`.
+
+  Returns:
+    * `{:ok, limits}`     — non-empty per-ledger-account limits to enforce
+    * `{:ok, :no_limits}` — engine declined to score (e.g. legacy JDM with no
+                             leaf-LA mapping, or no rules applicable)
+    * `{:error, reason}`  — transport / decode error
+
+  Callers should pattern-match `:no_limits` to skip ledger writes entirely.
+  """
+  @spec get_limits(struct()) :: {:ok, limits()} | {:ok, :no_limits} | {:error, term()}
+  def get_limits(entity) when is_struct(entity) do
+    case impl().get_limits(entity) do
+      {:ok, limits} when is_map(limits) and map_size(limits) == 0 -> {:ok, :no_limits}
+      {:ok, limits} when is_map(limits) -> {:ok, limits}
+      {:error, _} = err -> err
+    end
+  end
+
+  defp impl, do: Application.fetch_env!(:atomic_fi, :rule_engine)
 end

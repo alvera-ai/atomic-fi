@@ -123,12 +123,24 @@ defmodule AtomicFi.TransactionContext do
     with {:ok, transaction} <-
            %Transaction{} |> Transaction.changeset(request) |> Repo.insert(session: session),
          transaction <-
-           Repo.preload(transaction, @rule_engine_preloads, skip_multi_tenancy_check: true),
-         {:ok, limits} <- RuleEngine.impl().get_limits(transaction),
-         {:ok, entries} <- LedgerEntryContext.create_entries(session, transaction, limits) do
-      transaction
-      |> Transaction.changeset(transaction_outcome(entries))
-      |> Repo.update(session: session)
+           Repo.preload(transaction, @rule_engine_preloads, skip_multi_tenancy_check: true) do
+      case RuleEngine.get_limits(transaction) do
+        {:ok, :no_limits} ->
+          # Engine declined to score this transaction; leave it :pending with no
+          # ledger movement.
+          {:ok, transaction}
+
+        {:ok, limits} ->
+          with {:ok, entries} <-
+                 LedgerEntryContext.create_entries(session, transaction, limits) do
+            transaction
+            |> Transaction.changeset(transaction_outcome(entries))
+            |> Repo.update(session: session)
+          end
+
+        {:error, _} = err ->
+          err
+      end
     end
   end
 
