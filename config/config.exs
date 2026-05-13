@@ -90,14 +90,16 @@ config :phoenix, :json_library, Jason
 # Configure Flop for pagination
 config :flop, repo: AtomicFi.Repo, default_limit: 20
 
-# Watchman sanctions screening service
-config :atomic_fi, :watchman_base_url, "http://localhost:8084"
+# Watchman sanctions screening service — per-module config slice (Swoosh-style)
+config :atomic_fi, AtomicFi.Watchman.Client, base_url: "http://localhost:8084"
 
-# ZenRule rules/limits engine (GoRules Agent). The rule_engine module is the
-# AtomicFi.RuleEngine behaviour implementation consulted synchronously when a
-# Transaction/AccountHolder/Counterparty is created or updated.
-config :atomic_fi, :zen_rule_base_url, "http://localhost:8090"
-config :atomic_fi, :rule_engine, AtomicFi.ZenRule.HttpClient
+# ZenRule rules/limits engine (GoRules Agent). The rule_engine impl satisfies
+# AtomicFi.RuleEngine.Behaviour and is consulted synchronously when a
+# Transaction/AccountHolder/Counterparty is created or updated. The impl owns
+# its own config slice; the dispatcher (`AtomicFi.RuleEngine`) only knows
+# which module to call.
+config :atomic_fi, :rule_engine, AtomicFi.RuleEngine.ZenRule
+config :atomic_fi, AtomicFi.RuleEngine.ZenRule, base_url: "http://localhost:8090"
 
 # Oban background job processing
 config :atomic_fi, Oban,

@@ -3,7 +3,7 @@ defmodule AtomicFi.RuleEngine.Payload do
   Builds the rule engine evaluation context from domain entities.
 
   Each entity is shaped like its API response (via `ExOpenApiUtils.Mapper`), so
-  the rules engine — whether reached over HTTP (`AtomicFi.ZenRule.HttpClient`)
+  the rules engine — whether reached over HTTP (`AtomicFi.RuleEngine.ZenRule`)
   today or via an in-process NIF later — sees the same structure clients do.
   Both implementations call this module; the conversion never lives in a context
   or in the transport.

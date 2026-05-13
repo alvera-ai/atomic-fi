@@ -20,8 +20,6 @@ defmodule AtomicFi.Watchman.Client do
   unreachable is treated like a database outage — not unit-tested here).
   """
 
-  alias AtomicFi.Config
-
   alias AtomicFi.Watchman.{
     ErrorResponse,
     IngestFileResponse,
@@ -82,7 +80,7 @@ defmodule AtomicFi.Watchman.Client do
 
   defp req do
     Req.new(
-      base_url: Config.fetch!(:watchman_base_url),
+      base_url: Keyword.fetch!(Application.fetch_env!(:atomic_fi, __MODULE__), :base_url),
       headers: [{"accept", "application/json"}]
     )
     |> Req.Request.register_options([:decode_into])
