@@ -15,8 +15,9 @@ The platform is **API-first** — no LiveView UI.
 | **Parties** | `AccountHolder`, `Counterparty`, `LegalEntity`, `BeneficialOwner` | MDM subjects + PII container + FinCEN CDD chain. |
 | **Compliance Ops** | `ComplianceScreening`, `Blocklist`, `KycRequirement`, `Document`, `RiskClassification` | Screening lifecycle, sanctions/blocklist hits, KYC obligations + evidence, risk tiers. |
 | **Payment Ledger** | `PaymentAccount`, `Ledger`, `LedgerAccount`, `LedgerEntry`, `Transaction` | ISO 20022 instruments + double-entry bookkeeping with DB-enforced velocity limits. |
-| **Snapshots** | `AccountActivitySnapshot`, `PartyActivitySnapshot` | Periodic activity rollups used by the rule engine. |
-| **External engines** | `Watchman` client, `ZenRule` client | Sanctions lookups + decision rules. Transport + domain `Behaviour` split — Mox seams at the domain layer. |
+| **Snapshots** | `AccountActivitySnapshot`, `PartyActivitySnapshot` | Periodic activity rollups consumed by the rule engine. |
+| **Screening Engine** | `DecisionContext.ScreeningEngine`, `BlocklistCache`, `BlocklistValidator` | Domain `Behaviour` over `Watchman.Client` + `Blocklist`. Takes preloaded `AccountHolder`/`Counterparty`/`LegalEntity`/`BeneficialOwner` structs, returns `{:clear \| :hits, matches}`. Mox seam at the domain layer; transport (`Watchman.Client`) treated like a DB driver. |
+| **Rule Engine** | `RuleEngine`, `RuleEngine.Behaviour`, `RuleEngine.ZenRule` | Domain `Behaviour` returning per-`LedgerAccount` velocity limits for a transaction. `ZenRule` is the production impl over `ZenRule.Client`; Mox seam same pattern. |
 
 Per-context implementation status (Schema / Docs / Tests / RLS / API /
 Vitest / Bruno) lives in [`capability-matrix.md`](./capability-matrix.md).
