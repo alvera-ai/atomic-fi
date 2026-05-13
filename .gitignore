@@ -49,3 +49,6 @@ node_modules/
 /.vscode/
 /.playwright-cli/
 
+# macOS Finder metadata.
+**/.DS_Store
+
