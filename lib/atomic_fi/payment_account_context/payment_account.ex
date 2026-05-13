@@ -193,6 +193,11 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
     key: :ledger_account_id
   )
 
+  open_api_property(
+    schema: %Schema{type: :array, nullable: true, items: %Schema{type: :string}},
+    key: :enabled_regimes
+  )
+
   open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :tenant_id)
 
   open_api_property(
@@ -230,6 +235,7 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
       :legal_entity_id,
       :counterparty_id,
       :ledger_account_id,
+      :enabled_regimes,
       :tenant_id,
       :inserted_at,
       :updated_at
@@ -256,6 +262,10 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
     # Identifiers
     field :payment_account_number, :string
     field :payment_account_external_id, :string
+
+    # Hierarchical enabled regimes — populated by parent (AH or CP) at create
+    # via AtomicFi.EnabledRegimes; subset of parent.enabled_regimes.
+    field :enabled_regimes, {:array, :string}, default: []
 
     # Relationships
     belongs_to :account_holder, AccountHolder
@@ -287,10 +297,12 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
       :legal_entity_id,
       :counterparty_id,
       :ledger_account_id,
+      :enabled_regimes,
       :tenant_id
     ])
     |> maybe_cast_status(attrs)
     |> validate_required([:account_type, :account_holder_id, :tenant_id])
+    |> cast_and_validate_enabled_regimes()
     |> foreign_key_constraint(:account_holder_id)
     |> foreign_key_constraint(:legal_entity_id)
     |> foreign_key_constraint(:counterparty_id)
@@ -304,6 +316,31 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
       name: :payment_accounts_number_tenant_unique,
       message: "has already been taken"
     )
+  end
+
+  # Parent is the linked Counterparty (when counterparty_id is set) or the
+  # linked AccountHolder otherwise. Repo lookup deferred via prepare_changes/2.
+  defp cast_and_validate_enabled_regimes(changeset) do
+    Ecto.Changeset.prepare_changes(changeset, fn prepared ->
+      {parent_module, parent_id} =
+        case Ecto.Changeset.get_field(prepared, :counterparty_id) do
+          nil -> {AccountHolder, Ecto.Changeset.get_field(prepared, :account_holder_id)}
+          counterparty_id -> {Counterparty, counterparty_id}
+        end
+
+      parent_regimes =
+        case parent_id &&
+               prepared.repo.get(parent_module, parent_id, skip_multi_tenancy_check: true) do
+          %{enabled_regimes: regimes} -> regimes
+          _ -> AtomicFi.EnabledRegimes.default()
+        end
+
+      AtomicFi.EnabledRegimes.cast_and_validate(
+        prepared,
+        Ecto.Changeset.get_field(prepared, :enabled_regimes),
+        parent_regimes
+      )
+    end)
   end
 
   # Only cast status when explicitly provided and non-nil.

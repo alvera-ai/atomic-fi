@@ -97,6 +97,11 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
     key: :enabled_currencies
   )
 
+  open_api_property(
+    schema: %Schema{type: :array, nullable: true, items: %Schema{type: :string}},
+    key: :enabled_regimes
+  )
+
   open_api_property(schema: %Schema{type: :string, nullable: true}, key: :account_holder_number)
 
   open_api_property(
@@ -152,6 +157,7 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
       :kyc_status,
       :risk_level,
       :enabled_currencies,
+      :enabled_regimes,
       :account_holder_number,
       :onboarded_at,
       :last_reviewed_at,
@@ -182,6 +188,7 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
       default: :low
 
     field :enabled_currencies, {:array, :string}, default: []
+    field :enabled_regimes, {:array, :string}, default: []
 
     field :account_holder_number, :string
 
@@ -208,6 +215,7 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
       :kyc_status,
       :risk_level,
       :enabled_currencies,
+      :enabled_regimes,
       :account_holder_number,
       :onboarded_at,
       :last_reviewed_at,
@@ -216,8 +224,34 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
     |> maybe_cast_assoc_legal_entity(attrs)
     |> validate_required([:holder_type, :tenant_id])
     |> validate_legal_entity_present()
+    |> cast_and_validate_enabled_regimes()
     |> foreign_key_constraint(:legal_entity_id)
     |> foreign_key_constraint(:tenant_id)
+  end
+
+  # Parent is the linked Tenant. Repo lookup is deferred via prepare_changes/2,
+  # so it fires inside the insert/update txn (not when callers build the
+  # changeset for validation preview).
+  defp cast_and_validate_enabled_regimes(changeset) do
+    Ecto.Changeset.prepare_changes(changeset, fn prepared ->
+      parent_regimes =
+        case Ecto.Changeset.get_field(prepared, :tenant_id) do
+          nil ->
+            AtomicFi.EnabledRegimes.default()
+
+          tenant_id ->
+            case prepared.repo.get(Tenant, tenant_id, skip_multi_tenancy_check: true) do
+              nil -> AtomicFi.EnabledRegimes.default()
+              %{enabled_regimes: regimes} -> regimes
+            end
+        end
+
+      AtomicFi.EnabledRegimes.cast_and_validate(
+        prepared,
+        Ecto.Changeset.get_field(prepared, :enabled_regimes),
+        parent_regimes
+      )
+    end)
   end
 
   # Cast nested legal_entity only when the key is present in attrs (not a nil default).

@@ -90,6 +90,14 @@ config :phoenix, :json_library, Jason
 # Configure Flop for pagination
 config :flop, repo: AtomicFi.Repo, default_limit: 20
 
+# Default enabled regimes — the global root of the regime hierarchy.
+# Tenant inherits this when its own :enabled_regimes is unset; AccountHolder
+# inherits Tenant; PaymentAccount inherits AccountHolder (or Counterparty if
+# `counterparty_id` is set); Counterparty inherits Tenant. At every level
+# an explicit override is allowed but must be a subset of the parent's
+# effective regimes. See `AtomicFi.EnabledRegimes`.
+config :atomic_fi, :enabled_regimes, ["ach", "wire", "card", "stablecoin", "internal_transfer"]
+
 # Watchman sanctions screening service — per-module config slice (Swoosh-style)
 config :atomic_fi, AtomicFi.Watchman.Client, base_url: "http://localhost:8084"
 

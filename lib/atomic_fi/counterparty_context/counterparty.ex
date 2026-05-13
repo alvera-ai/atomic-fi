@@ -74,6 +74,11 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
   )
 
   open_api_property(
+    schema: %Schema{type: :array, nullable: true, items: %Schema{type: :string}},
+    key: :enabled_regimes
+  )
+
+  open_api_property(
     schema: %Schema{type: :string, format: :uuid},
     key: :tenant_id
   )
@@ -113,6 +118,7 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
       :legal_entity,
       :status,
       :counterparty_number,
+      :enabled_regimes,
       :tenant_id,
       :inserted_at,
       :updated_at,
@@ -127,6 +133,7 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
     field :status, Ecto.Enum, values: [:active, :suspended, :blocked], default: :active
 
     field :counterparty_number, :string
+    field :enabled_regimes, {:array, :string}, default: []
 
     # Virtual: controls whether a compliance screening job is enqueued on create
     field :chain_screening, :boolean, virtual: true, default: true
@@ -144,17 +151,44 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
       :legal_entity_id,
       :status,
       :counterparty_number,
+      :enabled_regimes,
       :tenant_id
     ])
     |> maybe_cast_assoc_legal_entity(attrs)
     |> validate_required([:account_holder_id, :status, :tenant_id])
     |> validate_legal_entity_present()
+    |> cast_and_validate_enabled_regimes()
     |> foreign_key_constraint(:account_holder_id)
     |> foreign_key_constraint(:legal_entity_id)
     |> foreign_key_constraint(:tenant_id)
     |> unique_constraint([:account_holder_id, :legal_entity_id],
       name: :counterparties_account_holder_legal_entity_unique
     )
+  end
+
+  # Parent is the linked AccountHolder. Repo lookup deferred via prepare_changes/2.
+  defp cast_and_validate_enabled_regimes(changeset) do
+    Ecto.Changeset.prepare_changes(changeset, fn prepared ->
+      parent_regimes =
+        case Ecto.Changeset.get_field(prepared, :account_holder_id) do
+          nil ->
+            AtomicFi.EnabledRegimes.default()
+
+          account_holder_id ->
+            case prepared.repo.get(AccountHolder, account_holder_id,
+                   skip_multi_tenancy_check: true
+                 ) do
+              nil -> AtomicFi.EnabledRegimes.default()
+              %{enabled_regimes: regimes} -> regimes
+            end
+        end
+
+      AtomicFi.EnabledRegimes.cast_and_validate(
+        prepared,
+        Ecto.Changeset.get_field(prepared, :enabled_regimes),
+        parent_regimes
+      )
+    end)
   end
 
   # Cast nested legal_entity only when the key is present in attrs (not a nil default).
