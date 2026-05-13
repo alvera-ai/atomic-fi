@@ -6,27 +6,53 @@ defmodule AtomicFi.LedgerAccountContextTest do
   alias AtomicFi.OpenApiSchema.LedgerAccountRequest
   import AtomicFi.Factory
 
-  # Helper: build a valid LedgerAccountRequest for the given session/ledger
-  defp ledger_account_request(session, ledger, overrides \\ %{}) do
-    %LedgerAccountRequest{
-      account_holder_id: Map.get(overrides, :account_holder_id, ledger.account_holder_id),
-      ledger_id: Map.get(overrides, :ledger_id, ledger.id),
-      currency: Map.get(overrides, :currency, "USD"),
-      regime: Map.get(overrides, :regime, "_root"),
-      status: Map.get(overrides, :status, :active),
-      parent_ledger_account_id: Map.get(overrides, :parent_ledger_account_id, nil),
-      tenant_id: Map.get(overrides, :tenant_id, session.tenant_id)
-    }
+  # ── Helpers ──────────────────────────────────────────────────────────────
+
+  defp ledger_for(session) do
+    insert(:ledger, tenant_id: session.tenant_id)
   end
 
-  describe "ledger_accounts CRUD" do
-    test "list_ledger_accounts/1 returns all accounts for tenant", %{session: session} do
+  defp request_for(session, ledger, overrides \\ %{}) do
+    base = %{
+      account_holder_id: ledger.account_holder_id,
+      ledger_id: ledger.id,
+      currency: "USD",
+      regime: "ach",
+      la_type: :account_holder_payment_account_regime_root,
+      status: :active,
+      payment_account_id: nil,
+      counterparty_id: nil,
+      tenant_id: session.tenant_id
+    }
+
+    struct(LedgerAccountRequest, Map.merge(base, overrides))
+  end
+
+  defp pa_for(session, ledger) do
+    insert(:payment_account,
+      tenant_id: session.tenant_id,
+      account_holder_id: ledger.account_holder_id,
+      currency: ledger.currency
+    )
+  end
+
+  defp cp_for(session, ledger) do
+    insert(:counterparty,
+      tenant_id: session.tenant_id,
+      account_holder_id: ledger.account_holder_id
+    )
+  end
+
+  # ── CRUD ─────────────────────────────────────────────────────────────────
+
+  describe "CRUD" do
+    test "list_ledger_accounts/1 returns accounts for tenant", %{session: session} do
       insert(:ledger_account, tenant_id: session.tenant_id)
-      {:ok, {accounts, _meta}} = LedgerAccountContext.list_ledger_accounts(session)
+      assert {:ok, {accounts, _}} = LedgerAccountContext.list_ledger_accounts(session)
       assert accounts != []
     end
 
-    test "get_ledger_account!/2 returns the account with given id", %{session: session} do
+    test "get_ledger_account!/2 returns the row", %{session: session} do
       account = insert(:ledger_account, tenant_id: session.tenant_id)
 
       assert %LedgerAccount{id: id} =
@@ -35,38 +61,17 @@ defmodule AtomicFi.LedgerAccountContextTest do
       assert id == account.id
     end
 
-    test "create_ledger_account/2 with valid data creates a root account", %{session: session} do
-      ledger = insert(:ledger, tenant_id: session.tenant_id)
-      request = ledger_account_request(session, ledger)
-
-      assert {:ok, %LedgerAccount{} = account} =
-               LedgerAccountContext.create_ledger_account(session, request)
-
-      assert account.ledger_id == ledger.id
-      assert account.currency == "USD"
-      assert account.regime == "_root"
-      assert account.status == :active
-      assert account.balance == 0
-      assert account.ancestor_ids == []
-      assert is_nil(account.parent_ledger_account_id)
-      assert account.tenant_id == session.tenant_id
-    end
-
-    test "create_ledger_account/2 with missing required fields returns error", %{session: session} do
-      request = %LedgerAccountRequest{
-        account_holder_id: nil,
-        ledger_id: nil,
-        currency: nil,
-        tenant_id: session.tenant_id
-      }
-
+    test "create_ledger_account/2 validates required fields", %{session: session} do
+      request = %LedgerAccountRequest{tenant_id: session.tenant_id}
       assert {:error, changeset} = LedgerAccountContext.create_ledger_account(session, request)
       assert errors_on(changeset).account_holder_id != []
       assert errors_on(changeset).ledger_id != []
       assert errors_on(changeset).currency != []
+      assert errors_on(changeset).regime != []
+      assert errors_on(changeset).la_type != []
     end
 
-    test "update_ledger_account/3 updates mutable fields", %{session: session} do
+    test "update_ledger_account/3 mutates status", %{session: session} do
       account = insert(:ledger_account, tenant_id: session.tenant_id, status: :active)
 
       request = %LedgerAccountRequest{
@@ -74,6 +79,9 @@ defmodule AtomicFi.LedgerAccountContextTest do
         ledger_id: account.ledger_id,
         currency: account.currency,
         regime: account.regime,
+        la_type: account.la_type,
+        payment_account_id: account.payment_account_id,
+        counterparty_id: account.counterparty_id,
         status: :closed,
         tenant_id: session.tenant_id
       }
@@ -84,7 +92,7 @@ defmodule AtomicFi.LedgerAccountContextTest do
       assert updated.status == :closed
     end
 
-    test "delete_ledger_account/2 deletes the account", %{session: session} do
+    test "delete_ledger_account/2 removes the row", %{session: session} do
       account = insert(:ledger_account, tenant_id: session.tenant_id)
 
       assert {:ok, %LedgerAccount{}} =
@@ -101,163 +109,215 @@ defmodule AtomicFi.LedgerAccountContextTest do
     end
   end
 
-  describe "ledger_accounts hierarchy — ancestor_ids materialized path" do
-    test "root account has empty ancestor_ids", %{session: session} do
-      ledger = insert(:ledger, tenant_id: session.tenant_id)
-      request = ledger_account_request(session, ledger)
+  # ── Trigger: ancestor_ids materialisation per la_type ────────────────────
 
-      assert {:ok, root} = LedgerAccountContext.create_ledger_account(session, request)
+  describe "trigger ledger_accounts_resolve_ancestor_ids — happy paths" do
+    test ":counter_party_root has empty ancestor_ids", %{session: session} do
+      ledger = ledger_for(session)
+      cp = cp_for(session, ledger)
+
+      assert {:ok, root} =
+               LedgerAccountContext.create_ledger_account(
+                 session,
+                 request_for(session, ledger, %{
+                   la_type: :counter_party_root,
+                   regime: "root",
+                   counterparty_id: cp.id
+                 })
+               )
+
       assert root.ancestor_ids == []
-      assert is_nil(root.parent_ledger_account_id)
     end
 
-    test "child account has parent id in ancestor_ids", %{session: session} do
-      ledger = insert(:ledger, tenant_id: session.tenant_id)
+    test ":counter_party_regime_root resolves the cp_root as its ancestor", %{session: session} do
+      ledger = ledger_for(session)
+      cp = cp_for(session, ledger)
 
-      root_request = ledger_account_request(session, ledger)
-      assert {:ok, root} = LedgerAccountContext.create_ledger_account(session, root_request)
+      assert {:ok, cp_root} =
+               LedgerAccountContext.create_ledger_account(
+                 session,
+                 request_for(session, ledger, %{
+                   la_type: :counter_party_root,
+                   regime: "root",
+                   counterparty_id: cp.id
+                 })
+               )
 
-      child_request =
-        ledger_account_request(session, ledger, %{
-          parent_ledger_account_id: root.id,
-          regime: "child_a"
-        })
+      assert {:ok, cp_regime} =
+               LedgerAccountContext.create_ledger_account(
+                 session,
+                 request_for(session, ledger, %{
+                   la_type: :counter_party_regime_root,
+                   regime: "ach",
+                   counterparty_id: cp.id
+                 })
+               )
 
-      assert {:ok, child} = LedgerAccountContext.create_ledger_account(session, child_request)
-      assert child.parent_ledger_account_id == root.id
-      assert child.ancestor_ids == [root.id]
+      assert cp_regime.ancestor_ids == [cp_root.id]
     end
 
-    test "grandchild has both grandparent and parent in ancestor_ids in order", %{
-      session: session
-    } do
-      ledger = insert(:ledger, tenant_id: session.tenant_id)
+    test ":account_holder_payment_account_regime_root resolves the ah-pa-root as its ancestor",
+         %{session: session} do
+      ledger = ledger_for(session)
+      pa = pa_for(session, ledger)
 
-      root_request = ledger_account_request(session, ledger)
-      assert {:ok, root} = LedgerAccountContext.create_ledger_account(session, root_request)
+      assert {:ok, pa_root} =
+               LedgerAccountContext.create_ledger_account(
+                 session,
+                 request_for(session, ledger, %{
+                   la_type: :account_holder_payment_account_root,
+                   regime: "root",
+                   payment_account_id: pa.id
+                 })
+               )
 
-      child_request =
-        ledger_account_request(session, ledger, %{
-          parent_ledger_account_id: root.id,
-          regime: "child_a"
-        })
+      assert {:ok, pa_regime} =
+               LedgerAccountContext.create_ledger_account(
+                 session,
+                 request_for(session, ledger, %{
+                   la_type: :account_holder_payment_account_regime_root,
+                   regime: "ach",
+                   payment_account_id: pa.id
+                 })
+               )
 
-      assert {:ok, child} = LedgerAccountContext.create_ledger_account(session, child_request)
-
-      grandchild_request =
-        ledger_account_request(session, ledger, %{
-          parent_ledger_account_id: child.id,
-          regime: "child_b"
-        })
-
-      assert {:ok, grandchild} =
-               LedgerAccountContext.create_ledger_account(session, grandchild_request)
-
-      assert grandchild.parent_ledger_account_id == child.id
-      # ancestor_ids = parent's ancestors ++ [parent_id] = [root.id, child.id]
-      assert grandchild.ancestor_ids == [root.id, child.id]
+      assert pa_regime.ancestor_ids == [pa_root.id]
     end
 
-    test "updating parent_ledger_account_id recomputes ancestor_ids", %{session: session} do
-      ledger = insert(:ledger, tenant_id: session.tenant_id)
+    test ":counter_party_payment_account_regime_root resolves the full 3-deep chain root-first",
+         %{session: session} do
+      ledger = ledger_for(session)
+      cp = cp_for(session, ledger)
+      pa = pa_for(session, ledger)
 
-      root_request = ledger_account_request(session, ledger)
-      assert {:ok, root_a} = LedgerAccountContext.create_ledger_account(session, root_request)
+      {:ok, cp_root} =
+        LedgerAccountContext.create_ledger_account(
+          session,
+          request_for(session, ledger, %{
+            la_type: :counter_party_root,
+            regime: "root",
+            counterparty_id: cp.id
+          })
+        )
 
-      # Second root on same ledger needs a distinct regime — the partial unique
-      # index `ledger_accounts_ledger_regime_root_unique` is scoped to no-PA/no-CP rows.
-      root_b_request = ledger_account_request(session, ledger, %{regime: "_alt_root"})
-      assert {:ok, root_b} = LedgerAccountContext.create_ledger_account(session, root_b_request)
+      {:ok, cp_regime} =
+        LedgerAccountContext.create_ledger_account(
+          session,
+          request_for(session, ledger, %{
+            la_type: :counter_party_regime_root,
+            regime: "ach",
+            counterparty_id: cp.id
+          })
+        )
 
-      child_request =
-        ledger_account_request(session, ledger, %{
-          parent_ledger_account_id: root_a.id,
-          regime: "child_a"
-        })
+      {:ok, cp_pa_root} =
+        LedgerAccountContext.create_ledger_account(
+          session,
+          request_for(session, ledger, %{
+            la_type: :counter_party_payment_account_root,
+            regime: "root",
+            counterparty_id: cp.id,
+            payment_account_id: pa.id
+          })
+        )
 
-      assert {:ok, child} = LedgerAccountContext.create_ledger_account(session, child_request)
-      assert child.ancestor_ids == [root_a.id]
+      assert {:ok, cp_pa_regime} =
+               LedgerAccountContext.create_ledger_account(
+                 session,
+                 request_for(session, ledger, %{
+                   la_type: :counter_party_payment_account_regime_root,
+                   regime: "ach",
+                   counterparty_id: cp.id,
+                   payment_account_id: pa.id
+                 })
+               )
 
-      update_request = %LedgerAccountRequest{
-        account_holder_id: child.account_holder_id,
-        ledger_id: child.ledger_id,
-        currency: child.currency,
-        regime: child.regime,
-        status: child.status,
-        parent_ledger_account_id: root_b.id,
-        tenant_id: session.tenant_id
-      }
-
-      assert {:ok, reparented} =
-               LedgerAccountContext.update_ledger_account(session, child, update_request)
-
-      assert reparented.parent_ledger_account_id == root_b.id
-      assert reparented.ancestor_ids == [root_b.id]
-    end
-
-    test "updating without changing parent retains ancestor_ids", %{session: session} do
-      ledger = insert(:ledger, tenant_id: session.tenant_id)
-
-      root_request = ledger_account_request(session, ledger)
-      assert {:ok, root} = LedgerAccountContext.create_ledger_account(session, root_request)
-
-      child_request =
-        ledger_account_request(session, ledger, %{
-          parent_ledger_account_id: root.id,
-          regime: "child_a"
-        })
-
-      assert {:ok, child} = LedgerAccountContext.create_ledger_account(session, child_request)
-      assert child.ancestor_ids == [root.id]
-
-      update_request = %LedgerAccountRequest{
-        account_holder_id: child.account_holder_id,
-        ledger_id: child.ledger_id,
-        currency: child.currency,
-        regime: child.regime,
-        status: :closed,
-        parent_ledger_account_id: child.parent_ledger_account_id,
-        tenant_id: session.tenant_id
-      }
-
-      assert {:ok, updated} =
-               LedgerAccountContext.update_ledger_account(session, child, update_request)
-
-      assert updated.status == :closed
-      assert updated.ancestor_ids == [root.id]
+      # Root-first: cp_root, then cp_regime, then cp_pa_root.
+      assert cp_pa_regime.ancestor_ids == [cp_root.id, cp_regime.id, cp_pa_root.id]
     end
   end
 
-  describe "ledger_accounts no-cycle validation" do
-    test "setting ancestor_ids that includes own id is rejected", %{session: session} do
-      ledger = insert(:ledger, tenant_id: session.tenant_id)
-
-      root_request = ledger_account_request(session, ledger)
-      assert {:ok, root} = LedgerAccountContext.create_ledger_account(session, root_request)
-
-      child_request =
-        ledger_account_request(session, ledger, %{
-          parent_ledger_account_id: root.id,
-          regime: "child_a"
-        })
-
-      assert {:ok, child} = LedgerAccountContext.create_ledger_account(session, child_request)
-      assert child.ancestor_ids == [root.id]
-
-      cycle_request = %LedgerAccountRequest{
-        account_holder_id: root.account_holder_id,
-        ledger_id: root.ledger_id,
-        currency: root.currency,
-        regime: root.regime,
-        status: root.status,
-        parent_ledger_account_id: child.id,
-        tenant_id: session.tenant_id
-      }
+  describe "trigger ledger_accounts_resolve_ancestor_ids — missing ancestor → changeset error" do
+    test ":counter_party_regime_root without the cp_root surfaces as %Changeset{}", %{
+      session: session
+    } do
+      ledger = ledger_for(session)
+      cp = cp_for(session, ledger)
 
       assert {:error, changeset} =
-               LedgerAccountContext.update_ledger_account(session, root, cycle_request)
+               LedgerAccountContext.create_ledger_account(
+                 session,
+                 request_for(session, ledger, %{
+                   la_type: :counter_party_regime_root,
+                   regime: "ach",
+                   counterparty_id: cp.id
+                 })
+               )
 
       assert errors_on(changeset).ancestor_ids != []
+    end
+
+    test ":account_holder_payment_account_regime_root without the pa_root surfaces as %Changeset{}",
+         %{session: session} do
+      ledger = ledger_for(session)
+      pa = pa_for(session, ledger)
+
+      assert {:error, changeset} =
+               LedgerAccountContext.create_ledger_account(
+                 session,
+                 request_for(session, ledger, %{
+                   la_type: :account_holder_payment_account_regime_root,
+                   regime: "ach",
+                   payment_account_id: pa.id
+                 })
+               )
+
+      assert errors_on(changeset).ancestor_ids != []
+    end
+  end
+
+  describe "trigger AFTER INSERT — descendant_ids + linked_ledger_accounts" do
+    test "inserting a leaf back-fills descendant_ids on every ancestor and writes edge rows",
+         %{session: session} do
+      ledger = ledger_for(session)
+      pa = pa_for(session, ledger)
+
+      {:ok, pa_root} =
+        LedgerAccountContext.create_ledger_account(
+          session,
+          request_for(session, ledger, %{
+            la_type: :account_holder_payment_account_root,
+            regime: "root",
+            payment_account_id: pa.id
+          })
+        )
+
+      {:ok, pa_regime} =
+        LedgerAccountContext.create_ledger_account(
+          session,
+          request_for(session, ledger, %{
+            la_type: :account_holder_payment_account_regime_root,
+            regime: "ach",
+            payment_account_id: pa.id
+          })
+        )
+
+      # descendant_ids on pa_root is back-filled by the AFTER INSERT trigger;
+      # re-fetch via the context so we get the current row.
+      pa_root = LedgerAccountContext.get_ledger_account!(session, pa_root.id)
+      assert pa_regime.id in pa_root.descendant_ids
+
+      # The context preloads `linked_ledger_accounts: :to` — assert both
+      # directions of the edge from each endpoint's perspective.
+      leaf = LedgerAccountContext.get_ledger_account!(session, pa_regime.id)
+
+      assert Enum.any?(leaf.linked_ledger_accounts, fn e ->
+               e.to_ledger_account_id == pa_root.id and e.type == :ancestor
+             end)
+
+      assert Enum.any?(pa_root.linked_ledger_accounts, fn e ->
+               e.to_ledger_account_id == pa_regime.id and e.type == :descendant
+             end)
     end
   end
 end

@@ -82,7 +82,9 @@ defmodule AtomicFi.ComplianceScreeningContext.ScreeningWorkerTest do
 
     test "account_holder: propagates {:error, _} when Watchman is unreachable",
          %{session: session} do
-      legal_entity = insert(:legal_entity, tenant_id: session.tenant_id, first_name: "A", last_name: "B")
+      legal_entity =
+        insert(:legal_entity, tenant_id: session.tenant_id, first_name: "A", last_name: "B")
+
       ah = insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
 
       expect(AtomicFi.ScreeningEngineMock, :get_watchman_list_info, fn ->

@@ -151,15 +151,21 @@ defmodule AtomicFi.LedgerEntryContext do
     end
   end
 
-  # The leaf LedgerAccount for each side = the id in `limits` that belongs to that
-  # side's PaymentAccount and is a regime leaf (not the "_root" / "all" structural nodes).
+  # The leaf LedgerAccount for each side = the id in `limits` that belongs to
+  # that side's PaymentAccount and is a regime leaf (one of the *_regime_root
+  # la_types — not an aggregation-root row).
+  @regime_leaf_la_types [
+    :account_holder_payment_account_regime_root,
+    :counter_party_payment_account_regime_root
+  ]
+
   defp resolve_leaf_accounts(%Transaction{} = txn, limits) do
     ids = Map.keys(limits)
 
     leaves =
       Repo.all(
         from(la in LedgerAccount,
-          where: la.id in ^ids and la.regime not in ["_root", "all"],
+          where: la.id in ^ids and la.la_type in ^@regime_leaf_la_types,
           select: {la.id, la.payment_account_id}
         ),
         skip_multi_tenancy_check: true

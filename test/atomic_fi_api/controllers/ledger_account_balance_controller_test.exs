@@ -46,6 +46,7 @@ defmodule AtomicFiApi.LedgerAccountBalanceControllerTest do
 
       conn =
         get(conn, ~p"/api/ledger-account-balances", %{"page" => 1, "page_size" => 2})
+
       response = json_response(conn, 200)
       assert length(response["data"]) == 2
     end
@@ -55,6 +56,7 @@ defmodule AtomicFiApi.LedgerAccountBalanceControllerTest do
         build_conn()
         |> put_req_header("accept", "application/json")
         |> get(~p"/api/ledger-account-balances")
+
       assert json_response(conn, 401)
     end
   end

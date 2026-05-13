@@ -44,6 +44,7 @@ defmodule AtomicFiApi.LedgerEntryControllerTest do
         build_conn()
         |> put_req_header("accept", "application/json")
         |> get(~p"/api/ledger-entries")
+
       assert json_response(conn, 401)
     end
   end

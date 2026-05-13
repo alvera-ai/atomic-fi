@@ -2,11 +2,10 @@ defmodule AtomicFi.LedgerEntryContextTest do
   use AtomicFi.DataCase
 
   alias AtomicFi.LedgerAccountContext
+  alias AtomicFi.LedgerAccountContext.VelocityLimit
   alias AtomicFi.LedgerEntryContext
   alias AtomicFi.LedgerEntryContext.LedgerEntry
-  alias AtomicFi.LedgerAccountContext.VelocityLimit
-  alias AtomicFi.OpenApiSchema.{LedgerAccountRequest, LedgerEntryRequest}
-  alias AtomicFi.Repo
+  alias AtomicFi.OpenApiSchema.LedgerEntryRequest
   import AtomicFi.Factory
 
   # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -36,19 +35,9 @@ defmodule AtomicFi.LedgerEntryContextTest do
     Enum.find(limits, &(&1.period == period and &1.direction == direction))
   end
 
-  defp make_account(session, ledger, opts \\ []) do
-    request = %LedgerAccountRequest{
-      account_holder_id: ledger.account_holder_id,
-      ledger_id: ledger.id,
-      currency: "USD",
-      regime: Keyword.get(opts, :regime, "_root"),
-      status: :active,
-      parent_ledger_account_id: Keyword.get(opts, :parent_ledger_account_id, nil),
-      tenant_id: session.tenant_id
-    }
-
-    {:ok, account} = LedgerAccountContext.create_ledger_account(session, request)
-    account
+  # Default leaf — `:account_holder_payment_account_regime_root` with 1 ancestor.
+  defp make_account(session, _ledger \\ nil, _opts \\ []) do
+    insert(:ledger_account, tenant_id: session.tenant_id)
   end
 
   defp entry_request(session, account, opts \\ []) do
@@ -64,10 +53,9 @@ defmodule AtomicFi.LedgerEntryContextTest do
     }
   end
 
-  defp reload_account(session, account) do
-    alias AtomicFi.LedgerAccountContext.LedgerAccount
-
-    Repo.get!(LedgerAccount, account.id, session: session)
+  defp reload_account(session, account_or_id) do
+    id = if is_binary(account_or_id), do: account_or_id, else: account_or_id.id
+    LedgerAccountContext.get_ledger_account!(session, id)
   end
 
   # ── CRUD ─────────────────────────────────────────────────────────────────────
@@ -257,63 +245,52 @@ defmodule AtomicFi.LedgerEntryContextTest do
   # ── Ancestor rollup via trigger ──────────────────────────────────────────────
 
   describe "ledger_entries ancestor balance rollup (trigger)" do
-    test "credit entry increments balance on direct account AND all ancestor accounts", %{
-      session: session
-    } do
-      ledger = insert(:ledger, tenant_id: session.tenant_id)
+    test "credit on leaf rolls up balance to the leaf's PA root ancestor", %{session: session} do
+      # Default factory leaf = :account_holder_payment_account_regime_root,
+      # which carries the AH-PA root in ancestor_ids.
+      leaf = insert(:ledger_account, tenant_id: session.tenant_id)
+      [pa_root_id] = leaf.ancestor_ids
 
-      root = make_account(session, ledger)
+      assert reload_account(session, leaf).balance == 0
+      assert reload_account(session, pa_root_id).balance == 0
 
-      child =
-        make_account(session, ledger, parent_ledger_account_id: root.id, regime: "child_a")
-
-      assert reload_account(session, root).balance == 0
-      assert reload_account(session, child).balance == 0
-
-      req = entry_request(session, child, amount: 5_000, entry_type: :credit)
+      req = entry_request(session, leaf, amount: 5_000, entry_type: :credit)
       assert {:ok, _} = LedgerEntryContext.create_ledger_entry(session, req)
 
-      assert reload_account(session, child).balance == 5_000
-      assert reload_account(session, root).balance == 5_000
+      assert reload_account(session, leaf).balance == 5_000
+      assert reload_account(session, pa_root_id).balance == 5_000
     end
 
-    test "credit rolls up through three-level hierarchy (root → child → grandchild)", %{
-      session: session
-    } do
-      ledger = insert(:ledger, tenant_id: session.tenant_id)
-
-      root = make_account(session, ledger)
-
-      child =
-        make_account(session, ledger, parent_ledger_account_id: root.id, regime: "child_a")
-
-      grandchild =
-        make_account(session, ledger,
-          parent_ledger_account_id: child.id,
-          regime: "child_b"
+    test "credit rolls up through the full 3-ancestor chain", %{session: session} do
+      # CP-PA-regime-root has 3 root-first ancestors: cp_root → cp_regime → cp_pa_root.
+      leaf =
+        insert(:ledger_account,
+          tenant_id: session.tenant_id,
+          la_type: :counter_party_payment_account_regime_root,
+          regime: "ach"
         )
 
-      req = entry_request(session, grandchild, amount: 3_000, entry_type: :credit)
+      assert length(leaf.ancestor_ids) == 3
+
+      req = entry_request(session, leaf, amount: 3_000, entry_type: :credit)
       assert {:ok, _} = LedgerEntryContext.create_ledger_entry(session, req)
 
-      assert reload_account(session, grandchild).balance == 3_000
-      assert reload_account(session, child).balance == 3_000
-      assert reload_account(session, root).balance == 3_000
+      assert reload_account(session, leaf).balance == 3_000
+
+      for anc_id <- leaf.ancestor_ids do
+        assert reload_account(session, anc_id).balance == 3_000
+      end
     end
 
-    test "voiding reverses balance on direct account AND all ancestors", %{session: session} do
-      ledger = insert(:ledger, tenant_id: session.tenant_id)
+    test "voiding reverses balance on leaf AND every ancestor", %{session: session} do
+      leaf = insert(:ledger_account, tenant_id: session.tenant_id)
+      [pa_root_id] = leaf.ancestor_ids
 
-      root = make_account(session, ledger)
-
-      child =
-        make_account(session, ledger, parent_ledger_account_id: root.id, regime: "child_a")
-
-      req = entry_request(session, child, amount: 8_000, entry_type: :credit)
+      req = entry_request(session, leaf, amount: 8_000, entry_type: :credit)
       assert {:ok, entry} = LedgerEntryContext.create_ledger_entry(session, req)
 
-      assert reload_account(session, child).balance == 8_000
-      assert reload_account(session, root).balance == 8_000
+      assert reload_account(session, leaf).balance == 8_000
+      assert reload_account(session, pa_root_id).balance == 8_000
 
       void_request = %LedgerEntryRequest{
         account_holder_id: entry.account_holder_id,
@@ -327,32 +304,35 @@ defmodule AtomicFi.LedgerEntryContextTest do
 
       assert {:ok, _} = LedgerEntryContext.update_ledger_entry(session, entry, void_request)
 
-      assert reload_account(session, child).balance == 0
-      assert reload_account(session, root).balance == 0
+      assert reload_account(session, leaf).balance == 0
+      assert reload_account(session, pa_root_id).balance == 0
     end
 
-    test "two independent children — entry on one child does not affect the other", %{
-      session: session
-    } do
-      ledger = insert(:ledger, tenant_id: session.tenant_id)
+    test "two independent leaves under the same AH — entry on one does not affect the other",
+         %{session: session} do
+      ah = insert(:account_holder, tenant_id: session.tenant_id)
+      ledger = insert(:ledger, tenant_id: session.tenant_id, account_holder_id: ah.id)
 
-      root = make_account(session, ledger)
-
-      child_a =
-        make_account(session, ledger, parent_ledger_account_id: root.id, regime: "child_a")
-
-      child_b =
-        make_account(session, ledger,
-          parent_ledger_account_id: root.id,
-          regime: "child_b"
+      # Two distinct PAs ⇒ two distinct AH-PA trees.
+      leaf_a =
+        insert(:ledger_account,
+          tenant_id: session.tenant_id,
+          account_holder_id: ah.id,
+          ledger_id: ledger.id
         )
 
-      req = entry_request(session, child_a, amount: 4_000, entry_type: :credit)
+      leaf_b =
+        insert(:ledger_account,
+          tenant_id: session.tenant_id,
+          account_holder_id: ah.id,
+          ledger_id: ledger.id
+        )
+
+      req = entry_request(session, leaf_a, amount: 4_000, entry_type: :credit)
       assert {:ok, _} = LedgerEntryContext.create_ledger_entry(session, req)
 
-      assert reload_account(session, child_a).balance == 4_000
-      assert reload_account(session, child_b).balance == 0
-      assert reload_account(session, root).balance == 4_000
+      assert reload_account(session, leaf_a).balance == 4_000
+      assert reload_account(session, leaf_b).balance == 0
     end
   end
 

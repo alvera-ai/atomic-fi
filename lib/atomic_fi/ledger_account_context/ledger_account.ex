@@ -3,9 +3,31 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
 
   alias AtomicFi.AccountHolderContext.AccountHolder
   alias AtomicFi.CounterpartyContext.Counterparty
+  alias AtomicFi.LedgerAccountContext.LinkedLedgerAccount
   alias AtomicFi.LedgerContext.Ledger
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.TenantContext.Tenant
+
+  # Sentinel regime name for an aggregation-root row (the catch-all bucket
+  # for a (pa, cp) tuple). Children carry the actual regime name (e.g. "ach").
+  @root_regime "root"
+
+  @la_types [
+    :counter_party_root,
+    :counter_party_regime_root,
+    :account_holder_payment_account_root,
+    :account_holder_payment_account_regime_root,
+    :counter_party_payment_account_root,
+    :counter_party_payment_account_regime_root
+  ]
+
+  @doc "Returns the sentinel regime name for aggregation-root rows."
+  @spec root_regime() :: String.t()
+  def root_regime, do: @root_regime
+
+  @doc "List of valid `la_type` enum values."
+  @spec la_types() :: [atom()]
+  def la_types, do: @la_types
 
   @typedoc """
   LedgerAccount — a control account in the double-entry payments ledger.
@@ -44,7 +66,6 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
   * `status` - LedgerAccount lifecycle: `active` | `closed`
   * `balance` - Running net (credits − debits) in minor currency units (trigger-maintained, readOnly in API)
   * `ledger_account_number` - Opaque external SoE ID (nullable; upsert identity)
-  * `parent_ledger_account_id` - FK to parent LedgerAccount (nullable — the AH root has no parent)
   * `payment_account_id` - FK to PaymentAccount (nullable — set on a PaymentAccount's "all"-regime LA and its regime leaves)
   * `counterparty_id` - FK to Counterparty (nullable — set on Counterparty LAs)
   * `ancestor_ids` - Materialized flat list of all ancestor account UUIDs, root-first (system-maintained)
@@ -63,7 +84,6 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
              :ledger_id,
              :regime,
              :status,
-             :parent_ledger_account_id,
              :payment_account_id,
              :counterparty_id
            ],
@@ -96,9 +116,28 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
       type: :string,
       description:
         "Generic regime discriminator (regulatory regime, fraud regime, …). " <>
-          "Regime leaves carry the real regime name; structural nodes carry a sentinel (\"_root\", \"all\")."
+          "Regime leaves carry the real regime name; aggregation roots carry the sentinel \"root\"."
     },
     key: :regime
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      enum: [
+        "counter_party_root",
+        "counter_party_regime_root",
+        "account_holder_payment_account_root",
+        "account_holder_payment_account_regime_root",
+        "counter_party_payment_account_root",
+        "counter_party_payment_account_regime_root"
+      ],
+      description:
+        "Position of this row in the LedgerAccount tree. Combined with regime, " <>
+          "determines whether this row is an aggregation root or a regime-specific child. " <>
+          "Enforced by the ledger_accounts_la_type_shape_check CHECK constraint."
+    },
+    key: :la_type
   )
 
   open_api_property(
@@ -131,16 +170,6 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
       type: :string,
       format: :uuid,
       nullable: true,
-      description: "Parent LedgerAccount UUID. NULL = master root account."
-    },
-    key: :parent_ledger_account_id
-  )
-
-  open_api_property(
-    schema: %Schema{
-      type: :string,
-      format: :uuid,
-      nullable: true,
       description: "PaymentAccount this account belongs to (NULL on master roots)."
     },
     key: :payment_account_id
@@ -160,13 +189,14 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
   open_api_property(
     schema: %Schema{
       type: :array,
-      items: %Schema{type: :string, format: :uuid},
+      items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/LinkedLedgerAccountResponse"},
       readOnly: true,
       description:
-        "Materialized flat list of all ancestor account UUIDs (root-first order). " <>
-          "System-maintained. Used by the trigger for O(1) ancestor balance propagation."
+        "Read-only edge list — every related LedgerAccount (ancestor or descendant), " <>
+          "with the edge `type` indicating direction. Populated automatically by a database " <>
+          "trigger on LedgerAccount insert; never written by application code."
     },
-    key: :ancestor_ids
+    key: :linked_ledger_accounts
   )
 
   open_api_property(
@@ -189,7 +219,7 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
     description:
       "Control account in the double-entry payments ledger. `side` is the normal balance " <>
         "(credit-normal | debit-normal); `balance` is the running net (credits − debits), " <>
-        "trigger-maintained. Self-referential hierarchy via parent_ledger_account_id / ancestor_ids; " <>
+        "trigger-maintained. Hierarchy is captured solely in the flat ancestor_ids array; " <>
         "regime is a generic discriminator. Velocity limits live on ledger_account_balances.limits.",
     required: [:account_holder_id, :ledger_id, :currency, :regime],
     properties: [
@@ -201,10 +231,10 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
       :status,
       :balance,
       :ledger_account_number,
-      :parent_ledger_account_id,
       :payment_account_id,
       :counterparty_id,
-      :ancestor_ids,
+      :la_type,
+      :linked_ledger_accounts,
       :tenant_id,
       :inserted_at,
       :updated_at
@@ -229,17 +259,36 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
 
     field :ledger_account_number, :string
 
-    # ── Hierarchy ────────────────────────────────────────────────────────────
-    # Self-referential parent (nullable — master roots have no parent)
-    belongs_to :parent_ledger_account, __MODULE__, foreign_key: :parent_ledger_account_id
+    # ── Tree position ────────────────────────────────────────────────────────
+    # Distinguishes the 6 row shapes in the (pa, cp, regime) cross. A DB
+    # CHECK constraint (ledger_accounts_la_type_shape_check) enforces
+    # consistency between la_type and (payment_account_id, counterparty_id,
+    # regime). Required on every insert.
+    field :la_type, Ecto.Enum, values: @la_types
+
+    # Cached flat ancestor path (root-first). Single source of truth for
+    # tree traversal. Populated by the `ledger_accounts_resolve_ancestor_ids`
+    # BEFORE INSERT/UPDATE trigger on the database side, which fails fast
+    # (SQLSTATE 23514) if any required ancestor row is missing — Elixir
+    # surfaces that failure as a `%Changeset{}` via `check_constraint/3`.
+    field :ancestor_ids, {:array, :binary_id}, default: [], read_after_writes: true
+
+    # Cached flat list of every descendant LA. Maintained by the
+    # `ledger_accounts_propagate_descendant_id` AFTER INSERT trigger
+    # (refreshes the linked_ledger_accounts edge rows too).
+    field :descendant_ids, {:array, :binary_id}, default: [], read_after_writes: true
+
+    # Read-side edge list (denormalised twin of ancestor_ids/descendant_ids)
+    # for idiomatic Ecto preloads:
+    #
+    #     Repo.preload(la, linked_ledger_accounts: :to)
+    #
+    # — yields every related LedgerAccount with edge `type` available.
+    has_many :linked_ledger_accounts, LinkedLedgerAccount, foreign_key: :from_ledger_account_id
 
     # Entity this account belongs to (exactly one set, or neither on master roots)
     belongs_to :payment_account, PaymentAccount, foreign_key: :payment_account_id
     belongs_to :counterparty, Counterparty, foreign_key: :counterparty_id
-
-    # Materialized ancestor path (root-first) — populated by context at write time.
-    # System-maintained — excluded from API changeset cast.
-    field :ancestor_ids, {:array, :binary_id}, default: []
 
     belongs_to :tenant, Tenant
 
@@ -256,24 +305,25 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
       :regime,
       :status,
       :ledger_account_number,
-      :parent_ledger_account_id,
       :payment_account_id,
       :counterparty_id,
+      :la_type,
       :tenant_id
       # NOTE: :balance intentionally excluded — never writable via API
-      # NOTE: :ancestor_ids intentionally excluded — system-maintained by context
+      # NOTE: :ancestor_ids intentionally excluded — populated by the
+      #       ledger_accounts_resolve_ancestor_ids DB trigger.
     ])
     |> validate_required([
       :account_holder_id,
       :ledger_id,
       :currency,
       :regime,
+      :la_type,
       :tenant_id
     ])
     |> validate_length(:currency, is: 3)
     |> foreign_key_constraint(:account_holder_id)
     |> foreign_key_constraint(:ledger_id)
-    |> foreign_key_constraint(:parent_ledger_account_id)
     |> foreign_key_constraint(:payment_account_id)
     |> foreign_key_constraint(:counterparty_id)
     |> foreign_key_constraint(:tenant_id)
@@ -289,20 +339,14 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
     |> unique_constraint(:ledger_account_number,
       name: :ledger_accounts_ledger_account_number_unique
     )
-    |> validate_no_ancestor_cycle()
-  end
-
-  # Ensures this account is not its own ancestor (prevents cycles in the hierarchy tree).
-  # The context populates ancestor_ids before calling changeset, so this validation
-  # catches any attempt to create a circular parent reference.
-  defp validate_no_ancestor_cycle(changeset) do
-    id = get_field(changeset, :id)
-    ancestor_ids = get_field(changeset, :ancestor_ids) || []
-
-    if id && id in ancestor_ids do
-      add_error(changeset, :ancestor_ids, "cycle detected — account cannot be its own ancestor")
-    else
-      changeset
-    end
+    |> check_constraint(:la_type,
+      name: :ledger_accounts_la_type_shape_check,
+      message: "does not match (payment_account_id, counterparty_id, regime)"
+    )
+    |> check_constraint(:ancestor_ids,
+      name: :ledger_accounts_ancestor_resolution,
+      message:
+        "missing ancestor LedgerAccount — create the *_root row(s) before inserting this descendant"
+    )
   end
 end

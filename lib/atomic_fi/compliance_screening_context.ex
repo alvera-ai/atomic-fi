@@ -337,7 +337,8 @@ defmodule AtomicFi.ComplianceScreeningContext do
       |> Repo.preload(:legal_entity, skip_multi_tenancy_check: true)
 
     with {:ok, list_info} <- @screening_engine.get_watchman_list_info(),
-         {:ok, result} <- @screening_engine.screen_beneficial_owner(session, beneficial_owner, []),
+         {:ok, result} <-
+           @screening_engine.screen_beneficial_owner(session, beneficial_owner, []),
          {:ok, screening} <-
            persist_beneficial_owner_screening(
              session,

@@ -13,6 +13,7 @@ defmodule AtomicFi.DecisionContext.BlocklistCacheTest do
           :ets.delete(:blocklist_cache, {tenant.id, :exact, scope})
           :ets.delete(:blocklist_cache, {tenant.id, :regex, scope})
         end
+
         :ets.delete(:blocklist_cache, {tenant.id, :last_updated})
       rescue
         ArgumentError -> :ok

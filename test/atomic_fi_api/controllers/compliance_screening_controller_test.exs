@@ -682,7 +682,9 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       end)
 
       conn =
-        post(conn, ~p"/api/compliance-screenings/screen-account-holder",
+        post(
+          conn,
+          ~p"/api/compliance-screenings/screen-account-holder",
           account_holder_screen_body(account_holder.id)
         )
 
@@ -711,7 +713,9 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       end)
 
       conn =
-        post(conn, ~p"/api/compliance-screenings/screen-beneficial-owner",
+        post(
+          conn,
+          ~p"/api/compliance-screenings/screen-beneficial-owner",
           beneficial_owner_screen_body(account_holder.id, bo.id)
         )
 
@@ -728,7 +732,9 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       end)
 
       conn =
-        post(conn, ~p"/api/compliance-screenings/screen-counterparty",
+        post(
+          conn,
+          ~p"/api/compliance-screenings/screen-counterparty",
           counterparty_screen_body(account_holder.id, counterparty.id)
         )
 
@@ -744,7 +750,9 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       end)
 
       conn =
-        post(conn, ~p"/api/compliance-screenings/screen-account-holder",
+        post(
+          conn,
+          ~p"/api/compliance-screenings/screen-account-holder",
           account_holder_screen_body(account_holder.id)
         )
 
@@ -772,7 +780,9 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       end)
 
       conn =
-        post(conn, ~p"/api/compliance-screenings/screen-beneficial-owner",
+        post(
+          conn,
+          ~p"/api/compliance-screenings/screen-beneficial-owner",
           beneficial_owner_screen_body(account_holder.id, bo.id)
         )
 
@@ -789,7 +799,9 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       end)
 
       conn =
-        post(conn, ~p"/api/compliance-screenings/screen-counterparty",
+        post(
+          conn,
+          ~p"/api/compliance-screenings/screen-counterparty",
           counterparty_screen_body(account_holder.id, counterparty.id)
         )
 

@@ -6,12 +6,13 @@ defmodule AtomicFi.LedgerAccountContext do
   It is updated atomically by the `ledger_entry_propagate_to_balances` PostgreSQL trigger
   whenever a LedgerEntry is inserted or voided.
 
-  LedgerAccounts are hierarchical via `parent_ledger_account_id`. The `ancestor_ids`
-  array field is a materialized path of all ancestor UUIDs, computed and stored by this
-  context at create/update time for O(1) descendant lookups.
+  LedgerAccounts are hierarchical. The `ancestor_ids` array is a flat
+  root-first path of ancestor UUIDs — the single source of truth for
+  hierarchy traversal (no separate parent_id column). Callers set
+  `ancestor_ids` explicitly on insert/update via the changeset.
 
-  The trigger propagates entry effects to all ancestor balance rows (via ancestor_ids)
-  so cumulative balances roll up through the account hierarchy automatically.
+  The `ledger_entry_propagate_to_balances` trigger walks `ancestor_ids` so
+  cumulative balances roll up through the account hierarchy automatically.
   """
 
   import Ecto.Query, warn: false
@@ -21,6 +22,11 @@ defmodule AtomicFi.LedgerAccountContext do
   alias AtomicFi.Repo
   alias AtomicFi.LedgerAccountContext.LedgerAccount
   alias AtomicFi.SessionContext.Session
+
+  # Default preload set — the linked_ledger_accounts edge list (with each edge's
+  # target LA hydrated) is the read-side ergonomic for tree traversal. Single
+  # source of truth: callers never reach into Repo / Ecto.Query themselves.
+  @preloads [linked_ledger_accounts: :to]
 
   @doc """
   Returns the list of ledger_accounts with pagination and filtering.
@@ -35,12 +41,15 @@ defmodule AtomicFi.LedgerAccountContext do
           {:ok, {list(LedgerAccount.t()), Flop.Meta.t()}} | {:error, Flop.Meta.t()}
   def_with_rls_and_logging list_ledger_accounts(session, flop_params \\ %{}),
     log_fields: [:flop_params] do
-    LedgerAccount
-    |> Flop.validate_and_run(flop_params,
-      for: LedgerAccount,
-      repo: Repo,
-      query_opts: [session: session]
-    )
+    with {:ok, {accounts, meta}} <-
+           LedgerAccount
+           |> Flop.validate_and_run(flop_params,
+             for: LedgerAccount,
+             repo: Repo,
+             query_opts: [session: session]
+           ) do
+      {:ok, {Repo.preload(accounts, @preloads, session: session), meta}}
+    end
   end
 
   @doc """
@@ -59,15 +68,16 @@ defmodule AtomicFi.LedgerAccountContext do
   """
   @spec get_ledger_account!(Session.t(), Ecto.UUID.t()) :: LedgerAccount.t()
   def_with_rls_and_logging get_ledger_account!(session, id), log_fields: [:id] do
-    Repo.get!(LedgerAccount, id, session: session)
+    LedgerAccount
+    |> Repo.get!(id, session: session)
+    |> Repo.preload(@preloads, session: session)
   end
 
   @doc """
   Creates a ledger_account.
 
-  If `parent_ledger_account_id` is provided, the parent's `ancestor_ids` are fetched
-  and the new account's `ancestor_ids` is set to `parent.ancestor_ids ++ [parent_id]`.
-  Root accounts (no parent) have `ancestor_ids: []`.
+  Callers supply `ancestor_ids` directly on the request (root-first list of
+  parent LA UUIDs). Root LAs use `ancestor_ids: []`.
 
   ## Examples
 
@@ -82,17 +92,16 @@ defmodule AtomicFi.LedgerAccountContext do
           {:ok, LedgerAccount.t()} | {:error, Ecto.Changeset.t()}
   def_with_rls_and_logging create_ledger_account(session, %LedgerAccountRequest{} = request),
     log_fields: [] do
-    ancestor_ids = compute_ancestor_ids(session, request.parent_ledger_account_id)
-
-    %LedgerAccount{ancestor_ids: ancestor_ids}
-    |> LedgerAccount.changeset(request)
-    |> Repo.insert(session: session)
+    with {:ok, ledger_account} <-
+           %LedgerAccount{}
+           |> LedgerAccount.changeset(request)
+           |> Repo.insert(session: session) do
+      {:ok, Repo.preload(ledger_account, @preloads, session: session)}
+    end
   end
 
   @doc """
   Updates a ledger_account.
-
-  If `parent_ledger_account_id` changes, `ancestor_ids` is recomputed from the new parent.
 
   NOTE: balance is never updated directly through this function.
   LedgerEntry inserts and voids update balances via the DB trigger.
@@ -114,17 +123,12 @@ defmodule AtomicFi.LedgerAccountContext do
                              %LedgerAccountRequest{} = request
                            ),
                            log_fields: [:ledger_account] do
-    ancestor_ids =
-      if request.parent_ledger_account_id != ledger_account.parent_ledger_account_id do
-        compute_ancestor_ids(session, request.parent_ledger_account_id)
-      else
-        ledger_account.ancestor_ids
-      end
-
-    ledger_account
-    |> Map.put(:ancestor_ids, ancestor_ids)
-    |> LedgerAccount.changeset(request)
-    |> Repo.update(session: session)
+    with {:ok, updated} <-
+           ledger_account
+           |> LedgerAccount.changeset(request)
+           |> Repo.update(session: session) do
+      {:ok, Repo.preload(updated, @preloads, session: session)}
+    end
   end
 
   @doc """
@@ -157,15 +161,5 @@ defmodule AtomicFi.LedgerAccountContext do
   """
   def change_ledger_account(%LedgerAccount{} = ledger_account, attrs \\ %{}) do
     LedgerAccount.changeset(ledger_account, attrs)
-  end
-
-  # Builds the ancestor_ids array for a new or reparented account.
-  # parent_id = nil → root account → []
-  # parent_id set → fetch parent's ancestor_ids and append parent_id
-  defp compute_ancestor_ids(_session, nil), do: []
-
-  defp compute_ancestor_ids(session, parent_id) do
-    parent = Repo.get!(LedgerAccount, parent_id, session: session)
-    (parent.ancestor_ids || []) ++ [parent_id]
   end
 end

@@ -8,12 +8,17 @@ defmodule AtomicFiApi.LedgerAccountControllerTest do
 
   setup :setup_platform_admin_api
 
-  defp create_attrs(tenant_id, ledger_id, account_holder_id) do
+  # Builds attrs for a `:counter_party_root` LA — the simplest la_type that
+  # requires no ancestor rows (a top-level counterparty bucket). Caller passes
+  # an existing counterparty_id; the trigger sets ancestor_ids to [].
+  defp create_attrs(tenant_id, ledger_id, account_holder_id, counterparty_id) do
     %{
       ledger_id: ledger_id,
       account_holder_id: account_holder_id,
+      counterparty_id: counterparty_id,
       currency: "USD",
-      regime: "_root",
+      regime: "root",
+      la_type: "counter_party_root",
       status: "active",
       tenant_id: tenant_id
     }
@@ -44,6 +49,7 @@ defmodule AtomicFiApi.LedgerAccountControllerTest do
         build_conn()
         |> put_req_header("accept", "application/json")
         |> get(~p"/api/ledger-accounts")
+
       assert json_response(conn, 401)
     end
   end
@@ -69,7 +75,8 @@ defmodule AtomicFiApi.LedgerAccountControllerTest do
     test "201 with valid attrs", %{conn: conn, platform_tenant: tenant} do
       ah = insert(:account_holder, tenant_id: tenant.id)
       ledger = insert(:ledger, tenant_id: tenant.id, account_holder_id: ah.id)
-      attrs = create_attrs(tenant.id, ledger.id, ah.id)
+      cp = insert(:counterparty, tenant_id: tenant.id, account_holder_id: ah.id)
+      attrs = create_attrs(tenant.id, ledger.id, ah.id, cp.id)
 
       conn = post(conn, ~p"/api/ledger-accounts", attrs)
       response = json_response(conn, 201)
@@ -96,6 +103,9 @@ defmodule AtomicFiApi.LedgerAccountControllerTest do
         account_holder_id: la.account_holder_id,
         currency: la.currency,
         regime: la.regime,
+        la_type: to_string(la.la_type),
+        payment_account_id: la.payment_account_id,
+        counterparty_id: la.counterparty_id,
         status: "closed",
         tenant_id: tenant.id
       }
@@ -109,7 +119,8 @@ defmodule AtomicFiApi.LedgerAccountControllerTest do
     test "404 for unknown id", %{conn: conn, platform_tenant: tenant} do
       ah = insert(:account_holder, tenant_id: tenant.id)
       ledger = insert(:ledger, tenant_id: tenant.id, account_holder_id: ah.id)
-      attrs = create_attrs(tenant.id, ledger.id, ah.id)
+      cp = insert(:counterparty, tenant_id: tenant.id, account_holder_id: ah.id)
+      attrs = create_attrs(tenant.id, ledger.id, ah.id, cp.id)
 
       conn = put(conn, ~p"/api/ledger-accounts/00000000-0000-0000-0000-000000000000", attrs)
       assert json_response(conn, 404)

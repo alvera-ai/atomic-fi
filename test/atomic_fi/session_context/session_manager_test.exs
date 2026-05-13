@@ -253,7 +253,12 @@ defmodule AtomicFi.SessionContext.SessionManagerTest do
     end
 
     test "passes metadata through to created session", %{api_key: api_key} do
-      metadata = %{ip_address: "10.0.0.1", user_agent: "ua-test", cloudflare_metadata: %{"cf-ray" => "abc"}}
+      metadata = %{
+        ip_address: "10.0.0.1",
+        user_agent: "ua-test",
+        cloudflare_metadata: %{"cf-ray" => "abc"}
+      }
+
       {:ok, session} = SessionManager.get_or_create_session(api_key, metadata)
       assert session.metadata["ip_address"] == "10.0.0.1"
       assert session.metadata["user_agent"] == "ua-test"
@@ -342,9 +347,13 @@ defmodule AtomicFi.SessionContext.SessionManagerTest do
         SessionManager.create_user_session_api_token(user, tenant, role)
 
       # First call: cache miss → DB
-      assert %Session{id: id1} = SessionManager.get_session_by_user_token_id(session.user_token_id)
+      assert %Session{id: id1} =
+               SessionManager.get_session_by_user_token_id(session.user_token_id)
+
       # Second call: cache hit
-      assert %Session{id: id2} = SessionManager.get_session_by_user_token_id(session.user_token_id)
+      assert %Session{id: id2} =
+               SessionManager.get_session_by_user_token_id(session.user_token_id)
+
       assert id1 == id2 and id1 == session.id
     end
 
@@ -401,11 +410,15 @@ defmodule AtomicFi.SessionContext.SessionManagerTest do
       Cachex.del(:api_session_cache, cache_key)
 
       # First call: cache miss → DB → re-cache
-      assert %Session{id: id1} = SessionManager.get_session_by_user_token_id(session.user_token_id)
+      assert %Session{id: id1} =
+               SessionManager.get_session_by_user_token_id(session.user_token_id)
+
       assert id1 == session.id
 
       # Second call: cache hit
-      assert %Session{id: id2} = SessionManager.get_session_by_user_token_id(session.user_token_id)
+      assert %Session{id: id2} =
+               SessionManager.get_session_by_user_token_id(session.user_token_id)
+
       assert id2 == session.id
 
       # Cleanup so test doesn't leak data between tests

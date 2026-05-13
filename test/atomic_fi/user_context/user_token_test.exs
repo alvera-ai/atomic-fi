@@ -11,7 +11,11 @@ defmodule AtomicFi.UserContext.UserTokenTest do
 
   describe "build_user_session_api_token/1" do
     test "returns {plaintext, struct} with hashed token and sent_to == email", %{tenant: tenant} do
-      user = insert(:user, tenant_id: tenant.id, email: "ut-#{System.unique_integer([:positive])}@example.com")
+      user =
+        insert(:user,
+          tenant_id: tenant.id,
+          email: "ut-#{System.unique_integer([:positive])}@example.com"
+        )
 
       {plaintext, %UserToken{} = ut} = UserToken.build_user_session_api_token(user)
 
@@ -34,7 +38,9 @@ defmodule AtomicFi.UserContext.UserTokenTest do
   end
 
   describe "verify_user_session_api_token_query/1" do
-    test "{:ok, query} for a valid base64url token, query selects the matching row", %{tenant: tenant} do
+    test "{:ok, query} for a valid base64url token, query selects the matching row", %{
+      tenant: tenant
+    } do
       user = insert(:user, tenant_id: tenant.id)
       {plaintext, ut_attrs} = UserToken.build_user_session_api_token(user)
 
@@ -57,6 +63,7 @@ defmodule AtomicFi.UserContext.UserTokenTest do
   describe "token_and_context_query/2" do
     test "returns a query filtered by token + context", %{tenant: tenant} do
       user = insert(:user, tenant_id: tenant.id)
+
       {_plaintext, %UserToken{token: token, context: ctx} = ut_attrs} =
         UserToken.build_user_session_api_token(user)
 
@@ -66,7 +73,9 @@ defmodule AtomicFi.UserContext.UserTokenTest do
         |> Map.drop([:__meta__, :user])
         |> then(&Repo.insert(struct(UserToken, &1), skip_multi_tenancy_check: true))
 
-      results = UserToken.token_and_context_query(token, ctx) |> Repo.all(skip_multi_tenancy_check: true)
+      results =
+        UserToken.token_and_context_query(token, ctx) |> Repo.all(skip_multi_tenancy_check: true)
+
       assert length(results) == 1
     end
   end

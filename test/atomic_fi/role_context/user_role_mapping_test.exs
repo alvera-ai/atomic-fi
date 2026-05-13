@@ -8,7 +8,9 @@ defmodule AtomicFi.RoleContext.UserRoleMappingTest do
       user = insert(:user)
       role = insert(:role, tenant_id: user.tenant_id)
 
-      changeset = UserRoleMapping.changeset(%UserRoleMapping{}, %{user_id: user.id, role_id: role.id})
+      changeset =
+        UserRoleMapping.changeset(%UserRoleMapping{}, %{user_id: user.id, role_id: role.id})
+
       assert changeset.valid?
     end
 

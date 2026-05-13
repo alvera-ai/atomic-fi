@@ -5,7 +5,8 @@ defmodule AtomicFi.RoleContext.RoleConstantsTest do
 
   describe "reserved_roles/0" do
     test "returns the canonical reserved role list" do
-      assert RoleConstants.reserved_roles() == ~w(root platform_admin platform_admin_api system system_api)
+      assert RoleConstants.reserved_roles() ==
+               ~w(root platform_admin platform_admin_api system system_api)
     end
   end
 

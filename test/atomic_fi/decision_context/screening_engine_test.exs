@@ -25,7 +25,6 @@ defmodule AtomicFi.DecisionContext.ScreeningEngineTest do
     )
   end
 
-
   describe "determine_overall_status/1" do
     test "returns :blocked when any result is blocked" do
       results = [
@@ -231,7 +230,10 @@ defmodule AtomicFi.DecisionContext.ScreeningEngineTest do
   describe "unimplemented callbacks" do
     test "screen_payment_account/3 raises", %{session: session} do
       assert_raise RuntimeError, ~r/not implemented yet/, fn ->
-        ScreeningEngine.screen_payment_account(session, %AtomicFi.PaymentAccountContext.PaymentAccount{})
+        ScreeningEngine.screen_payment_account(
+          session,
+          %AtomicFi.PaymentAccountContext.PaymentAccount{}
+        )
       end
     end
 

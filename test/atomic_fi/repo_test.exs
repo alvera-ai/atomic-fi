@@ -7,7 +7,8 @@ defmodule AtomicFi.RepoTest do
   alias AtomicFi.UserContext.User
 
   defp tenant_scoped_session(tenant_id) do
-    role = insert(:role, tenant_id: tenant_id, name: "non-admin-#{System.unique_integer([:positive])}")
+    role =
+      insert(:role, tenant_id: tenant_id, name: "non-admin-#{System.unique_integer([:positive])}")
 
     %Session{
       id: Ecto.UUID.generate(),
@@ -22,7 +23,8 @@ defmodule AtomicFi.RepoTest do
 
   describe "prepare_query bypasses" do
     test "skip_multi_tenancy_check returns query unchanged" do
-      assert [%Tenant{}] = Repo.all(Tenant, skip_multi_tenancy_check: true) |> List.wrap() |> Enum.take(1)
+      assert [%Tenant{}] =
+               Repo.all(Tenant, skip_multi_tenancy_check: true) |> List.wrap() |> Enum.take(1)
     end
 
     test "raises when neither session nor skip given" do
@@ -85,7 +87,6 @@ defmodule AtomicFi.RepoTest do
       users = Repo.all(User, session: admin_session)
       assert Enum.any?(users, fn u -> u.tenant_id == other_tenant.id end)
     end
-
   end
 
   describe "platform_admin? guards" do
