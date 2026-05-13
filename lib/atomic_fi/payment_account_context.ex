@@ -20,6 +20,7 @@ defmodule AtomicFi.PaymentAccountContext do
   import Ecto.Query, warn: false
   use AtomicFi.LoggerMacro
 
+  alias AtomicFi.LedgerAccountContext
   alias AtomicFi.OpenApiSchema.PaymentAccountRequest
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.Repo
@@ -86,9 +87,7 @@ defmodule AtomicFi.PaymentAccountContext do
                              %PaymentAccountRequest{} = request
                            ),
                            log_fields: [] do
-    %PaymentAccount{}
-    |> PaymentAccount.changeset(request)
-    |> Repo.insert(session: session)
+    after_pa_changed(session, PaymentAccount.changeset(%PaymentAccount{}, request))
   end
 
   @doc """
@@ -111,9 +110,26 @@ defmodule AtomicFi.PaymentAccountContext do
                              %PaymentAccountRequest{} = request
                            ),
                            log_fields: [:payment_account] do
-    payment_account
-    |> PaymentAccount.changeset(request)
-    |> Repo.update(session: session)
+    after_pa_changed(session, PaymentAccount.changeset(payment_account, request))
+  end
+
+  # Lifecycle hook shared by create + update. Wraps the PA insert-or-update
+  # and the direct-line LedgerAccount fan-out (`AH-PA root` + per-regime
+  # regime-roots, or `CP-PA` variants if `pa.counterparty_id` is set) in one
+  # transaction so a trigger-side failure (e.g. missing CP root) rolls the
+  # PA write back.
+  defp after_pa_changed(session, %Ecto.Changeset{} = changeset) do
+    Repo.transaction(
+      fn ->
+        with {:ok, pa} <- Repo.insert_or_update(changeset, session: session),
+             :ok <- LedgerAccountContext.ensure_linked_ledger_accounts(session, pa) do
+          pa
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end,
+      session: session
+    )
   end
 
   @doc """

@@ -12,9 +12,10 @@ defmodule AtomicFi.CounterpartyContext do
   use AtomicFi.LoggerMacro
 
   alias AtomicFi.ComplianceScreeningContext.ScreeningWorker
+  alias AtomicFi.CounterpartyContext.Counterparty
+  alias AtomicFi.LedgerAccountContext
   alias AtomicFi.OpenApiSchema.CounterpartyRequest
   alias AtomicFi.Repo
-  alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.SessionContext.Session
 
   @preloads [legal_entity: [:addresses, :phone_numbers, :identifications]]
@@ -89,10 +90,7 @@ defmodule AtomicFi.CounterpartyContext do
 
       nil ->
         with {:ok, counterparty} <-
-               %Counterparty{}
-               |> Counterparty.changeset(request)
-               |> Repo.insert(session: session)
-               |> preload_after_write() do
+               after_cp_changed(session, Counterparty.changeset(%Counterparty{}, request)) do
           if request.chain_screening do
             %{
               subject: "counterparty",
@@ -132,13 +130,6 @@ defmodule AtomicFi.CounterpartyContext do
     preload(query, ^@preloads)
   end
 
-  # Adds preloads to a freshly-inserted/updated record.
-  defp preload_after_write({:ok, %Counterparty{} = counterparty}) do
-    {:ok, Repo.preload(counterparty, @preloads, skip_multi_tenancy_check: true)}
-  end
-
-  defp preload_after_write({:error, changeset}), do: {:error, changeset}
-
   @doc """
   Updates a counterparty.
 
@@ -159,10 +150,25 @@ defmodule AtomicFi.CounterpartyContext do
                              %CounterpartyRequest{} = request
                            ),
                            log_fields: [:counterparty] do
-    counterparty
-    |> Counterparty.changeset(request)
-    |> Repo.update(session: session)
-    |> preload_after_write()
+    after_cp_changed(session, Counterparty.changeset(counterparty, request))
+  end
+
+  # Lifecycle hook shared by create + update. Wraps the CP insert-or-update
+  # and the direct-line LedgerAccount fan-out (`CP root` + per-regime CP
+  # regime-roots, for every ledger of the linked AccountHolder) in one
+  # transaction so a trigger-side failure rolls the CP write back.
+  defp after_cp_changed(session, %Ecto.Changeset{} = changeset) do
+    Repo.transaction(
+      fn ->
+        with {:ok, counterparty} <- Repo.insert_or_update(changeset, session: session),
+             :ok <- LedgerAccountContext.ensure_linked_ledger_accounts(session, counterparty) do
+          Repo.preload(counterparty, @preloads, skip_multi_tenancy_check: true)
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end,
+      session: session
+    )
   end
 
   @doc """

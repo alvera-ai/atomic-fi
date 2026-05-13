@@ -18,10 +18,14 @@ defmodule AtomicFi.LedgerAccountContext do
   import Ecto.Query, warn: false
   use AtomicFi.LoggerMacro
 
-  alias AtomicFi.OpenApiSchema.LedgerAccountRequest
-  alias AtomicFi.Repo
+  alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.LedgerAccountContext.LedgerAccount
+  alias AtomicFi.LedgerContext.Ledger
+  alias AtomicFi.OpenApiSchema.LedgerAccountRequest
+  alias AtomicFi.PaymentAccountContext.PaymentAccount
+  alias AtomicFi.Repo
   alias AtomicFi.SessionContext.Session
+  alias Ecto.Multi
 
   # Default preload set — the linked_ledger_accounts edge list (with each edge's
   # target LA hydrated) is the read-side ergonomic for tree traversal. Single
@@ -161,5 +165,214 @@ defmodule AtomicFi.LedgerAccountContext do
   """
   def change_ledger_account(%LedgerAccount{} = ledger_account, attrs \\ %{}) do
     LedgerAccount.changeset(ledger_account, attrs)
+  end
+
+  @doc """
+  Idempotently materialises the LedgerAccount rows implied by a
+  `%PaymentAccount{}` or `%Counterparty{}` write. Hooked at every write
+  boundary that can change which (ledger, regime, pa, cp) tuples need to
+  exist:
+
+    * `PaymentAccountContext.create/update_payment_account/3`
+    * `CounterpartyContext.create/update_counterparty/3`
+    * `TransactionContext.create_transaction/2` (defensive backstop)
+
+  Dispatches on struct type:
+
+    * `%PaymentAccount{}` — for the AH's ledger matching `pa.currency`, upserts
+      the AH-PA root + every AH-PA regime-root for `pa.enabled_regimes`. When
+      the PA carries a `counterparty_id` (CP-owned PA), upserts the CP-PA
+      root + per-regime CP-PA regime-roots instead. The CP root + CP regime
+      roots are assumed to already exist (created by the CP write hook).
+
+    * `%Counterparty{}` — for every ledger of the CP's linked AccountHolder,
+      upserts the CP root + every CP regime-root for `cp.enabled_regimes`.
+
+  Each ancestor LA must exist before its descendant — order is enforced
+  inside this helper. The BEFORE-INSERT trigger
+  `ledger_accounts_resolve_ancestor_ids` fails fast (changeset error) if a
+  descendant is attempted before its `*_root` sibling — this helper
+  guarantees the correct order so that error path stays unreachable on the
+  happy path.
+
+  Idempotent: each upsert looks up the LA by its natural identity tuple
+  (`ledger_id, la_type, regime, payment_account_id, counterparty_id`) and
+  inserts only when missing. Re-running for the same entity is a no-op.
+  """
+  @spec ensure_linked_ledger_accounts(Session.t(), PaymentAccount.t() | Counterparty.t()) ::
+          :ok | {:error, term()}
+  def_with_rls_and_logging ensure_linked_ledger_accounts(session, %PaymentAccount{} = pa),
+    log_fields: [:pa] do
+    ledger = ah_ledger!(session, pa.account_holder_id, pa.currency)
+    base = la_base(pa.account_holder_id, ledger.id, pa.currency, pa.tenant_id)
+
+    {root_la_type, regime_la_type} =
+      case pa.counterparty_id do
+        nil ->
+          {:account_holder_payment_account_root, :account_holder_payment_account_regime_root}
+
+        _cp_id ->
+          {:counter_party_payment_account_root, :counter_party_payment_account_regime_root}
+      end
+
+    Multi.new()
+    |> upsert_step(:root, session, base, root_la_type, "root", pa.id, pa.counterparty_id)
+    |> upsert_regime_steps(session, regime_la_type, pa.enabled_regimes, pa.id, pa.counterparty_id)
+    |> run_multi(session)
+  end
+
+  def_with_rls_and_logging ensure_linked_ledger_accounts(session, %Counterparty{} = cp),
+    log_fields: [:cp] do
+    cp.account_holder_id
+    |> ah_ledgers(session)
+    |> Enum.reduce(Multi.new(), fn ledger, multi ->
+      base = la_base(cp.account_holder_id, ledger.id, ledger.currency, cp.tenant_id)
+
+      multi
+      |> upsert_step({:root, ledger.id}, session, base, :counter_party_root, "root", nil, cp.id)
+      |> upsert_regime_steps(
+        session,
+        :counter_party_regime_root,
+        cp.enabled_regimes,
+        nil,
+        cp.id,
+        ledger.id
+      )
+    end)
+    |> run_multi(session)
+  end
+
+  # ── private helpers ────────────────────────────────────────────────────────
+
+  defp la_base(account_holder_id, ledger_id, currency, tenant_id) do
+    %{
+      account_holder_id: account_holder_id,
+      ledger_id: ledger_id,
+      currency: currency,
+      tenant_id: tenant_id
+    }
+  end
+
+  defp ah_ledger!(session, account_holder_id, currency) do
+    Repo.one!(
+      from(l in Ledger,
+        where: l.account_holder_id == ^account_holder_id and l.currency == ^currency
+      ),
+      session: session
+    )
+  end
+
+  defp ah_ledgers(account_holder_id, session) do
+    Repo.all(
+      from(l in Ledger, where: l.account_holder_id == ^account_holder_id),
+      session: session
+    )
+  end
+
+  # Multi.run step: idempotent upsert for a single LedgerAccount row.
+  defp upsert_step(
+         multi,
+         name,
+         session,
+         base,
+         la_type,
+         regime,
+         payment_account_id,
+         counterparty_id
+       ) do
+    Multi.run(multi, name, fn _repo, _changes ->
+      upsert_la(session, base, la_type, regime, payment_account_id, counterparty_id)
+    end)
+  end
+
+  # Adds one regime-root step per enabled regime. Each runs after the root
+  # row above so the BEFORE-INSERT trigger can resolve its ancestor.
+  defp upsert_regime_steps(
+         multi,
+         session,
+         la_type,
+         regimes,
+         pa_id,
+         cp_id,
+         scope \\ nil
+       )
+
+  defp upsert_regime_steps(multi, _session, _la_type, [], _pa_id, _cp_id, _scope), do: multi
+
+  defp upsert_regime_steps(multi, session, la_type, [regime | rest], pa_id, cp_id, scope) do
+    name = if scope, do: {:regime, scope, regime}, else: {:regime, regime}
+
+    multi
+    |> Multi.run(name, fn _repo, %{} = changes ->
+      base = la_base_for(changes, scope)
+      upsert_la(session, base, la_type, regime, pa_id, cp_id)
+    end)
+    |> upsert_regime_steps(session, la_type, rest, pa_id, cp_id, scope)
+  end
+
+  # The `base` map travels via the first :root step's changes — we re-extract
+  # the ledger / tenant context from there so subsequent regime steps stay
+  # parameter-free.
+  defp la_base_for(changes, nil) do
+    %LedgerAccount{} = root = Map.fetch!(changes, :root)
+    la_base(root.account_holder_id, root.ledger_id, root.currency, root.tenant_id)
+  end
+
+  defp la_base_for(changes, ledger_id) do
+    %LedgerAccount{} = root = Map.fetch!(changes, {:root, ledger_id})
+    la_base(root.account_holder_id, root.ledger_id, root.currency, root.tenant_id)
+  end
+
+  defp run_multi(multi, session) do
+    case Repo.transaction(multi, session: session) do
+      {:ok, _changes} -> :ok
+      {:error, _step, reason, _changes} -> {:error, reason}
+    end
+  end
+
+  # Looks the LA up by its natural identity tuple (manual `is_nil/1` query —
+  # `Repo.get_by` rejects nil values). Inserts via the public
+  # `create_ledger_account/2` so `@preloads` apply and validation runs.
+  defp upsert_la(session, base, la_type, regime, payment_account_id, counterparty_id) do
+    query =
+      from(la in LedgerAccount,
+        where:
+          la.ledger_id == ^base.ledger_id and
+            la.regime == ^regime and
+            la.la_type == ^la_type
+      )
+
+    query =
+      case payment_account_id do
+        nil -> from(la in query, where: is_nil(la.payment_account_id))
+        id -> from(la in query, where: la.payment_account_id == ^id)
+      end
+
+    query =
+      case counterparty_id do
+        nil -> from(la in query, where: is_nil(la.counterparty_id))
+        id -> from(la in query, where: la.counterparty_id == ^id)
+      end
+
+    case Repo.one(query, session: session) do
+      %LedgerAccount{} = existing ->
+        {:ok, existing}
+
+      nil ->
+        request =
+          struct(LedgerAccountRequest, %{
+            account_holder_id: base.account_holder_id,
+            ledger_id: base.ledger_id,
+            currency: base.currency,
+            tenant_id: base.tenant_id,
+            la_type: la_type,
+            regime: regime,
+            payment_account_id: payment_account_id,
+            counterparty_id: counterparty_id,
+            status: :active
+          })
+
+        create_ledger_account(session, request)
+    end
   end
 end

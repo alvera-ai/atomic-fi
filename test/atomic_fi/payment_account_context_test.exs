@@ -35,8 +35,15 @@ defmodule AtomicFi.PaymentAccountContextTest do
     } do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
+      insert(:ledger,
+        tenant_id: session.tenant_id,
+        account_holder_id: account_holder.id,
+        currency: "USD"
+      )
+
       request = %PaymentAccountRequest{
         account_type: :bank_account,
+        currency: "USD",
         account_holder_id: account_holder.id,
         tenant_id: session.tenant_id
       }
@@ -52,6 +59,12 @@ defmodule AtomicFi.PaymentAccountContextTest do
 
     test "create_payment_account/2 with optional fields", %{session: session} do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+
+      insert(:ledger,
+        tenant_id: session.tenant_id,
+        account_holder_id: account_holder.id,
+        currency: "EUR"
+      )
 
       request = %PaymentAccountRequest{
         account_type: :bank_account,
@@ -85,6 +98,12 @@ defmodule AtomicFi.PaymentAccountContextTest do
     test "create_payment_account/2 with card type and card_pan", %{session: session} do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
+      insert(:ledger,
+        tenant_id: session.tenant_id,
+        account_holder_id: account_holder.id,
+        currency: "USD"
+      )
+
       request = %PaymentAccountRequest{
         account_type: :card,
         card_pan: "4111",
@@ -105,8 +124,15 @@ defmodule AtomicFi.PaymentAccountContextTest do
     } do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
+      insert(:ledger,
+        tenant_id: session.tenant_id,
+        account_holder_id: account_holder.id,
+        currency: "USD"
+      )
+
       request = %PaymentAccountRequest{
         account_type: :wallet,
+        currency: "USD",
         account_holder_id: account_holder.id,
         tenant_id: session.tenant_id
       }
@@ -135,8 +161,15 @@ defmodule AtomicFi.PaymentAccountContextTest do
     } do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
+      insert(:ledger,
+        tenant_id: session.tenant_id,
+        account_holder_id: account_holder.id,
+        currency: "USD"
+      )
+
       request = %PaymentAccountRequest{
         account_type: :bank_account,
+        currency: "USD",
         payment_account_external_id: "ext-unique-001",
         account_holder_id: account_holder.id,
         tenant_id: session.tenant_id
@@ -156,9 +189,16 @@ defmodule AtomicFi.PaymentAccountContextTest do
     } do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
+      insert(:ledger,
+        tenant_id: session.tenant_id,
+        account_holder_id: account_holder.id,
+        currency: "USD"
+      )
+
       make_request = fn ->
         %PaymentAccountRequest{
           account_type: :bank_account,
+          currency: "USD",
           account_holder_id: account_holder.id,
           tenant_id: session.tenant_id
         }
@@ -175,6 +215,7 @@ defmodule AtomicFi.PaymentAccountContextTest do
 
       request = %PaymentAccountRequest{
         account_type: payment_account.account_type,
+        currency: payment_account.currency,
         status: :suspended,
         account_holder_id: payment_account.account_holder_id,
         tenant_id: session.tenant_id
