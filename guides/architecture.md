@@ -12,64 +12,93 @@ For the per-context ERD (entities + relationships) see
 
 ## C4 — Operators and what they do
 
-Convention: **agents are first-class operators** alongside humans. Anything an
-agent can do, a human can do too. The diagram below has four operators down
-the left, the artifacts they produce or consume in the middle, and the
-**System of Record** (`atomic-fi`) on the right. External services hang off
-the SoR.
+Convention: **agents are first-class operators** alongside humans. Two flavours:
+
+- **External Agents** — Claude Code skills running outside the platform at
+  dev time. Generate code, scaffold tests/docs, author + push ZenRule rule
+  sets. Driven by Product Engineers, System Integrators, or autonomously.
+- **Internal Agents** — long-running agents **inside `atomic-fi`** itself.
+  They have first-class access to the rule registry, enriched payloads, and
+  transaction history. Natural-language → JDM rule authoring, regulation
+  ingestion, conflict & gap detection, synthetic test generation. Exposed
+  via REST and consumed by Internal Apps (the React control surface for
+  Compliance Officers). See
+  `worklogs/smart_rules_engine_capability_table.xlsx` for the full
+  capability map and phasing.
 
 ```mermaid
 flowchart LR
-    classDef operator fill:#08427b,stroke:#052e56,color:#fff
+    classDef human fill:#08427b,stroke:#052e56,color:#fff
+    classDef agent fill:#6b4f9b,stroke:#3f2d67,color:#fff
     classDef artifact fill:#438dd5,stroke:#2e6295,color:#fff
     classDef sor fill:#1168bd,stroke:#0b4884,color:#fff
     classDef external fill:#999,stroke:#666,color:#fff
 
-    agents([Agents<br/>Claude skills, loops, LLMs]):::operator
-    co([Compliance Officers]):::operator
-    pe([Product Engineers]):::operator
-    si([System Integrators]):::operator
+    co([Compliance Officers]):::human
+    pe([Product Engineers]):::human
+    si([System Integrators]):::human
 
-    skills[Skills<br/>usecase-vitest · vitest-to-bruno<br/>vitest-to-mdx · vitest-to-react<br/>zenrule-rules]:::artifact
-    apps[Internal Apps<br/>rule authoring · monitoring]:::artifact
-    intcode[Integration Code<br/>BaaS / neobank backends<br/>pushing data to the SoR]:::artifact
+    ext_agents[External Agents<br/>Claude Code skills:<br/>usecase-vitest · vitest-to-bruno<br/>vitest-to-mdx · vitest-to-react<br/>zenrule-rules]:::agent
 
-    sor[atomic-fi<br/>System of Record<br/>Phoenix + Postgres + Oban]:::sor
+    apps[Internal Apps<br/>React control surface for COs<br/>rule authoring · monitoring · review queue]:::artifact
+    intcode[Integration Code<br/>BaaS / neobank backend<br/>pushing data to the SoR]:::artifact
+
+    subgraph sor_box ["atomic-fi — System of Record (Phoenix + Postgres + Oban)"]
+        direction TB
+        sor_core[REST + Ledger + Screening]:::sor
+        int_agents[Internal Agents<br/>NL → JDM authoring<br/>regulation ingestion<br/>conflict / gap detection<br/>synthetic test generation]:::agent
+        int_agents -- "uses" --> sor_core
+    end
 
     watchman[Watchman<br/>sanctions]:::external
     zenrule[ZenRule<br/>JDM decisions]:::external
 
-    agents --> skills
-    pe     --> skills
-    si     --> skills
+    pe -- "scaffolds apps + initial rules" --> ext_agents
+    si -- "generates integration code" --> ext_agents
 
-    skills --> apps
-    skills --> intcode
-    skills --> zenrule
+    ext_agents --> apps
+    ext_agents --> intcode
+    ext_agents -- "push JDM rule sets" --> zenrule
 
-    co       --> apps
-    apps     --> sor
-    intcode  --> sor
+    co --> apps
+    apps -- "invoke" --> int_agents
+    apps --> sor_core
+    intcode --> sor_core
 
-    sor --> watchman
-    sor --> zenrule
+    int_agents -- "publish rules" --> zenrule
+    sor_core --> watchman
+    sor_core --> zenrule
 ```
 
 ```
    WHO DOES WHAT
    ───────────────────────────────────────────────────────────────────
-     AGENTS                  drive skills the same way humans do — no
-                             special access. Author specs, run loops,
-                             generate code. NEVER hold platform creds.
-     COMPLIANCE OFFICERS     consume Internal Apps to author and monitor
-                             rules, review screening hits, audit trails.
-     PRODUCT ENGINEERS       use skills to scaffold Internal Apps and to
-                             author + push ZenRule decision rule sets.
-     SYSTEM INTEGRATORS      use skills to generate the code their BaaS /
-                             neobank backend uses to push data into the
-                             SoR (vitest specs that double as a record of
-                             the live request shapes; Bruno collections
-                             that double as runnable smoke tests).
+     COMPLIANCE OFFICERS    work inside Internal Apps. The app invokes
+                            Internal Agents (running inside atomic-fi) for
+                            NL → JDM authoring, conflict checks, synthetic
+                            tests. CO reviews + signs off before live.
+
+     PRODUCT ENGINEERS      drive External Agents to scaffold the Internal
+                            Apps themselves and to author + push initial
+                            JDM rule sets at platform-build time.
+
+     SYSTEM INTEGRATORS     drive External Agents to generate the
+                            integration code their BaaS / neobank backend
+                            uses to push data into the SoR — vitest specs
+                            that double as live-request records, Bruno
+                            collections that double as runnable smoke tests.
+
+     INTERNAL AGENTS        run inside atomic-fi with first-class access
+                            to the rule registry, enriched payloads, and
+                            transaction history. Exposed via REST so
+                            Internal Apps (and any future agent surface)
+                            can drive them.
+
+     EXTERNAL AGENTS        Claude Code skills run outside the platform.
+                            One-shot at dev time; their output (vitest
+                            specs, Bruno collections, MDX pages, React
+                            demos, ZenRule rule JSON) is what gets
+                            committed and shipped.
 ```
 
 ---
