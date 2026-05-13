@@ -1,92 +1,97 @@
 # Core Modules
 
-This guide tracks the implementation status and health of each context module in the template.
+`atomic-fi` is an OSS Phoenix **payments compliance platform** — a white-label
+backend any neobank, BaaS, or fintech can deploy as their compliance SoR.
+Primitives mirror **FATF** and **ISO 20022** so regulatory mapping is mechanical.
+The platform is **API-first** — no LiveView UI.
 
-## Module Status Table
+---
 
-| Context | Schema | Docs | Tests | RLS | API | Vitest | LiveView | Status |
-|---------|--------|------|-------|-----|-----|--------|----------|--------|
-| TenantContext | ✅ | ✅ | ✅ | N/A | 🔴 | 🔴 | 🔴 | 3/6 |
-| UserContext | ✅ | ✅ | ✅ | ✅ | 🔴 | 🔴 | 🔴 | 4/7 |
-| CustomerContext | ✅ | ✅ | ✅ | ✅ | 🔴 | 🔴 | 🔴 | 4/7 |
-| RoleContext | ✅ | ✅ | ✅ | ✅ | 🔴 | 🔴 | 🔴 | 4/7 |
-| ApiKeyContext | ✅ | ✅ | ✅ | ✅ | 🔴 | 🔴 | 🔴 | 4/7 |
-| SessionContext | ✅ | ✅ | ✅ | ✅ | 🔴 | 🔴 | 🔴 | 4/7 |
+## Domains
 
-**Legend**:
-- ✅ **Complete** - Fully implemented with high quality
-- ⚠️ **Partial** - Implemented but needs enhancement
-- 🔴 **Not Started** - Not yet implemented
-- N/A - Not applicable for this context
+| Domain | Contexts | Owns |
+|---|---|---|
+| **Identity & Auth** | `Tenant`, `User`, `Role`, `ApiKey`, `Session` | Multi-tenancy partition, RBAC, bearer auth. |
+| **Parties** | `AccountHolder`, `Counterparty`, `LegalEntity`, `BeneficialOwner` | MDM subjects + PII container + FinCEN CDD chain. |
+| **Compliance Ops** | `ComplianceScreening`, `Blocklist`, `KycRequirement`, `Document`, `RiskClassification` | Screening lifecycle, sanctions/blocklist hits, KYC obligations + evidence, risk tiers. |
+| **Payment Ledger** | `PaymentAccount`, `Ledger`, `LedgerAccount`, `LedgerEntry`, `Transaction` | ISO 20022 instruments + double-entry bookkeeping with DB-enforced velocity limits. |
+| **Snapshots** | `AccountActivitySnapshot`, `PartyActivitySnapshot` | Periodic activity rollups used by the rule engine. |
+| **External engines** | `Watchman` client, `ZenRule` client | Sanctions lookups + decision rules. Transport + domain `Behaviour` split — Mox seams at the domain layer. |
 
-## Column Definitions
+Per-context implementation status (Schema / Docs / Tests / RLS / API /
+Vitest / Bruno) lives in [`capability-matrix.md`](./capability-matrix.md).
 
-- **Schema**: Ecto schema and migration with clean nomenclature, table/column comments, proper field types
-- **Docs**: Complete @moduledoc, @typedoc with field descriptions, changeset documentation
-- **Tests**: 90%+ coverage with comprehensive ExUnit test cases
-- **RLS**: Row-level security via tenant_id scoping (N/A for TenantContext which is top-level)
-- **API**: REST API endpoints with OpenAPI/Swagger documentation
-- **Vitest**: Integration tests using Vitest and TypeScript (testing REST APIs end-to-end)
-- **LiveView**: Phoenix LiveView interfaces for web UI
-- **Status**: Score showing completed columns out of total applicable columns
+---
 
-## Progress Summary
+## Personas
 
-- **Schema**: 6/6 contexts (100%) - Schemas with migrations, table/column comments
-- **Docs**: 6/6 contexts (100%) - Complete @typedoc and field descriptions
-- **Tests**: 6/6 contexts (100%) - ExUnit tests with good coverage
-- **RLS**: 5/5 contexts (100%) - Row-level security implemented (N/A for Tenant)
-- **API**: 0/6 contexts (0%) - REST endpoints not yet implemented
-- **Vitest**: 0/6 contexts (0%) - Integration tests not yet implemented
-- **LiveView**: 0/6 contexts (0%) - Web UI not yet implemented
+API-only — three consumers:
 
-## Module Descriptions
+1. **Platform operator** — bearer-session, elevated role; configures tenants,
+   roles, blocklists, KYC templates, rules.
+2. **Integrator** (BaaS / neobank backend) — API key; orchestrates onboarding
+   (AH + LE + KYC + screening) and submits transactions.
+3. **Compliance officer / auditor** — bearer-session, read-only role; queries
+   screening histories, beneficial-ownership chains, ledger entries, voided
+   transactions with `rejected_*` metadata.
 
-### TenantContext
+---
 
-Top-level multi-tenancy entity representing organizations/companies. Each tenant is a separate data partition.
+## ERD
 
-**Purpose**: Foundation for multi-tenancy isolation
-**Status**: 3/6 - Core functionality complete, needs API and UI
+```mermaid
+---
+title: atomic-fi domain
+---
+erDiagram
+    Tenant ||--|{ User : authenticates
+    Tenant ||--|{ ApiKey : issues
+    Tenant ||--|{ AccountHolder : owns
+    Tenant ||--|{ BlocklistEntry : manages
+    User }o--o{ Role : "via UserRoleMapping"
 
-### UserContext
+    AccountHolder ||--|| LegalEntity : "PII via"
+    Counterparty  ||--|| LegalEntity : "PII via"
+    AccountHolder ||--|{ Counterparty : "transacts with"
+    AccountHolder ||--|{ BeneficialOwner : "CDD chain"
+    Counterparty  ||--|{ BeneficialOwner : "CDD chain"
 
-User accounts with email authentication and tenant association.
+    AccountHolder ||--|{ ComplianceScreening : screened
+    Counterparty  ||--|{ ComplianceScreening : screened
+    AccountHolder ||--|{ KycRequirement : "open obligations"
+    Counterparty  ||--|{ KycRequirement : "open obligations"
+    KycRequirement ||--o{ Document : "evidence"
+    AccountHolder ||--|{ RiskClassification : tiered
+    Counterparty  ||--|{ RiskClassification : tiered
 
-**Purpose**: User authentication and authorization
-**Status**: 4/7 - Complete with RLS, needs API and UI
+    AccountHolder ||--|{ PaymentAccount : owns
+    Counterparty  ||--|{ PaymentAccount : "owns (external)"
+    AccountHolder ||--|{ Ledger : "per currency"
+    Ledger ||--|{ LedgerAccount : "chart of accounts"
 
-### CustomerContext
+    PaymentAccount ||--|{ LedgerAccount : "regime tree rooted at"
+    Counterparty   ||--|{ LedgerAccount : "regime tree rooted at"
 
-B2B customer organizations for multi-org tenant structures.
+    LedgerAccount ||--|{ LedgerAccountBalance : "per-period rows"
+    LedgerAccount ||--|{ LedgerEntry : "posts to"
+    LedgerAccount {
+        integer balance "running net, trigger-maintained"
+    }
 
-**Purpose**: Manage customer organizations within a tenant. Users and API keys associate with customers through roles.
-**Status**: 4/7 - Core functionality complete, needs API and UI
-**Pattern Reference**: Similar to MerchantOrg in CRM and Org in Platform
+    Transaction ||--|{ LedgerEntry : "balanced pair"
+    Transaction }o--|| PaymentAccount : debtor
+    Transaction }o--|| PaymentAccount : creditor
+```
 
-### RoleContext
+The `LedgerAccount` subtree is a strict tree with 6 `la_type` shapes
+(`*_root` + `*_regime_root` per CP / AH-PA / CP-PA branch), enforced by
+PostgreSQL CHECK constraints and triggers. See
+[`architecture.md`](./architecture.md) for the full tree contract.
 
-Authorization roles for users and API keys (e.g., admin, member, viewer).
+---
 
-**Purpose**: Role-based access control (RBAC)
-**Status**: 4/7 - Complete with RLS, needs API and UI
+## See Also
 
-### ApiKeyContext
-
-API keys for programmatic access with role-based permissions.
-
-**Purpose**: Machine-to-machine authentication
-**Status**: 4/7 - Complete with RLS, needs API and UI
-
-### SessionContext
-
-Active authentication sessions for users and API keys with role-based access.
-
-**Purpose**: Session management and role assumption
-**Status**: 4/7 - Complete with RLS, needs API and UI
-
-## Next Steps
-
-1. **Generate REST APIs**: Create OpenAPI-documented REST endpoints for all contexts
-2. **Add Integration Tests**: Implement Vitest tests for end-to-end API validation
-3. **Implement LiveViews**: Build Phoenix LiveView interfaces for web UI
+- [`architecture.md`](./architecture.md) — layered architecture + LedgerAccount tree
+- [`capability-matrix.md`](./capability-matrix.md) — per-context implementation status
+- [`use-cases.md`](./use-cases.md) — reference scenarios driving vitest + Bruno coverage
