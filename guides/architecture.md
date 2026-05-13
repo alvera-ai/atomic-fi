@@ -5,6 +5,215 @@
 multi-tenant capable on every table (RLS via `tenant_id`) and single-tenant per
 deployment by convention.
 
+This document follows the [C4 model](https://c4model.com): three nested
+diagrams (System Context → Container → Component) zoom from the outside-in.
+For the per-context ERD (entities + relationships), see
+[`core-modules.md`](./core-modules.md).
+
+---
+
+## C4 Level 1 — System Context
+
+Who uses `atomic-fi`, and which systems it depends on.
+
+```mermaid
+flowchart TB
+    classDef person fill:#08427b,stroke:#052e56,color:#fff
+    classDef system fill:#1168bd,stroke:#0b4884,color:#fff
+    classDef external fill:#999,stroke:#666,color:#fff
+
+    integrator(["Integrator<br/>(BaaS / neobank backend)"]):::person
+    auditor(["Compliance Officer<br/>(auditor)"]):::person
+    operator(["Platform Operator<br/>(tenant admin)"]):::person
+
+    atomicfi["<b>atomic-fi</b><br/>Payments Compliance Platform<br/>(Phoenix + Postgres + Oban)"]:::system
+
+    watchman["Watchman<br/>OFAC / EU / UK / UN<br/>sanctions service"]:::external
+    zenrule["ZenRule<br/>JDM decision engine<br/>(velocity rules)"]:::external
+
+    integrator -- "REST + TypeScript SDK<br/>(API key)" --> atomicfi
+    auditor    -- "REST<br/>(bearer session, auditor role)" --> atomicfi
+    operator   -- "REST<br/>(bearer session, admin role)" --> atomicfi
+
+    atomicfi -- "screen parties<br/>(HTTPS + JSON)" --> watchman
+    atomicfi -- "evaluate decision<br/>(HTTPS + JSON, JDM)" --> zenrule
+```
+
+---
+
+## C4 Level 2 — Container View
+
+The runnable pieces that make up the platform and its surrounding dev-time
+tooling. Everything inside the dashed `atomic-fi repo` boundary lives in this
+repository; the two external services live elsewhere.
+
+```mermaid
+flowchart TB
+    classDef container fill:#438dd5,stroke:#2e6295,color:#fff
+    classDef datastore fill:#438dd5,stroke:#2e6295,color:#fff
+    classDef tooling fill:#85bbf0,stroke:#4f87b8,color:#000
+    classDef future fill:#85bbf0,stroke:#4f87b8,color:#000,stroke-dasharray: 5 5
+    classDef external fill:#999,stroke:#666,color:#fff
+    classDef person fill:#08427b,stroke:#052e56,color:#fff
+
+    integrator(["Integrator"]):::person
+    operator(["Platform Operator"]):::person
+
+    subgraph repo ["atomic-fi repo"]
+        direction TB
+
+        subgraph runtime ["Runtime"]
+            phoenix["<b>Phoenix Backend</b><br/>Elixir · OpenAPI · RLS"]:::container
+            postgres[("<b>PostgreSQL</b><br/>RLS + triggers<br/>(ledger tree, velocity CHECKs)")]:::datastore
+            oban[("<b>Oban</b><br/>ScreeningWorker queue")]:::datastore
+            sdk["<b>TypeScript SDK</b><br/>generated from OpenAPI<br/>(@hey-api/openapi-ts)"]:::container
+        end
+
+        subgraph testing ["Test layers (4)"]
+            vitest["<b>vitest specs</b><br/>integration-tests/<br/>Layer 3 — SDK end-to-end"]:::container
+            bruno["<b>Bruno collection</b><br/>bruno/atomic-fi-scenarios/<br/>Layer 4 — use-case smoke tests"]:::container
+        end
+
+        subgraph docs ["Docs & demos"]
+            docusaurus["<b>Docusaurus cookbook</b><br/>api-docs/<br/>MDX use-case pages"]:::container
+            exampleweb["<b>atomicfi-example-web</b><br/>React reference app"]:::future
+        end
+
+        subgraph skills ["Claude Code skills (dev-time generation)"]
+            usecase_vitest["<b>usecase-vitest</b><br/>authors vitest + records API calls"]:::tooling
+            vitest_to_bruno["<b>vitest-to-bruno</b><br/>vitest spec + recordings → Bruno"]:::tooling
+            vitest_to_mdx["<b>vitest-to-mdx</b><br/>vitest spec + recordings → MDX"]:::tooling
+            vitest_to_react["<b>vitest-to-react</b><br/>vitest spec + recordings → React demo"]:::future
+            zenrule_rules["<b>zenrule-rules</b><br/>author + push JDM rule sets"]:::future
+        end
+    end
+
+    watchman["Watchman service"]:::external
+    zenrule["ZenRule service"]:::external
+
+    integrator -- "HTTP REST" --> phoenix
+    integrator -. "typed client" .-> sdk
+    operator   -- "HTTP REST" --> phoenix
+
+    phoenix --- postgres
+    phoenix --- oban
+    phoenix -- "OpenAPI spec" --> sdk
+
+    phoenix -- "screen" --> watchman
+    phoenix -- "decide" --> zenrule
+
+    vitest -- "drives via SDK" --> sdk
+    bruno  -- "drives via HTTP" --> phoenix
+
+    usecase_vitest    -- "produces" --> vitest
+    vitest_to_bruno   -- "produces" --> bruno
+    vitest_to_mdx     -- "produces" --> docusaurus
+    vitest_to_react   -. "will produce" .-> exampleweb
+    zenrule_rules     -. "will push" .-> zenrule
+```
+
+Container key:
+- **Solid blue** — runtime containers that ship with the platform.
+- **Light blue** — dev-time tooling (Claude Code skills) used to generate
+  artifacts. Skills are run once during development; their output is what
+  gets committed.
+- **Dashed** — future / placeholder containers and skills (`vitest-to-react`,
+  `zenrule-rules`, and `atomicfi-example-web`).
+
+---
+
+## C4 Level 3 — Component View (inside the Phoenix Backend)
+
+The Phoenix backend's internals — one component per context grouping. For
+the full per-entity ERD and FK relationships, see
+[`core-modules.md`](./core-modules.md#erd).
+
+```mermaid
+flowchart TB
+    classDef component fill:#85bbf0,stroke:#4f87b8,color:#000
+    classDef behaviour fill:#fbcb4a,stroke:#a37c00,color:#000
+    classDef external fill:#999,stroke:#666,color:#fff
+    classDef datastore fill:#438dd5,stroke:#2e6295,color:#fff
+
+    subgraph presentation ["Presentation"]
+        controllers["AtomicFiApi.*Controller<br/>(OpenAPI specs + cast_and_validate)"]:::component
+    end
+
+    subgraph parties ["Parties"]
+        ah["AccountHolderContext"]:::component
+        cp["CounterpartyContext"]:::component
+        le["LegalEntityContext"]:::component
+        bo["BeneficialOwnerContext"]:::component
+    end
+
+    subgraph compliance ["Compliance Ops"]
+        screening["ComplianceScreeningContext"]:::component
+        kyc["KycRequirementContext"]:::component
+        doc["DocumentContext"]:::component
+        risk["RiskClassificationContext"]:::component
+        blocklist["BlocklistContext"]:::component
+    end
+
+    subgraph ledger ["Payment Ledger"]
+        pa["PaymentAccountContext"]:::component
+        ledger_ctx["LedgerContext"]:::component
+        la["LedgerAccountContext<br/>(LA tree, ensure_linked_ledger_accounts)"]:::component
+        lab["LedgerAccountBalanceContext"]:::component
+        le_entry["LedgerEntryContext"]:::component
+        txn["TransactionContext"]:::component
+    end
+
+    subgraph decision ["Domain Behaviours (Mox seams)"]
+        screening_eng[["ScreeningEngine.Behaviour"]]:::behaviour
+        rule_eng[["RuleEngine.Behaviour"]]:::behaviour
+        screening_impl["DecisionContext.ScreeningEngine<br/>+ BlocklistCache + BlocklistValidator"]:::component
+        zenrule_impl["RuleEngine.ZenRule"]:::component
+    end
+
+    subgraph transport ["Transport (Req, treated like a DB driver)"]
+        watchman_client["Watchman.Client"]:::component
+        zenrule_client["ZenRule.Client"]:::component
+    end
+
+    subgraph data ["Data"]
+        repo[("AtomicFi.Repo<br/>RLS-aware Ecto repo")]:::datastore
+        triggers[("PostgreSQL<br/>triggers + CHECKs<br/>(LA tree, velocity)")]:::datastore
+    end
+
+    watchman_ext["Watchman service"]:::external
+    zenrule_ext["ZenRule service"]:::external
+
+    controllers --> parties
+    controllers --> compliance
+    controllers --> ledger
+
+    screening --> screening_eng
+    txn --> rule_eng
+
+    screening_eng -. "@behaviour" .- screening_impl
+    rule_eng -. "@behaviour" .- zenrule_impl
+
+    screening_impl --> watchman_client
+    screening_impl --> blocklist
+    zenrule_impl --> zenrule_client
+
+    watchman_client --> watchman_ext
+    zenrule_client --> zenrule_ext
+
+    pa -. "lifecycle hook<br/>ensure_linked_ledger_accounts" .-> la
+    cp -. "lifecycle hook" .-> la
+    txn --> le_entry
+    le_entry --> la
+
+    parties --> repo
+    compliance --> repo
+    ledger --> repo
+    repo --- triggers
+```
+
+Behaviour boxes (yellow) are the Mox seams — every test starts with
+`stub_with` the real impl, individual tests use `Mox.expect/3` to override.
+
 ---
 
 ## Layers

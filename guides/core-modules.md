@@ -19,6 +19,11 @@ The platform is **API-first** — no LiveView UI.
 | **Screening Engine** | `DecisionContext.ScreeningEngine`, `BlocklistCache`, `BlocklistValidator` | Domain `Behaviour` over `Watchman.Client` + `Blocklist`. Takes preloaded `AccountHolder`/`Counterparty`/`LegalEntity`/`BeneficialOwner` structs, returns `{:clear \| :hits, matches}`. Mox seam at the domain layer; transport (`Watchman.Client`) treated like a DB driver. |
 | **Rule Engine** | `RuleEngine`, `RuleEngine.Behaviour`, `RuleEngine.ZenRule` | Domain `Behaviour` returning per-`LedgerAccount` velocity limits for a transaction. `ZenRule` is the production impl over `ZenRule.Client`; Mox seam same pattern. |
 
+For the broader ecosystem (Bruno use-cases, vitest, dev-time Claude Code
+skills that generate them, the planned React reference app, external
+Watchman + ZenRule services), see the **C4 diagrams** in
+[`architecture.md`](./architecture.md#c4-level-1--system-context).
+
 Per-context implementation status (Schema / Docs / Tests / RLS / API /
 Vitest / Bruno) lives in [`capability-matrix.md`](./capability-matrix.md).
 
