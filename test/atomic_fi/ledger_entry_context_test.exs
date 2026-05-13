@@ -4,18 +4,44 @@ defmodule AtomicFi.LedgerEntryContextTest do
   alias AtomicFi.LedgerAccountContext
   alias AtomicFi.LedgerEntryContext
   alias AtomicFi.LedgerEntryContext.LedgerEntry
+  alias AtomicFi.LedgerAccountContext.VelocityLimit
   alias AtomicFi.OpenApiSchema.{LedgerAccountRequest, LedgerEntryRequest}
   alias AtomicFi.Repo
   import AtomicFi.Factory
 
   # ── Helpers ──────────────────────────────────────────────────────────────────
 
+  # Map legacy keyword shorthands to %VelocityLimit{}s for the composite-type array.
+  @limit_keys [
+    {:daily_debit_limit_at_entry, "daily", "debit"},
+    {:daily_credit_limit_at_entry, "daily", "credit"},
+    {:weekly_debit_limit_at_entry, "weekly", "debit"},
+    {:weekly_credit_limit_at_entry, "weekly", "credit"},
+    {:monthly_debit_limit_at_entry, "monthly", "debit"},
+    {:monthly_credit_limit_at_entry, "monthly", "credit"},
+    {:yearly_debit_limit_at_entry, "yearly", "debit"},
+    {:yearly_credit_limit_at_entry, "yearly", "credit"}
+  ]
+
+  defp build_limits(opts) do
+    Enum.flat_map(@limit_keys, fn {key, period, direction} ->
+      case opts[key] do
+        nil -> []
+        cap -> [%VelocityLimit{period: period, direction: direction, cap: cap, rule: "test"}]
+      end
+    end)
+  end
+
+  defp find_limit(limits, period, direction) do
+    Enum.find(limits, &(&1.period == period and &1.direction == direction))
+  end
+
   defp make_account(session, ledger, opts \\ []) do
     request = %LedgerAccountRequest{
       account_holder_id: ledger.account_holder_id,
       ledger_id: ledger.id,
       currency: "USD",
-      account_type: Keyword.get(opts, :account_type, :asset),
+      regime: Keyword.get(opts, :regime, "_root"),
       status: :active,
       parent_ledger_account_id: Keyword.get(opts, :parent_ledger_account_id, nil),
       tenant_id: session.tenant_id
@@ -33,14 +59,7 @@ defmodule AtomicFi.LedgerEntryContextTest do
       amount: Keyword.get(opts, :amount, 10_000),
       entry_type: Keyword.get(opts, :entry_type, :credit),
       status: Keyword.get(opts, :status, :pending),
-      daily_debit_limit_at_entry: Keyword.get(opts, :daily_debit_limit_at_entry, nil),
-      daily_credit_limit_at_entry: Keyword.get(opts, :daily_credit_limit_at_entry, nil),
-      weekly_debit_limit_at_entry: Keyword.get(opts, :weekly_debit_limit_at_entry, nil),
-      weekly_credit_limit_at_entry: Keyword.get(opts, :weekly_credit_limit_at_entry, nil),
-      monthly_debit_limit_at_entry: Keyword.get(opts, :monthly_debit_limit_at_entry, nil),
-      monthly_credit_limit_at_entry: Keyword.get(opts, :monthly_credit_limit_at_entry, nil),
-      yearly_debit_limit_at_entry: Keyword.get(opts, :yearly_debit_limit_at_entry, nil),
-      yearly_credit_limit_at_entry: Keyword.get(opts, :yearly_credit_limit_at_entry, nil),
+      limits_at_entry: build_limits(opts),
       tenant_id: session.tenant_id
     }
   end
@@ -246,7 +265,7 @@ defmodule AtomicFi.LedgerEntryContextTest do
       root = make_account(session, ledger)
 
       child =
-        make_account(session, ledger, parent_ledger_account_id: root.id, account_type: :liability)
+        make_account(session, ledger, parent_ledger_account_id: root.id, regime: "child_a")
 
       assert reload_account(session, root).balance == 0
       assert reload_account(session, child).balance == 0
@@ -266,12 +285,12 @@ defmodule AtomicFi.LedgerEntryContextTest do
       root = make_account(session, ledger)
 
       child =
-        make_account(session, ledger, parent_ledger_account_id: root.id, account_type: :liability)
+        make_account(session, ledger, parent_ledger_account_id: root.id, regime: "child_a")
 
       grandchild =
         make_account(session, ledger,
           parent_ledger_account_id: child.id,
-          account_type: :equity
+          regime: "child_b"
         )
 
       req = entry_request(session, grandchild, amount: 3_000, entry_type: :credit)
@@ -288,7 +307,7 @@ defmodule AtomicFi.LedgerEntryContextTest do
       root = make_account(session, ledger)
 
       child =
-        make_account(session, ledger, parent_ledger_account_id: root.id, account_type: :liability)
+        make_account(session, ledger, parent_ledger_account_id: root.id, regime: "child_a")
 
       req = entry_request(session, child, amount: 8_000, entry_type: :credit)
       assert {:ok, entry} = LedgerEntryContext.create_ledger_entry(session, req)
@@ -320,12 +339,12 @@ defmodule AtomicFi.LedgerEntryContextTest do
       root = make_account(session, ledger)
 
       child_a =
-        make_account(session, ledger, parent_ledger_account_id: root.id, account_type: :liability)
+        make_account(session, ledger, parent_ledger_account_id: root.id, regime: "child_a")
 
       child_b =
         make_account(session, ledger,
           parent_ledger_account_id: root.id,
-          account_type: :equity
+          regime: "child_b"
         )
 
       req = entry_request(session, child_a, amount: 4_000, entry_type: :credit)
@@ -339,8 +358,10 @@ defmodule AtomicFi.LedgerEntryContextTest do
 
   # ── Velocity limit snapshots ─────────────────────────────────────────────────
 
-  describe "ledger_entries *_limit_at_entry snapshot fields" do
-    test "stores velocity limit snapshots from risk engine on the entry row", %{session: session} do
+  describe "ledger_entries limits_at_entry composite-type array" do
+    test "stores velocity limit snapshots as a velocity_limit[] on the entry row", %{
+      session: session
+    } do
       account = insert(:ledger_account, tenant_id: session.tenant_id)
 
       req =
@@ -354,19 +375,27 @@ defmodule AtomicFi.LedgerEntryContextTest do
         )
 
       assert {:ok, entry} = LedgerEntryContext.create_ledger_entry(session, req)
-      assert entry.daily_credit_limit_at_entry == 50_000
-      assert entry.weekly_credit_limit_at_entry == 200_000
-      assert entry.monthly_credit_limit_at_entry == 500_000
-      assert entry.yearly_credit_limit_at_entry == 1_000_000
+      assert length(entry.limits_at_entry) == 4
+
+      assert %VelocityLimit{cap: 50_000, rule: "test"} =
+               find_limit(entry.limits_at_entry, "daily", "credit")
+
+      assert %VelocityLimit{cap: 200_000} =
+               find_limit(entry.limits_at_entry, "weekly", "credit")
+
+      assert %VelocityLimit{cap: 500_000} =
+               find_limit(entry.limits_at_entry, "monthly", "credit")
+
+      assert %VelocityLimit{cap: 1_000_000} =
+               find_limit(entry.limits_at_entry, "yearly", "credit")
     end
 
-    test "nil limits (unconstrained) are stored as nil on the entry row", %{session: session} do
+    test "no limits passed produces an empty limits_at_entry array", %{session: session} do
       account = insert(:ledger_account, tenant_id: session.tenant_id)
       req = entry_request(session, account, entry_type: :credit, amount: 1_000)
 
       assert {:ok, entry} = LedgerEntryContext.create_ledger_entry(session, req)
-      assert is_nil(entry.daily_credit_limit_at_entry)
-      assert is_nil(entry.daily_debit_limit_at_entry)
+      assert entry.limits_at_entry == []
     end
   end
 
