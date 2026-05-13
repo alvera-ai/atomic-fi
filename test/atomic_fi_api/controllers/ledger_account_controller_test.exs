@@ -13,7 +13,7 @@ defmodule AtomicFiApi.LedgerAccountControllerTest do
       ledger_id: ledger_id,
       account_holder_id: account_holder_id,
       currency: "USD",
-      account_type: "asset",
+      regime: "_root",
       status: "active",
       tenant_id: tenant_id
     }
@@ -95,7 +95,7 @@ defmodule AtomicFiApi.LedgerAccountControllerTest do
         ledger_id: la.ledger_id,
         account_holder_id: la.account_holder_id,
         currency: la.currency,
-        account_type: "asset",
+        regime: la.regime,
         status: "closed",
         tenant_id: tenant.id
       }

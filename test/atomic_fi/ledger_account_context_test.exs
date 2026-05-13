@@ -12,7 +12,7 @@ defmodule AtomicFi.LedgerAccountContextTest do
       account_holder_id: Map.get(overrides, :account_holder_id, ledger.account_holder_id),
       ledger_id: Map.get(overrides, :ledger_id, ledger.id),
       currency: Map.get(overrides, :currency, "USD"),
-      account_type: Map.get(overrides, :account_type, :asset),
+      regime: Map.get(overrides, :regime, "_root"),
       status: Map.get(overrides, :status, :active),
       parent_ledger_account_id: Map.get(overrides, :parent_ledger_account_id, nil),
       tenant_id: Map.get(overrides, :tenant_id, session.tenant_id)
@@ -44,7 +44,7 @@ defmodule AtomicFi.LedgerAccountContextTest do
 
       assert account.ledger_id == ledger.id
       assert account.currency == "USD"
-      assert account.account_type == :asset
+      assert account.regime == "_root"
       assert account.status == :active
       assert account.balance == 0
       assert account.ancestor_ids == []
@@ -73,7 +73,7 @@ defmodule AtomicFi.LedgerAccountContextTest do
         account_holder_id: account.account_holder_id,
         ledger_id: account.ledger_id,
         currency: account.currency,
-        account_type: account.account_type,
+        regime: account.regime,
         status: :closed,
         tenant_id: session.tenant_id
       }
@@ -120,7 +120,7 @@ defmodule AtomicFi.LedgerAccountContextTest do
       child_request =
         ledger_account_request(session, ledger, %{
           parent_ledger_account_id: root.id,
-          account_type: :liability
+          regime: "child_a"
         })
 
       assert {:ok, child} = LedgerAccountContext.create_ledger_account(session, child_request)
@@ -139,7 +139,7 @@ defmodule AtomicFi.LedgerAccountContextTest do
       child_request =
         ledger_account_request(session, ledger, %{
           parent_ledger_account_id: root.id,
-          account_type: :liability
+          regime: "child_a"
         })
 
       assert {:ok, child} = LedgerAccountContext.create_ledger_account(session, child_request)
@@ -147,7 +147,7 @@ defmodule AtomicFi.LedgerAccountContextTest do
       grandchild_request =
         ledger_account_request(session, ledger, %{
           parent_ledger_account_id: child.id,
-          account_type: :equity
+          regime: "child_b"
         })
 
       assert {:ok, grandchild} =
@@ -164,26 +164,25 @@ defmodule AtomicFi.LedgerAccountContextTest do
       root_request = ledger_account_request(session, ledger)
       assert {:ok, root_a} = LedgerAccountContext.create_ledger_account(session, root_request)
 
-      # root_b is an independent root
-      root_b_request = ledger_account_request(session, ledger, %{account_type: :liability})
+      # Second root on same ledger needs a distinct regime — the partial unique
+      # index `ledger_accounts_ledger_regime_root_unique` is scoped to no-PA/no-CP rows.
+      root_b_request = ledger_account_request(session, ledger, %{regime: "_alt_root"})
       assert {:ok, root_b} = LedgerAccountContext.create_ledger_account(session, root_b_request)
 
-      # account starts under root_a
       child_request =
         ledger_account_request(session, ledger, %{
           parent_ledger_account_id: root_a.id,
-          account_type: :equity
+          regime: "child_a"
         })
 
       assert {:ok, child} = LedgerAccountContext.create_ledger_account(session, child_request)
       assert child.ancestor_ids == [root_a.id]
 
-      # reparent to root_b
       update_request = %LedgerAccountRequest{
         account_holder_id: child.account_holder_id,
         ledger_id: child.ledger_id,
         currency: child.currency,
-        account_type: child.account_type,
+        regime: child.regime,
         status: child.status,
         parent_ledger_account_id: root_b.id,
         tenant_id: session.tenant_id
@@ -205,18 +204,17 @@ defmodule AtomicFi.LedgerAccountContextTest do
       child_request =
         ledger_account_request(session, ledger, %{
           parent_ledger_account_id: root.id,
-          account_type: :liability
+          regime: "child_a"
         })
 
       assert {:ok, child} = LedgerAccountContext.create_ledger_account(session, child_request)
       assert child.ancestor_ids == [root.id]
 
-      # Update status only — parent unchanged
       update_request = %LedgerAccountRequest{
         account_holder_id: child.account_holder_id,
         ledger_id: child.ledger_id,
         currency: child.currency,
-        account_type: child.account_type,
+        regime: child.regime,
         status: :closed,
         parent_ledger_account_id: child.parent_ledger_account_id,
         tenant_id: session.tenant_id
@@ -240,21 +238,17 @@ defmodule AtomicFi.LedgerAccountContextTest do
       child_request =
         ledger_account_request(session, ledger, %{
           parent_ledger_account_id: root.id,
-          account_type: :liability
+          regime: "child_a"
         })
 
       assert {:ok, child} = LedgerAccountContext.create_ledger_account(session, child_request)
       assert child.ancestor_ids == [root.id]
 
-      # Attempt to make root a child of child (would create cycle: root → child → root)
-      # This is detected by validate_no_ancestor_cycle because root.id would be in ancestor_ids
-      # when we try to set parent = child (child's ancestors ++ [child.id] = [root.id, child.id])
-      # and root.id is in that list
       cycle_request = %LedgerAccountRequest{
         account_holder_id: root.account_holder_id,
         ledger_id: root.ledger_id,
         currency: root.currency,
-        account_type: root.account_type,
+        regime: root.regime,
         status: root.status,
         parent_ledger_account_id: child.id,
         tenant_id: session.tenant_id

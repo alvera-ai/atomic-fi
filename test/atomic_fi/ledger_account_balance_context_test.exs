@@ -5,18 +5,42 @@ defmodule AtomicFi.LedgerAccountBalanceContextTest do
   alias AtomicFi.LedgerAccountContext
   alias AtomicFi.LedgerAccountContext.LedgerAccountBalance
   alias AtomicFi.LedgerEntryContext
+  alias AtomicFi.LedgerAccountContext.VelocityLimit
   alias AtomicFi.OpenApiSchema.{LedgerAccountRequest, LedgerEntryRequest}
   alias AtomicFi.Repo
   import AtomicFi.Factory
 
   # ── Helpers ──────────────────────────────────────────────────────────────────
 
+  # Map the eight legacy keyword-arg shorthands to %VelocityLimit{}s for the
+  # composite-type array. The trigger fans these into last_*_limit columns on
+  # ledger_account_balances and CHECK constraints fire on breach.
+  @limit_keys [
+    {:daily_debit_limit, "daily", "debit"},
+    {:daily_credit_limit, "daily", "credit"},
+    {:weekly_debit_limit, "weekly", "debit"},
+    {:weekly_credit_limit, "weekly", "credit"},
+    {:monthly_debit_limit, "monthly", "debit"},
+    {:monthly_credit_limit, "monthly", "credit"},
+    {:yearly_debit_limit, "yearly", "debit"},
+    {:yearly_credit_limit, "yearly", "credit"}
+  ]
+
+  defp build_limits(opts) do
+    Enum.flat_map(@limit_keys, fn {key, period, direction} ->
+      case opts[key] do
+        nil -> []
+        cap -> [%VelocityLimit{period: period, direction: direction, cap: cap, rule: "test"}]
+      end
+    end)
+  end
+
   defp make_account(session, ledger, opts \\ []) do
     request = %LedgerAccountRequest{
       account_holder_id: ledger.account_holder_id,
       ledger_id: ledger.id,
       currency: "USD",
-      account_type: Keyword.get(opts, :account_type, :asset),
+      regime: Keyword.get(opts, :regime, "_root"),
       status: :active,
       parent_ledger_account_id: Keyword.get(opts, :parent_ledger_account_id, nil),
       tenant_id: session.tenant_id
@@ -34,18 +58,14 @@ defmodule AtomicFi.LedgerAccountBalanceContextTest do
       amount: amount,
       entry_type: :credit,
       status: :pending,
-      daily_debit_limit_at_entry: opts[:daily_debit_limit],
-      daily_credit_limit_at_entry: opts[:daily_credit_limit],
-      weekly_debit_limit_at_entry: opts[:weekly_debit_limit],
-      weekly_credit_limit_at_entry: opts[:weekly_credit_limit],
-      monthly_debit_limit_at_entry: opts[:monthly_debit_limit],
-      monthly_credit_limit_at_entry: opts[:monthly_credit_limit],
-      yearly_debit_limit_at_entry: opts[:yearly_debit_limit],
-      yearly_credit_limit_at_entry: opts[:yearly_credit_limit],
+      limits_at_entry: build_limits(opts),
       tenant_id: session.tenant_id
     }
 
-    LedgerEntryContext.create_ledger_entry(session, request)
+    with {:ok, entry} <- LedgerEntryContext.create_ledger_entry(session, request) do
+      # BEFORE trigger may flip status/rejected_* — reload to see post-trigger state.
+      {:ok, Repo.reload!(entry, session: session)}
+    end
   end
 
   defp debit(session, account, amount, opts \\ []) do
@@ -56,18 +76,13 @@ defmodule AtomicFi.LedgerAccountBalanceContextTest do
       amount: amount,
       entry_type: :debit,
       status: :pending,
-      daily_debit_limit_at_entry: opts[:daily_debit_limit],
-      daily_credit_limit_at_entry: opts[:daily_credit_limit],
-      weekly_debit_limit_at_entry: opts[:weekly_debit_limit],
-      weekly_credit_limit_at_entry: opts[:weekly_credit_limit],
-      monthly_debit_limit_at_entry: opts[:monthly_debit_limit],
-      monthly_credit_limit_at_entry: opts[:monthly_credit_limit],
-      yearly_debit_limit_at_entry: opts[:yearly_debit_limit],
-      yearly_credit_limit_at_entry: opts[:yearly_credit_limit],
+      limits_at_entry: build_limits(opts),
       tenant_id: session.tenant_id
     }
 
-    LedgerEntryContext.create_ledger_entry(session, request)
+    with {:ok, entry} <- LedgerEntryContext.create_ledger_entry(session, request) do
+      {:ok, Repo.reload!(entry, session: session)}
+    end
   end
 
   defp balance_rows_for(session, account) do
@@ -208,7 +223,7 @@ defmodule AtomicFi.LedgerAccountBalanceContextTest do
       root = make_account(session, ledger)
 
       child =
-        make_account(session, ledger, parent_ledger_account_id: root.id, account_type: :liability)
+        make_account(session, ledger, parent_ledger_account_id: root.id, regime: "child_a")
 
       assert {:ok, _} = credit(session, child, 5_000)
 
@@ -227,12 +242,12 @@ defmodule AtomicFi.LedgerAccountBalanceContextTest do
       root = make_account(session, ledger)
 
       child =
-        make_account(session, ledger, parent_ledger_account_id: root.id, account_type: :liability)
+        make_account(session, ledger, parent_ledger_account_id: root.id, regime: "child_a")
 
       grandchild =
         make_account(session, ledger,
           parent_ledger_account_id: child.id,
-          account_type: :equity
+          regime: "child_b"
         )
 
       assert {:ok, _} = credit(session, grandchild, 3_000)
@@ -253,7 +268,7 @@ defmodule AtomicFi.LedgerAccountBalanceContextTest do
       root = make_account(session, ledger)
 
       child =
-        make_account(session, ledger, parent_ledger_account_id: root.id, account_type: :liability)
+        make_account(session, ledger, parent_ledger_account_id: root.id, regime: "child_a")
 
       assert {:ok, entry} = credit(session, child, 7_000)
 
@@ -366,79 +381,87 @@ defmodule AtomicFi.LedgerAccountBalanceContextTest do
       assert {:ok, _} = credit(session, account, 50_000, daily_credit_limit: 50_000)
     end
 
-    test "credit exceeding daily_credit_limit is rejected by DB CHECK constraint", %{
+    test "credit exceeding daily_credit_limit is voided with full rejected_* contract", %{
       session: session
     } do
       ledger = insert(:ledger, tenant_id: session.tenant_id)
       account = make_account(session, ledger)
 
-      # First entry sets daily_credit_limit = 5_000 and credits 3_000
       assert {:ok, _} = credit(session, account, 3_000, daily_credit_limit: 5_000)
 
-      # Second entry would push daily_credit to 8_000 which exceeds limit 5_000
-      assert_raise Ecto.ConstraintError, ~r/lab_daily_credit_limit/, fn ->
-        credit(session, account, 5_000, daily_credit_limit: 5_000)
-      end
+      # Second entry would push daily_credit to 8_000 > 5_000.
+      # Trigger catches the CHECK violation and persists the entry as :voided.
+      assert {:ok, voided} = credit(session, account, 5_000, daily_credit_limit: 5_000)
+      assert voided.status == :voided
+      assert voided.rejected_ledger_account_id == account.id
+      assert voided.rejected_period == "daily"
+      assert voided.rejected_direction == "credit"
+      assert voided.rejected_rule == "test"
+      assert voided.rejected_code == "LIMIT_EXCEEDED"
     end
 
-    test "debit exceeding daily_debit_limit is rejected by DB CHECK constraint", %{
+    test "debit exceeding daily_debit_limit is voided with full rejected_* contract", %{
       session: session
     } do
       ledger = insert(:ledger, tenant_id: session.tenant_id)
       account = make_account(session, ledger)
 
-      # Give the account some balance first (no debit limit on credit)
       assert {:ok, _} = credit(session, account, 30_000)
-
-      # First debit sets daily_debit_limit = 10_000 and debits 8_000
       assert {:ok, _} = debit(session, account, 8_000, daily_debit_limit: 10_000)
 
-      # Second debit would push daily_debit to 11_000 > limit 10_000
-      assert_raise Ecto.ConstraintError, ~r/lab_daily_debit_limit/, fn ->
-        debit(session, account, 3_000, daily_debit_limit: 10_000)
-      end
+      assert {:ok, voided} = debit(session, account, 3_000, daily_debit_limit: 10_000)
+      assert voided.status == :voided
+      assert voided.rejected_ledger_account_id == account.id
+      assert voided.rejected_period == "daily"
+      assert voided.rejected_direction == "debit"
+      assert voided.rejected_rule == "test"
+      assert voided.rejected_code == "LIMIT_EXCEEDED"
     end
 
-    test "weekly_credit_limit is enforced", %{session: session} do
+    test "weekly_credit_limit voids with full rejected_* contract", %{session: session} do
       ledger = insert(:ledger, tenant_id: session.tenant_id)
       account = make_account(session, ledger)
 
-      # Credit 80_000 with weekly limit 100_000 → WTD = 80_000 (ok)
       assert {:ok, _} = credit(session, account, 80_000, weekly_credit_limit: 100_000)
 
-      # Another credit of 30_000 would push WTD to 110_000 > 100_000
-      assert_raise Ecto.ConstraintError, ~r/lab_weekly_credit_limit/, fn ->
-        credit(session, account, 30_000, weekly_credit_limit: 100_000)
-      end
+      assert {:ok, voided} = credit(session, account, 30_000, weekly_credit_limit: 100_000)
+      assert voided.status == :voided
+      assert voided.rejected_ledger_account_id == account.id
+      assert voided.rejected_period == "weekly"
+      assert voided.rejected_direction == "credit"
+      assert voided.rejected_rule == "test"
+      assert voided.rejected_code == "LIMIT_EXCEEDED"
     end
 
-    test "monthly_debit_limit is enforced", %{session: session} do
+    test "monthly_debit_limit voids with full rejected_* contract", %{session: session} do
       ledger = insert(:ledger, tenant_id: session.tenant_id)
       account = make_account(session, ledger)
 
-      # Give balance first
       assert {:ok, _} = credit(session, account, 100_000)
-
-      # Debit 40_000 with monthly limit 50_000 → MTD = 40_000 (ok)
       assert {:ok, _} = debit(session, account, 40_000, monthly_debit_limit: 50_000)
 
-      # Another debit of 15_000 would push MTD to 55_000 > 50_000
-      assert_raise Ecto.ConstraintError, ~r/lab_monthly_debit_limit/, fn ->
-        debit(session, account, 15_000, monthly_debit_limit: 50_000)
-      end
+      assert {:ok, voided} = debit(session, account, 15_000, monthly_debit_limit: 50_000)
+      assert voided.status == :voided
+      assert voided.rejected_ledger_account_id == account.id
+      assert voided.rejected_period == "monthly"
+      assert voided.rejected_direction == "debit"
+      assert voided.rejected_rule == "test"
+      assert voided.rejected_code == "LIMIT_EXCEEDED"
     end
 
-    test "yearly_credit_limit is enforced", %{session: session} do
+    test "yearly_credit_limit voids with full rejected_* contract", %{session: session} do
       ledger = insert(:ledger, tenant_id: session.tenant_id)
       account = make_account(session, ledger)
 
-      # Credit 900_000 with yearly limit 1_000_000 → YTD = 900_000 (ok)
       assert {:ok, _} = credit(session, account, 900_000, yearly_credit_limit: 1_000_000)
 
-      # Another credit of 200_000 would push YTD to 1_100_000 > 1_000_000
-      assert_raise Ecto.ConstraintError, ~r/lab_yearly_credit_limit/, fn ->
-        credit(session, account, 200_000, yearly_credit_limit: 1_000_000)
-      end
+      assert {:ok, voided} = credit(session, account, 200_000, yearly_credit_limit: 1_000_000)
+      assert voided.status == :voided
+      assert voided.rejected_ledger_account_id == account.id
+      assert voided.rejected_period == "yearly"
+      assert voided.rejected_direction == "credit"
+      assert voided.rejected_rule == "test"
+      assert voided.rejected_code == "LIMIT_EXCEEDED"
     end
 
     test "NULL limit (unconstrained) — any amount passes CHECK constraint", %{session: session} do
