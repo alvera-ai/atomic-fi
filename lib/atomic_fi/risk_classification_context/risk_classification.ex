@@ -9,7 +9,7 @@ defmodule AtomicFi.RiskClassificationContext.RiskClassification do
   @typedoc """
   RiskClassification — formal risk-level record for an AccountHolder.
 
-  Drives the LedgerAccount limit cascade: the MASTER LedgerAccount velocity
+  Drives the LedgerAccount limit cascade: the MASTER LedgerAccount control
   limit is a function of the currently active RiskClassification.risk_level
   for the holder. Exactly one `is_active = true` classification exists per
   `(account_holder_id, tenant_id)` at any time — enforced by a partial unique

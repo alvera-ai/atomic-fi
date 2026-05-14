@@ -5,7 +5,7 @@ defmodule AtomicFi.ZenRule.Client do
   Mirrors `AtomicFi.Watchman.Client` — a thin Req-based HTTP wrapper that
   returns the decoded JSON `"result"` map (or an error envelope) and
   nothing more. **No domain shaping, no behaviour, no config lookup.**
-  Domain mapping (raw JDM result → `%VelocityLimit{}` keyed by
+  Domain mapping (raw JDM result → `%ControlLimit{}` keyed by
   `ledger_account_id`) lives one level up in `AtomicFi.RuleEngine`,
   which also owns its config slice.
 

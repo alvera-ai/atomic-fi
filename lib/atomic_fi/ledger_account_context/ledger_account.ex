@@ -13,6 +13,8 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
   @root_regime "root"
 
   @la_types [
+    :account_holder_root,
+    :account_holder_regime_root,
     :counter_party_root,
     :counter_party_regime_root,
     :account_holder_payment_account_root,
@@ -51,7 +53,7 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
   regime, structural nodes a sentinel (`"_root"`, `"all"`) set by the
   orchestration layer.
 
-  Velocity limits live on `ledger_entries.limits_at_entry` (`velocity_limit[]`,
+  Control limits live on `ledger_entries.limits_at_entry` (`control_limit[]`,
   the rule-engine output for the leaf), which the trigger fans up into the flat
   `ledger_account_balances.last_*_limit` columns where the CHECK constraints
   enforce them.
@@ -125,6 +127,8 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
     schema: %Schema{
       type: :string,
       enum: [
+        "account_holder_root",
+        "account_holder_regime_root",
         "counter_party_root",
         "counter_party_regime_root",
         "account_holder_payment_account_root",
@@ -220,7 +224,7 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
       "Control account in the double-entry payments ledger. `side` is the normal balance " <>
         "(credit-normal | debit-normal); `balance` is the running net (credits − debits), " <>
         "trigger-maintained. Hierarchy is captured solely in the flat ancestor_ids array; " <>
-        "regime is a generic discriminator. Velocity limits live on ledger_account_balances.limits.",
+        "regime is a generic discriminator. Control limits live on ledger_account_balances.limits.",
     required: [:account_holder_id, :ledger_id, :currency, :regime],
     properties: [
       :id,
@@ -290,6 +294,26 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
     belongs_to :payment_account, PaymentAccount, foreign_key: :payment_account_id
     belongs_to :counterparty, Counterparty, foreign_key: :counterparty_id
 
+    # Onboarding-set hard caps + block state — set by the rule engine at
+    # AH/CP/PA create / update. Each max_* is the GLOBAL HARD CEILING for
+    # that period × direction (NULL = infinite). The entry-propagation
+    # trigger tightens balance.last_*_limit to LEAST(max_*, per-txn cap)
+    # so balance CHECK constraints enforce both layers.
+    #
+    # is_blocked + block_reason are the belt; max_* are the suspenders.
+    # CHECK block_reason_required_when_blocked: is_blocked ⇒ block_reason NOT NULL.
+    field :max_daily_debit, :integer
+    field :max_daily_credit, :integer
+    field :max_weekly_debit, :integer
+    field :max_weekly_credit, :integer
+    field :max_monthly_debit, :integer
+    field :max_monthly_credit, :integer
+    field :max_yearly_debit, :integer
+    field :max_yearly_credit, :integer
+
+    field :is_blocked, :boolean, default: false
+    field :block_reason, :string
+
     belongs_to :tenant, Tenant
 
     timestamps(type: :utc_datetime_usec)
@@ -308,6 +332,16 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
       :payment_account_id,
       :counterparty_id,
       :la_type,
+      :max_daily_debit,
+      :max_daily_credit,
+      :max_weekly_debit,
+      :max_weekly_credit,
+      :max_monthly_debit,
+      :max_monthly_credit,
+      :max_yearly_debit,
+      :max_yearly_credit,
+      :is_blocked,
+      :block_reason,
       :tenant_id
       # NOTE: :balance intentionally excluded — never writable via API
       # NOTE: :ancestor_ids intentionally excluded — populated by the
@@ -319,6 +353,7 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
       :currency,
       :regime,
       :la_type,
+      :is_blocked,
       :tenant_id
     ])
     |> validate_length(:currency, is: 3)
@@ -347,6 +382,10 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccount do
       name: :ledger_accounts_ancestor_resolution,
       message:
         "missing ancestor LedgerAccount — create the *_root row(s) before inserting this descendant"
+    )
+    |> check_constraint(:block_reason,
+      name: :block_reason_required_when_blocked,
+      message: "is required when is_blocked is true"
     )
   end
 end

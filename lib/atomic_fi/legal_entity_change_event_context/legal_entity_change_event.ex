@@ -33,7 +33,7 @@ defmodule AtomicFi.LegalEntityChangeEventContext.LegalEntityChangeEvent do
 
   Primary signal source for **account takeover** detection:
   - SIM swap attacks: rapid `phone_change` events
-  - Address velocity: multiple `address_change` events in a short window
+  - Address control: multiple `address_change` events in a short window
   - Pre-transfer grooming: `beneficiary_added` or `authorised_signer_change` before
     a large outgoing payment
 
@@ -101,7 +101,7 @@ defmodule AtomicFi.LegalEntityChangeEventContext.LegalEntityChangeEvent do
       ],
       description:
         "Type of identity change — maps to acmt:006 MdcnCd (Modification Code). " <>
-          "Primary AML signals: phone_change (SIM swap), address_change (address velocity), " <>
+          "Primary AML signals: phone_change (SIM swap), address_change (address control), " <>
           "beneficiary_added / authorised_signer_change (pre-transfer grooming)"
     },
     key: :event_type

@@ -27,7 +27,7 @@ defmodule AtomicFiApi.LegalEntityChangeEventController do
 
     Primary AML signals for account takeover detection:
     - `phone_change` — SIM swap attacks
-    - `address_change` — address velocity patterns
+    - `address_change` — address control patterns
     - `beneficiary_added` / `authorised_signer_change` — pre-transfer grooming
 
     Supports Flop pagination and filtering:

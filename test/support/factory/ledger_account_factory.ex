@@ -62,13 +62,28 @@ defmodule AtomicFi.Factory.LedgerAccountFactory do
         cp_id = resolve_counterparty_id(attrs, base)
         regime = Map.get(attrs, :regime, "ach")
 
-        ensure_la(base, :counter_party_root, "root", nil, cp_id)
+        ensure_ledger_account(base, :counter_party_root, "root", nil, cp_id)
 
         la_struct(base, :counter_party_regime_root, regime, nil, cp_id, attrs)
       end
 
+      defp build_la(:account_holder_root, attrs, base) do
+        la_struct(base, :account_holder_root, "root", nil, nil, attrs)
+      end
+
+      defp build_la(:account_holder_regime_root, attrs, base) do
+        regime = Map.get(attrs, :regime, "ach")
+
+        ensure_ledger_account(base, :account_holder_root, "root", nil, nil)
+
+        la_struct(base, :account_holder_regime_root, regime, nil, nil, attrs)
+      end
+
       defp build_la(:account_holder_payment_account_root, attrs, base) do
         pa_id = resolve_payment_account_id(attrs, base, nil)
+
+        ensure_ledger_account(base, :account_holder_root, "root", nil, nil)
+
         la_struct(base, :account_holder_payment_account_root, "root", pa_id, nil, attrs)
       end
 
@@ -76,7 +91,9 @@ defmodule AtomicFi.Factory.LedgerAccountFactory do
         pa_id = resolve_payment_account_id(attrs, base, nil)
         regime = Map.get(attrs, :regime, "ach")
 
-        ensure_la(base, :account_holder_payment_account_root, "root", pa_id, nil)
+        ensure_ledger_account(base, :account_holder_root, "root", nil, nil)
+        ensure_ledger_account(base, :account_holder_regime_root, regime, nil, nil)
+        ensure_ledger_account(base, :account_holder_payment_account_root, "root", pa_id, nil)
 
         la_struct(base, :account_holder_payment_account_regime_root, regime, pa_id, nil, attrs)
       end
@@ -85,7 +102,7 @@ defmodule AtomicFi.Factory.LedgerAccountFactory do
         cp_id = resolve_counterparty_id(attrs, base)
         pa_id = resolve_payment_account_id(attrs, base, cp_id)
 
-        ensure_la(base, :counter_party_root, "root", nil, cp_id)
+        ensure_ledger_account(base, :counter_party_root, "root", nil, cp_id)
 
         la_struct(base, :counter_party_payment_account_root, "root", pa_id, cp_id, attrs)
       end
@@ -95,9 +112,9 @@ defmodule AtomicFi.Factory.LedgerAccountFactory do
         pa_id = resolve_payment_account_id(attrs, base, cp_id)
         regime = Map.get(attrs, :regime, "ach")
 
-        ensure_la(base, :counter_party_root, "root", nil, cp_id)
-        ensure_la(base, :counter_party_regime_root, regime, nil, cp_id)
-        ensure_la(base, :counter_party_payment_account_root, "root", pa_id, cp_id)
+        ensure_ledger_account(base, :counter_party_root, "root", nil, cp_id)
+        ensure_ledger_account(base, :counter_party_regime_root, regime, nil, cp_id)
+        ensure_ledger_account(base, :counter_party_payment_account_root, "root", pa_id, cp_id)
 
         la_struct(base, :counter_party_payment_account_regime_root, regime, pa_id, cp_id, attrs)
       end
@@ -143,7 +160,10 @@ defmodule AtomicFi.Factory.LedgerAccountFactory do
           payment_account_id: payment_account_id,
           counterparty_id: counterparty_id,
           status: :active,
-          balance: 0
+          balance: 0,
+          # is_blocked is NOT NULL in the DB (no default). Factories
+          # default to false; tests opt in to `is_blocked: true` per case.
+          is_blocked: false
         }
         |> merge_attributes(
           Map.drop(attrs, [:la_type, :regime, :counterparty_id, :payment_account_id])
@@ -154,7 +174,7 @@ defmodule AtomicFi.Factory.LedgerAccountFactory do
       # repeat calls in a single test share the same row and don't fight the
       # partial unique indexes. Built as a manual query because `Repo.get_by`
       # forbids nil-equality comparisons on nullable columns.
-      defp ensure_la(base, la_type, regime, payment_account_id, counterparty_id) do
+      defp ensure_ledger_account(base, la_type, regime, payment_account_id, counterparty_id) do
         import Ecto.Query
 
         query =

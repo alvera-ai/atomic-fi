@@ -261,15 +261,15 @@ defmodule AtomicFiApi.ApiSpec do
             "Individual debit/credit line items (ISO 20022 CdtDbtInd). " <>
               "Creating an entry atomically updates the parent LedgerAccount balance via DB trigger. " <>
               "Voiding an entry (status → voided) reverses the balance delta. " <>
-              "Velocity limits are enforced by DB CHECK constraints on ledger_account_balances."
+              "Control limits are enforced by DB CHECK constraints on ledger_account_balances."
         },
         %Tag{
           name: "Ledger Account Balances",
           description:
             "Daily balance snapshots for LedgerAccounts (read-only). " <>
               "Created and updated entirely by the ledger_entry_propagate_to_balances DB trigger. " <>
-              "Each row carries day/week/month/year cumulative totals and last known velocity limits " <>
-              "from the risk engine. Velocity limit enforcement is DB-driven via CHECK constraints."
+              "Each row carries day/week/month/year cumulative totals and last known control limits " <>
+              "from the risk engine. Control limit enforcement is DB-driven via CHECK constraints."
         },
         %Tag{
           name: "KYC Requirements",
@@ -313,7 +313,7 @@ defmodule AtomicFiApi.ApiSpec do
           name: "Risk Classifications",
           description:
             "Formal risk-level records per AccountHolder (ISO 20022 auth:018 · FATF Rec 10). " <>
-              "Drives the LedgerAccount limit cascade — the MASTER LedgerAccount velocity limit " <>
+              "Drives the LedgerAccount limit cascade — the MASTER LedgerAccount control limit " <>
               "is a function of the active RiskClassification.risk_level. Exactly one is_active=true " <>
               "record exists per (holder, tenant) at a time; creating / activating a new one " <>
               "deactivates the prior active record atomically."
@@ -332,7 +332,7 @@ defmodule AtomicFiApi.ApiSpec do
             "Audit log of non-financial identity lifecycle changes (ISO 20022 acmt:006/acmt:002). " <>
               "Auto-created by update_legal_entity via Ecto prepare_changes — captures JSONB diff and previous state. " <>
               "Primary AML signal source for account takeover detection: SIM swap (phone_change), " <>
-              "address velocity (address_change), pre-transfer grooming (beneficiary_added/authorised_signer_change)."
+              "address control (address_change), pre-transfer grooming (beneficiary_added/authorised_signer_change)."
         }
       ]
     }

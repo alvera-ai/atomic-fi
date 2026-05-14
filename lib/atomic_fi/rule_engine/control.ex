@@ -33,6 +33,7 @@ defmodule AtomicFi.RuleEngine.Control do
 
   @primary_key false
   embedded_schema do
+    # Hard ceilings — fan out to ledger_accounts.max_*. NULL = infinite.
     field :daily_debit_cap, :integer
     field :daily_credit_cap, :integer
     field :weekly_debit_cap, :integer
@@ -41,6 +42,14 @@ defmodule AtomicFi.RuleEngine.Control do
     field :monthly_credit_cap, :integer
     field :yearly_debit_cap, :integer
     field :yearly_credit_cap, :integer
+
+    # Block state — fans out to ledger_accounts.is_blocked / block_reason.
+    # is_blocked = true + reason recorded → entry-propagation trigger voids
+    # any entry whose ancestor chain touches this LA.
+    field :is_blocked, :boolean, default: false
+    field :block_reason, :string
+
+    # Which rule emitted this Control (audit + diagnostic).
     field :reason, :string
   end
 
@@ -53,11 +62,15 @@ defmodule AtomicFi.RuleEngine.Control do
           monthly_credit_cap: non_neg_integer() | nil,
           yearly_debit_cap: non_neg_integer() | nil,
           yearly_credit_cap: non_neg_integer() | nil,
+          is_blocked: boolean(),
+          block_reason: String.t() | nil,
           reason: String.t() | nil
         }
 
   @cap_fields ~w(daily_debit_cap daily_credit_cap weekly_debit_cap weekly_credit_cap
                  monthly_debit_cap monthly_credit_cap yearly_debit_cap yearly_credit_cap)a
+
+  @other_fields ~w(is_blocked block_reason reason)a
 
   @doc """
   Casts and validates an untrusted attrs map (string-or-atom keys) into
@@ -67,8 +80,16 @@ defmodule AtomicFi.RuleEngine.Control do
   @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def changeset(control \\ %__MODULE__{}, attrs) do
     control
-    |> cast(attrs, @cap_fields ++ [:reason])
+    |> cast(attrs, @cap_fields ++ @other_fields)
     |> validate_caps_non_negative()
+    |> validate_block_reason_when_blocked()
+  end
+
+  defp validate_block_reason_when_blocked(changeset) do
+    case {get_field(changeset, :is_blocked), get_field(changeset, :block_reason)} do
+      {true, nil} -> add_error(changeset, :block_reason, "is required when is_blocked is true")
+      _ -> changeset
+    end
   end
 
   @doc """

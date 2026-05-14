@@ -4,7 +4,7 @@ defmodule AtomicFi.Repo.Migrations.AddRejectionMetadataToTransactions do
   def change do
     alter table(:transactions) do
       # Rejection metadata, denormalised from the offending ledger entry — populated
-      # when the transaction is :rejected because a rule engine velocity limit was hit.
+      # when the transaction is :rejected because a rule engine control limit was hit.
       # All NULL otherwise.
       add :rejected_ledger_account_id,
           references(:ledger_accounts, type: :binary_id, on_delete: :nilify_all)

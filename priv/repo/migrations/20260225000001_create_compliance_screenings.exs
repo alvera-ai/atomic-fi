@@ -59,8 +59,8 @@ defmodule AtomicFi.Repo.Migrations.CreateComplianceScreenings do
 
       # AML fields (camt:998)
       add :aml_risk_score, :decimal
-      add :aml_velocity_flag, :boolean, default: false
-      add :aml_velocity_count, :integer
+      add :aml_control_flag, :boolean, default: false
+      add :aml_control_count, :integer
       add :aml_geographic_risk_flag, :boolean, default: false
 
       add :aml_high_risk_country, :string, comment: "ISO 3166-1 alpha-2 high-risk country code"

@@ -2,7 +2,7 @@ defmodule AtomicFi.LedgerEntryContext.LedgerEntry do
   use AtomicFi.Schema
 
   alias AtomicFi.AccountHolderContext.AccountHolder
-  alias AtomicFi.Extensions.Ecto.VelocityLimitArrayType
+  alias AtomicFi.Extensions.Ecto.ControlLimitArrayType
   alias AtomicFi.LedgerAccountContext.LedgerAccount
   alias AtomicFi.TenantContext.Tenant
 
@@ -13,7 +13,7 @@ defmodule AtomicFi.LedgerEntryContext.LedgerEntry do
   LedgerAccount, so `Σ debits = Σ credits`. Inserting an entry propagates its
   amount up the ledger-account ancestor chain (running balances and the flat
   `last_*_limit` columns on `ledger_account_balances`) via the
-  `ledger_entry_propagate_to_balances` trigger; if a velocity-limit CHECK
+  `ledger_entry_propagate_to_balances` trigger; if a control-limit CHECK
   constraint on `ledger_account_balances` fires, the trigger instead persists the
   entry `:voided` and records which account / period / direction / rule
   (the `rejected_*` fields). Voiding an existing entry (status → :voided)
@@ -30,8 +30,8 @@ defmodule AtomicFi.LedgerEntryContext.LedgerEntry do
   * `status` - `pending` | `posted` | `reversed` | `voided`
   * `entry_date` - ISO 20022 ValDt — value/settlement date (nullable)
   * `external_entry_id` - Opaque external SoE ID (nullable; upsert identity)
-  * `limits_at_entry` - Velocity limits (rule engine output) for this entry's leaf account — a list of `{period, direction, cap, rule}`; the trigger fans these into `ledger_account_balances.last_*_limit` for every ancestor
-  * `rejected_ledger_account_id` - FK to the LedgerAccount whose velocity limit was breached (NULL unless `:voided` for a limit)
+  * `limits_at_entry` - Control limits (rule engine output) for this entry's leaf account — a list of `{period, direction, cap, rule}`; the trigger fans these into `ledger_account_balances.last_*_limit` for every ancestor
+  * `rejected_ledger_account_id` - FK to the LedgerAccount whose control limit was breached (NULL unless `:voided` for a limit)
   * `rejected_period` - `"daily" | "weekly" | "monthly" | "yearly"` (NULL unless rejected)
   * `rejected_direction` - `"debit" | "credit"` (NULL unless rejected)
   * `rejected_rule` - the rule that set the breached cap (NULL unless rejected)
@@ -136,7 +136,7 @@ defmodule AtomicFi.LedgerEntryContext.LedgerEntry do
         }
       },
       description:
-        "Velocity limits (rule engine output) for this entry's leaf account. The trigger fans " <>
+        "Control limits (rule engine output) for this entry's leaf account. The trigger fans " <>
           "these into ledger_account_balances.last_*_limit on every ancestor."
     },
     key: :limits_at_entry
@@ -148,7 +148,7 @@ defmodule AtomicFi.LedgerEntryContext.LedgerEntry do
       format: :uuid,
       nullable: true,
       readOnly: true,
-      description: "LedgerAccount whose velocity limit was breached (NULL unless rejected)."
+      description: "LedgerAccount whose control limit was breached (NULL unless rejected)."
     },
     key: :rejected_ledger_account_id
   )
@@ -207,7 +207,7 @@ defmodule AtomicFi.LedgerEntryContext.LedgerEntry do
     title: "LedgerEntry",
     description:
       "Debit/credit line item (ISO 20022 CdtDbtInd) on a leaf LedgerAccount. Created in balanced " <>
-        "pairs (Σ debits = Σ credits). The propagate trigger rolls the amount + the entry's velocity " <>
+        "pairs (Σ debits = Σ credits). The propagate trigger rolls the amount + the entry's control " <>
         "limits up the ledger-account ancestor chain; a breached limit CHECK persists the entry " <>
         ":voided with the rejected_* details.",
     required: [:account_holder_id, :ledger_account_id, :currency, :amount, :entry_type],
@@ -249,11 +249,11 @@ defmodule AtomicFi.LedgerEntryContext.LedgerEntry do
     field :entry_date, :date
     field :external_entry_id, :string
 
-    # Velocity limits (rule engine output) for this entry's leaf account. The trigger
+    # Control limits (rule engine output) for this entry's leaf account. The trigger
     # fans these into ledger_account_balances.last_*_limit on every ancestor.
-    field :limits_at_entry, VelocityLimitArrayType, default: []
+    field :limits_at_entry, ControlLimitArrayType, default: []
 
-    # Set by the trigger when the entry is persisted :voided because a velocity-limit
+    # Set by the trigger when the entry is persisted :voided because a control-limit
     # CHECK constraint on ledger_account_balances fired. NULL when posted normally.
     belongs_to :rejected_ledger_account, LedgerAccount, foreign_key: :rejected_ledger_account_id
     field :rejected_period, :string

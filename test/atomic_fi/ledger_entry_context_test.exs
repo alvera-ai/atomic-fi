@@ -2,7 +2,7 @@ defmodule AtomicFi.LedgerEntryContextTest do
   use AtomicFi.DataCase
 
   alias AtomicFi.LedgerAccountContext
-  alias AtomicFi.LedgerAccountContext.VelocityLimit
+  alias AtomicFi.LedgerAccountContext.ControlLimit
   alias AtomicFi.LedgerEntryContext
   alias AtomicFi.LedgerEntryContext.LedgerEntry
   alias AtomicFi.OpenApiSchema.LedgerEntryRequest
@@ -10,7 +10,7 @@ defmodule AtomicFi.LedgerEntryContextTest do
 
   # ── Helpers ──────────────────────────────────────────────────────────────────
 
-  # Map legacy keyword shorthands to %VelocityLimit{}s for the composite-type array.
+  # Map legacy keyword shorthands to %ControlLimit{}s for the composite-type array.
   @limit_keys [
     {:daily_debit_limit_at_entry, "daily", "debit"},
     {:daily_credit_limit_at_entry, "daily", "credit"},
@@ -26,7 +26,7 @@ defmodule AtomicFi.LedgerEntryContextTest do
     Enum.flat_map(@limit_keys, fn {key, period, direction} ->
       case opts[key] do
         nil -> []
-        cap -> [%VelocityLimit{period: period, direction: direction, cap: cap, rule: "test"}]
+        cap -> [%ControlLimit{period: period, direction: direction, cap: cap, rule: "test"}]
       end
     end)
   end
@@ -245,20 +245,26 @@ defmodule AtomicFi.LedgerEntryContextTest do
   # ── Ancestor rollup via trigger ──────────────────────────────────────────────
 
   describe "ledger_entries ancestor balance rollup (trigger)" do
-    test "credit on leaf rolls up balance to the leaf's PA root ancestor", %{session: session} do
+    test "credit on leaf rolls up balance to every AH-chain ancestor", %{session: session} do
       # Default factory leaf = :account_holder_payment_account_regime_root,
-      # which carries the AH-PA root in ancestor_ids.
+      # which carries 3 root-first ancestors: ah_root → ah_regime → ah_pa_root.
       leaf = insert(:ledger_account, tenant_id: session.tenant_id)
-      [pa_root_id] = leaf.ancestor_ids
+      assert length(leaf.ancestor_ids) == 3
 
       assert reload_account(session, leaf).balance == 0
-      assert reload_account(session, pa_root_id).balance == 0
+
+      for anc_id <- leaf.ancestor_ids do
+        assert reload_account(session, anc_id).balance == 0
+      end
 
       req = entry_request(session, leaf, amount: 5_000, entry_type: :credit)
       assert {:ok, _} = LedgerEntryContext.create_ledger_entry(session, req)
 
       assert reload_account(session, leaf).balance == 5_000
-      assert reload_account(session, pa_root_id).balance == 5_000
+
+      for anc_id <- leaf.ancestor_ids do
+        assert reload_account(session, anc_id).balance == 5_000
+      end
     end
 
     test "credit rolls up through the full 3-ancestor chain", %{session: session} do
@@ -284,13 +290,16 @@ defmodule AtomicFi.LedgerEntryContextTest do
 
     test "voiding reverses balance on leaf AND every ancestor", %{session: session} do
       leaf = insert(:ledger_account, tenant_id: session.tenant_id)
-      [pa_root_id] = leaf.ancestor_ids
+      assert length(leaf.ancestor_ids) == 3
 
       req = entry_request(session, leaf, amount: 8_000, entry_type: :credit)
       assert {:ok, entry} = LedgerEntryContext.create_ledger_entry(session, req)
 
       assert reload_account(session, leaf).balance == 8_000
-      assert reload_account(session, pa_root_id).balance == 8_000
+
+      for anc_id <- leaf.ancestor_ids do
+        assert reload_account(session, anc_id).balance == 8_000
+      end
 
       void_request = %LedgerEntryRequest{
         account_holder_id: entry.account_holder_id,
@@ -305,7 +314,10 @@ defmodule AtomicFi.LedgerEntryContextTest do
       assert {:ok, _} = LedgerEntryContext.update_ledger_entry(session, entry, void_request)
 
       assert reload_account(session, leaf).balance == 0
-      assert reload_account(session, pa_root_id).balance == 0
+
+      for anc_id <- leaf.ancestor_ids do
+        assert reload_account(session, anc_id).balance == 0
+      end
     end
 
     test "two independent leaves under the same AH — entry on one does not affect the other",
@@ -336,10 +348,10 @@ defmodule AtomicFi.LedgerEntryContextTest do
     end
   end
 
-  # ── Velocity limit snapshots ─────────────────────────────────────────────────
+  # ── Control limit snapshots ─────────────────────────────────────────────────
 
   describe "ledger_entries limits_at_entry composite-type array" do
-    test "stores velocity limit snapshots as a velocity_limit[] on the entry row", %{
+    test "stores control limit snapshots as a control_limit[] on the entry row", %{
       session: session
     } do
       account = insert(:ledger_account, tenant_id: session.tenant_id)
@@ -357,16 +369,16 @@ defmodule AtomicFi.LedgerEntryContextTest do
       assert {:ok, entry} = LedgerEntryContext.create_ledger_entry(session, req)
       assert length(entry.limits_at_entry) == 4
 
-      assert %VelocityLimit{cap: 50_000, rule: "test"} =
+      assert %ControlLimit{cap: 50_000, rule: "test"} =
                find_limit(entry.limits_at_entry, "daily", "credit")
 
-      assert %VelocityLimit{cap: 200_000} =
+      assert %ControlLimit{cap: 200_000} =
                find_limit(entry.limits_at_entry, "weekly", "credit")
 
-      assert %VelocityLimit{cap: 500_000} =
+      assert %ControlLimit{cap: 500_000} =
                find_limit(entry.limits_at_entry, "monthly", "credit")
 
-      assert %VelocityLimit{cap: 1_000_000} =
+      assert %ControlLimit{cap: 1_000_000} =
                find_limit(entry.limits_at_entry, "yearly", "credit")
     end
 

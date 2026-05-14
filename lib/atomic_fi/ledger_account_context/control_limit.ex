@@ -1,9 +1,9 @@
-defmodule AtomicFi.LedgerAccountContext.VelocityLimit do
+defmodule AtomicFi.LedgerAccountContext.ControlLimit do
   @moduledoc """
-  One velocity-limit line: a cap for a `{period, direction}` pair, plus the
+  One control-limit line: a cap for a `{period, direction}` pair, plus the
   rule that set it. The application-side representation of the PostgreSQL
-  `velocity_limit` composite type — see `AtomicFi.Extensions.Ecto.VelocityLimitType` /
-  `VelocityLimitArrayType`.
+  `control_limit` composite type — see `AtomicFi.Extensions.Ecto.ControlLimitType` /
+  `ControlLimitArrayType`.
 
   Modeled as an `embedded_schema` so untrusted inputs (today: ZenRule's JDM
   decision result over HTTP) can be cast + validated with a real changeset
@@ -41,7 +41,7 @@ defmodule AtomicFi.LedgerAccountContext.VelocityLimit do
 
   @doc """
   Casts and validates an untrusted attrs map (string-or-atom keys) into a
-  `%VelocityLimit{}` changeset. Use `Ecto.Changeset.apply_action(:cast)` to
+  `%ControlLimit{}` changeset. Use `Ecto.Changeset.apply_action(:cast)` to
   realise the struct or surface a `%Changeset{}` error.
   """
   @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()

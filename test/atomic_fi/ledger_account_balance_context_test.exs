@@ -3,14 +3,14 @@ defmodule AtomicFi.LedgerAccountBalanceContextTest do
 
   alias AtomicFi.LedgerAccountBalanceContext
   alias AtomicFi.LedgerAccountContext
-  alias AtomicFi.LedgerAccountContext.{LedgerAccountBalance, VelocityLimit}
+  alias AtomicFi.LedgerAccountContext.{LedgerAccountBalance, ControlLimit}
   alias AtomicFi.LedgerEntryContext
   alias AtomicFi.OpenApiSchema.LedgerEntryRequest
   import AtomicFi.Factory
 
   # ── Helpers ──────────────────────────────────────────────────────────────────
 
-  # Map the eight legacy keyword-arg shorthands to %VelocityLimit{}s for the
+  # Map the eight legacy keyword-arg shorthands to %ControlLimit{}s for the
   # composite-type array. The trigger fans these into last_*_limit columns on
   # ledger_account_balances and CHECK constraints fire on breach.
   @limit_keys [
@@ -28,7 +28,7 @@ defmodule AtomicFi.LedgerAccountBalanceContextTest do
     Enum.flat_map(@limit_keys, fn {key, period, direction} ->
       case opts[key] do
         nil -> []
-        cap -> [%VelocityLimit{period: period, direction: direction, cap: cap, rule: "test"}]
+        cap -> [%ControlLimit{period: period, direction: direction, cap: cap, rule: "test"}]
       end
     end)
   end
@@ -294,9 +294,9 @@ defmodule AtomicFi.LedgerAccountBalanceContextTest do
     end
   end
 
-  # ── Velocity limit CHECK constraint enforcement ──────────────────────────────
+  # ── Control limit CHECK constraint enforcement ──────────────────────────────
 
-  describe "velocity limit CHECK constraint enforcement (DB-level)" do
+  describe "control limit CHECK constraint enforcement (DB-level)" do
     test "credit within daily_credit_limit succeeds", %{session: session} do
       account = leaf_account(session)
       assert {:ok, _} = credit(session, account, 1_000, daily_credit_limit: 50_000)

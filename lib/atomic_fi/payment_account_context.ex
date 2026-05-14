@@ -122,6 +122,9 @@ defmodule AtomicFi.PaymentAccountContext do
     Repo.transaction(
       fn ->
         with {:ok, pa} <- Repo.insert_or_update(changeset, session: session),
+             ah <-
+               AtomicFi.AccountHolderContext.get_account_holder!(session, pa.account_holder_id),
+             :ok <- LedgerAccountContext.ensure_linked_ledger_accounts(session, ah),
              :ok <- LedgerAccountContext.ensure_linked_ledger_accounts(session, pa) do
           pa
         else

@@ -33,7 +33,7 @@ defmodule AtomicFi.Repo.Migrations.CreateLedgerEntries do
       # Opaque external SoE identifier (nullable — upsert identity)
       add :external_entry_id, :string
 
-      # ── Velocity limit snapshots (set by orchestration layer from risk engine) ─────
+      # ── Control limit snapshots (set by orchestration layer from risk engine) ─────
       # These are audit records of what limits were in effect at time of entry creation.
       # The trigger reads these columns and copies them to ledger_account_balances.last_*_limit
       # so CHECK constraints on the balance table reflect the most recent risk engine decision.

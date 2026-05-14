@@ -16,10 +16,10 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccountBalance do
   - `weekly_debit` / `weekly_credit` — week-to-date cumulative totals (iso_week + year)
   - `monthly_debit` / `monthly_credit` — month-to-date cumulative totals
   - `yearly_debit` / `yearly_credit` — year-to-date cumulative totals
-  - `last_*_limit` — most recent velocity limits from the risk engine (propagated
+  - `last_*_limit` — most recent control limits from the risk engine (propagated
     from ledger_entry.*_limit_at_entry). Used by DB CHECK constraints.
 
-  Velocity limit enforcement is entirely DB-driven:
+  Control limit enforcement is entirely DB-driven:
       CHECK (last_daily_debit_limit IS NULL OR daily_debit <= last_daily_debit_limit)
   The application never enforces limits directly.
 
@@ -267,7 +267,7 @@ defmodule AtomicFi.LedgerAccountContext.LedgerAccountBalance do
       "Daily balance snapshot for a LedgerAccount. " <>
         "Created and updated entirely by the ledger_entry_propagate_to_balances trigger. " <>
         "Each row carries day/week/month/year cumulative totals and last known risk engine limits. " <>
-        "Velocity limits are enforced via DB CHECK constraints on last_*_limit columns.",
+        "Control limits are enforced via DB CHECK constraints on last_*_limit columns.",
     required: [:ledger_account_id],
     properties: [
       :id,

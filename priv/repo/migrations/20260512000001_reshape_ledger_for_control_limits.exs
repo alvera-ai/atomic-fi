@@ -1,9 +1,9 @@
-defmodule AtomicFi.Repo.Migrations.ReshapeLedgerForVelocityLimits do
+defmodule AtomicFi.Repo.Migrations.ReshapeLedgerForControlLimits do
   use Ecto.Migration
 
-  # Reshape the ledger machinery for rule-engine (ZenRule) velocity limits.
+  # Reshape the ledger machinery for rule-engine (ZenRule) control limits.
   #
-  #   * NEW composite type  velocity_limit (period varchar, direction varchar, cap bigint, rule varchar)
+  #   * NEW composite type  control_limit (period varchar, direction varchar, cap bigint, rule varchar)
   #   * ledger_accounts  : drop GAAP account_type (+ its unique); add regime (generic; mandatory —
   #                        Ecto sets it incl. a sentinel for the root / "all" nodes), payment_account_id
   #                        / counterparty_id FKs (NULL on the AccountHolder root); 3 partial unique
@@ -11,7 +11,7 @@ defmodule AtomicFi.Repo.Migrations.ReshapeLedgerForVelocityLimits do
   #                        LedgerAccount per (entity, regime); each tracks both credit & debit
   #                        balances via the existing ledger_account_balances columns.)
   #   * payment_accounts : add enabled_regimes (text[]) — drives the LA tree built at PA create time.
-  #   * ledger_entries   : drop the 8 *_limit_at_entry int cols → limits_at_entry velocity_limit[]
+  #   * ledger_entries   : drop the 8 *_limit_at_entry int cols → limits_at_entry control_limit[]
   #                        (the rule engine's output for this entry's leaf account: a list of
   #                        {period, direction, cap, rule}).
   #   * ledger_account_balances : UNCHANGED — keeps the 8 flat cumulative cols, the 8 flat
@@ -29,7 +29,7 @@ defmodule AtomicFi.Repo.Migrations.ReshapeLedgerForVelocityLimits do
   def up do
     execute("""
     DO $$ BEGIN
-      CREATE TYPE velocity_limit AS (period varchar, direction varchar, cap bigint, rule varchar);
+      CREATE TYPE control_limit AS (period varchar, direction varchar, cap bigint, rule varchar);
     EXCEPTION WHEN duplicate_object THEN null;
     END $$;
     """)
@@ -78,7 +78,7 @@ defmodule AtomicFi.Repo.Migrations.ReshapeLedgerForVelocityLimits do
 
     # ── ledger_entries ─────────────────────────────────────────────────────────
     alter table(:ledger_entries) do
-      add :limits_at_entry, {:array, :velocity_limit}
+      add :limits_at_entry, {:array, :control_limit}
       remove :daily_debit_limit_at_entry
       remove :weekly_debit_limit_at_entry
       remove :monthly_debit_limit_at_entry
@@ -103,7 +103,7 @@ defmodule AtomicFi.Repo.Migrations.ReshapeLedgerForVelocityLimits do
   def down do
     raise Ecto.MigrationError,
       message:
-        "ReshapeLedgerForVelocityLimits is not reversible — restore from a backup if needed."
+        "ReshapeLedgerForControlLimits is not reversible — restore from a backup if needed."
   end
 
   defp new_trigger_fn do
@@ -113,7 +113,7 @@ defmodule AtomicFi.Repo.Migrations.ReshapeLedgerForVelocityLimits do
     DECLARE
       v_debit_delta   INTEGER := 0;
       v_credit_delta  INTEGER := 0;
-      v_limits        velocity_limit[];
+      v_limits        control_limit[];
       v_ancestor_ids  UUID[];
       v_account_ids   UUID[];
       v_account_id    UUID;
@@ -121,17 +121,19 @@ defmodule AtomicFi.Repo.Migrations.ReshapeLedgerForVelocityLimits do
       v_constraint    TEXT;
       v_period        TEXT;
       v_direction     TEXT;
+      v_blocked_id    UUID;
+      v_block_reason  TEXT;
       v_today         DATE    := (NOW() AT TIME ZONE 'UTC')::DATE;
       v_iso_week      INTEGER := EXTRACT(WEEK  FROM (NOW() AT TIME ZONE 'UTC'))::INTEGER;
       v_month         INTEGER := EXTRACT(MONTH FROM (NOW() AT TIME ZONE 'UTC'))::INTEGER;
       v_year          INTEGER := EXTRACT(YEAR  FROM (NOW() AT TIME ZONE 'UTC'))::INTEGER;
-      v_pw_d INTEGER; v_pw_c INTEGER;
-      v_pm_d INTEGER; v_pm_c INTEGER;
-      v_py_d INTEGER; v_py_c INTEGER;
-      v_ld_d BIGINT; v_ld_c BIGINT;
-      v_lw_d BIGINT; v_lw_c BIGINT;
-      v_lm_d BIGINT; v_lm_c BIGINT;
-      v_ly_d BIGINT; v_ly_c BIGINT;
+      v_prior_weekly_debit INTEGER; v_prior_weekly_credit INTEGER;
+      v_prior_monthly_debit INTEGER; v_prior_monthly_credit INTEGER;
+      v_prior_yearly_debit INTEGER; v_prior_yearly_credit INTEGER;
+      v_daily_debit_cap BIGINT; v_daily_credit_cap BIGINT;
+      v_weekly_debit_cap BIGINT; v_weekly_credit_cap BIGINT;
+      v_monthly_debit_cap BIGINT; v_monthly_credit_cap BIGINT;
+      v_yearly_debit_cap BIGINT; v_yearly_credit_cap BIGINT;
     BEGIN
       IF TG_OP = 'INSERT' THEN
         -- A rejected entry (inserted already :voided) moves nothing.
@@ -149,18 +151,60 @@ defmodule AtomicFi.Repo.Migrations.ReshapeLedgerForVelocityLimits do
         RETURN NEW;
       END IF;
 
-      -- Fan the entry's velocity_limit[] out into the 8 flat per-period/direction caps.
-      v_ld_d := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'daily'   AND l.direction = 'debit'  LIMIT 1);
-      v_ld_c := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'daily'   AND l.direction = 'credit' LIMIT 1);
-      v_lw_d := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'weekly'  AND l.direction = 'debit'  LIMIT 1);
-      v_lw_c := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'weekly'  AND l.direction = 'credit' LIMIT 1);
-      v_lm_d := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'monthly' AND l.direction = 'debit'  LIMIT 1);
-      v_lm_c := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'monthly' AND l.direction = 'credit' LIMIT 1);
-      v_ly_d := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'yearly'  AND l.direction = 'debit'  LIMIT 1);
-      v_ly_c := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'yearly'  AND l.direction = 'credit' LIMIT 1);
+      -- Fan the entry's control_limit[] out into the 8 flat per-period/direction caps.
+      v_daily_debit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'daily'   AND l.direction = 'debit'  LIMIT 1);
+      v_daily_credit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'daily'   AND l.direction = 'credit' LIMIT 1);
+      v_weekly_debit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'weekly'  AND l.direction = 'debit'  LIMIT 1);
+      v_weekly_credit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'weekly'  AND l.direction = 'credit' LIMIT 1);
+      v_monthly_debit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'monthly' AND l.direction = 'debit'  LIMIT 1);
+      v_monthly_credit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'monthly' AND l.direction = 'credit' LIMIT 1);
+      v_yearly_debit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'yearly'  AND l.direction = 'debit'  LIMIT 1);
+      v_yearly_credit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'yearly'  AND l.direction = 'credit' LIMIT 1);
 
       SELECT ancestor_ids INTO v_ancestor_ids FROM ledger_accounts WHERE id = NEW.ledger_account_id;
       v_account_ids := ARRAY[NEW.ledger_account_id] || COALESCE(v_ancestor_ids, ARRAY[]::UUID[]);
+
+      -- Belt: if any LA in the chain (self + ancestors) is_blocked, void
+      -- this entry without doing any balance work. Records which LA
+      -- caused the rejection + the configured block_reason.
+      SELECT id, block_reason
+      INTO v_blocked_id, v_block_reason
+      FROM ledger_accounts
+      WHERE id = ANY(v_account_ids) AND is_blocked = TRUE
+      ORDER BY array_position(v_account_ids, id)
+      LIMIT 1;
+
+      IF v_blocked_id IS NOT NULL THEN
+        NEW.status                     := 'voided';
+        NEW.rejected_ledger_account_id := v_blocked_id;
+        NEW.rejected_code              := 'BLOCKED';
+        NEW.rejected_rule              := v_block_reason;
+        RETURN NEW;
+      END IF;
+
+      -- Suspenders: tighten the entry's per-txn caps with the LA's hard
+      -- onboarding-time max_*. LEAST treats NULL as "no constraint", so
+      -- either side being NULL falls through to the other; both NULL =
+      -- truly unconstrained.
+      -- Suspenders: tighten the entry's per-txn caps with the LA's hard
+      -- onboarding-time max_*. LEAST treats NULL as "no constraint" — if
+      -- either side is NULL the other wins; both NULL = truly unconstrained.
+      SELECT
+        LEAST(MIN(max_daily_debit),   v_daily_debit_cap),
+        LEAST(MIN(max_daily_credit),  v_daily_credit_cap),
+        LEAST(MIN(max_weekly_debit),  v_weekly_debit_cap),
+        LEAST(MIN(max_weekly_credit), v_weekly_credit_cap),
+        LEAST(MIN(max_monthly_debit), v_monthly_debit_cap),
+        LEAST(MIN(max_monthly_credit),v_monthly_credit_cap),
+        LEAST(MIN(max_yearly_debit),  v_yearly_debit_cap),
+        LEAST(MIN(max_yearly_credit), v_yearly_credit_cap)
+      INTO
+        v_daily_debit_cap,   v_daily_credit_cap,
+        v_weekly_debit_cap,  v_weekly_credit_cap,
+        v_monthly_debit_cap, v_monthly_credit_cap,
+        v_yearly_debit_cap,  v_yearly_credit_cap
+      FROM ledger_accounts
+      WHERE id = ANY(v_account_ids);
 
       BEGIN
         -- Running net balance on the leaf + all ancestors (credit = +, debit = -).
@@ -172,17 +216,17 @@ defmodule AtomicFi.Repo.Migrations.ReshapeLedgerForVelocityLimits do
           v_breach_node := v_account_id;  -- in case the next UPSERT trips a CHECK on this node
 
           SELECT COALESCE(SUM(daily_debit), 0), COALESCE(SUM(daily_credit), 0)
-          INTO v_pw_d, v_pw_c
+          INTO v_prior_weekly_debit, v_prior_weekly_credit
           FROM ledger_account_balances
           WHERE ledger_account_id = v_account_id AND iso_week = v_iso_week AND year = v_year AND balance_date != v_today;
 
           SELECT COALESCE(SUM(daily_debit), 0), COALESCE(SUM(daily_credit), 0)
-          INTO v_pm_d, v_pm_c
+          INTO v_prior_monthly_debit, v_prior_monthly_credit
           FROM ledger_account_balances
           WHERE ledger_account_id = v_account_id AND month = v_month AND year = v_year AND balance_date != v_today;
 
           SELECT COALESCE(SUM(daily_debit), 0), COALESCE(SUM(daily_credit), 0)
-          INTO v_py_d, v_py_c
+          INTO v_prior_yearly_debit, v_prior_yearly_credit
           FROM ledger_account_balances
           WHERE ledger_account_id = v_account_id AND year = v_year AND balance_date != v_today;
 
@@ -197,21 +241,21 @@ defmodule AtomicFi.Repo.Migrations.ReshapeLedgerForVelocityLimits do
              inserted_at, updated_at)
           SELECT gen_random_uuid(), v_account_id, la.tenant_id, v_today, v_iso_week, v_month, v_year,
             v_debit_delta, v_credit_delta,
-            v_pw_d + v_debit_delta, v_pw_c + v_credit_delta,
-            v_pm_d + v_debit_delta, v_pm_c + v_credit_delta,
-            v_py_d + v_debit_delta, v_py_c + v_credit_delta,
-            v_ld_d, v_ld_c, v_lw_d, v_lw_c, v_lm_d, v_lm_c, v_ly_d, v_ly_c,
+            v_prior_weekly_debit + v_debit_delta, v_prior_weekly_credit + v_credit_delta,
+            v_prior_monthly_debit + v_debit_delta, v_prior_monthly_credit + v_credit_delta,
+            v_prior_yearly_debit + v_debit_delta, v_prior_yearly_credit + v_credit_delta,
+            v_daily_debit_cap, v_daily_credit_cap, v_weekly_debit_cap, v_weekly_credit_cap, v_monthly_debit_cap, v_monthly_credit_cap, v_yearly_debit_cap, v_yearly_credit_cap,
             NOW(), NOW()
           FROM ledger_accounts la WHERE la.id = v_account_id
           ON CONFLICT (ledger_account_id, balance_date) DO UPDATE SET
             daily_debit    = ledger_account_balances.daily_debit   + EXCLUDED.daily_debit,
             daily_credit   = ledger_account_balances.daily_credit  + EXCLUDED.daily_credit,
-            weekly_debit   = v_pw_d + ledger_account_balances.daily_debit  + EXCLUDED.daily_debit,
-            weekly_credit  = v_pw_c + ledger_account_balances.daily_credit + EXCLUDED.daily_credit,
-            monthly_debit  = v_pm_d + ledger_account_balances.daily_debit  + EXCLUDED.daily_debit,
-            monthly_credit = v_pm_c + ledger_account_balances.daily_credit + EXCLUDED.daily_credit,
-            yearly_debit   = v_py_d + ledger_account_balances.daily_debit  + EXCLUDED.daily_debit,
-            yearly_credit  = v_py_c + ledger_account_balances.daily_credit + EXCLUDED.daily_credit,
+            weekly_debit   = v_prior_weekly_debit + ledger_account_balances.daily_debit  + EXCLUDED.daily_debit,
+            weekly_credit  = v_prior_weekly_credit + ledger_account_balances.daily_credit + EXCLUDED.daily_credit,
+            monthly_debit  = v_prior_monthly_debit + ledger_account_balances.daily_debit  + EXCLUDED.daily_debit,
+            monthly_credit = v_prior_monthly_credit + ledger_account_balances.daily_credit + EXCLUDED.daily_credit,
+            yearly_debit   = v_prior_yearly_debit + ledger_account_balances.daily_debit  + EXCLUDED.daily_debit,
+            yearly_credit  = v_prior_yearly_credit + ledger_account_balances.daily_credit + EXCLUDED.daily_credit,
             last_daily_debit_limit    = COALESCE(EXCLUDED.last_daily_debit_limit,    ledger_account_balances.last_daily_debit_limit),
             last_daily_credit_limit   = COALESCE(EXCLUDED.last_daily_credit_limit,   ledger_account_balances.last_daily_credit_limit),
             last_weekly_debit_limit   = COALESCE(EXCLUDED.last_weekly_debit_limit,   ledger_account_balances.last_weekly_debit_limit),

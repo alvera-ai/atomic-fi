@@ -18,6 +18,7 @@ defmodule AtomicFi.LedgerAccountContext do
   import Ecto.Query, warn: false
   use AtomicFi.LoggerMacro
 
+  alias AtomicFi.AccountHolderContext.AccountHolder
   alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.LedgerAccountContext.LedgerAccount
   alias AtomicFi.LedgerContext.Ledger
@@ -199,8 +200,31 @@ defmodule AtomicFi.LedgerAccountContext do
   (`ledger_id, la_type, regime, payment_account_id, counterparty_id`) and
   inserts only when missing. Re-running for the same entity is a no-op.
   """
-  @spec ensure_linked_ledger_accounts(Session.t(), PaymentAccount.t() | Counterparty.t()) ::
-          :ok | {:error, term()}
+  @spec ensure_linked_ledger_accounts(
+          Session.t(),
+          AccountHolder.t() | PaymentAccount.t() | Counterparty.t()
+        ) :: :ok | {:error, term()}
+  def_with_rls_and_logging ensure_linked_ledger_accounts(session, %AccountHolder{} = ah),
+    log_fields: [:ah] do
+    ah.id
+    |> ah_ledgers(session)
+    |> Enum.reduce(Multi.new(), fn ledger, multi ->
+      base = la_base(ah.id, ledger.id, ledger.currency, ah.tenant_id)
+
+      multi
+      |> upsert_step({:ah_root, ledger.id}, session, base, :account_holder_root, "root", nil, nil)
+      |> upsert_regime_steps(
+        session,
+        :account_holder_regime_root,
+        ah.enabled_regimes,
+        nil,
+        nil,
+        ledger.id
+      )
+    end)
+    |> run_multi(session)
+  end
+
   def_with_rls_and_logging ensure_linked_ledger_accounts(session, %PaymentAccount{} = pa),
     log_fields: [:pa] do
     ledger = ah_ledger!(session, pa.account_holder_id, pa.currency)

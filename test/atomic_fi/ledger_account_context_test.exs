@@ -156,20 +156,32 @@ defmodule AtomicFi.LedgerAccountContextTest do
       assert cp_regime.ancestor_ids == [cp_root.id]
     end
 
-    test ":account_holder_payment_account_regime_root resolves the ah-pa-root as its ancestor",
+    test ":account_holder_payment_account_regime_root resolves the full AH chain root-first",
          %{session: session} do
       ledger = ledger_for(session)
       pa = pa_for(session, ledger)
 
-      assert {:ok, pa_root} =
-               LedgerAccountContext.create_ledger_account(
-                 session,
-                 request_for(session, ledger, %{
-                   la_type: :account_holder_payment_account_root,
-                   regime: "root",
-                   payment_account_id: pa.id
-                 })
-               )
+      {:ok, ah_root} =
+        LedgerAccountContext.create_ledger_account(
+          session,
+          request_for(session, ledger, %{la_type: :account_holder_root, regime: "root"})
+        )
+
+      {:ok, ah_regime} =
+        LedgerAccountContext.create_ledger_account(
+          session,
+          request_for(session, ledger, %{la_type: :account_holder_regime_root, regime: "ach"})
+        )
+
+      {:ok, pa_root} =
+        LedgerAccountContext.create_ledger_account(
+          session,
+          request_for(session, ledger, %{
+            la_type: :account_holder_payment_account_root,
+            regime: "root",
+            payment_account_id: pa.id
+          })
+        )
 
       assert {:ok, pa_regime} =
                LedgerAccountContext.create_ledger_account(
@@ -181,7 +193,7 @@ defmodule AtomicFi.LedgerAccountContextTest do
                  })
                )
 
-      assert pa_regime.ancestor_ids == [pa_root.id]
+      assert pa_regime.ancestor_ids == [ah_root.id, ah_regime.id, pa_root.id]
     end
 
     test ":counter_party_payment_account_regime_root resolves the full 3-deep chain root-first",
@@ -282,6 +294,12 @@ defmodule AtomicFi.LedgerAccountContextTest do
       ledger = ledger_for(session)
       pa = pa_for(session, ledger)
 
+      {:ok, _ah_root} =
+        LedgerAccountContext.create_ledger_account(
+          session,
+          request_for(session, ledger, %{la_type: :account_holder_root, regime: "root"})
+        )
+
       {:ok, pa_root} =
         LedgerAccountContext.create_ledger_account(
           session,
@@ -290,6 +308,12 @@ defmodule AtomicFi.LedgerAccountContextTest do
             regime: "root",
             payment_account_id: pa.id
           })
+        )
+
+      {:ok, _ah_regime} =
+        LedgerAccountContext.create_ledger_account(
+          session,
+          request_for(session, ledger, %{la_type: :account_holder_regime_root, regime: "ach"})
         )
 
       {:ok, pa_regime} =

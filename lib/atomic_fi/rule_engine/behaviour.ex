@@ -1,9 +1,9 @@
 defmodule AtomicFi.RuleEngine.Behaviour do
   @moduledoc """
-  Domain-level contract for the velocity/limits rule engine.
+  Domain-level contract for the control/limits rule engine.
 
   Implementations take a fully-preloaded domain entity (today: `%Transaction{}`
-  with its debtor/creditor PA + CP + AH chain) and return velocity limits
+  with its debtor/creditor PA + CP + AH chain) and return control limits
   keyed by `ledger_account_id`. Implementations are pure with respect to
   persistence — callers (`AtomicFi.TransactionContext`,
   `AtomicFi.AccountHolderContext`, `AtomicFi.CounterpartyContext`) write the

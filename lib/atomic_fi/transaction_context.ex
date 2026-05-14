@@ -94,7 +94,7 @@ defmodule AtomicFi.TransactionContext do
 
   1. Insert the transaction `:pending`.
   2. Preload the entity tree (`#{inspect(@rule_engine_preloads)}`).
-  3. `RuleEngine.get_limits(transaction)` → `%{ledger_account_id => [VelocityLimit.t()]}`
+  3. `RuleEngine.get_limits(transaction)` → `%{ledger_account_id => [ControlLimit.t()]}`
      (the rule engine maps `transaction_type → regime` and returns limits for the leaf
      ledger accounts in play, plus their ancestors).
   4. `LedgerEntryContext.create_entries/3` posts the balanced debit/credit pair, carrying
@@ -109,7 +109,7 @@ defmodule AtomicFi.TransactionContext do
       iex> create_transaction(session, %{field: value})
       {:ok, %Transaction{status: :accepted}}
 
-      iex> create_transaction(session, %{...amount over a velocity limit...})
+      iex> create_transaction(session, %{...amount over a control limit...})
       {:ok, %Transaction{status: :rejected, rejected_rule: "...", ...}}
 
   """
@@ -145,7 +145,7 @@ defmodule AtomicFi.TransactionContext do
   end
 
   # Maps the posted/voided ledger-entry pair to the transaction's resulting status
-  # (+ denormalised rejection metadata when a velocity limit was hit).
+  # (+ denormalised rejection metadata when a control limit was hit).
   defp transaction_outcome(entries) do
     case Enum.find(entries, &(&1.status == :voided)) do
       nil ->

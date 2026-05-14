@@ -3,7 +3,7 @@ defmodule AtomicFi.Repo.Migrations.AddRejectionMetadataToLedgerEntries do
 
   def change do
     alter table(:ledger_entries) do
-      # When create_entries inserts an entry :voided because a rule engine velocity
+      # When create_entries inserts an entry :voided because a rule engine control
       # limit was hit, these record which ledger account / period / direction / rule.
       # All NULL when the entry posted normally.
       add :rejected_ledger_account_id,

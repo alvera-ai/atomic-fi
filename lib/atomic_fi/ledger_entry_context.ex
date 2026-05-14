@@ -8,8 +8,8 @@ defmodule AtomicFi.LedgerEntryContext do
   - INSERT (non-voided): walks `ledger_account.ancestor_ids || self`, increments
     `ledger_accounts.balance` (credit = +, debit = –) and upserts
     `ledger_account_balances` rows for the leaf + every ancestor, fanning the entry's
-    `limits_at_entry` (`velocity_limit[]`) into the flat `last_*_limit` columns. If a
-    velocity-limit CHECK constraint fires, the trigger persists the entry `:voided`
+    `limits_at_entry` (`control_limit[]`) into the flat `last_*_limit` columns. If a
+    control-limit CHECK constraint fires, the trigger persists the entry `:voided`
     and records `rejected_*` (which account / period / direction / rule).
   - INSERT (already `:voided`): no-op (used by `create_entries/3` to re-record a
     rejected pair without moving balances).
@@ -22,7 +22,7 @@ defmodule AtomicFi.LedgerEntryContext do
   use AtomicFi.LoggerMacro
 
   alias AtomicFi.LedgerAccountContext.LedgerAccount
-  alias AtomicFi.LedgerAccountContext.VelocityLimit
+  alias AtomicFi.LedgerAccountContext.ControlLimit
   alias AtomicFi.LedgerEntryContext.LedgerEntry
   alias AtomicFi.OpenApiSchema.LedgerEntryRequest
   alias AtomicFi.Repo
@@ -78,7 +78,7 @@ defmodule AtomicFi.LedgerEntryContext do
   - Upserts ledger_account_balances rows for the direct account and all ancestors
   - Copies *_limit_at_entry to last_*_limit on balance rows (for CHECK constraint enforcement)
 
-  Velocity limit snapshots (*_limit_at_entry) must be set on the request by the
+  Control limit snapshots (*_limit_at_entry) must be set on the request by the
   orchestration layer from the risk engine before calling this function. NULL = unconstrained.
 
   ## Examples
@@ -105,12 +105,12 @@ defmodule AtomicFi.LedgerEntryContext do
   whichever id in `controls` belongs to that side's PaymentAccount and is a regime
   leaf. `Σ debits = Σ credits` by construction.
 
-  Internally we fan each `Control` into 0–8 `VelocityLimit{}` structs (one per
+  Internally we fan each `Control` into 0–8 `ControlLimit{}` structs (one per
   non-nil cap slot) and write them to `LedgerEntry.limits_at_entry` — the
   ledger-storage shape the trigger already understands.
 
   The BEFORE-INSERT trigger fans each entry's limits up its ancestor chain; if a
-  velocity-limit CHECK fires the trigger persists *that* entry `:voided` with
+  control-limit CHECK fires the trigger persists *that* entry `:voided` with
   `rejected_*`. If either of the pair comes back `:voided`, the whole pair is
   re-recorded `:voided` (carrying the same `rejected_*`) — nothing posts, so the
   ledger stays balanced.
@@ -197,9 +197,9 @@ defmodule AtomicFi.LedgerEntryContext do
   end
 
   # Translation boundary: RuleEngine speaks Control (one struct per LA with
-  # 8 named caps + reason); the ledger speaks VelocityLimit (one struct per
+  # 8 named caps + reason); the ledger speaks ControlLimit (one struct per
   # period/direction/cap with the rule string). Fan a Control into 0–8
-  # VelocityLimits — one per non-nil slot.
+  # ControlLimits — one per non-nil slot.
   defp controls_to_limits(nil), do: []
 
   defp controls_to_limits(%Control{} = c) do
@@ -215,7 +215,7 @@ defmodule AtomicFi.LedgerEntryContext do
     ]
     |> Enum.reject(fn {_, _, cap} -> is_nil(cap) end)
     |> Enum.map(fn {period, direction, cap} ->
-      %VelocityLimit{
+      %ControlLimit{
         period: period,
         direction: direction,
         cap: cap,

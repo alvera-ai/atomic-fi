@@ -18,7 +18,7 @@ defmodule AtomicFi.LegalEntityChangeEventContext do
 
   Primary signal source for **account takeover** detection:
   - SIM swap: rapid `phone_change` events
-  - Address velocity: multiple `address_change` events in a short window
+  - Address control: multiple `address_change` events in a short window
   - Pre-transfer grooming: `beneficiary_added` or `authorised_signer_change` before
     a large outgoing payment
 

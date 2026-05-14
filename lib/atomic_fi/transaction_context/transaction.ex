@@ -55,7 +55,7 @@ defmodule AtomicFi.TransactionContext.Transaction do
   * `requested_execution_date` - pain:001 ReqdExctnDt
   * `settlement_date` - Actual settlement date (pacs:008 IntrBkSttlmDt / camt:054 BookgDt)
   * `transaction_external_id` - Caller-supplied SoE upsert key (unique per tenant when set)
-  * `rejected_ledger_account_id` - FK to the LedgerAccount whose velocity limit was breached (NULL unless `:rejected` for a limit)
+  * `rejected_ledger_account_id` - FK to the LedgerAccount whose control limit was breached (NULL unless `:rejected` for a limit)
   * `rejected_period` - `"daily" | "weekly" | "monthly" | "yearly"` (NULL unless rejected)
   * `rejected_direction` - `"debit" | "credit"` (NULL unless rejected)
   * `rejected_rule` - the rule that set the breached cap (NULL unless rejected)
@@ -213,14 +213,14 @@ defmodule AtomicFi.TransactionContext.Transaction do
   )
 
   # Rejection metadata, denormalised from the offending ledger entry — populated when
-  # the transaction is :rejected because a rule engine velocity limit was hit. NULL otherwise.
+  # the transaction is :rejected because a rule engine control limit was hit. NULL otherwise.
   open_api_property(
     schema: %Schema{
       type: :string,
       format: :uuid,
       nullable: true,
       readOnly: true,
-      description: "LedgerAccount whose velocity limit was breached (NULL unless rejected)."
+      description: "LedgerAccount whose control limit was breached (NULL unless rejected)."
     },
     key: :rejected_ledger_account_id
   )
@@ -405,7 +405,7 @@ defmodule AtomicFi.TransactionContext.Transaction do
     field :transaction_external_id, :string
 
     # Rejection metadata, denormalised from the offending ledger entry. Set by the
-    # orchestration layer when the transaction is :rejected for a velocity limit.
+    # orchestration layer when the transaction is :rejected for a control limit.
     belongs_to :rejected_ledger_account, LedgerAccount, foreign_key: :rejected_ledger_account_id
     field :rejected_period, :string
     field :rejected_direction, :string
