@@ -1,0 +1,17 @@
+diff --git a/dist/index.js b/dist/index.js
+index 50cfa01640cdbb608ead3e00d1c82dc8b1033de9..8580bbbe2d39c8b9fd2f10657c5db03f7e9ad24c 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -12913,7 +12913,11 @@ const Uc = ({
+               () => Xo(
+                 {
+                   traceData: f?.trace,
+-                  output: f?.result
++                  output: f?.result,
++                  // atomic-fi patch: expose the input-node's output (= request
++                  // context) as the Graph view's input, so the Input tab isn't
++                  // empty when the top-level "Graph" entry is selected.
++                  input: Object.entries(f?.trace ?? {}).find(([nid]) => y?.[nid] === W.Input)?.[1]?.output
+                 },
+                 i ?? "Output"
+                 /* Output */
