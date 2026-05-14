@@ -120,6 +120,24 @@ defmodule AtomicFi.RulesContext do
   end
 
   @doc """
+  Upserts `<root>/<rule_type>/<name>` with raw `bytes`. Creates the
+  parent directory if missing. Used by the REST PUT endpoint where the
+  caller doesn't need to distinguish create vs. update — the file
+  contents are the source of truth either way.
+  """
+  @spec upsert_rule(Session.t(), rule_type(), name(), binary()) :: :ok | {:error, term()}
+  def_with_rls_and_logging upsert_rule(_session, rule_type, name, bytes),
+    log_fields: [:rule_type, :name] do
+    rule_type = validate_rule_type!(rule_type)
+    path = Path.join(type_dir(rule_type), name)
+
+    with :ok <- validate_name(name),
+         :ok <- File.mkdir_p(Path.dirname(path)) do
+      File.write(path, bytes)
+    end
+  end
+
+  @doc """
   Deletes `<root>/<rule_type>/<name>`. No-ops when the file is already
   absent (returns `:ok`).
   """

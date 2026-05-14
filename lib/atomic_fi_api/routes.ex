@@ -106,6 +106,13 @@ defmodule AtomicFiApi.Routes do
         put "/counterparties/:id", CounterpartyController, :update
         delete "/counterparties/:id", CounterpartyController, :delete
 
+        # Rule (JDM) file CRUD — thin REST shim over RulesContext / shared
+        # ZenRule volume. rule_type is the kebab-case folder slug.
+        get "/rules/:rule_type", RuleController, :index
+        get "/rules/:rule_type/:name", RuleController, :show
+        put "/rules/:rule_type/:name", RuleController, :update
+        delete "/rules/:rule_type/:name", RuleController, :delete
+
         # KYC requirement CRUD endpoints (FATF CDD/EDD/wire/UBO compliance verification)
         get "/kyc-requirements", KycRequirementController, :index
         get "/kyc-requirements/:id", KycRequirementController, :show
