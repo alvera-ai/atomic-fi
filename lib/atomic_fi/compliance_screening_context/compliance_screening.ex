@@ -111,7 +111,10 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
   )
 
   open_api_property(
-    schema: %Schema{type: :string, enum: ["individual", "company"]},
+    schema: %Schema{
+      type: :string,
+      enum: ["individual", "company", "crypto_address", "payment_account"]
+    },
     key: :screened_entity_type
   )
 
@@ -195,7 +198,10 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
   )
 
   # Entity references (account_holder is always set; others are soft refs)
-  open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :account_holder_id)
+  open_api_property(
+    schema: %Schema{type: :string, format: :uuid, nullable: true},
+    key: :account_holder_id
+  )
 
   open_api_property(
     schema: %Schema{type: :string, format: :uuid, nullable: true},
@@ -295,7 +301,9 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
 
     field :screening_score, :decimal
 
-    field :screened_entity_type, Ecto.Enum, values: [:individual, :company]
+    field :screened_entity_type, Ecto.Enum,
+      values: [:individual, :company, :crypto_address, :payment_account]
+
     field :screened_entity_name, :string
     field :match_count, :integer, default: 0
 

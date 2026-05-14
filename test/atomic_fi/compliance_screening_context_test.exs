@@ -5,6 +5,10 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
   alias AtomicFi.ComplianceScreeningContext.BlocklistMatch
   alias AtomicFi.ComplianceScreeningContext.ComplianceScreening
   alias AtomicFi.ComplianceScreeningContext.SanctionsMatch
+  alias AtomicFi.OpenApiSchema.AccountHolderRequest
+  alias AtomicFi.OpenApiSchema.BeneficialOwnerRequest
+  alias AtomicFi.OpenApiSchema.CounterpartyRequest
+  alias AtomicFi.OpenApiSchema.PaymentAccountRequest
 
   import AtomicFi.Factory
 
@@ -502,257 +506,362 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
   # Run `make backing-services` to start Watchman before running these tests.
   # ---------------------------------------------------------------------------
 
-  describe "screen_account_holder/2" do
-    test "screens a clean individual and returns pass or potential_match", %{session: session} do
-      session = init_session_cache(%{session: session})
+  # ---------------------------------------------------------------------------
+  # Stateless preview screening — *Request in, unsaved %ComplianceScreening{} out
+  # ---------------------------------------------------------------------------
 
-      legal_entity =
-        insert(:legal_entity,
-          tenant_id: session.tenant_id,
+  describe "screen_account_holder/2 (preview)" do
+    test "AHRequest with inline individual LE → unsaved struct with :pending status",
+         %{session: session} do
+      _ = init_session_cache(%{session: session})
+
+      request = %AccountHolderRequest{
+        tenant_id: session.tenant_id,
+        holder_type: :individual,
+        legal_entity: %{
           first_name: "Alice",
-          last_name: "Smith"
-        )
+          last_name: "Smith",
+          legal_entity_type: :individual
+        }
+      }
 
-      account_holder =
-        insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
+      assert {:ok, %ComplianceScreening{} = screening} =
+               ComplianceScreeningContext.screen_account_holder(session, request)
 
-      assert {:ok, [screening]} =
-               ComplianceScreeningContext.screen_account_holder(session, %{
-                 account_holder_id: account_holder.id
-               })
-
-      assert %ComplianceScreening{} = screening
+      assert is_nil(screening.id)
+      assert is_nil(screening.tenant_id)
+      assert is_nil(screening.account_holder_id)
       assert screening.scope == :account_holder
       assert screening.screening_type == :sanctions
+      assert screening.screening_status == :pending
       assert screening.screened_entity_type == :individual
       assert screening.screened_entity_name == "Alice Smith"
-      assert screening.account_holder_id == account_holder.id
-      assert screening.tenant_id == session.tenant_id
-      assert screening.screening_status in [:pass, :potential_match, :blocked]
     end
 
-    test "screens a blocklisted individual and returns blocked", %{session: session} do
-      session = init_session_cache(%{session: session})
+    test "blocklisted individual surfaces a blocklist_match (status stays :pending)",
+         %{session: session} do
+      _ = init_session_cache(%{session: session})
       seed_blocklist_for_tenant(session.tenant_id)
 
-      legal_entity =
-        insert(:legal_entity, tenant_id: session.tenant_id, first_name: "John", last_name: "Doe")
+      request = %AccountHolderRequest{
+        tenant_id: session.tenant_id,
+        holder_type: :individual,
+        legal_entity: %{
+          first_name: "John",
+          last_name: "Doe",
+          legal_entity_type: :individual
+        }
+      }
 
-      account_holder =
-        insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
+      assert {:ok, %ComplianceScreening{} = screening} =
+               ComplianceScreeningContext.screen_account_holder(session, request)
 
-      assert {:ok, [screening]} =
-               ComplianceScreeningContext.screen_account_holder(session, %{
-                 account_holder_id: account_holder.id
-               })
-
-      assert screening.screening_status == :blocked
+      assert screening.screening_status == :pending
+      refute screening.blocklist_matches == []
       assert screening.screened_entity_type == :individual
       assert screening.screened_entity_name == "John Doe"
     end
 
-    test "screens a blocklisted business and returns blocked", %{session: session} do
-      session = init_session_cache(%{session: session})
+    test "AHRequest with inline business LE → :company entity type", %{session: session} do
+      _ = init_session_cache(%{session: session})
       seed_blocklist_for_tenant(session.tenant_id)
 
-      legal_entity =
-        insert(:business_legal_entity, tenant_id: session.tenant_id, business_name: "Acme")
+      request = %AccountHolderRequest{
+        tenant_id: session.tenant_id,
+        holder_type: :business,
+        legal_entity: %{
+          business_name: "Acme",
+          legal_entity_type: :business
+        }
+      }
 
-      account_holder =
-        insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
+      assert {:ok, screening} =
+               ComplianceScreeningContext.screen_account_holder(session, request)
 
-      assert {:ok, [screening]} =
-               ComplianceScreeningContext.screen_account_holder(session, %{
-                 account_holder_id: account_holder.id
-               })
-
-      assert screening.screening_status == :blocked
       assert screening.screened_entity_type == :company
       assert screening.screened_entity_name == "Acme"
+      refute screening.blocklist_matches == []
     end
 
-    test "screens a known sanctioned individual and returns potential_match or blocked", %{
-      session: session
-    } do
-      session = init_session_cache(%{session: session})
+    test "Vladimir Putin produces sanctions_matches", %{session: session} do
+      _ = init_session_cache(%{session: session})
 
-      legal_entity =
-        insert(:legal_entity,
-          tenant_id: session.tenant_id,
+      request = %AccountHolderRequest{
+        tenant_id: session.tenant_id,
+        holder_type: :individual,
+        legal_entity: %{
           first_name: "Vladimir",
-          last_name: "Putin"
-        )
+          last_name: "Putin",
+          legal_entity_type: :individual
+        }
+      }
 
-      account_holder =
-        insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
+      assert {:ok, screening} =
+               ComplianceScreeningContext.screen_account_holder(session, request)
 
-      assert {:ok, [screening]} =
-               ComplianceScreeningContext.screen_account_holder(session, %{
-                 account_holder_id: account_holder.id
-               })
-
-      assert screening.screening_status in [:potential_match, :blocked]
       assert screening.match_count > 0
       assert screening.sanctions_matches != []
     end
+  end
 
-    test "auto-suppresses previously overridden source_ids", %{session: session} do
-      session = init_session_cache(%{session: session})
+  describe "screen_beneficial_owner/2 (preview)" do
+    test "BORequest with inline LE → unsaved %CS{} with scope :beneficial_owner",
+         %{session: session} do
+      _ = init_session_cache(%{session: session})
 
-      legal_entity =
-        insert(:legal_entity,
-          tenant_id: session.tenant_id,
-          first_name: "Vladimir",
-          last_name: "Putin"
-        )
+      request = %BeneficialOwnerRequest{
+        tenant_id: session.tenant_id,
+        account_holder_id: Ecto.UUID.generate(),
+        control_type: :shareholder,
+        legal_entity: %{
+          first_name: "Clara",
+          last_name: "Bennet",
+          legal_entity_type: :individual
+        }
+      }
 
-      account_holder =
-        insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
+      assert {:ok, %ComplianceScreening{} = screening} =
+               ComplianceScreeningContext.screen_beneficial_owner(session, request)
 
-      request = %{account_holder_id: account_holder.id}
-
-      {:ok, [first_screening]} =
-        ComplianceScreeningContext.screen_account_holder(session, request)
-
-      # Mark the first sanctions match as a manual_override
-      {:ok, {[sm | _], _}} =
-        ComplianceScreeningContext.list_sanctions_matches(session, first_screening.id)
-
-      {:ok, _} =
-        ComplianceScreeningContext.update_sanctions_match(session, sm, %{
-          false_positive_qualifier: :manual_override
-        })
-
-      # Re-screen — the overridden source_id should be auto_suppressed
-      {:ok, [second_screening]} =
-        ComplianceScreeningContext.screen_account_holder(session, request)
-
-      {:ok, {second_matches, _}} =
-        ComplianceScreeningContext.list_sanctions_matches(session, second_screening.id)
-
-      suppressed = Enum.find(second_matches, &(&1.source_id == sm.source_id))
-
-      if suppressed do
-        assert suppressed.false_positive_qualifier == :auto_suppressed
-      end
+      assert is_nil(screening.id)
+      assert screening.scope == :beneficial_owner
+      assert screening.screened_entity_name == "Clara Bennet"
+      assert screening.screening_status == :pending
     end
   end
 
-  describe "screen_beneficial_owner/2" do
-    test "screens a clean individual beneficial owner and returns pass or potential_match", %{
-      session: session
-    } do
-      session = init_session_cache(%{session: session})
+  describe "screen_counterparty/2 (preview)" do
+    test "CPRequest with inline LE → unsaved %CS{} with scope :counterparty",
+         %{session: session} do
+      _ = init_session_cache(%{session: session})
+
+      request = %CounterpartyRequest{
+        tenant_id: session.tenant_id,
+        account_holder_id: Ecto.UUID.generate(),
+        legal_entity: %{
+          first_name: "Maria",
+          last_name: "Garcia",
+          legal_entity_type: :individual
+        }
+      }
+
+      assert {:ok, %ComplianceScreening{} = screening} =
+               ComplianceScreeningContext.screen_counterparty(session, request)
+
+      assert is_nil(screening.id)
+      assert screening.scope == :counterparty
+      assert screening.screened_entity_name == "Maria Garcia"
+      assert screening.screening_status == :pending
+    end
+
+    test "blocklisted business CP surfaces a blocklist_match", %{session: session} do
+      _ = init_session_cache(%{session: session})
+      seed_blocklist_for_tenant(session.tenant_id)
+
+      request = %CounterpartyRequest{
+        tenant_id: session.tenant_id,
+        account_holder_id: Ecto.UUID.generate(),
+        legal_entity: %{
+          business_name: "Acme",
+          legal_entity_type: :business
+        }
+      }
+
+      assert {:ok, screening} =
+               ComplianceScreeningContext.screen_counterparty(session, request)
+
+      assert screening.scope == :counterparty
+      refute screening.blocklist_matches == []
+    end
+  end
+
+  describe "screen_payment_account/2 (preview)" do
+    test "non-crypto rail returns a no-screen :pending result", %{session: session} do
+      _ = init_session_cache(%{session: session})
+
+      request = %PaymentAccountRequest{
+        tenant_id: session.tenant_id,
+        account_type: :bank_account,
+        currency: "USD",
+        account_holder_id: Ecto.UUID.generate()
+      }
+
+      assert {:ok, %ComplianceScreening{} = screening} =
+               ComplianceScreeningContext.screen_payment_account(session, request)
+
+      assert screening.scope == :payment_account
+      assert screening.screening_status == :pending
+      assert screening.match_count == 0
+      assert screening.sanctions_matches == []
+    end
+
+    test "crypto wallet hits Watchman", %{session: session} do
+      _ = init_session_cache(%{session: session})
+
+      request = %PaymentAccountRequest{
+        tenant_id: session.tenant_id,
+        account_type: :crypto_wallet,
+        currency: "BTC",
+        wallet_address: "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+        wallet_chain: "XBT",
+        account_holder_id: Ecto.UUID.generate()
+      }
+
+      assert {:ok, %ComplianceScreening{} = screening} =
+               ComplianceScreeningContext.screen_payment_account(session, request)
+
+      assert screening.scope == :payment_account
+      assert screening.screened_entity_type == :crypto_address
+      assert screening.screening_status == :pending
+    end
+  end
+
+  describe "record_screening/3 (onboarding persistence)" do
+    test "AH scope — persists with account_holder_id FK", %{session: session} do
+      _ = init_session_cache(%{session: session})
+
+      request = %AccountHolderRequest{
+        tenant_id: session.tenant_id,
+        holder_type: :individual,
+        legal_entity: %{
+          first_name: "Alice",
+          last_name: "Smith",
+          legal_entity_type: :individual
+        }
+      }
+
+      {:ok, unsaved} = ComplianceScreeningContext.screen_account_holder(session, request)
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
-      legal_entity =
+      assert {:ok, %ComplianceScreening{} = persisted} =
+               ComplianceScreeningContext.record_screening(session, unsaved, %{
+                 account_holder_id: account_holder.id
+               })
+
+      refute is_nil(persisted.id)
+      assert persisted.tenant_id == session.tenant_id
+      assert persisted.account_holder_id == account_holder.id
+      assert persisted.scope == :account_holder
+      assert persisted.screened_entity_name == "Alice Smith"
+    end
+
+    test "CP scope — persists with counterparty_id + account_holder_id FKs",
+         %{session: session} do
+      _ = init_session_cache(%{session: session})
+      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+
+      counterparty_le =
+        insert(:business_legal_entity,
+          tenant_id: session.tenant_id,
+          business_name: "Acme Corp #{System.unique_integer([:positive])}"
+        )
+
+      counterparty =
+        insert(:counterparty,
+          tenant_id: session.tenant_id,
+          account_holder_id: account_holder.id,
+          legal_entity_id: counterparty_le.id
+        )
+
+      request = %CounterpartyRequest{
+        tenant_id: session.tenant_id,
+        account_holder_id: account_holder.id,
+        legal_entity: %{
+          business_name: counterparty_le.business_name,
+          legal_entity_type: :business
+        }
+      }
+
+      {:ok, unsaved} = ComplianceScreeningContext.screen_counterparty(session, request)
+
+      assert {:ok, %ComplianceScreening{} = persisted} =
+               ComplianceScreeningContext.record_screening(session, unsaved, %{
+                 account_holder_id: account_holder.id,
+                 counterparty_id: counterparty.id
+               })
+
+      refute is_nil(persisted.id)
+      assert persisted.scope == :counterparty
+      assert persisted.account_holder_id == account_holder.id
+      assert persisted.counterparty_id == counterparty.id
+    end
+
+    test "BO scope — persists with beneficial_owner_id + account_holder_id FKs",
+         %{session: session} do
+      _ = init_session_cache(%{session: session})
+      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+
+      bo_legal_entity =
         insert(:legal_entity,
           tenant_id: session.tenant_id,
           first_name: "Clara",
-          last_name: "Bennet"
+          last_name: "Bennet#{System.unique_integer([:positive])}"
         )
 
       beneficial_owner =
         insert(:beneficial_owner,
           tenant_id: session.tenant_id,
           account_holder_id: account_holder.id,
-          legal_entity_id: legal_entity.id
+          legal_entity_id: bo_legal_entity.id
         )
 
-      assert {:ok, [screening]} =
-               ComplianceScreeningContext.screen_beneficial_owner(session, %{
+      request = %BeneficialOwnerRequest{
+        tenant_id: session.tenant_id,
+        account_holder_id: account_holder.id,
+        control_type: :shareholder,
+        legal_entity: %{
+          first_name: bo_legal_entity.first_name,
+          last_name: bo_legal_entity.last_name,
+          legal_entity_type: :individual
+        }
+      }
+
+      {:ok, unsaved} = ComplianceScreeningContext.screen_beneficial_owner(session, request)
+
+      assert {:ok, %ComplianceScreening{} = persisted} =
+               ComplianceScreeningContext.record_screening(session, unsaved, %{
                  account_holder_id: account_holder.id,
                  beneficial_owner_id: beneficial_owner.id
                })
 
-      assert %ComplianceScreening{} = screening
-      assert screening.scope == :beneficial_owner
-      assert screening.screened_entity_name == "Clara Bennet"
-      assert screening.screening_status in [:pass, :potential_match, :blocked]
+      refute is_nil(persisted.id)
+      assert persisted.scope == :beneficial_owner
+      assert persisted.account_holder_id == account_holder.id
+      assert persisted.beneficial_owner_id == beneficial_owner.id
     end
 
-    test "screens a blocklisted beneficial owner and returns blocked", %{session: session} do
-      session = init_session_cache(%{session: session})
-      seed_blocklist_for_tenant(session.tenant_id)
+    test "PA scope — persists with payment_account_id + account_holder_id FKs",
+         %{session: session} do
+      _ = init_session_cache(%{session: session})
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
-      legal_entity =
-        insert(:legal_entity, tenant_id: session.tenant_id, first_name: "John", last_name: "Doe")
-
-      beneficial_owner =
-        insert(:beneficial_owner,
+      payment_account =
+        insert(:payment_account,
           tenant_id: session.tenant_id,
           account_holder_id: account_holder.id,
-          legal_entity_id: legal_entity.id
+          account_type: :bank_account,
+          currency: "USD"
         )
 
-      assert {:ok, [screening]} =
-               ComplianceScreeningContext.screen_beneficial_owner(session, %{
+      request = %PaymentAccountRequest{
+        tenant_id: session.tenant_id,
+        account_type: :bank_account,
+        currency: "USD",
+        account_holder_id: account_holder.id
+      }
+
+      {:ok, unsaved} = ComplianceScreeningContext.screen_payment_account(session, request)
+
+      assert {:ok, %ComplianceScreening{} = persisted} =
+               ComplianceScreeningContext.record_screening(session, unsaved, %{
                  account_holder_id: account_holder.id,
-                 beneficial_owner_id: beneficial_owner.id
+                 payment_account_id: payment_account.id
                })
 
-      assert screening.screening_status == :blocked
-    end
-  end
-
-  describe "screen_counterparty/2" do
-    test "screens a clean individual counterparty and returns pass or potential_match", %{
-      session: session
-    } do
-      session = init_session_cache(%{session: session})
-      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
-
-      legal_entity =
-        insert(:legal_entity,
-          tenant_id: session.tenant_id,
-          first_name: "Maria",
-          last_name: "Garcia"
-        )
-
-      counterparty =
-        insert(:counterparty,
-          tenant_id: session.tenant_id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: legal_entity.id
-        )
-
-      assert {:ok, [screening]} =
-               ComplianceScreeningContext.screen_counterparty(session, %{
-                 account_holder_id: account_holder.id,
-                 counterparty_id: counterparty.id
-               })
-
-      assert %ComplianceScreening{} = screening
-      assert screening.scope == :counterparty
-      assert screening.counterparty_id == counterparty.id
-      assert screening.account_holder_id == account_holder.id
-      assert screening.screened_entity_name == "Maria Garcia"
-    end
-
-    test "screens a blocklisted company counterparty and returns blocked", %{session: session} do
-      session = init_session_cache(%{session: session})
-      seed_blocklist_for_tenant(session.tenant_id)
-      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
-
-      legal_entity =
-        insert(:business_legal_entity, tenant_id: session.tenant_id, business_name: "Acme")
-
-      counterparty =
-        insert(:counterparty,
-          tenant_id: session.tenant_id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: legal_entity.id
-        )
-
-      assert {:ok, [screening]} =
-               ComplianceScreeningContext.screen_counterparty(session, %{
-                 account_holder_id: account_holder.id,
-                 counterparty_id: counterparty.id
-               })
-
-      assert screening.screening_status == :blocked
-      assert screening.scope == :counterparty
+      refute is_nil(persisted.id)
+      assert persisted.scope == :payment_account
+      assert persisted.account_holder_id == account_holder.id
+      assert persisted.payment_account_id == payment_account.id
     end
   end
 end

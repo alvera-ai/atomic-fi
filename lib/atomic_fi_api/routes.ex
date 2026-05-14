@@ -78,6 +78,10 @@ defmodule AtomicFiApi.Routes do
              ComplianceScreeningController,
              :screen_counterparty
 
+        post "/compliance-screenings/screen-payment-account",
+             ComplianceScreeningController,
+             :screen_payment_account
+
         # Legal entity CRUD endpoints (PUT only for full replacement semantics)
         get "/legal-entities", LegalEntityController, :index
         get "/legal-entities/:id", LegalEntityController, :show

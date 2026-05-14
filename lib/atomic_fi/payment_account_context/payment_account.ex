@@ -162,6 +162,29 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
     schema: %Schema{
       type: :string,
       nullable: true,
+      description:
+        "On-chain wallet address (the actual identifier funds settle to). " <>
+          "Set together with wallet_chain when account_type = :crypto_wallet."
+    },
+    key: :wallet_address
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      nullable: true,
+      description:
+        "Blockchain / asset ticker the wallet_address lives on " <>
+          "(e.g. \"BTC\", \"ETH\", \"TRON\"). Disambiguates same-format " <>
+          "addresses across chains."
+    },
+    key: :wallet_chain
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      nullable: true,
       description: "Opaque internal payment account number"
     },
     key: :payment_account_number
@@ -229,6 +252,8 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
       :swift_bic,
       :bank_name,
       :card_pan,
+      :wallet_address,
+      :wallet_chain,
       :payment_account_number,
       :payment_account_external_id,
       :account_holder_id,
@@ -258,6 +283,12 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
     field :swift_bic, :string
     field :bank_name, :string
     field :card_pan, :string
+
+    # Crypto-wallet rail (account_type :crypto_wallet). wallet_chain
+    # disambiguates same-format addresses across chains (e.g. USDT on
+    # ETH vs TRON). Both must be set together for the on-chain screen.
+    field :wallet_address, :string
+    field :wallet_chain, :string
 
     # Identifiers
     field :payment_account_number, :string
@@ -295,6 +326,8 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
       :swift_bic,
       :bank_name,
       :card_pan,
+      :wallet_address,
+      :wallet_chain,
       :payment_account_number,
       :payment_account_external_id,
       :account_holder_id,

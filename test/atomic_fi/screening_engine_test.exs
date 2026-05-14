@@ -6,11 +6,13 @@ defmodule AtomicFi.ScreeningEngineTest do
   alias AtomicFi.BlocklistContext.BlocklistEntry
   alias AtomicFi.CounterpartyContext
   alias AtomicFi.BlocklistContext.BlocklistCache
+  alias AtomicFi.ComplianceScreeningContext.ComplianceScreening
+  alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.ScreeningEngine
 
-  # Entity-shaped public API is the only seam. Internal screen_individual /
-  # screen_company are private; Watchman is hit through Watchman.Client.
-  # Live :8084 Watchman is exercised by these tests.
+  # Engine returns unsaved %ComplianceScreening{} structs (id nil, tenant_id nil,
+  # FKs nil — persistence is the caller's job). Status is always :pending; the
+  # rule engine interprets the facts (matches + scores).
 
   defp insert_blocklist_entry(tenant_id, scope, term) do
     Repo.insert!(
@@ -24,31 +26,6 @@ defmodule AtomicFi.ScreeningEngineTest do
       },
       skip_multi_tenancy_check: true
     )
-  end
-
-  describe "determine_overall_status/1" do
-    test "returns :blocked when any result is blocked" do
-      results = [
-        %{screening_status: :pass},
-        %{screening_status: :blocked},
-        %{screening_status: :potential_match}
-      ]
-
-      assert ScreeningEngine.determine_overall_status(results) == :blocked
-    end
-
-    test "returns :potential_match when no blocked but at least one potential_match" do
-      results = [%{screening_status: :pass}, %{screening_status: :potential_match}]
-      assert ScreeningEngine.determine_overall_status(results) == :potential_match
-    end
-
-    test "returns :pass when all are pass" do
-      assert ScreeningEngine.determine_overall_status([%{screening_status: :pass}]) == :pass
-    end
-
-    test "returns :pass for an empty list" do
-      assert ScreeningEngine.determine_overall_status([]) == :pass
-    end
   end
 
   describe "get_watchman_list_info/0 (live Watchman)" do
@@ -67,7 +44,7 @@ defmodule AtomicFi.ScreeningEngineTest do
       :ok
     end
 
-    test "returns a :blocked result with blocklist_matches", %{session: session} do
+    test "returns a :pending result with blocklist_matches", %{session: session} do
       legal_entity =
         insert(:legal_entity,
           tenant_id: session.tenant_id,
@@ -78,11 +55,15 @@ defmodule AtomicFi.ScreeningEngineTest do
       ah = insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
       ah = AccountHolderContext.get_account_holder!(session, ah.id)
 
-      assert {:ok, result} = ScreeningEngine.screen_account_holder(session, ah)
+      assert {:ok, %ComplianceScreening{} = result} =
+               ScreeningEngine.screen_account_holder(session, ah)
 
-      assert result.entity_type == :individual
-      assert result.entity_name == "Blocked Person"
-      assert result.screening_status == :blocked
+      assert is_nil(result.id)
+      assert result.scope == :account_holder
+      assert result.screening_type == :sanctions
+      assert result.screening_status == :pending
+      assert result.screened_entity_type == :individual
+      assert result.screened_entity_name == "Blocked Person"
       assert result.sanctions_matches == []
       assert length(result.blocklist_matches) >= 1
       assert hd(result.blocklist_matches).scope == :first_name
@@ -96,7 +77,7 @@ defmodule AtomicFi.ScreeningEngineTest do
       :ok
     end
 
-    test "returns :blocked with company-name match", %{session: session} do
+    test "returns :pending with company-name match", %{session: session} do
       legal_entity =
         insert(:business_legal_entity, tenant_id: session.tenant_id, business_name: "ACME Corp")
 
@@ -105,10 +86,12 @@ defmodule AtomicFi.ScreeningEngineTest do
 
       cp = CounterpartyContext.get_counterparty!(session, cp.id)
 
-      assert {:ok, result} = ScreeningEngine.screen_counterparty(session, cp)
+      assert {:ok, %ComplianceScreening{} = result} =
+               ScreeningEngine.screen_counterparty(session, cp)
 
-      assert result.entity_type == :company
-      assert result.screening_status == :blocked
+      assert result.scope == :counterparty
+      assert result.screened_entity_type == :company
+      assert result.screening_status == :pending
       assert length(result.blocklist_matches) == 1
     end
   end
@@ -119,7 +102,8 @@ defmodule AtomicFi.ScreeningEngineTest do
       :ok
     end
 
-    test "clean name passes through Watchman to a :pass-shape result", %{session: session} do
+    test "clean name passes through Watchman with zero active matches",
+         %{session: session} do
       legal_entity =
         insert(:legal_entity,
           tenant_id: session.tenant_id,
@@ -130,15 +114,16 @@ defmodule AtomicFi.ScreeningEngineTest do
       ah = insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
       ah = AccountHolderContext.get_account_holder!(session, ah.id)
 
-      assert {:ok, result} = ScreeningEngine.screen_account_holder(session, ah)
+      assert {:ok, %ComplianceScreening{} = result} =
+               ScreeningEngine.screen_account_holder(session, ah)
 
-      assert result.entity_type == :individual
+      assert result.screened_entity_type == :individual
       assert result.blocklist_matches == []
-      assert result.screening_status in [:pass, :potential_match, :blocked]
+      assert result.screening_status == :pending
       assert %DateTime{} = result.screened_at
     end
 
-    test "sanctioned name (Vladimir Putin) yields hits with normalized person/address data",
+    test "sanctioned name (Vladimir Putin) yields hits with normalized person data",
          %{session: session} do
       legal_entity =
         insert(:legal_entity,
@@ -150,12 +135,13 @@ defmodule AtomicFi.ScreeningEngineTest do
       ah = insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
       ah = AccountHolderContext.get_account_holder!(session, ah.id)
 
-      assert {:ok, result} = ScreeningEngine.screen_account_holder(session, ah)
+      assert {:ok, %ComplianceScreening{} = result} =
+               ScreeningEngine.screen_account_holder(session, ah)
 
-      assert result.entity_type == :individual
-      assert result.screening_status in [:potential_match, :blocked]
+      assert result.screened_entity_type == :individual
+      assert result.screening_status == :pending
       assert result.match_count > 0
-      assert is_float(result.screening_score)
+      assert %Decimal{} = result.screening_score
       assert Enum.any?(result.sanctions_matches, fn m -> is_binary(m.source_list) end)
     end
   end
@@ -176,11 +162,12 @@ defmodule AtomicFi.ScreeningEngineTest do
       cp = insert(:counterparty, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
       cp = CounterpartyContext.get_counterparty!(session, cp.id)
 
-      assert {:ok, result} = ScreeningEngine.screen_counterparty(session, cp)
+      assert {:ok, %ComplianceScreening{} = result} =
+               ScreeningEngine.screen_counterparty(session, cp)
 
-      assert result.entity_type == :company
+      assert result.screened_entity_type == :company
       assert result.blocklist_matches == []
-      assert result.screening_status in [:pass, :potential_match, :blocked]
+      assert result.screening_status == :pending
     end
 
     test "sanctioned business (Wagner Group) returns matches with normalized business_data",
@@ -194,8 +181,10 @@ defmodule AtomicFi.ScreeningEngineTest do
       cp = insert(:counterparty, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
       cp = CounterpartyContext.get_counterparty!(session, cp.id)
 
-      assert {:ok, result} = ScreeningEngine.screen_counterparty(session, cp)
-      assert result.entity_type == :company
+      assert {:ok, %ComplianceScreening{} = result} =
+               ScreeningEngine.screen_counterparty(session, cp)
+
+      assert result.screened_entity_type == :company
       assert result.match_count > 0
     end
   end
@@ -206,7 +195,7 @@ defmodule AtomicFi.ScreeningEngineTest do
       :ok
     end
 
-    test "screens a clean BO and returns a result", %{session: session} do
+    test "screens a clean BO and returns a :pending result", %{session: session} do
       bo_legal_entity =
         insert(:legal_entity,
           tenant_id: session.tenant_id,
@@ -222,22 +211,57 @@ defmodule AtomicFi.ScreeningEngineTest do
 
       bo = BeneficialOwnerContext.get_beneficial_owner!(session, bo.id)
 
-      assert {:ok, result} = ScreeningEngine.screen_beneficial_owner(session, bo)
-      assert result.entity_type == :individual
-      assert result.screening_status in [:pass, :potential_match, :blocked]
+      assert {:ok, %ComplianceScreening{} = result} =
+               ScreeningEngine.screen_beneficial_owner(session, bo)
+
+      assert result.scope == :beneficial_owner
+      assert result.screened_entity_type == :individual
+      assert result.screening_status == :pending
+    end
+  end
+
+  describe "screen_payment_account/3 — crypto wallet path" do
+    setup %{tenant: tenant} do
+      BlocklistCache.refresh_tenant_cache(tenant.id)
+      :ok
+    end
+
+    test "non-crypto PA returns a no-screen :pending result", %{session: session} do
+      pa = %PaymentAccount{
+        account_type: :bank_account,
+        tenant_id: session.tenant_id
+      }
+
+      assert {:ok, %ComplianceScreening{} = result} =
+               ScreeningEngine.screen_payment_account(session, pa)
+
+      assert result.scope == :payment_account
+      assert result.screened_entity_type == :payment_account
+      assert result.screened_entity_name == "non-crypto-payment-account-bypass"
+      assert result.screening_status == :pending
+      assert result.match_count == 0
+      assert result.sanctions_matches == []
+    end
+
+    test "crypto wallet hits Watchman with cryptoAddress search param",
+         %{session: session} do
+      pa = %PaymentAccount{
+        account_type: :crypto_wallet,
+        wallet_address: "1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfNa",
+        wallet_chain: "XBT",
+        tenant_id: session.tenant_id
+      }
+
+      assert {:ok, %ComplianceScreening{} = result} =
+               ScreeningEngine.screen_payment_account(session, pa)
+
+      assert result.scope == :payment_account
+      assert result.screened_entity_type == :crypto_address
+      assert result.screening_status == :pending
     end
   end
 
   describe "unimplemented callbacks" do
-    test "screen_payment_account/3 raises", %{session: session} do
-      assert_raise RuntimeError, ~r/not implemented yet/, fn ->
-        ScreeningEngine.screen_payment_account(
-          session,
-          %AtomicFi.PaymentAccountContext.PaymentAccount{}
-        )
-      end
-    end
-
     test "screen_transaction/3 raises", %{session: session} do
       assert_raise RuntimeError, ~r/not implemented yet/, fn ->
         ScreeningEngine.screen_transaction(session, %AtomicFi.TransactionContext.Transaction{})

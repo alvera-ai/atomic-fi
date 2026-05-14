@@ -4,21 +4,25 @@ defmodule AtomicFi.ScreeningEngine.Default do
   Watchman sanctions screening for atomic-fi's domain entities.
 
   Wired in via `AtomicFi.ScreeningEngine` (the public
-  dispatcher). Pure of persistence — callers
-  (`AtomicFi.ComplianceScreeningContext`) persist the resulting
-  `ComplianceScreening` rows in their own DB transaction.
+  dispatcher). Pure of persistence — every callback returns an unsaved
+  `%ComplianceScreening{}` struct (id, tenant_id, FKs all nil). Persistence
+  is the caller's job: preview controllers return the struct as-is, the
+  onboarding flow sets the entity FKs + tenant_id and calls
+  `ComplianceScreeningContext.record_screening/3` to insert.
 
   All public methods take a fully-preloaded domain struct (AccountHolder,
   BeneficialOwner, Counterparty, PaymentAccount, Transaction) and return
-  a normalized `screening_result()` map. Watchman-shaped internals stop
-  at this module's gate.
+  a normalized `%ComplianceScreening{}` carrying nested `%SanctionsMatch{}`
+  + `%BlocklistMatch{}` rows. Watchman-shaped internals stop at this
+  module's gate.
 
   ## False Positive Deduplication
 
   Reads the tenant's suppressed Watchman `source_id`s from prior
   `SanctionsMatch` rows tagged `:manual_override` or `:auto_suppressed`.
-  Matches against those IDs are included in the result but flagged
-  `suppressed: true`.
+  Matches against those IDs are included with
+  `false_positive_qualifier: :auto_suppressed` and excluded from
+  `screening_score` calculation.
   """
 
   @behaviour AtomicFi.ScreeningEngine.Behaviour
@@ -27,6 +31,8 @@ defmodule AtomicFi.ScreeningEngine.Default do
 
   alias AtomicFi.AccountHolderContext.AccountHolder
   alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
+  alias AtomicFi.ComplianceScreeningContext.BlocklistMatch
+  alias AtomicFi.ComplianceScreeningContext.ComplianceScreening
   alias AtomicFi.ComplianceScreeningContext.SanctionsMatch
   alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.BlocklistContext.{BlocklistCache, BlocklistValidator}
@@ -35,86 +41,6 @@ defmodule AtomicFi.ScreeningEngine.Default do
   alias AtomicFi.Repo
   alias AtomicFi.TransactionContext.Transaction
   alias AtomicFi.Watchman.Client
-
-  # ── public types ──────────────────────────────────────────────────────────
-
-  @type individual_attrs :: %{
-          first_name: String.t(),
-          last_name: String.t(),
-          birth_date: String.t() | nil,
-          gender: String.t() | nil
-        }
-
-  @type company_attrs :: %{
-          name: String.t(),
-          created: String.t() | nil,
-          dissolved: String.t() | nil
-        }
-
-  @type watchman_address :: %{
-          line1: String.t() | nil,
-          line2: String.t() | nil,
-          city: String.t() | nil,
-          region: String.t() | nil,
-          postal_code: String.t() | nil,
-          country: String.t() | nil,
-          type: String.t() | nil
-        }
-
-  @type watchman_business :: %{
-          name: String.t() | nil,
-          registration_number: String.t() | nil,
-          incorporation_date: String.t() | nil,
-          dissolved_date: String.t() | nil
-        }
-
-  @type watchman_person :: %{
-          given_name: String.t() | nil,
-          family_name: String.t() | nil,
-          dob: String.t() | nil,
-          gender: String.t() | nil,
-          nationalities: [String.t()]
-        }
-
-  @type watchman_contact :: %{
-          emails: [String.t()],
-          phones: [String.t()],
-          websites: [String.t()]
-        }
-
-  @type sanctions_match_result :: %{
-          matched_name: String.t(),
-          matched_entity_type: String.t() | nil,
-          match_score: float(),
-          sanctions_match_type: :exact | :fuzzy | :ubo | :entity,
-          source_list: String.t(),
-          source_id: String.t() | nil,
-          addresses: [watchman_address()],
-          business_data: watchman_business() | nil,
-          person_data: watchman_person() | nil,
-          contact_data: watchman_contact() | nil,
-          source_data: map() | nil,
-          suppressed: boolean()
-        }
-
-  @type blocklist_match_result :: %{
-          matched_term: String.t(),
-          match_type: :exact | :regex,
-          scope: :first_name | :last_name | :company_name,
-          reason: String.t(),
-          blocklist_updated_at: DateTime.t() | nil
-        }
-
-  @type screening_result :: %{
-          entity_type: :individual | :company,
-          entity_name: String.t(),
-          screening_status: :pass | :potential_match | :blocked,
-          match_count: non_neg_integer(),
-          screening_score: float() | nil,
-          screened_at: DateTime.t(),
-          sanctions_matches: [sanctions_match_result()],
-          blocklist_matches: [blocklist_match_result()]
-        }
 
   @type list_info :: %{started_at: DateTime.t(), lists: term(), version: term()}
 
@@ -141,22 +67,22 @@ defmodule AtomicFi.ScreeningEngine.Default do
 
   @impl true
   def screen_account_holder(session, %AccountHolder{} = ah, _opts \\ []) do
-    do_screen(session, ah.legal_entity)
+    screen_party(session, ah.legal_entity, :account_holder)
   end
 
   @impl true
   def screen_beneficial_owner(session, %BeneficialOwner{} = bo, _opts \\ []) do
-    do_screen(session, bo.legal_entity)
+    screen_party(session, bo.legal_entity, :beneficial_owner)
   end
 
   @impl true
   def screen_counterparty(session, %Counterparty{} = cp, _opts \\ []) do
-    do_screen(session, cp.legal_entity)
+    screen_party(session, cp.legal_entity, :counterparty)
   end
 
   @impl true
-  def screen_payment_account(_session, %PaymentAccount{} = _pa, _opts \\ []) do
-    raise "AtomicFi.ScreeningEngine.screen_payment_account/3 is not implemented yet"
+  def screen_payment_account(session, %PaymentAccount{} = pa, _opts \\ []) do
+    screen_pa(session, pa)
   end
 
   @impl true
@@ -164,31 +90,19 @@ defmodule AtomicFi.ScreeningEngine.Default do
     raise "AtomicFi.ScreeningEngine.screen_transaction/3 is not implemented yet"
   end
 
-  # ── public non-behaviour helper ───────────────────────────────────────────
+  # ── private: party (AH / BO / CP) screening via LegalEntity ───────────────
 
-  @doc """
-  Determine the overall screening status from a list of screening results.
+  defp screen_party(%{tenant_id: tenant_id}, %LegalEntity{} = legal_entity, scope) do
+    with {:ok, list_info} <- AtomicFi.ScreeningEngine.get_watchman_list_info() do
+      suppressed_ids = fetch_suppressed_source_ids(tenant_id)
 
-  Precedence: `blocked` > `potential_match` > `pass`. Not part of the
-  Behaviour because it's a pure function; callers use it directly.
-  """
-  @spec determine_overall_status([screening_result()]) :: :pass | :potential_match | :blocked
-  def determine_overall_status(results) do
-    cond do
-      Enum.any?(results, &(&1.screening_status == :blocked)) -> :blocked
-      Enum.any?(results, &(&1.screening_status == :potential_match)) -> :potential_match
-      true -> :pass
-    end
-  end
+      case legal_entity_to_watchman_entity(legal_entity) do
+        {:individual, attrs} ->
+          screen_individual(scope, tenant_id, attrs, suppressed_ids, list_info)
 
-  # ── private: entity → watchman-shaped dispatch ────────────────────────────
-
-  defp do_screen(%{tenant_id: tenant_id}, %LegalEntity{} = legal_entity) do
-    suppressed_ids = fetch_suppressed_source_ids(tenant_id)
-
-    case legal_entity_to_watchman_entity(legal_entity) do
-      {:individual, attrs} -> screen_individual(tenant_id, attrs, suppressed_ids)
-      {:company, attrs} -> screen_company(tenant_id, attrs, suppressed_ids)
+        {:company, attrs} ->
+          screen_company(scope, tenant_id, attrs, suppressed_ids, list_info)
+      end
     end
   end
 
@@ -224,118 +138,110 @@ defmodule AtomicFi.ScreeningEngine.Default do
     |> MapSet.new()
   end
 
-  # ── private: Watchman-shaped screening (used to be public) ────────────────
+  # ── private: individual / company / crypto Watchman screen ────────────────
 
   defp screen_individual(
+         scope,
          tenant_id,
          %{first_name: first_name, last_name: last_name} = individual,
-         suppressed_source_ids
+         suppressed_source_ids,
+         list_info
        ) do
     entity_name = "#{first_name} #{last_name}"
     blocklist_matches = check_individual_blocklist(tenant_id, first_name, last_name)
 
     if blocklist_matches != [] do
-      result = build_blocklist_screening_result(:individual, entity_name, blocklist_matches)
-      {:ok, result}
+      {:ok,
+       build_blocklist_screening(scope, :individual, entity_name, blocklist_matches, list_info)}
     else
       search_params =
         [name: entity_name, minMatch: 0.7, type: "person"]
         |> maybe_add(:birthDate, individual[:birth_date])
         |> maybe_add(:gender, individual[:gender])
 
-      perform_watchman_search(:individual, entity_name, search_params, suppressed_source_ids)
+      perform_watchman_search(
+        scope,
+        :individual,
+        entity_name,
+        search_params,
+        suppressed_source_ids,
+        list_info
+      )
     end
   end
 
-  defp screen_company(tenant_id, %{name: name} = company, suppressed_source_ids) do
+  defp screen_company(
+         scope,
+         tenant_id,
+         %{name: name} = company,
+         suppressed_source_ids,
+         list_info
+       ) do
     blocklist_matches = check_company_blocklist(tenant_id, name)
 
     if blocklist_matches != [] do
-      result = build_blocklist_screening_result(:company, name, blocklist_matches)
-      {:ok, result}
+      {:ok, build_blocklist_screening(scope, :company, name, blocklist_matches, list_info)}
     else
       search_params =
         [name: name, minMatch: 0.7, type: "business"]
         |> maybe_add(:created, company[:created])
         |> maybe_add(:dissolved, company[:dissolved])
 
-      perform_watchman_search(:company, name, search_params, suppressed_source_ids)
+      perform_watchman_search(
+        scope,
+        :company,
+        name,
+        search_params,
+        suppressed_source_ids,
+        list_info
+      )
     end
   end
 
-  # ── private: blocklist + Watchman internals ───────────────────────────────
+  # ── private: PaymentAccount → on-chain Watchman screen ────────────────────
 
-  defp check_individual_blocklist(tenant_id, first_name, last_name) do
-    matches = []
-
-    matches =
-      case BlocklistValidator.validate_first_name(tenant_id, first_name) do
-        {:error, :blocklisted, match_type, matched_term, reason} ->
-          matches ++
-            [build_blocklist_match(tenant_id, :first_name, match_type, matched_term, reason)]
-
-        {:ok, _} ->
-          matches
-      end
-
-    case BlocklistValidator.validate_last_name(tenant_id, last_name) do
-      {:error, :blocklisted, match_type, matched_term, reason} ->
-        matches ++
-          [build_blocklist_match(tenant_id, :last_name, match_type, matched_term, reason)]
-
-      {:ok, _} ->
-        matches
+  # The party (AH/CP) tied to the PA is screened during onboarding; the only
+  # PA-level Watchman surface we have is the on-chain wallet address. Non-
+  # crypto rails return a no-screen :pass — they're not screenable at the
+  # instrument level.
+  defp screen_pa(_session, %PaymentAccount{
+         account_type: :crypto_wallet,
+         wallet_address: wallet_address,
+         wallet_chain: wallet_chain,
+         tenant_id: tenant_id
+       })
+       when is_binary(wallet_address) and wallet_address != "" do
+    with {:ok, list_info} <- AtomicFi.ScreeningEngine.get_watchman_list_info() do
+      suppressed_ids = fetch_suppressed_source_ids(tenant_id)
+      screen_crypto_address(wallet_address, wallet_chain, suppressed_ids, list_info)
     end
   end
 
-  defp check_company_blocklist(tenant_id, company_name) do
-    case BlocklistValidator.validate_company_name(tenant_id, company_name) do
-      {:error, :blocklisted, match_type, matched_term, reason} ->
-        [build_blocklist_match(tenant_id, :company_name, match_type, matched_term, reason)]
+  defp screen_pa(_session, %PaymentAccount{}), do: {:ok, no_screen_pa()}
 
-      {:ok, _} ->
-        []
-    end
-  end
+  defp screen_crypto_address(wallet_address, wallet_chain, suppressed_source_ids, list_info) do
+    params =
+      [cryptoAddress: wallet_address, minMatch: 0.7]
+      |> maybe_add(:name, wallet_chain)
 
-  defp build_blocklist_match(tenant_id, scope, match_type, matched_term, reason) do
-    %{
-      matched_term: matched_term,
-      match_type: match_type,
-      scope: scope,
-      reason: reason,
-      blocklist_updated_at: BlocklistCache.get_last_updated(tenant_id)
-    }
-  end
-
-  defp build_blocklist_screening_result(entity_type, entity_name, blocklist_matches) do
-    %{
-      entity_type: entity_type,
-      entity_name: entity_name,
-      screening_status: :blocked,
-      match_count: 0,
-      screening_score: nil,
-      screened_at: DateTime.utc_now(),
-      sanctions_matches: [],
-      blocklist_matches: blocklist_matches
-    }
-  end
-
-  defp perform_watchman_search(entity_type, entity_name, search_params, suppressed_source_ids) do
-    case Client.v2_search_get(search_params) do
+    case Client.v2_search_get(params) do
       {:ok, %{entities: entities}} ->
-        sanctions_matches = build_sanctions_matches(entities || [], suppressed_source_ids)
-        active_matches = Enum.reject(sanctions_matches, & &1.suppressed)
+        all_match_attrs =
+          (entities || [])
+          |> filter_crypto_entities(wallet_address, wallet_chain)
+          |> build_sanctions_match_attrs(suppressed_source_ids)
 
-        result =
-          build_sanctions_screening_result(
-            entity_type,
-            entity_name,
-            sanctions_matches,
-            active_matches
-          )
+        active = Enum.reject(all_match_attrs, & &1.suppressed)
 
-        {:ok, result}
+        {:ok,
+         build_sanctions_screening(
+           :payment_account,
+           :crypto_address,
+           wallet_address,
+           all_match_attrs,
+           active,
+           list_info
+         )}
 
       {:error, _} = error ->
         error
@@ -345,7 +251,157 @@ defmodule AtomicFi.ScreeningEngine.Default do
     end
   end
 
-  defp build_sanctions_matches(entities, suppressed_source_ids) do
+  # Watchman returns sanctioned entities whose record references the queried
+  # `cryptoAddress`. Confirm the address + (optional) chain actually appear in
+  # the entity's `cryptoAddresses` list before counting it as a hit — same
+  # address string can collide across chains (USDT on ETH vs TRON).
+  defp filter_crypto_entities(entities, wallet_address, wallet_chain) do
+    Enum.filter(entities, fn entity ->
+      addrs = entity.cryptoAddresses || []
+
+      Enum.any?(addrs, fn ca ->
+        address_match?(ca, wallet_address) and chain_match?(ca, wallet_chain)
+      end)
+    end)
+  end
+
+  defp address_match?(%{address: address}, target) when is_binary(address) and is_binary(target),
+    do: String.downcase(address) == String.downcase(target)
+
+  defp address_match?(_ca, _target), do: false
+
+  defp chain_match?(_ca, nil), do: true
+  defp chain_match?(_ca, ""), do: true
+
+  defp chain_match?(%{currency: currency}, chain) when is_binary(currency) and is_binary(chain),
+    do: String.downcase(currency) == String.downcase(chain)
+
+  defp chain_match?(_ca, _chain), do: false
+
+  defp no_screen_pa do
+    %ComplianceScreening{
+      scope: :payment_account,
+      screening_type: :sanctions,
+      screening_status: :pending,
+      screening_score: nil,
+      screened_entity_type: :payment_account,
+      screened_entity_name: "non-crypto-payment-account-bypass",
+      match_count: 0,
+      screened_at: DateTime.utc_now(),
+      sanctions_matches: [],
+      blocklist_matches: []
+    }
+  end
+
+  # ── private: blocklist helpers ────────────────────────────────────────────
+
+  defp check_individual_blocklist(tenant_id, first_name, last_name) do
+    matches = []
+
+    matches =
+      case BlocklistValidator.validate_first_name(tenant_id, first_name) do
+        {:error, :blocklisted, match_type, matched_term, reason} ->
+          matches ++
+            [
+              build_blocklist_match_attrs(
+                tenant_id,
+                :first_name,
+                match_type,
+                matched_term,
+                reason
+              )
+            ]
+
+        {:ok, _} ->
+          matches
+      end
+
+    case BlocklistValidator.validate_last_name(tenant_id, last_name) do
+      {:error, :blocklisted, match_type, matched_term, reason} ->
+        matches ++
+          [build_blocklist_match_attrs(tenant_id, :last_name, match_type, matched_term, reason)]
+
+      {:ok, _} ->
+        matches
+    end
+  end
+
+  defp check_company_blocklist(tenant_id, company_name) do
+    case BlocklistValidator.validate_company_name(tenant_id, company_name) do
+      {:error, :blocklisted, match_type, matched_term, reason} ->
+        [build_blocklist_match_attrs(tenant_id, :company_name, match_type, matched_term, reason)]
+
+      {:ok, _} ->
+        []
+    end
+  end
+
+  defp build_blocklist_match_attrs(tenant_id, scope, match_type, matched_term, reason) do
+    %{
+      matched_term: matched_term,
+      match_type: match_type,
+      scope: scope,
+      reason: reason,
+      blocklist_updated_at: BlocklistCache.get_last_updated(tenant_id)
+    }
+  end
+
+  # ── private: result builders → %ComplianceScreening{} ─────────────────────
+
+  defp build_blocklist_screening(
+         scope,
+         entity_type,
+         entity_name,
+         blocklist_match_attrs,
+         list_info
+       ) do
+    %ComplianceScreening{
+      scope: scope,
+      screening_type: :sanctions,
+      screening_status: :pending,
+      screening_score: nil,
+      screened_entity_type: entity_type,
+      screened_entity_name: entity_name,
+      match_count: length(blocklist_match_attrs),
+      screened_at: DateTime.utc_now(),
+      sanctions_matches: [],
+      blocklist_matches:
+        Enum.map(blocklist_match_attrs, &to_blocklist_match_struct(&1, list_info))
+    }
+  end
+
+  defp perform_watchman_search(
+         scope,
+         entity_type,
+         entity_name,
+         search_params,
+         suppressed_source_ids,
+         list_info
+       ) do
+    case Client.v2_search_get(search_params) do
+      {:ok, %{entities: entities}} ->
+        all_match_attrs = build_sanctions_match_attrs(entities || [], suppressed_source_ids)
+        active = Enum.reject(all_match_attrs, & &1.suppressed)
+
+        {:ok,
+         build_sanctions_screening(
+           scope,
+           entity_type,
+           entity_name,
+           all_match_attrs,
+           active,
+           list_info
+         )}
+
+      {:error, _} = error ->
+        error
+
+      :error ->
+        {:error, :watchman_search_unavailable}
+    end
+  end
+
+  defp build_sanctions_match_attrs(entities, suppressed_source_ids) do
     Enum.map(entities, fn entity ->
       suppressed = MapSet.member?(suppressed_source_ids, entity.sourceID)
 
@@ -369,30 +425,69 @@ defmodule AtomicFi.ScreeningEngine.Default do
   defp classify_match_type(score) when score >= 0.95, do: :exact
   defp classify_match_type(_score), do: :fuzzy
 
-  defp build_sanctions_screening_result(entity_type, entity_name, all_matches, active_matches) do
-    match_count = length(active_matches)
+  defp build_sanctions_screening(
+         scope,
+         entity_type,
+         entity_name,
+         all_match_attrs,
+         active_match_attrs,
+         list_info
+       ) do
+    match_count = length(active_match_attrs)
 
-    screening_score =
+    score_float =
       if match_count > 0 do
-        active_matches |> Enum.map(& &1.match_score) |> Enum.max()
+        active_match_attrs |> Enum.map(& &1.match_score) |> Enum.max()
       end
 
-    screening_status =
-      cond do
-        match_count == 0 -> :pass
-        screening_score && screening_score >= 0.95 -> :blocked
-        true -> :potential_match
-      end
-
-    %{
-      entity_type: entity_type,
-      entity_name: entity_name,
-      screening_status: screening_status,
+    %ComplianceScreening{
+      scope: scope,
+      screening_type: :sanctions,
+      screening_status: :pending,
+      screening_score: score_to_decimal(score_float),
+      screened_entity_type: entity_type,
+      screened_entity_name: entity_name,
       match_count: match_count,
-      screening_score: screening_score,
       screened_at: DateTime.utc_now(),
-      sanctions_matches: all_matches,
+      sanctions_matches: Enum.map(all_match_attrs, &to_sanctions_match_struct(&1, list_info)),
       blocklist_matches: []
+    }
+  end
+
+  # Raw max match score scaled to a 0..100 Decimal — a fact, not a verdict.
+  defp score_to_decimal(nil), do: nil
+  defp score_to_decimal(float) when is_float(float), do: Decimal.from_float(float * 100)
+
+  defp to_sanctions_match_struct(attrs, list_info) do
+    qualifier = if attrs.suppressed, do: :auto_suppressed, else: :none
+
+    %SanctionsMatch{
+      matched_name: attrs.matched_name,
+      matched_entity_type: attrs.matched_entity_type,
+      match_score: attrs.match_score,
+      sanctions_match_type: attrs.sanctions_match_type,
+      source_list: attrs.source_list,
+      source_id: attrs.source_id,
+      source_data: attrs.source_data,
+      addresses: Enum.map(attrs.addresses || [], &struct(SanctionsMatch.WatchmanAddress, &1)),
+      business_data:
+        attrs.business_data && struct(SanctionsMatch.WatchmanBusiness, attrs.business_data),
+      person_data: attrs.person_data && struct(SanctionsMatch.WatchmanPerson, attrs.person_data),
+      contact_data:
+        attrs.contact_data && struct(SanctionsMatch.WatchmanContact, attrs.contact_data),
+      false_positive_qualifier: qualifier,
+      list_synced_at: list_info.started_at,
+      list_sources: %{lists: list_info.lists, version: list_info.version}
+    }
+  end
+
+  defp to_blocklist_match_struct(attrs, _list_info) do
+    %BlocklistMatch{
+      matched_term: attrs.matched_term,
+      match_type: attrs.match_type,
+      scope: attrs.scope,
+      reason: attrs.reason,
+      blocklist_updated_at: attrs.blocklist_updated_at
     }
   end
 

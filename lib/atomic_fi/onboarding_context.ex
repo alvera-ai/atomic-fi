@@ -47,6 +47,7 @@ defmodule AtomicFi.OnboardingContext do
   alias AtomicFi.OnboardingWorker
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.RuleEngine
+  alias AtomicFi.ScreeningEngine
   alias AtomicFi.SessionContext.Session
 
   @type entity ::
@@ -127,25 +128,38 @@ defmodule AtomicFi.OnboardingContext do
   end
 
   defp screen(session, %AccountHolder{} = account_holder) do
-    ComplianceScreeningContext.screen_account_holder(session, %{
-      account_holder_id: account_holder.id
-    })
+    with {:ok, screening} <- ScreeningEngine.screen_account_holder(session, account_holder),
+         {:ok, persisted} <-
+           ComplianceScreeningContext.record_screening(session, screening, %{
+             account_holder_id: account_holder.id
+           }) do
+      {:ok, [persisted]}
+    end
   end
 
   defp screen(session, %Counterparty{} = counterparty) do
-    ComplianceScreeningContext.screen_counterparty(session, %{
-      account_holder_id: counterparty.account_holder_id,
-      counterparty_id: counterparty.id
-    })
+    with {:ok, screening} <- ScreeningEngine.screen_counterparty(session, counterparty),
+         {:ok, persisted} <-
+           ComplianceScreeningContext.record_screening(session, screening, %{
+             account_holder_id: counterparty.account_holder_id,
+             counterparty_id: counterparty.id
+           }) do
+      {:ok, [persisted]}
+    end
   end
 
   defp screen(_session, %PaymentAccount{}), do: {:ok, []}
 
   defp screen(session, %BeneficialOwner{} = beneficial_owner) do
-    ComplianceScreeningContext.screen_beneficial_owner(session, %{
-      account_holder_id: beneficial_owner.account_holder_id,
-      beneficial_owner_id: beneficial_owner.id
-    })
+    with {:ok, screening} <-
+           ScreeningEngine.screen_beneficial_owner(session, beneficial_owner),
+         {:ok, persisted} <-
+           ComplianceScreeningContext.record_screening(session, screening, %{
+             account_holder_id: beneficial_owner.account_holder_id,
+             beneficial_owner_id: beneficial_owner.id
+           }) do
+      {:ok, [persisted]}
+    end
   end
 
   # Returns the engine result envelope. `:no_limits` from the engine is

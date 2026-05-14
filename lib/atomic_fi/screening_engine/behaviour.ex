@@ -3,10 +3,10 @@ defmodule AtomicFi.ScreeningEngine.Behaviour do
   Domain-level contract for the compliance screening engine.
 
   Implementations orchestrate blocklist check + Watchman sanctions search and
-  return a normalized screening result (or list of results, for entities that
-  hold multiple parties such as `%Transaction{}`). Implementations are pure
-  with respect to persistence — callers (`AtomicFi.ComplianceScreeningContext`)
-  insert the resulting `ComplianceScreening` rows in their own DB transaction.
+  return an unsaved `%ComplianceScreening{}` struct carrying the result (with
+  nested `%SanctionsMatch{}` + `%BlocklistMatch{}` rows). Implementations are
+  pure with respect to persistence — callers (preview controllers,
+  `AtomicFi.OnboardingContext`) decide whether to insert.
 
   ## Inputs
 
@@ -32,6 +32,7 @@ defmodule AtomicFi.ScreeningEngine.Behaviour do
 
   alias AtomicFi.AccountHolderContext.AccountHolder
   alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
+  alias AtomicFi.ComplianceScreeningContext.ComplianceScreening
   alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.ScreeningEngine
   alias AtomicFi.PaymentAccountContext.PaymentAccount
@@ -41,19 +42,19 @@ defmodule AtomicFi.ScreeningEngine.Behaviour do
   @type opts :: keyword()
 
   @callback screen_account_holder(Session.t(), AccountHolder.t(), opts()) ::
-              {:ok, ScreeningEngine.screening_result()} | {:error, term()}
+              {:ok, ComplianceScreening.t()} | {:error, term()}
 
   @callback screen_beneficial_owner(Session.t(), BeneficialOwner.t(), opts()) ::
-              {:ok, ScreeningEngine.screening_result()} | {:error, term()}
+              {:ok, ComplianceScreening.t()} | {:error, term()}
 
   @callback screen_counterparty(Session.t(), Counterparty.t(), opts()) ::
-              {:ok, ScreeningEngine.screening_result()} | {:error, term()}
+              {:ok, ComplianceScreening.t()} | {:error, term()}
 
   @callback screen_payment_account(Session.t(), PaymentAccount.t(), opts()) ::
-              {:ok, ScreeningEngine.screening_result()} | {:error, term()}
+              {:ok, ComplianceScreening.t()} | {:error, term()}
 
   @callback screen_transaction(Session.t(), Transaction.t(), opts()) ::
-              {:ok, [ScreeningEngine.screening_result()]} | {:error, term()}
+              {:ok, [ComplianceScreening.t()]} | {:error, term()}
 
   @callback get_watchman_list_info() ::
               {:ok, ScreeningEngine.list_info()} | {:error, term()}

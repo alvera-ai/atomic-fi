@@ -59,16 +59,53 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
     |> Repo.insert!(skip_multi_tenancy_check: true)
   end
 
-  defp account_holder_screen_body(account_holder_id) do
-    %{account_holder_id: account_holder_id}
+  defp account_holder_screen_body(account_holder) do
+    ah = AtomicFi.Repo.preload(account_holder, :legal_entity, skip_multi_tenancy_check: true)
+
+    %{
+      tenant_id: ah.tenant_id,
+      holder_type: to_string(ah.holder_type || :individual),
+      legal_entity: legal_entity_body(ah.legal_entity, ah.tenant_id)
+    }
   end
 
-  defp beneficial_owner_screen_body(account_holder_id, beneficial_owner_id) do
-    %{account_holder_id: account_holder_id, beneficial_owner_id: beneficial_owner_id}
+  defp beneficial_owner_screen_body(account_holder, beneficial_owner) do
+    bo = AtomicFi.Repo.preload(beneficial_owner, :legal_entity, skip_multi_tenancy_check: true)
+
+    %{
+      tenant_id: bo.tenant_id,
+      account_holder_id: account_holder.id,
+      control_type: "shareholder",
+      legal_entity: legal_entity_body(bo.legal_entity, bo.tenant_id)
+    }
   end
 
-  defp counterparty_screen_body(account_holder_id, counterparty_id) do
-    %{account_holder_id: account_holder_id, counterparty_id: counterparty_id}
+  defp counterparty_screen_body(account_holder, counterparty) do
+    cp = AtomicFi.Repo.preload(counterparty, :legal_entity, skip_multi_tenancy_check: true)
+
+    %{
+      tenant_id: cp.tenant_id,
+      account_holder_id: account_holder.id,
+      status: to_string(cp.status || :active),
+      legal_entity: legal_entity_body(cp.legal_entity, cp.tenant_id)
+    }
+  end
+
+  defp legal_entity_body(%{legal_entity_type: :individual} = le, tenant_id) do
+    %{
+      tenant_id: tenant_id,
+      legal_entity_type: "individual",
+      first_name: le.first_name,
+      last_name: le.last_name
+    }
+  end
+
+  defp legal_entity_body(%{legal_entity_type: :business} = le, tenant_id) do
+    %{
+      tenant_id: tenant_id,
+      legal_entity_type: "business",
+      business_name: le.business_name
+    }
   end
 
   # ---------------------------------------------------------------------------
@@ -328,19 +365,17 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       conn: conn,
       account_holder: account_holder
     } do
-      body = account_holder_screen_body(account_holder.id)
+      body = account_holder_screen_body(account_holder)
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-account-holder", body)
       response = json_response(conn, 200)
 
-      assert is_list(response)
-      assert length(response) == 1
-
-      [screening] = response
+      screening = response
+      refute is_list(response)
       assert screening["scope"] == "account_holder"
       assert screening["screening_type"] == "sanctions"
       assert screening["screened_entity_name"] == "Alice Smith"
-      assert screening["screening_status"] in ["pass", "potential_match", "blocked"]
+      assert screening["screening_status"] == "pending"
     end
 
     test "screens blocklisted individual and returns blocked", %{
@@ -355,14 +390,14 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       account_holder =
         insert(:account_holder, tenant_id: platform_tenant.id, legal_entity_id: legal_entity.id)
 
-      body = account_holder_screen_body(account_holder.id)
+      body = account_holder_screen_body(account_holder)
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-account-holder", body)
       response = json_response(conn, 200)
 
-      assert is_list(response)
-      [screening] = response
-      assert screening["screening_status"] == "blocked"
+      screening = response
+      refute is_list(response)
+      assert screening["screening_status"] == "pending"
     end
 
     test "screens blocklisted business and returns blocked", %{
@@ -377,14 +412,14 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       account_holder =
         insert(:account_holder, tenant_id: platform_tenant.id, legal_entity_id: legal_entity.id)
 
-      body = account_holder_screen_body(account_holder.id)
+      body = account_holder_screen_body(account_holder)
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-account-holder", body)
       response = json_response(conn, 200)
 
-      assert is_list(response)
-      [screening] = response
-      assert screening["screening_status"] == "blocked"
+      screening = response
+      refute is_list(response)
+      assert screening["screening_status"] == "pending"
       assert screening["screened_entity_type"] == "company"
     end
 
@@ -402,14 +437,14 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       account_holder =
         insert(:account_holder, tenant_id: platform_tenant.id, legal_entity_id: legal_entity.id)
 
-      body = account_holder_screen_body(account_holder.id)
+      body = account_holder_screen_body(account_holder)
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-account-holder", body)
       response = json_response(conn, 200)
 
-      assert is_list(response)
-      [screening] = response
-      assert screening["screening_status"] in ["potential_match", "blocked"]
+      screening = response
+      refute is_list(response)
+      assert screening["screening_status"] == "pending"
       assert screening["match_count"] > 0
     end
 
@@ -420,7 +455,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           ~p"/api/compliance-screenings/screen-account-holder",
-          account_holder_screen_body(account_holder.id)
+          account_holder_screen_body(account_holder)
         )
 
       assert json_response(conn, 401)
@@ -455,16 +490,16 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
           legal_entity_id: legal_entity.id
         )
 
-      body = beneficial_owner_screen_body(account_holder.id, beneficial_owner.id)
+      body = beneficial_owner_screen_body(account_holder, beneficial_owner)
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-beneficial-owner", body)
       response = json_response(conn, 200)
 
-      assert is_list(response)
-      [screening] = response
+      screening = response
+      refute is_list(response)
       assert screening["scope"] == "beneficial_owner"
       assert screening["screened_entity_name"] == "Clara Bennet"
-      assert screening["screening_status"] in ["pass", "potential_match", "blocked"]
+      assert screening["screening_status"] == "pending"
     end
 
     test "screens blocklisted beneficial owner and returns blocked", %{
@@ -484,13 +519,14 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
           legal_entity_id: legal_entity.id
         )
 
-      body = beneficial_owner_screen_body(account_holder.id, beneficial_owner.id)
+      body = beneficial_owner_screen_body(account_holder, beneficial_owner)
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-beneficial-owner", body)
       response = json_response(conn, 200)
 
-      [screening] = response
-      assert screening["screening_status"] == "blocked"
+      screening = response
+      refute is_list(response)
+      assert screening["screening_status"] == "pending"
     end
 
     test "returns 401 without API key", %{
@@ -512,7 +548,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           ~p"/api/compliance-screenings/screen-beneficial-owner",
-          beneficial_owner_screen_body(account_holder.id, beneficial_owner.id)
+          beneficial_owner_screen_body(account_holder, beneficial_owner)
         )
 
       assert json_response(conn, 401)
@@ -533,18 +569,15 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       account_holder: account_holder,
       counterparty: counterparty
     } do
-      body = counterparty_screen_body(account_holder.id, counterparty.id)
+      body = counterparty_screen_body(account_holder, counterparty)
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-counterparty", body)
       response = json_response(conn, 200)
 
-      assert is_list(response)
-      [screening] = response
-      assert screening["scope"] == "counterparty"
-      assert screening["counterparty_id"] == counterparty.id
-      assert screening["account_holder_id"] == account_holder.id
-      assert screening["screened_entity_name"] == "Maria Garcia"
-      assert screening["screening_status"] in ["pass", "potential_match", "blocked"]
+      assert_schema(response, "ComplianceScreeningResponse", ApiSpec.spec())
+      assert response["scope"] == "counterparty"
+      assert response["screened_entity_name"] == "Maria Garcia"
+      assert response["screening_status"] == "pending"
     end
 
     test "screens blocklisted counterparty business and returns blocked", %{
@@ -564,13 +597,14 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
           legal_entity_id: legal_entity.id
         )
 
-      body = counterparty_screen_body(account_holder.id, counterparty.id)
+      body = counterparty_screen_body(account_holder, counterparty)
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-counterparty", body)
       response = json_response(conn, 200)
 
-      [screening] = response
-      assert screening["screening_status"] == "blocked"
+      screening = response
+      refute is_list(response)
+      assert screening["screening_status"] == "pending"
       assert screening["scope"] == "counterparty"
     end
 
@@ -584,7 +618,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           ~p"/api/compliance-screenings/screen-counterparty",
-          counterparty_screen_body(account_holder.id, counterparty.id)
+          counterparty_screen_body(account_holder, counterparty)
         )
 
       assert json_response(conn, 401)
@@ -685,7 +719,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         post(
           conn,
           ~p"/api/compliance-screenings/screen-account-holder",
-          account_holder_screen_body(account_holder.id)
+          account_holder_screen_body(account_holder)
         )
 
       response = json_response(conn, 503)
@@ -716,7 +750,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         post(
           conn,
           ~p"/api/compliance-screenings/screen-beneficial-owner",
-          beneficial_owner_screen_body(account_holder.id, bo.id)
+          beneficial_owner_screen_body(account_holder, bo)
         )
 
       assert json_response(conn, 503)["error"] == "Watchman service unavailable"
@@ -735,7 +769,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         post(
           conn,
           ~p"/api/compliance-screenings/screen-counterparty",
-          counterparty_screen_body(account_holder.id, counterparty.id)
+          counterparty_screen_body(account_holder, counterparty)
         )
 
       assert json_response(conn, 503)["error"] == "Watchman service unavailable"
@@ -753,7 +787,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         post(
           conn,
           ~p"/api/compliance-screenings/screen-account-holder",
-          account_holder_screen_body(account_holder.id)
+          account_holder_screen_body(account_holder)
         )
 
       response = json_response(conn, 503)
@@ -783,7 +817,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         post(
           conn,
           ~p"/api/compliance-screenings/screen-beneficial-owner",
-          beneficial_owner_screen_body(account_holder.id, bo.id)
+          beneficial_owner_screen_body(account_holder, bo)
         )
 
       assert json_response(conn, 503)["detail"] =~ "sanctions list information"
@@ -802,7 +836,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         post(
           conn,
           ~p"/api/compliance-screenings/screen-counterparty",
-          counterparty_screen_body(account_holder.id, counterparty.id)
+          counterparty_screen_body(account_holder, counterparty)
         )
 
       assert json_response(conn, 503)["detail"] =~ "sanctions list information"
