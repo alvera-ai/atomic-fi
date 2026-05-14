@@ -1,0 +1,29 @@
+{
+  "skill_name": "zenrule-author",
+  "evals": [
+    {
+      "id": 1,
+      "name": "new-rule-large-transfer-kyc",
+      "prompt": "I want a new ruleset that blocks any credit_transfer over $10,000 when the payee's KYC status is anything other than approved. The output should be `transaction.rule = \"large_transfer_blocked\"` with `transaction.max_amount = 0` for the block case, and `transaction.rule = \"large_transfer_ok\"` with no limits change for the pass case. Save it as large_transfer_kyc.json. Cite BSA §326 in the row descriptions.",
+      "expected_output": "A new file priv/zenrule/atomic-fi/large_transfer_kyc.json with a three-node graph (Request → DecisionTable → Response). The decision table has at least three rows: (1) credit_transfer + amount > 10000 + payee KYC != approved → blocked; (2) credit_transfer + amount > 10000 + payee KYC approved → ok; (3) default. All curl-tested green against the live agent. Test scenarios appended to example-rulesets/test-inputs.md.",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 2,
+      "name": "extend-genius-add-direct-debit",
+      "prompt": "The current de_minimis_genius.json handles credit_transfer (ACH) and internal_transfer (stablecoin). Add a row that treats direct_debit the same as credit_transfer — full ACH-equivalent limits regardless of payee KYC. Save it as a new file de_minimis_genius_v2.json so we don't touch the existing one.",
+      "expected_output": "A new file priv/zenrule/atomic-fi/de_minimis_genius_v2.json identical to de_minimis_genius.json except for an added row matching direct_debit with the same outputs as the existing rule_ach_de_minimis row. Curl-tested green for at least: direct_debit + any payee_kyc → full limits with rule=ach_de_minimis (or equivalent new id like dd_de_minimis).",
+      "files": [],
+      "assertions": []
+    },
+    {
+      "id": 3,
+      "name": "vague-request-asks-questions",
+      "prompt": "I want a sanctions rule.",
+      "expected_output": "The skill should NOT immediately write a file. It should ask 1-3 focused clarifying questions: which fields drive the decision (e.g. sanctions list match flag, counterparty country)? Replace or extend? Regulatory anchor (OFAC 31 CFR §501.404 or similar)? Then proceed after the user answers.",
+      "files": [],
+      "assertions": []
+    }
+  ]
+}
