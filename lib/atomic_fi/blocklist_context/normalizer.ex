@@ -1,4 +1,4 @@
-defmodule AtomicFi.DecisionContext.Normalizer do
+defmodule AtomicFi.BlocklistContext.Normalizer do
   @moduledoc """
   Data quality normalization for account holder names and company names.
 

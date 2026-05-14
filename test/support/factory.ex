@@ -29,7 +29,7 @@ defmodule AtomicFi.Factory do
   """
   def insert_tenant_with_cache(attrs \\ %{}) do
     tenant = insert(:tenant, attrs)
-    AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant.id)
+    AtomicFi.BlocklistContext.BlocklistCache.refresh_tenant_cache(tenant.id)
     tenant
   end
 

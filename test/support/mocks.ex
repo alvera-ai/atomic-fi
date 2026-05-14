@@ -1,4 +1,9 @@
 Mox.defmock(
   AtomicFi.ScreeningEngineMock,
-  for: AtomicFi.DecisionContext.ScreeningEngine.Behaviour
+  for: AtomicFi.ScreeningEngine.Behaviour
+)
+
+Mox.defmock(
+  AtomicFi.RuleEngineMock,
+  for: AtomicFi.RuleEngine.Behaviour
 )

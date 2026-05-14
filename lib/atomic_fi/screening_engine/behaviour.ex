@@ -1,4 +1,4 @@
-defmodule AtomicFi.DecisionContext.ScreeningEngine.Behaviour do
+defmodule AtomicFi.ScreeningEngine.Behaviour do
   @moduledoc """
   Domain-level contract for the compliance screening engine.
 
@@ -33,7 +33,7 @@ defmodule AtomicFi.DecisionContext.ScreeningEngine.Behaviour do
   alias AtomicFi.AccountHolderContext.AccountHolder
   alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
   alias AtomicFi.CounterpartyContext.Counterparty
-  alias AtomicFi.DecisionContext.ScreeningEngine
+  alias AtomicFi.ScreeningEngine
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.SessionContext.Session
   alias AtomicFi.TransactionContext.Transaction

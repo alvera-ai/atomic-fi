@@ -1,35 +1,27 @@
-defmodule AtomicFi.DecisionContext.ScreeningEngine do
+defmodule AtomicFi.ScreeningEngine.Default do
   @moduledoc """
-  Screening engine — orchestrates blocklist + Watchman sanctions screening for
-  atomic-fi's domain entities.
+  Default screening engine implementation — orchestrates blocklist +
+  Watchman sanctions screening for atomic-fi's domain entities.
+
+  Wired in via `AtomicFi.ScreeningEngine` (the public
+  dispatcher). Pure of persistence — callers
+  (`AtomicFi.ComplianceScreeningContext`) persist the resulting
+  `ComplianceScreening` rows in their own DB transaction.
 
   All public methods take a fully-preloaded domain struct (AccountHolder,
-  BeneficialOwner, Counterparty, PaymentAccount, Transaction) and return a
-  normalized `screening_result()` map. Watchman-shaped internals stop at this
-  module's gate — callers never see `individual_attrs()` / `company_attrs()`.
-
-  ## Mock seam
-
-  Implements `AtomicFi.DecisionContext.ScreeningEngine.Behaviour`; mocked in
-  tests via `AtomicFi.ScreeningEngineMock` (Mox). The DataCase / ConnCase
-  setup hook calls `Mox.stub_with(ScreeningEngineMock, ScreeningEngine)` so
-  existing tests fall through to the real engine; per-test `Mox.expect/3`
-  overrides the screening result without setting up Watchman state.
-
-  ## Persistence
-
-  The engine is **pure of persistence** — it does not insert ComplianceScreening
-  rows. Callers (ComplianceScreeningContext) persist the result.
+  BeneficialOwner, Counterparty, PaymentAccount, Transaction) and return
+  a normalized `screening_result()` map. Watchman-shaped internals stop
+  at this module's gate.
 
   ## False Positive Deduplication
 
-  The engine reads the tenant's suppressed Watchman `source_id`s from prior
+  Reads the tenant's suppressed Watchman `source_id`s from prior
   `SanctionsMatch` rows tagged `:manual_override` or `:auto_suppressed`.
   Matches against those IDs are included in the result but flagged
   `suppressed: true`.
   """
 
-  @behaviour AtomicFi.DecisionContext.ScreeningEngine.Behaviour
+  @behaviour AtomicFi.ScreeningEngine.Behaviour
 
   import Ecto.Query, warn: false
 
@@ -37,7 +29,7 @@ defmodule AtomicFi.DecisionContext.ScreeningEngine do
   alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
   alias AtomicFi.ComplianceScreeningContext.SanctionsMatch
   alias AtomicFi.CounterpartyContext.Counterparty
-  alias AtomicFi.DecisionContext.{BlocklistCache, BlocklistValidator}
+  alias AtomicFi.BlocklistContext.{BlocklistCache, BlocklistValidator}
   alias AtomicFi.LegalEntityContext.LegalEntity
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.Repo
@@ -164,12 +156,12 @@ defmodule AtomicFi.DecisionContext.ScreeningEngine do
 
   @impl true
   def screen_payment_account(_session, %PaymentAccount{} = _pa, _opts \\ []) do
-    raise "AtomicFi.DecisionContext.ScreeningEngine.screen_payment_account/3 is not implemented yet"
+    raise "AtomicFi.ScreeningEngine.screen_payment_account/3 is not implemented yet"
   end
 
   @impl true
   def screen_transaction(_session, %Transaction{} = _txn, _opts \\ []) do
-    raise "AtomicFi.DecisionContext.ScreeningEngine.screen_transaction/3 is not implemented yet"
+    raise "AtomicFi.ScreeningEngine.screen_transaction/3 is not implemented yet"
   end
 
   # ── public non-behaviour helper ───────────────────────────────────────────

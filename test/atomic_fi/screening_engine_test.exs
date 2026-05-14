@@ -1,11 +1,12 @@
-defmodule AtomicFi.DecisionContext.ScreeningEngineTest do
+defmodule AtomicFi.ScreeningEngineTest do
   use AtomicFi.DataCase
 
   alias AtomicFi.AccountHolderContext
   alias AtomicFi.BeneficialOwnerContext
   alias AtomicFi.BlocklistContext.BlocklistEntry
   alias AtomicFi.CounterpartyContext
-  alias AtomicFi.DecisionContext.{BlocklistCache, ScreeningEngine}
+  alias AtomicFi.BlocklistContext.BlocklistCache
+  alias AtomicFi.ScreeningEngine
 
   # Entity-shaped public API is the only seam. Internal screen_individual /
   # screen_company are private; Watchman is hit through Watchman.Client.

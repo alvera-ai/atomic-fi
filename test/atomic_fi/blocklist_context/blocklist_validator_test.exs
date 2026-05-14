@@ -1,8 +1,8 @@
-defmodule AtomicFi.DecisionContext.BlocklistValidatorTest do
+defmodule AtomicFi.BlocklistContext.BlocklistValidatorTest do
   use AtomicFi.DataCase
 
   alias AtomicFi.BlocklistContext.BlocklistEntry
-  alias AtomicFi.DecisionContext.{BlocklistCache, BlocklistValidator}
+  alias AtomicFi.BlocklistContext.{BlocklistCache, BlocklistValidator}
 
   defp insert_entry(tenant_id, scope, type, term) do
     Repo.insert!(

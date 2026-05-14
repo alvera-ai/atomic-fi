@@ -22,9 +22,11 @@ defmodule AtomicFi.LedgerEntryContext do
   use AtomicFi.LoggerMacro
 
   alias AtomicFi.LedgerAccountContext.LedgerAccount
+  alias AtomicFi.LedgerAccountContext.VelocityLimit
   alias AtomicFi.LedgerEntryContext.LedgerEntry
   alias AtomicFi.OpenApiSchema.LedgerEntryRequest
   alias AtomicFi.Repo
+  alias AtomicFi.RuleEngine.Control
   alias AtomicFi.SessionContext.Session
   alias AtomicFi.TransactionContext.Transaction
 
@@ -98,10 +100,14 @@ defmodule AtomicFi.LedgerEntryContext do
   Creates the balanced ledger-entry pair for a transaction.
 
   Posts a debit on the debtor's leaf LedgerAccount and a credit on the creditor's
-  leaf, each carrying the rule-engine velocity limits for its leaf (`limits` is the
-  `%{ledger_account_id => [VelocityLimit.t()]}` map returned by the rule engine; the
-  leaf for each side is whichever id in `limits` belongs to that side's PaymentAccount
-  and is a regime leaf). `Σ debits = Σ credits` by construction.
+  leaf, each carrying the per-LA `%Control{}` returned by the rule engine. `controls`
+  is the `%{ledger_account_id => Control.t()}` map; the leaf for each side is
+  whichever id in `controls` belongs to that side's PaymentAccount and is a regime
+  leaf. `Σ debits = Σ credits` by construction.
+
+  Internally we fan each `Control` into 0–8 `VelocityLimit{}` structs (one per
+  non-nil cap slot) and write them to `LedgerEntry.limits_at_entry` — the
+  ledger-storage shape the trigger already understands.
 
   The BEFORE-INSERT trigger fans each entry's limits up its ancestor chain; if a
   velocity-limit CHECK fires the trigger persists *that* entry `:voided` with
@@ -113,14 +119,25 @@ defmodule AtomicFi.LedgerEntryContext do
   """
   @spec create_entries(Session.t(), Transaction.t(), map()) ::
           {:ok, [LedgerEntry.t()]} | {:error, term()}
-  def_with_rls_and_logging create_entries(session, %Transaction{} = transaction, limits),
+  def_with_rls_and_logging create_entries(session, %Transaction{} = transaction, controls),
     log_fields: [] do
-    {debit_la_id, credit_la_id} = resolve_leaf_accounts(transaction, limits)
+    {debit_la_id, credit_la_id} = resolve_leaf_accounts(transaction, controls)
 
-    debit_attrs = entry_attrs(transaction, debit_la_id, :debit, Map.get(limits, debit_la_id, []))
+    debit_attrs =
+      entry_attrs(
+        transaction,
+        debit_la_id,
+        :debit,
+        controls_to_limits(Map.get(controls, debit_la_id))
+      )
 
     credit_attrs =
-      entry_attrs(transaction, credit_la_id, :credit, Map.get(limits, credit_la_id, []))
+      entry_attrs(
+        transaction,
+        credit_la_id,
+        :credit,
+        controls_to_limits(Map.get(controls, credit_la_id))
+      )
 
     first_attempt =
       Repo.transaction(fn ->
@@ -177,6 +194,34 @@ defmodule AtomicFi.LedgerEntryContext do
 
   defp find_leaf(leaves, payment_account_id) do
     Enum.find_value(leaves, fn {id, pa_id} -> pa_id == payment_account_id && id end)
+  end
+
+  # Translation boundary: RuleEngine speaks Control (one struct per LA with
+  # 8 named caps + reason); the ledger speaks VelocityLimit (one struct per
+  # period/direction/cap with the rule string). Fan a Control into 0–8
+  # VelocityLimits — one per non-nil slot.
+  defp controls_to_limits(nil), do: []
+
+  defp controls_to_limits(%Control{} = c) do
+    [
+      {"daily", "debit", c.daily_debit_cap},
+      {"daily", "credit", c.daily_credit_cap},
+      {"weekly", "debit", c.weekly_debit_cap},
+      {"weekly", "credit", c.weekly_credit_cap},
+      {"monthly", "debit", c.monthly_debit_cap},
+      {"monthly", "credit", c.monthly_credit_cap},
+      {"yearly", "debit", c.yearly_debit_cap},
+      {"yearly", "credit", c.yearly_credit_cap}
+    ]
+    |> Enum.reject(fn {_, _, cap} -> is_nil(cap) end)
+    |> Enum.map(fn {period, direction, cap} ->
+      %VelocityLimit{
+        period: period,
+        direction: direction,
+        cap: cap,
+        rule: c.reason
+      }
+    end)
   end
 
   defp entry_attrs(%Transaction{} = txn, ledger_account_id, entry_type, limits_at_entry) do

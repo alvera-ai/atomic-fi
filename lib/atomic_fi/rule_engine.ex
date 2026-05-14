@@ -1,49 +1,46 @@
 defmodule AtomicFi.RuleEngine do
   @moduledoc """
-  Dispatch wrapper for the configured rule engine implementation.
+  Rule engine — public face (dispatcher).
 
-  The default impl is `AtomicFi.RuleEngine.ZenRule` (backed by the GoRules
-  Agent over HTTP via `AtomicFi.ZenRule.Client`), selected via
-  `config :atomic_fi, :rule_engine`. The engine is consulted synchronously
-  during onboarding (AccountHolder / Counterparty / PaymentAccount create)
-  and at transaction time — no Oban indirection.
+  Callers (`AtomicFi.TransactionContext`, `AccountHolderContext`,
+  `CounterpartyContext`) invoke this module directly:
 
-  Given a domain entity, `get_limits/1` returns the velocity limits to
-  apply, **keyed by `ledger_account_id`**, as lists of
-  `t:AtomicFi.LedgerAccountContext.VelocityLimit.t/0`. A ledger account
-  already encodes the entity and the regulatory regime, so the caller
-  resolves which ledger accounts are in play (the debtor/creditor leaf
-  accounts and their ancestors), includes their ids in the payload, and
-  threads the returned limits into `LedgerEntry.limits_at_entry` — the
-  `ledger_entry_propagate_to_balances` trigger then fans them out to
-  `ledger_account_balances.last_*_limit` up the ancestor chain, where the
-  CHECK constraints enforce them.
+      RuleEngine.get_controls(session, :transaction_screening, %Transaction{} = txn)
+      RuleEngine.get_controls(session, :onboarding, %AccountHolder{} = ah)
 
-  The contract lives in `AtomicFi.RuleEngine.Behaviour`; this module only
-  hides the impl lookup and translates an empty-limits success into the
-  `:no_limits` sentinel callers pattern-match on.
+  The configured impl module (defaults to `AtomicFi.RuleEngine.Default`;
+  tests swap in `AtomicFi.RuleEngineMock`) is resolved at compile time
+  via the `:rule_engine` config slice. The swap is **invisible to
+  callers** — this dispatcher delegates the Behaviour call straight
+  through.
+
+  ## Mock seam
+
+  `DataCase / ConnCase` setup hook calls
+  `Mox.stub_with(RuleEngineMock, RuleEngine.Default)` so the mock falls
+  through to the real engine by default; per-test
+  `Mox.expect(RuleEngineMock, :get_controls, fn _, _, _ -> … end)` overrides
+  without setting up ZenRule state.
+
+  ## Config
+
+      config :atomic_fi, AtomicFi.RuleEngine, base_url: "http://localhost:8090"
   """
 
-  alias AtomicFi.RuleEngine.Behaviour
+  @behaviour AtomicFi.RuleEngine.Behaviour
 
-  @doc """
-  Asks the configured rule engine for velocity limits applicable to `entity`.
+  alias AtomicFi.RuleEngine.Control
+  alias AtomicFi.RuleEngine.Default
+  alias AtomicFi.RulesContext
+  alias AtomicFi.SessionContext.Session
 
-  Returns:
-    * `{:ok, limits}`     — non-empty per-ledger-account limits to enforce
-    * `{:ok, :no_limits}` — engine declined to score (e.g. no rules applicable)
-    * `{:error, reason}`  — transport / decode error
+  @rule_engine Application.compile_env(:atomic_fi, :rule_engine, Default)
 
-  Callers should pattern-match `:no_limits` to skip ledger writes entirely.
-  """
-  @spec get_limits(struct()) :: {:ok, Behaviour.limits()} | {:ok, :no_limits} | {:error, term()}
-  def get_limits(entity) when is_struct(entity) do
-    case impl().get_limits(entity) do
-      {:ok, limits} when is_map(limits) and map_size(limits) == 0 -> {:ok, :no_limits}
-      {:ok, limits} when is_map(limits) -> {:ok, limits}
-      {:error, _} = err -> err
-    end
-  end
-
-  defp impl, do: Application.fetch_env!(:atomic_fi, :rule_engine)
+  @impl true
+  @spec get_controls(Session.t(), RulesContext.rule_type(), struct()) ::
+          {:ok, %{optional(Ecto.UUID.t()) => Control.t()}}
+          | {:ok, :no_limits}
+          | {:error, term()}
+  def get_controls(session, rule_type, entity),
+    do: @rule_engine.get_controls(session, rule_type, entity)
 end

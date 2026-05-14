@@ -19,16 +19,17 @@ config :atomic_fi, :root_api_key, "alvera_root_api_key_test"
 config :atomic_fi, AtomicFi.Watchman.Client, base_url: "http://localhost:8084"
 
 # Swap the screening engine to a Mox mock. DataCase/ConnCase setup hooks
-# stub_with the real engine so existing tests keep hitting the live :8084
+# stub_with the Default impl so existing tests keep hitting the live :8084
 # Watchman container; new tests can override per-call with Mox.expect/3 to
 # return canned screening results without setting up Watchman state.
 config :atomic_fi, :screening_engine, AtomicFi.ScreeningEngineMock
 
-# ZenRule rules/limits engine — tests hit the real local GoRules Agent on :8090
-# (`make run-backing-services`), mirroring how Watchman tests hit the local
-# Watchman container.
-config :atomic_fi, :rule_engine, AtomicFi.RuleEngine.ZenRule
-config :atomic_fi, AtomicFi.RuleEngine.ZenRule, base_url: "http://localhost:8090"
+# Swap the rule engine to a Mox mock. DataCase/ConnCase setup hooks
+# stub_with the real engine so existing tests keep hitting the live :8090
+# GoRules Agent; new tests can override per-call with Mox.expect/3 to
+# return canned limits without setting up ZenRule state.
+config :atomic_fi, :rule_engine, AtomicFi.RuleEngineMock
+config :atomic_fi, AtomicFi.RuleEngine, base_url: "http://localhost:8090"
 
 # Configure encryption vault
 config :atomic_fi, AtomicFi.Vault,

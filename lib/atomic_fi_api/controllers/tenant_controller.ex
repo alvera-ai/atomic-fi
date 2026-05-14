@@ -2,7 +2,7 @@ defmodule AtomicFiApi.TenantController do
   use AtomicFiApi.Controller
   use OpenApiSpex.ControllerSpecs
 
-  alias AtomicFi.DecisionContext.BlocklistCache
+  alias AtomicFi.BlocklistContext.BlocklistCache
   alias AtomicFi.OpenApiSchema
   alias AtomicFi.OpenApiSchema.TenantListResponse
   alias AtomicFi.OpenApiSchema.TenantRequest

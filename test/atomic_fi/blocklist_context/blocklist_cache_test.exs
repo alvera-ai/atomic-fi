@@ -1,8 +1,8 @@
-defmodule AtomicFi.DecisionContext.BlocklistCacheTest do
+defmodule AtomicFi.BlocklistContext.BlocklistCacheTest do
   use AtomicFi.DataCase
 
   alias AtomicFi.BlocklistContext.BlocklistEntry
-  alias AtomicFi.DecisionContext.BlocklistCache
+  alias AtomicFi.BlocklistContext.BlocklistCache
 
   setup %{tenant: tenant} do
     # Each test seeds its own entries; refresh after seeding.

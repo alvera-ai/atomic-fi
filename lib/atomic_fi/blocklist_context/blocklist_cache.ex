@@ -1,4 +1,4 @@
-defmodule AtomicFi.DecisionContext.BlocklistCache do
+defmodule AtomicFi.BlocklistContext.BlocklistCache do
   @moduledoc """
   ETS-based blocklist cache for fast lookups.
 

@@ -3,7 +3,7 @@ defmodule AtomicFi.Watchman.Client do
   HTTP client for the Watchman sanctions screening service.
 
   Plain code — no behaviour at this layer. The mock seam lives one level up at
-  `AtomicFi.DecisionContext.ScreeningEngine.Behaviour`; this module is treated
+  `AtomicFi.ScreeningEngine.Behaviour`; this module is treated
   like a database driver — exercised by integration paths, not unit-mocked.
 
   Built on `Req` with a small response-step pipeline that decodes Watchman JSON

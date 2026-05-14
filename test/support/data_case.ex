@@ -39,6 +39,7 @@ defmodule AtomicFi.DataCase do
   setup tags do
     AtomicFi.DataCase.setup_sandbox(tags)
     AtomicFi.DataCase.setup_screening_engine_mock(tags)
+    AtomicFi.DataCase.setup_rule_engine_mock(tags)
     {:ok, tenant: system_tenant(), session: system_session()}
   end
 
@@ -50,7 +51,19 @@ defmodule AtomicFi.DataCase do
   """
   def setup_screening_engine_mock(tags) do
     Mox.set_mox_from_context(tags)
-    Mox.stub_with(AtomicFi.ScreeningEngineMock, AtomicFi.DecisionContext.ScreeningEngine)
+    Mox.stub_with(AtomicFi.ScreeningEngineMock, AtomicFi.ScreeningEngine.Default)
+    Mox.verify_on_exit!()
+    :ok
+  end
+
+  @doc """
+  Default: AtomicFi.RuleEngineMock delegates to the real engine (which hits
+  the local GoRules Agent container). Individual tests opt-in to canned
+  controls via `Mox.expect(AtomicFi.RuleEngineMock, :get_controls, fn _, _, _ -> ... end)`.
+  """
+  def setup_rule_engine_mock(tags) do
+    Mox.set_mox_from_context(tags)
+    Mox.stub_with(AtomicFi.RuleEngineMock, AtomicFi.RuleEngine.Default)
     Mox.verify_on_exit!()
     :ok
   end
@@ -144,12 +157,12 @@ defmodule AtomicFi.DataCase do
         init_blocklist_cache(session.tenant_id)
 
         request = %{name: "Test", type: "individual", ...}
-        assert {:ok, decision} = DecisionContext.screen_account_holder(session, request)
+        assert {:ok, decision} = ScreeningEngine.screen_account_holder(session, request)
       end
 
   """
   def init_blocklist_cache(tenant_id) do
-    AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant_id)
+    AtomicFi.BlocklistContext.BlocklistCache.refresh_tenant_cache(tenant_id)
   end
 
   @doc """
@@ -260,6 +273,6 @@ defmodule AtomicFi.DataCase do
     end)
 
     # Refresh cache after seeding
-    AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant_id)
+    AtomicFi.BlocklistContext.BlocklistCache.refresh_tenant_cache(tenant_id)
   end
 end

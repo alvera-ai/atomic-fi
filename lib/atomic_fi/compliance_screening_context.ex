@@ -37,20 +37,9 @@ defmodule AtomicFi.ComplianceScreeningContext do
   alias AtomicFi.ComplianceScreeningContext.ComplianceScreening
   alias AtomicFi.ComplianceScreeningContext.SanctionsMatch
   alias AtomicFi.CounterpartyContext.Counterparty
-  alias AtomicFi.DecisionContext.ScreeningEngine
+  alias AtomicFi.ScreeningEngine
   alias AtomicFi.Repo
   alias AtomicFi.SessionContext.Session
-
-  # Screening engine — swappable via config/test.exs to a Mox mock at compile time.
-  # Production: AtomicFi.DecisionContext.ScreeningEngine.
-  # Test: AtomicFi.ScreeningEngineMock; default-stubbed via DataCase/ConnCase
-  # setup hooks to delegate to the real engine unless a test overrides with
-  # Mox.expect/3.
-  @screening_engine Application.compile_env(
-                      :atomic_fi,
-                      :screening_engine,
-                      ScreeningEngine
-                    )
 
   # ---------------------------------------------------------------------------
   # CRUD — ComplianceScreening
@@ -296,8 +285,8 @@ defmodule AtomicFi.ComplianceScreeningContext do
       |> Repo.get!(account_holder_id, skip_multi_tenancy_check: true)
       |> Repo.preload(:legal_entity, skip_multi_tenancy_check: true)
 
-    with {:ok, list_info} <- @screening_engine.get_watchman_list_info(),
-         {:ok, result} <- @screening_engine.screen_account_holder(session, account_holder, []),
+    with {:ok, list_info} <- ScreeningEngine.get_watchman_list_info(),
+         {:ok, result} <- ScreeningEngine.screen_account_holder(session, account_holder, []),
          {:ok, screening} <-
            persist_account_holder_screening(
              session,
@@ -336,9 +325,9 @@ defmodule AtomicFi.ComplianceScreeningContext do
       |> Repo.get!(beneficial_owner_id, skip_multi_tenancy_check: true)
       |> Repo.preload(:legal_entity, skip_multi_tenancy_check: true)
 
-    with {:ok, list_info} <- @screening_engine.get_watchman_list_info(),
+    with {:ok, list_info} <- ScreeningEngine.get_watchman_list_info(),
          {:ok, result} <-
-           @screening_engine.screen_beneficial_owner(session, beneficial_owner, []),
+           ScreeningEngine.screen_beneficial_owner(session, beneficial_owner, []),
          {:ok, screening} <-
            persist_beneficial_owner_screening(
              session,
@@ -378,8 +367,8 @@ defmodule AtomicFi.ComplianceScreeningContext do
       |> Repo.get!(counterparty_id, skip_multi_tenancy_check: true)
       |> Repo.preload(:legal_entity, skip_multi_tenancy_check: true)
 
-    with {:ok, list_info} <- @screening_engine.get_watchman_list_info(),
-         {:ok, result} <- @screening_engine.screen_counterparty(session, counterparty, []),
+    with {:ok, list_info} <- ScreeningEngine.get_watchman_list_info(),
+         {:ok, result} <- ScreeningEngine.screen_counterparty(session, counterparty, []),
          {:ok, screening} <-
            persist_counterparty_screening(
              session,

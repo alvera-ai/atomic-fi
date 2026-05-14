@@ -1,4 +1,4 @@
-defmodule AtomicFi.DecisionContext.BlocklistValidator do
+defmodule AtomicFi.BlocklistContext.BlocklistValidator do
   @moduledoc """
   Validates account holder data against blocklist cache.
 
@@ -8,7 +8,7 @@ defmodule AtomicFi.DecisionContext.BlocklistValidator do
   Returns match details for creating BlocklistMatch structs.
   """
 
-  alias AtomicFi.DecisionContext.{BlocklistCache, Normalizer}
+  alias AtomicFi.BlocklistContext.{BlocklistCache, Normalizer}
 
   @doc """
   Validate first name against blocklist.

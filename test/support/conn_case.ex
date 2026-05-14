@@ -35,6 +35,7 @@ defmodule AtomicFiWeb.ConnCase do
   setup tags do
     AtomicFi.DataCase.setup_sandbox(tags)
     AtomicFi.DataCase.setup_screening_engine_mock(tags)
+    AtomicFi.DataCase.setup_rule_engine_mock(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 
@@ -64,7 +65,7 @@ defmodule AtomicFiWeb.ConnCase do
       from(t in Tenant, where: t.tenant_type == :platform)
       |> Repo.one!(skip_multi_tenancy_check: true)
 
-    AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache(platform_tenant.id)
+    AtomicFi.BlocklistContext.BlocklistCache.refresh_tenant_cache(platform_tenant.id)
   end
 
   @doc """
@@ -82,7 +83,7 @@ defmodule AtomicFiWeb.ConnCase do
 
   """
   def init_blocklist_cache(tenant_id) do
-    AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant_id)
+    AtomicFi.BlocklistContext.BlocklistCache.refresh_tenant_cache(tenant_id)
   end
 
   @doc """
@@ -149,7 +150,7 @@ defmodule AtomicFiWeb.ConnCase do
       |> Repo.insert!(skip_multi_tenancy_check: true)
     end)
 
-    AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache(platform_tenant.id)
+    AtomicFi.BlocklistContext.BlocklistCache.refresh_tenant_cache(platform_tenant.id)
   end
 
   @doc """
