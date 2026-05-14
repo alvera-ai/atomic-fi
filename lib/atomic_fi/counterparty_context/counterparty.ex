@@ -140,6 +140,10 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
 
     belongs_to :tenant, Tenant
 
+    # FK to the currently-scheduled OnboardingWorker job. Owned by
+    # OnboardingContext / OnboardingWorker — see their moduledocs.
+    belongs_to :rescreen_job, Oban.Job, type: :integer
+
     timestamps(type: :utc_datetime_usec)
   end
 

@@ -13,10 +13,11 @@ defmodule AtomicFi.BeneficialOwnerContext do
   import Ecto.Query, warn: false
   use AtomicFi.LoggerMacro
 
-  alias AtomicFi.ComplianceScreeningContext.ScreeningWorker
+  alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
+  alias AtomicFi.LedgerAccountContext
+  alias AtomicFi.OnboardingContext
   alias AtomicFi.OpenApiSchema.BeneficialOwnerRequest
   alias AtomicFi.Repo
-  alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
   alias AtomicFi.SessionContext.Session
 
   @preloads [legal_entity: [:addresses, :phone_numbers, :identifications]]
@@ -85,10 +86,14 @@ defmodule AtomicFi.BeneficialOwnerContext do
                              %BeneficialOwnerRequest{} = request
                            ),
                            log_fields: [] do
-    %BeneficialOwner{}
-    |> BeneficialOwner.changeset(request)
-    |> Repo.insert(session: session)
-    |> bo_lifecycle(schedule_screening: request.chain_screening)
+    with {:ok, beneficial_owner} <-
+           %BeneficialOwner{}
+           |> BeneficialOwner.changeset(request)
+           |> Repo.insert(session: session)
+           |> bo_lifecycle(),
+         {:ok, beneficial_owner} <- OnboardingContext.onboard(session, beneficial_owner) do
+      {:ok, beneficial_owner}
+    end
   end
 
   @doc """
@@ -111,10 +116,43 @@ defmodule AtomicFi.BeneficialOwnerContext do
                              %BeneficialOwnerRequest{} = request
                            ),
                            log_fields: [:beneficial_owner] do
-    beneficial_owner
-    |> BeneficialOwner.changeset(request)
-    |> Repo.update(session: session)
-    |> bo_lifecycle(schedule_screening: request.chain_screening)
+    with {:ok, beneficial_owner} <-
+           beneficial_owner
+           |> BeneficialOwner.changeset(request)
+           |> Repo.update(session: session)
+           |> bo_lifecycle(),
+         {:ok, beneficial_owner} <- OnboardingContext.onboard(session, beneficial_owner) do
+      {:ok, beneficial_owner}
+    end
+  end
+
+  @doc """
+  `AtomicFi.ControlProtocol` callback for `%BeneficialOwner{}`.
+
+  BOs have no LedgerAccounts of their own; the engine ran against the
+  BO's parent (carried on `result.engine_entity`) and the returned
+  controls target THAT entity's LAs. This impl applies controls to the
+  engine_entity's LAs, enqueues + links the BO's own re-screen
+  `OnboardingWorker` so the BO is periodically re-screened on its own
+  schedule.
+  """
+  @spec process_controls(BeneficialOwner.t(), Session.t(), OnboardingContext.result()) ::
+          {:ok, BeneficialOwner.t()} | {:error, term()}
+  def process_controls(%BeneficialOwner{} = beneficial_owner, session, %{
+        controls: controls,
+        next_screening_at: next_screening_at,
+        engine_entity: engine_entity
+      }) do
+    engine_entity_las = LedgerAccountContext.list_for_entity(session, engine_entity)
+
+    with :ok <- LedgerAccountContext.apply_controls(session, engine_entity_las, controls),
+         {:ok, job_id} <- OnboardingContext.enqueue_next(beneficial_owner, next_screening_at),
+         {:ok, beneficial_owner} <-
+           beneficial_owner
+           |> Ecto.Changeset.change(%{rescreen_job_id: job_id})
+           |> Repo.update(session: session) do
+      {:ok, beneficial_owner}
+    end
   end
 
   @doc """
@@ -160,24 +198,6 @@ defmodule AtomicFi.BeneficialOwnerContext do
     Repo.preload(bo, @preloads, skip_multi_tenancy_check: true)
   end
 
-  # Single hook for post-write effects: preload associations and fire any
-  # opt-in side effects (e.g. screening Oban job).
-  defp bo_lifecycle({:ok, %BeneficialOwner{} = bo}, opts) do
-    bo = preload(bo)
-    if opts[:schedule_screening], do: schedule_screening(bo)
-    {:ok, bo}
-  end
-
-  defp bo_lifecycle({:error, _} = err, _opts), do: err
-
-  defp schedule_screening(%BeneficialOwner{} = bo) do
-    %{
-      subject: "beneficial_owner",
-      account_holder_id: bo.account_holder_id,
-      beneficial_owner_id: bo.id,
-      tenant_id: bo.tenant_id
-    }
-    |> ScreeningWorker.new()
-    |> Oban.insert!()
-  end
+  defp bo_lifecycle({:ok, %BeneficialOwner{} = bo}), do: {:ok, preload(bo)}
+  defp bo_lifecycle({:error, _} = err), do: err
 end

@@ -133,6 +133,34 @@ defmodule AtomicFi.PaymentAccountContext do
     end
   end
 
+  @doc """
+  `AtomicFi.ControlProtocol` callback for `%PaymentAccount{}`.
+
+  Resolves the PA's LedgerAccounts, applies the engine's controls
+  (resetting any LA the engine did NOT emit a Control for back to
+  blocked), enqueues the next `OnboardingWorker`, and writes the new
+  job id onto `rescreen_job_id` via a narrow `Ecto.Changeset.change/2`
+  — does NOT go through the public `update_payment_account/3` path
+  (which would re-trigger this onboarding flow).
+  """
+  @spec process_controls(PaymentAccount.t(), Session.t(), OnboardingContext.result()) ::
+          {:ok, PaymentAccount.t()} | {:error, term()}
+  def process_controls(%PaymentAccount{} = payment_account, session, %{
+        controls: controls,
+        next_screening_at: next_screening_at
+      }) do
+    ledger_accounts = LedgerAccountContext.list_for_entity(session, payment_account)
+
+    with :ok <- LedgerAccountContext.apply_controls(session, ledger_accounts, controls),
+         {:ok, job_id} <- OnboardingContext.enqueue_next(payment_account, next_screening_at),
+         {:ok, payment_account} <-
+           payment_account
+           |> Ecto.Changeset.change(%{rescreen_job_id: job_id})
+           |> Repo.update(session: session) do
+      {:ok, payment_account}
+    end
+  end
+
   defp write_pa_and_ensure_las(session, %Ecto.Changeset{} = changeset) do
     Repo.transaction(
       fn ->

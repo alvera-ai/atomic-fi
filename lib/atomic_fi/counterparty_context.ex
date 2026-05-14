@@ -11,9 +11,9 @@ defmodule AtomicFi.CounterpartyContext do
   import Ecto.Query, warn: false
   use AtomicFi.LoggerMacro
 
-  alias AtomicFi.OnboardingContext
   alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.LedgerAccountContext
+  alias AtomicFi.OnboardingContext
   alias AtomicFi.OpenApiSchema.CounterpartyRequest
   alias AtomicFi.Repo
   alias AtomicFi.SessionContext.Session
@@ -150,6 +150,30 @@ defmodule AtomicFi.CounterpartyContext do
   defp after_cp_changed(session, %Ecto.Changeset{} = changeset) do
     with {:ok, counterparty} <- write_cp_and_ensure_las(session, changeset),
          {:ok, counterparty} <- OnboardingContext.onboard(session, counterparty) do
+      {:ok, counterparty}
+    end
+  end
+
+  @doc """
+  `AtomicFi.ControlProtocol` callback for `%Counterparty{}`. See
+  `AtomicFi.PaymentAccountContext.process_controls/3` for the shared
+  shape — resolves the CP's own LAs, applies the engine's controls,
+  enqueues + links the next `OnboardingWorker`.
+  """
+  @spec process_controls(Counterparty.t(), Session.t(), OnboardingContext.result()) ::
+          {:ok, Counterparty.t()} | {:error, term()}
+  def process_controls(%Counterparty{} = counterparty, session, %{
+        controls: controls,
+        next_screening_at: next_screening_at
+      }) do
+    ledger_accounts = LedgerAccountContext.list_for_entity(session, counterparty)
+
+    with :ok <- LedgerAccountContext.apply_controls(session, ledger_accounts, controls),
+         {:ok, job_id} <- OnboardingContext.enqueue_next(counterparty, next_screening_at),
+         {:ok, counterparty} <-
+           counterparty
+           |> Ecto.Changeset.change(%{rescreen_job_id: job_id})
+           |> Repo.update(session: session) do
       {:ok, counterparty}
     end
   end

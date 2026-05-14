@@ -414,24 +414,97 @@ defmodule AtomicFi.LedgerAccountContext do
   end
 
   @doc """
-  Applies a `%{ledger_account_id => %Control{}}` map by updating each LA row
-  with the Control's is_blocked / block_reason / max_* fields. All updates
-  run inside one transaction so a single failure rolls them all back.
-  """
-  @spec apply_controls(Session.t(), %{optional(Ecto.UUID.t()) => Control.t()}) ::
-          :ok | {:error, term()}
-  def_with_rls_and_logging apply_controls(session, controls), log_fields: [] do
-    controls
-    |> Enum.reduce(Multi.new(), fn {la_id, %Control{} = control}, multi ->
-      Multi.run(multi, {:apply, la_id}, fn _repo, _changes ->
-        la = Repo.get!(LedgerAccount, la_id, session: session)
+  Lists the LedgerAccount rows owned by `entity`. Used by onboarding so a
+  context can apply the engine's per-LA controls to its own LAs (and
+  reset any LAs the engine did NOT emit a Control for back to blocked).
 
-        la
-        |> LedgerAccount.changeset(control_to_la_attrs(control))
-        |> Repo.update(session: session)
-      end)
+    * `%PaymentAccount{}` — every LA with `payment_account_id == pa.id`.
+    * `%AccountHolder{}` — AH-root + AH-regime-root rows: LAs with
+      `account_holder_id == ah.id AND payment_account_id IS NULL AND
+      counterparty_id IS NULL`.
+    * `%Counterparty{}` — CP-root + CP-regime-root rows: LAs with
+      `counterparty_id == cp.id AND payment_account_id IS NULL`.
+  """
+  @spec list_for_entity(Session.t(), AccountHolder.t() | Counterparty.t() | PaymentAccount.t()) ::
+          [LedgerAccount.t()]
+  def_with_rls_and_logging list_for_entity(session, %PaymentAccount{} = pa), log_fields: [] do
+    Repo.all(
+      from(la in LedgerAccount, where: la.payment_account_id == ^pa.id),
+      session: session
+    )
+  end
+
+  def_with_rls_and_logging list_for_entity(session, %AccountHolder{} = ah), log_fields: [] do
+    Repo.all(
+      from(la in LedgerAccount,
+        where:
+          la.account_holder_id == ^ah.id and is_nil(la.payment_account_id) and
+            is_nil(la.counterparty_id)
+      ),
+      session: session
+    )
+  end
+
+  def_with_rls_and_logging list_for_entity(session, %Counterparty{} = cp), log_fields: [] do
+    Repo.all(
+      from(la in LedgerAccount,
+        where: la.counterparty_id == ^cp.id and is_nil(la.payment_account_id)
+      ),
+      session: session
+    )
+  end
+
+  @doc """
+  Applies the engine's per-LA controls to a caller-supplied list of
+  LedgerAccounts.
+
+  Semantics (fail-closed): for every LA in `ledger_accounts`, if the
+  controls map has an entry for that LA's id, the Control's
+  is_blocked / block_reason / max_* fields are written; otherwise the
+  LA is reset to the block-by-default state. Entries in `controls` for
+  LAs not in `ledger_accounts` are ignored — each entity's onboarding
+  flow is responsible for its own LAs only.
+
+  The caller resolves the LA list (via `list_for_entity/2` or a
+  preloaded association) so this function stays a pure write step.
+
+  All updates run inside one transaction so a single failure rolls
+  them all back.
+  """
+  @spec apply_controls(
+          Session.t(),
+          [LedgerAccount.t()],
+          %{optional(Ecto.UUID.t()) => Control.t()}
+        ) :: :ok | {:error, term()}
+  def_with_rls_and_logging apply_controls(session, ledger_accounts, controls), log_fields: [] do
+    ledger_accounts
+    |> Enum.reduce(Multi.new(), fn %LedgerAccount{} = la, multi ->
+      attrs =
+        case Map.get(controls, la.id) do
+          %Control{} = control -> control_to_la_attrs(control)
+          nil -> block_by_default_attrs()
+        end
+
+      Multi.update(multi, {:apply, la.id}, LedgerAccount.changeset(la, attrs))
     end)
     |> run_multi(session)
+  end
+
+  # Reset attrs for LAs the engine did NOT emit a Control for — the
+  # same shape used on initial materialisation in `upsert_la/6`.
+  defp block_by_default_attrs do
+    %{
+      is_blocked: true,
+      block_reason: @initial_block_reason,
+      max_daily_debit: nil,
+      max_daily_credit: nil,
+      max_weekly_debit: nil,
+      max_weekly_credit: nil,
+      max_monthly_debit: nil,
+      max_monthly_credit: nil,
+      max_yearly_debit: nil,
+      max_yearly_credit: nil
+    }
   end
 
   # Maps the Control struct's slot names (daily_debit_cap, …) onto the

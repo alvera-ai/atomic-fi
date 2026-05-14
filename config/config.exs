@@ -113,7 +113,7 @@ config :atomic_fi, AtomicFi.RuleEngine, base_url: "http://localhost:8090"
 config :atomic_fi, Oban,
   prefix: "oban",
   repo: AtomicFi.Repo,
-  queues: [compliance_screening: 10]
+  queues: [onboarding: 10]
 
 # Quantum scheduler - cron-like job scheduling
 config :atomic_fi, AtomicFi.Scheduler,
