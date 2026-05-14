@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@gorules/jdm-editor':
+    hash: kjvzybupc2ci7chujsf3achnx4
+    path: patches/@gorules__jdm-editor.patch
+
 importers:
 
   .: {}
@@ -15,7 +20,7 @@ importers:
         version: 6.2.3(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@gorules/jdm-editor':
         specifier: ^1.51.0
-        version: 1.52.0(@types/node@25.7.0)(@types/react@19.2.14)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 1.52.0(patch_hash=kjvzybupc2ci7chujsf3achnx4)(@types/node@25.7.0)(@types/react@19.2.14)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@gorules/zen-engine-wasm':
         specifier: ^0.23.0
         version: 0.23.1
@@ -4817,7 +4822,7 @@ snapshots:
       lodash.isundefined: 3.0.1
       lodash.uniq: 4.5.0
 
-  '@gorules/jdm-editor@1.52.0(@types/node@25.7.0)(@types/react@19.2.14)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+  '@gorules/jdm-editor@1.52.0(patch_hash=kjvzybupc2ci7chujsf3achnx4)(@types/node@25.7.0)(@types/react@19.2.14)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@ant-design/icons': 6.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@codemirror/autocomplete': 6.20.2
