@@ -23,6 +23,19 @@ defmodule AtomicFi.RuleEngine.Behaviour do
   @typedoc "Controls to apply, keyed by ledger_account_id."
   @type controls :: %{optional(Ecto.UUID.t()) => Control.t()}
 
+  @typedoc """
+  Engine result envelope.
+
+    * `:controls` — per-LedgerAccount Controls.
+    * `:next_screening_at` — when this entity should be re-screened. Onboarding
+      callers enqueue an Oban job at this time; transaction-screening callers
+      ignore it (txns are one-shot). `nil` if no rule supplied one.
+  """
+  @type result :: %{
+          controls: controls(),
+          next_screening_at: DateTime.t() | nil
+        }
+
   @callback get_controls(Session.t(), rule_type(), entity :: struct()) ::
-              {:ok, controls()} | {:ok, :no_limits} | {:error, term()}
+              {:ok, result()} | {:ok, :no_limits} | {:error, term()}
 end

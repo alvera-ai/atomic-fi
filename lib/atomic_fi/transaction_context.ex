@@ -130,7 +130,9 @@ defmodule AtomicFi.TransactionContext do
           # ledger movement.
           {:ok, transaction}
 
-        {:ok, controls} ->
+        {:ok, %{controls: controls}} ->
+          # next_screening_at is meaningful only for onboarding; transactions
+          # are one-shot, so we ignore it here.
           with {:ok, entries} <-
                  LedgerEntryContext.create_entries(session, transaction, controls) do
             transaction

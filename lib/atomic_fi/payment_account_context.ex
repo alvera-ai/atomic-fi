@@ -21,6 +21,7 @@ defmodule AtomicFi.PaymentAccountContext do
   use AtomicFi.LoggerMacro
 
   alias AtomicFi.LedgerAccountContext
+  alias AtomicFi.OnboardingContext
   alias AtomicFi.OpenApiSchema.PaymentAccountRequest
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.Repo
@@ -113,12 +114,26 @@ defmodule AtomicFi.PaymentAccountContext do
     after_pa_changed(session, PaymentAccount.changeset(payment_account, request))
   end
 
-  # Lifecycle hook shared by create + update. Wraps the PA insert-or-update
-  # and the direct-line LedgerAccount fan-out (`AH-PA root` + per-regime
-  # regime-roots, or `CP-PA` variants if `pa.counterparty_id` is set) in one
-  # transaction so a trigger-side failure (e.g. missing CP root) rolls the
-  # PA write back.
+  # Lifecycle hook shared by create + update.
+  #
+  # Three-step flow:
+  #
+  #   txn 1 — wraps the PA insert/update + AH-tree ensure + PA-tree ensure
+  #           in one transaction. LAs created here are block-by-default
+  #           (`is_blocked: true`, `block_reason: "pending onboarding screening"`).
+  #   txn 2 — HTTP call to the RuleEngine (no DB transaction).
+  #   txn 3 — applies the engine's per-LA controls (unblocks + sets max_*).
+  #
+  # If the engine call fails, the PA still exists and its LAs stay blocked
+  # — fail-closed by design. Re-issuing the PA update will retry onboarding.
   defp after_pa_changed(session, %Ecto.Changeset{} = changeset) do
+    with {:ok, pa} <- write_pa_and_ensure_las(session, changeset),
+         {:ok, pa} <- OnboardingContext.onboard(session, pa) do
+      {:ok, pa}
+    end
+  end
+
+  defp write_pa_and_ensure_las(session, %Ecto.Changeset{} = changeset) do
     Repo.transaction(
       fn ->
         with {:ok, pa} <- Repo.insert_or_update(changeset, session: session),

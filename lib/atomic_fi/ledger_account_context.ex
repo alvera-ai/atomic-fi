@@ -25,8 +25,15 @@ defmodule AtomicFi.LedgerAccountContext do
   alias AtomicFi.OpenApiSchema.LedgerAccountRequest
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.Repo
+  alias AtomicFi.RuleEngine.Control
   alias AtomicFi.SessionContext.Session
   alias Ecto.Multi
+
+  # LAs are materialised block-by-default. The onboarding RuleEngine call
+  # (run after `ensure_linked_ledger_accounts/2`) unblocks them and sets the
+  # max_* hard caps. If the engine returns `:no_limits`, LAs stay blocked —
+  # fail-closed by design.
+  @initial_block_reason "pending onboarding screening"
 
   # Default preload set — the linked_ledger_accounts edge list (with each edge's
   # target LA hydrated) is the read-side ergonomic for tree traversal. Single
@@ -383,20 +390,65 @@ defmodule AtomicFi.LedgerAccountContext do
         {:ok, existing}
 
       nil ->
-        request =
-          struct(LedgerAccountRequest, %{
-            account_holder_id: base.account_holder_id,
-            ledger_id: base.ledger_id,
-            currency: base.currency,
-            tenant_id: base.tenant_id,
-            la_type: la_type,
-            regime: regime,
-            payment_account_id: payment_account_id,
-            counterparty_id: counterparty_id,
-            status: :active
-          })
+        # Internal materialisation — bypass the public LedgerAccountRequest
+        # struct (which intentionally omits the internal-only is_blocked /
+        # block_reason / max_* fields) and call the schema changeset directly.
+        attrs = %{
+          account_holder_id: base.account_holder_id,
+          ledger_id: base.ledger_id,
+          currency: base.currency,
+          tenant_id: base.tenant_id,
+          la_type: la_type,
+          regime: regime,
+          payment_account_id: payment_account_id,
+          counterparty_id: counterparty_id,
+          status: :active,
+          is_blocked: true,
+          block_reason: @initial_block_reason
+        }
 
-        create_ledger_account(session, request)
+        %LedgerAccount{}
+        |> LedgerAccount.changeset(attrs)
+        |> Repo.insert(session: session)
     end
+  end
+
+  @doc """
+  Applies a `%{ledger_account_id => %Control{}}` map by updating each LA row
+  with the Control's is_blocked / block_reason / max_* fields. All updates
+  run inside one transaction so a single failure rolls them all back.
+  """
+  @spec apply_controls(Session.t(), %{optional(Ecto.UUID.t()) => Control.t()}) ::
+          :ok | {:error, term()}
+  def_with_rls_and_logging apply_controls(session, controls), log_fields: [] do
+    controls
+    |> Enum.reduce(Multi.new(), fn {la_id, %Control{} = control}, multi ->
+      Multi.run(multi, {:apply, la_id}, fn _repo, _changes ->
+        la = Repo.get!(LedgerAccount, la_id, session: session)
+
+        la
+        |> LedgerAccount.changeset(control_to_la_attrs(control))
+        |> Repo.update(session: session)
+      end)
+    end)
+    |> run_multi(session)
+  end
+
+  # Maps the Control struct's slot names (daily_debit_cap, …) onto the
+  # LedgerAccount column names (max_daily_debit, …). is_blocked /
+  # block_reason pass through unchanged.
+  defp control_to_la_attrs(%Control{} = c) do
+    %{
+      max_daily_debit: c.daily_debit_cap,
+      max_daily_credit: c.daily_credit_cap,
+      max_weekly_debit: c.weekly_debit_cap,
+      max_weekly_credit: c.weekly_credit_cap,
+      max_monthly_debit: c.monthly_debit_cap,
+      max_monthly_credit: c.monthly_credit_cap,
+      max_yearly_debit: c.yearly_debit_cap,
+      max_yearly_credit: c.yearly_credit_cap,
+      is_blocked: c.is_blocked,
+      block_reason: c.block_reason
+    }
   end
 end

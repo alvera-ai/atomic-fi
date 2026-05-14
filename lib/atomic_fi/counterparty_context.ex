@@ -11,7 +11,7 @@ defmodule AtomicFi.CounterpartyContext do
   import Ecto.Query, warn: false
   use AtomicFi.LoggerMacro
 
-  alias AtomicFi.ComplianceScreeningContext.ScreeningWorker
+  alias AtomicFi.OnboardingContext
   alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.LedgerAccountContext
   alias AtomicFi.OpenApiSchema.CounterpartyRequest
@@ -89,21 +89,7 @@ defmodule AtomicFi.CounterpartyContext do
         {:ok, existing}
 
       nil ->
-        with {:ok, counterparty} <-
-               after_cp_changed(session, Counterparty.changeset(%Counterparty{}, request)) do
-          if request.chain_screening do
-            %{
-              subject: "counterparty",
-              account_holder_id: counterparty.account_holder_id,
-              counterparty_id: counterparty.id,
-              tenant_id: counterparty.tenant_id
-            }
-            |> ScreeningWorker.new()
-            |> Oban.insert!()
-          end
-
-          {:ok, counterparty}
-        end
+        after_cp_changed(session, Counterparty.changeset(%Counterparty{}, request))
     end
   end
 
@@ -153,11 +139,22 @@ defmodule AtomicFi.CounterpartyContext do
     after_cp_changed(session, Counterparty.changeset(counterparty, request))
   end
 
-  # Lifecycle hook shared by create + update. Wraps the CP insert-or-update
-  # and the direct-line LedgerAccount fan-out (`CP root` + per-regime CP
-  # regime-roots, for every ledger of the linked AccountHolder) in one
-  # transaction so a trigger-side failure rolls the CP write back.
+  # Lifecycle hook shared by create + update.
+  #
+  # Three-step flow (see `PaymentAccountContext.after_pa_changed/2` for the
+  # PA equivalent):
+  #
+  #   txn 1 — CP insert/update + CP-tree ensure (block-by-default LAs).
+  #   txn 2 — HTTP call to the RuleEngine.
+  #   txn 3 — applies the engine's per-LA controls (unblock + max_*).
   defp after_cp_changed(session, %Ecto.Changeset{} = changeset) do
+    with {:ok, counterparty} <- write_cp_and_ensure_las(session, changeset),
+         {:ok, counterparty} <- OnboardingContext.onboard(session, counterparty) do
+      {:ok, counterparty}
+    end
+  end
+
+  defp write_cp_and_ensure_las(session, %Ecto.Changeset{} = changeset) do
     Repo.transaction(
       fn ->
         with {:ok, counterparty} <- Repo.insert_or_update(changeset, session: session),
