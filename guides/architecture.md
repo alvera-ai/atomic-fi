@@ -12,19 +12,28 @@ For the per-context ERD (entities + relationships) see
 
 ## C4 — Operators and what they do
 
-Convention: **agents are first-class operators** alongside humans. Two flavours:
+Convention: **agents are first-class operators** alongside humans, **but no
+agent — external or internal — mutates state without explicit human
+approval**. Agents *propose* (author rules, draft tests, suggest patches);
+humans *approve* (Product Engineer running the skill, Compliance Officer
+clicking through the UI). The publish path is always:
+
+```
+agent proposal  →  human review  →  REST mutation  →  downstream effect
+```
+
+Two agent flavours:
 
 - **External Agents** — Claude Code skills running outside the platform at
-  dev time. Generate code, scaffold tests/docs, author + push ZenRule rule
-  sets. Driven by Product Engineers, System Integrators, or autonomously.
-- **Internal Agents** — long-running agents **inside `atomic-fi`** itself.
-  They have first-class access to the rule registry, enriched payloads, and
-  transaction history. Natural-language → JDM rule authoring, regulation
-  ingestion, conflict & gap detection, synthetic test generation. Exposed
-  via REST and consumed by Internal Apps (the React control surface for
-  Compliance Officers). See
-  `worklogs/smart_rules_engine_capability_table.xlsx` for the full
-  capability map and phasing.
+  dev time. Generate code, scaffold tests/docs, draft JDM rule sets. Driven
+  by Product Engineers / System Integrators who review and approve each step.
+- **Internal Agents** — long-running agents **inside `atomic-fi`** itself,
+  built on the [Lotus](https://github.com/alvera-ai/lotus) Elixir
+  open-source agent framework (in-process, no extra service). First-class
+  access to the rule registry, enriched payloads, and transaction history.
+  Natural-language → JDM rule authoring, regulation ingestion, conflict &
+  gap detection, synthetic test generation. Exposed via REST and consumed
+  by Internal Apps.
 
 ```mermaid
 flowchart LR
@@ -46,28 +55,31 @@ flowchart LR
     subgraph sor_box ["atomic-fi — System of Record (Phoenix + Postgres + Oban)"]
         direction TB
         sor_core[REST + Ledger + Screening]:::sor
-        int_agents[Internal Agents<br/>NL → JDM authoring<br/>regulation ingestion<br/>conflict / gap detection<br/>synthetic test generation]:::agent
-        int_agents -- "uses" --> sor_core
+        db[(Postgres<br/>rule registry · payloads<br/>transaction history)]:::sor
+        int_agents[Internal Agents<br/>built on Lotus<br/>NL → JDM authoring<br/>regulation ingestion<br/>conflict / gap detection<br/>synthetic test generation]:::agent
+        sor_core --- db
+        int_agents -- "read" --> db
     end
 
     watchman[Watchman<br/>sanctions]:::external
     zenrule[ZenRule<br/>JDM decisions]:::external
 
-    pe -- "scaffolds apps + initial rules" --> ext_agents
-    si -- "generates integration code" --> ext_agents
+    pe -- "drives (and approves)" --> ext_agents
+    si -- "drives (and approves)" --> ext_agents
 
-    ext_agents --> apps
+    ext_agents -- "scaffold + rule drafts" --> apps
     ext_agents --> intcode
-    ext_agents -- "push JDM rule sets" --> zenrule
 
     co --> apps
     apps -- "invoke" --> int_agents
-    apps --> sor_core
+    int_agents -- "propose drafts" --> apps
+    int_agents -- "introspect rule sets" --> zenrule
+
+    apps    -. "REST (post-CO approval)" .-> sor_core
     intcode --> sor_core
 
-    int_agents -- "publish rules" --> zenrule
+    sor_core -- "publish on CO approval" --> zenrule
     sor_core --> watchman
-    sor_core --> zenrule
 ```
 
 ```
@@ -88,18 +100,126 @@ flowchart LR
                             that double as live-request records, Bruno
                             collections that double as runnable smoke tests.
 
-     INTERNAL AGENTS        run inside atomic-fi with first-class access
-                            to the rule registry, enriched payloads, and
-                            transaction history. Exposed via REST so
-                            Internal Apps (and any future agent surface)
-                            can drive them.
+     INTERNAL AGENTS        run inside atomic-fi (Lotus / Elixir, in-process)
+                            with first-class access to the rule registry,
+                            enriched payloads, and transaction history.
+                            Propose drafts via REST — they NEVER mutate
+                            state or publish rules directly. Publish flows
+                            atomic-fi REST → ZenRule only after a CO
+                            approves the draft in the Internal App.
 
      EXTERNAL AGENTS        Claude Code skills run outside the platform.
-                            One-shot at dev time; their output (vitest
-                            specs, Bruno collections, MDX pages, React
-                            demos, ZenRule rule JSON) is what gets
-                            committed and shipped.
+                            One-shot at dev time. DRAFT artifacts (vitest
+                            specs, Bruno collections, MDX, React demos,
+                            JDM rule JSON). Never talk to ZenRule directly —
+                            rule drafts land in Internal Apps for CO review,
+                            and only the human-approved path
+                            (Internal App → atomic-fi REST → ZenRule)
+                            actually publishes a rule.
 ```
+
+---
+
+## C4 — Components inside `atomic-fi`
+
+Zoom into the Phoenix backend container. Components grouped by domain; the
+two external services attach via transport clients beneath the domain
+Behaviours. The full per-entity ERD is in
+[`core-modules.md`](./core-modules.md#erd).
+
+```mermaid
+flowchart TB
+    classDef component fill:#85bbf0,stroke:#4f87b8,color:#000
+    classDef behaviour fill:#fbcb4a,stroke:#a37c00,color:#000
+    classDef agent fill:#6b4f9b,stroke:#3f2d67,color:#fff
+    classDef datastore fill:#438dd5,stroke:#2e6295,color:#fff
+    classDef external fill:#999,stroke:#666,color:#fff
+
+    controllers["AtomicFiApi.*Controller<br/>(OpenAPI + cast_and_validate)"]:::component
+
+    subgraph parties ["Parties"]
+        ah[AccountHolderContext]:::component
+        cp[CounterpartyContext]:::component
+        le[LegalEntityContext]:::component
+        bo[BeneficialOwnerContext]:::component
+    end
+
+    subgraph compliance ["Compliance Ops"]
+        screening[ComplianceScreeningContext]:::component
+        kyc[KycRequirementContext]:::component
+        doc[DocumentContext]:::component
+        risk[RiskClassificationContext]:::component
+        blocklist[BlocklistContext]:::component
+    end
+
+    subgraph ledger ["Payment Ledger"]
+        pa[PaymentAccountContext]:::component
+        ledger_ctx[LedgerContext]:::component
+        la["LedgerAccountContext<br/>(LA tree · ensure_linked_ledger_accounts)"]:::component
+        lab[LedgerAccountBalanceContext]:::component
+        le_entry[LedgerEntryContext]:::component
+        txn[TransactionContext]:::component
+    end
+
+    subgraph decision ["Decision Engines (domain Behaviours)"]
+        screening_eng[[ScreeningEngine.Behaviour]]:::behaviour
+        screening_impl["DecisionContext.ScreeningEngine<br/>+ BlocklistCache + BlocklistValidator"]:::component
+        rule_eng[[RuleEngine.Behaviour]]:::behaviour
+        zenrule_impl[RuleEngine.ZenRule]:::component
+    end
+
+    subgraph transport ["Transport (Req — DB-driver equivalent)"]
+        watchman_client[Watchman.Client]:::component
+        zenrule_client[ZenRule.Client]:::component
+    end
+
+    int_agents[Internal Agents<br/>built on Lotus]:::agent
+
+    subgraph data ["Data"]
+        repo[(AtomicFi.Repo<br/>RLS-aware Ecto)]:::datastore
+        triggers[(PostgreSQL<br/>triggers + CHECKs)]:::datastore
+    end
+
+    watchman_ext[Watchman]:::external
+    zenrule_ext[ZenRule]:::external
+
+    controllers --> parties
+    controllers --> compliance
+    controllers --> ledger
+    controllers --> int_agents
+
+    screening --> screening_eng
+    txn --> rule_eng
+
+    screening_eng -. impl .- screening_impl
+    rule_eng      -. impl .- zenrule_impl
+
+    screening_impl --> watchman_client
+    screening_impl --> blocklist
+    zenrule_impl   --> zenrule_client
+
+    watchman_client --> watchman_ext
+    zenrule_client  --> zenrule_ext
+
+    pa  -. "lifecycle hook" .-> la
+    cp  -. "lifecycle hook" .-> la
+    txn --> le_entry
+    le_entry --> la
+
+    int_agents -- "read" --> repo
+    int_agents -- "introspect rule sets" --> zenrule_client
+
+    parties    --> repo
+    compliance --> repo
+    ledger     --> repo
+    repo --- triggers
+```
+
+Yellow boxes are domain `@behaviour` definitions — the architectural
+boundary above the HTTP transport. Production code only sees preloaded
+domain structs going in and decoded results coming out, never raw
+Watchman / ZenRule JSON. The transport clients (blue, below) are treated
+like database drivers.
 
 ---
 
@@ -121,7 +241,8 @@ flowchart LR
 │   - Lifecycle hooks (e.g. ensure_linked_ledger_accounts) wrap       │
 │     write paths in Repo.transaction + Ecto.Multi                    │
 │   - Domain Behaviours for external services (ScreeningEngine,       │
-│     RuleEngine) — Mox seams live here, never at the HTTP transport  │
+│     RuleEngine) — take preloaded domain structs, return decoded     │
+│     results; the HTTP transport sits below the Behaviour            │
 └─────────────────────────────────────────────────────────────────────┘
                                   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -239,30 +360,29 @@ Every schema annotated with `open_api_property` + `open_api_schema(title:
 `AtomicFi.OpenApiSchema.FooResponse`. `readOnly: true` fields appear only in
 responses; `writeOnly: true` only in requests.
 
-### 4. External Service Seam (transport + domain Behaviour + Mox)
+### 4. External Service Seam (transport + domain Behaviour)
 
 Every external HTTP integration follows the same shape:
 
 ```
-                   AtomicFi.Watchman.Client          ← transport (Req)
-                            ↑                          no Behaviour
-                            │
-       AtomicFi.DecisionContext.ScreeningEngine     ← domain module
-                            ↑                          @callback returns
-       AtomicFi.DecisionContext.ScreeningEngine.Behaviour      preloaded
-                            ↑                          domain structs
-       Application.compile_env(:atomic_fi, :screening_engine)
-              │
-              ├── prod  → AtomicFi.DecisionContext.ScreeningEngine
-              └── test  → AtomicFi.ScreeningEngineMock (Mox)
-                          DataCase auto-`stub_with`s the real impl
+            AtomicFi.Watchman.Client         ← transport (Req)
+                     ↑                         no Behaviour, treated
+                     │                         like a database driver
+   AtomicFi.DecisionContext.ScreeningEngine  ← domain module
+                     ↑                         @callback takes preloaded
+   ScreeningEngine.Behaviour                   domain structs (AH, CP, …)
+                     ↑                         and returns matches
+   Application.compile_env(:atomic_fi, :screening_engine)
+                     │
+                     └── runtime impl picked here
 ```
 
 The transport client is treated like a database driver — defensive arms get
-`# coveralls-ignore`. The Mox seam lives at the **domain** Behaviour layer so
-tests can drive return values without setting up service state.
-
-Same shape for `RuleEngine.Behaviour` over `AtomicFi.ZenRule.Client`.
+`# coveralls-ignore`. The domain Behaviour is the architectural boundary —
+above it the rest of the codebase only sees preloaded domain structs going
+in and decoded results coming out, never raw HTTP. Same shape for
+`RuleEngine.Behaviour` over `AtomicFi.ZenRule.Client`. (How tests double
+the Behaviour with Mox is in [`testing.md`](./testing.md).)
 
 ### 5. Trigger-Enforced Invariants
 
@@ -344,9 +464,9 @@ Tests run in strict bottom-up order — never jump layers:
 | 3 | vitest | `integration-tests/tests/` | End-to-end against a running server, exercising the TypeScript SDK. |
 | 4 | Bruno | `bruno/atomic-fi-scenarios/` | Scenario flows (onboarding → screening → transaction) hitting the live API. |
 
-Mox seams (`ScreeningEngineMock`, `RuleEngineMock`) default to `stub_with`
-the real impl, so existing tests continue to hit Watchman / ZenRule unless a
-specific test overrides with `Mox.expect/3`. See
+By default, tests hit the live Watchman / ZenRule via the production
+Behaviour impl; individual tests can swap in a double at the Behaviour
+layer when they need to drive specific return values. See
 [`testing.md`](./testing.md).
 
 ---

@@ -104,8 +104,8 @@ config :atomic_fi, AtomicFi.Watchman.Client, base_url: "http://localhost:8084"
 # ZenRule rules/limits engine (GoRules Agent). The rule_engine impl satisfies
 # AtomicFi.RuleEngine.Behaviour and is consulted synchronously when a
 # Transaction/AccountHolder/Counterparty is created or updated. The impl owns
-# its own config slice; the dispatcher (`AtomicFi.RuleEngine`) only knows
-# which module to call.
+# its own config slice; the caller picks the impl via `Application.compile_env`
+# (mirrors the screening engine seam).
 config :atomic_fi, :rule_engine, AtomicFi.RuleEngine.ZenRule
 config :atomic_fi, AtomicFi.RuleEngine.ZenRule, base_url: "http://localhost:8090"
 
