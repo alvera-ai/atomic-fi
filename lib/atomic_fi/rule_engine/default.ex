@@ -104,8 +104,8 @@ defmodule AtomicFi.RuleEngine.Default do
   # shape will silently produce :no_limits. Log a warning so the drift is
   # visible in test/dev runs.
   defp decode_rule_result(other) do
-    Logger.warning("rule_engine: rule output has no ledger_accounts map",
-      result: inspect(other, limit: :infinity, printable_limit: 4096)
+    Logger.warning(
+      "rule_engine: rule output has no ledger_accounts map — result=#{inspect(other, limit: :infinity, printable_limit: 4096)}"
     )
 
     {:ok, %{controls: %{}, next_screening_at: nil}}

@@ -208,7 +208,7 @@ defmodule AtomicFiApi.ComplianceScreeningController do
         _params
       ) do
     case ComplianceScreeningContext.screen_account_holder(conn.assigns.api_session, request) do
-      {:ok, screening} -> json(conn, ExOpenApiUtils.Mapper.to_map(screening))
+      {:ok, screening} -> ApiHelpers.json_response(conn, screening, ComplianceScreeningResponse)
       {:error, reason} -> screening_error(conn, reason)
     end
   end
@@ -229,7 +229,7 @@ defmodule AtomicFiApi.ComplianceScreeningController do
         _params
       ) do
     case ComplianceScreeningContext.screen_beneficial_owner(conn.assigns.api_session, request) do
-      {:ok, screening} -> json(conn, ExOpenApiUtils.Mapper.to_map(screening))
+      {:ok, screening} -> ApiHelpers.json_response(conn, screening, ComplianceScreeningResponse)
       {:error, reason} -> screening_error(conn, reason)
     end
   end
@@ -249,7 +249,7 @@ defmodule AtomicFiApi.ComplianceScreeningController do
         _params
       ) do
     case ComplianceScreeningContext.screen_counterparty(conn.assigns.api_session, request) do
-      {:ok, screening} -> json(conn, ExOpenApiUtils.Mapper.to_map(screening))
+      {:ok, screening} -> ApiHelpers.json_response(conn, screening, ComplianceScreeningResponse)
       {:error, reason} -> screening_error(conn, reason)
     end
   end
@@ -271,7 +271,7 @@ defmodule AtomicFiApi.ComplianceScreeningController do
         _params
       ) do
     case ComplianceScreeningContext.screen_payment_account(conn.assigns.api_session, request) do
-      {:ok, screening} -> json(conn, ExOpenApiUtils.Mapper.to_map(screening))
+      {:ok, screening} -> ApiHelpers.json_response(conn, screening, ComplianceScreeningResponse)
       {:error, reason} -> screening_error(conn, reason)
     end
   end

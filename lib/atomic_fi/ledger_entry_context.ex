@@ -147,7 +147,8 @@ defmodule AtomicFi.LedgerEntryContext do
           end
         else
           {:error, %Ecto.Changeset{} = cs} ->
-            Logger.warning("create_entries: changeset invalid", errors: inspect(cs.errors))
+            Logger.warning("create_entries: changeset invalid — errors=#{inspect(cs.errors)}")
+
             Repo.rollback(cs)
         end
       end)
@@ -170,8 +171,8 @@ defmodule AtomicFi.LedgerEntryContext do
             # between the two transactions. Real but un-testable in single-
             # process tests.
             {:error, %Ecto.Changeset{} = cs} ->
-              Logger.warning("create_entries: void re-record invalid",
-                errors: inspect(cs.errors)
+              Logger.warning(
+                "create_entries: void re-record invalid — errors=#{inspect(cs.errors)}"
               )
 
               Repo.rollback(cs)
