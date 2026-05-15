@@ -173,26 +173,26 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
   # Parent is the linked AccountHolder. Repo lookup deferred via prepare_changes/2.
   defp cast_and_validate_enabled_regimes(changeset) do
     Ecto.Changeset.prepare_changes(changeset, fn prepared ->
-      parent_regimes =
-        case Ecto.Changeset.get_field(prepared, :account_holder_id) do
-          nil ->
-            AtomicFi.EnabledRegimes.default()
-
-          account_holder_id ->
-            case prepared.repo.get(AccountHolder, account_holder_id,
-                   skip_multi_tenancy_check: true
-                 ) do
-              nil -> AtomicFi.EnabledRegimes.default()
-              %{enabled_regimes: regimes} -> regimes
-            end
-        end
-
       AtomicFi.EnabledRegimes.cast_and_validate(
         prepared,
         Ecto.Changeset.get_field(prepared, :enabled_regimes),
-        parent_regimes
+        parent_regimes(prepared)
       )
     end)
+  end
+
+  defp parent_regimes(prepared) do
+    case Ecto.Changeset.get_field(prepared, :account_holder_id) do
+      nil -> AtomicFi.EnabledRegimes.default()
+      account_holder_id -> account_holder_regimes(prepared.repo, account_holder_id)
+    end
+  end
+
+  defp account_holder_regimes(repo, account_holder_id) do
+    case repo.get(AccountHolder, account_holder_id, skip_multi_tenancy_check: true) do
+      nil -> AtomicFi.EnabledRegimes.default()
+      %{enabled_regimes: regimes} -> regimes
+    end
   end
 
   # Cast nested legal_entity only when the key is present in attrs (not a nil default).

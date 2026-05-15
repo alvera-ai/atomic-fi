@@ -174,9 +174,7 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
       type: :string,
       nullable: true,
       description:
-        "Blockchain / asset ticker the wallet_address lives on " <>
-          "(e.g. \"BTC\", \"ETH\", \"TRON\"). Disambiguates same-format " <>
-          "addresses across chains."
+        ~s|Blockchain / asset ticker the wallet_address lives on (e.g. "BTC", "ETH", "TRON"). Disambiguates same-format addresses across chains.|
     },
     key: :wallet_chain
   )

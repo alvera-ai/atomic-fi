@@ -14,7 +14,9 @@ defmodule AtomicFiApi.Routes do
      - Pipe through: `[:api, :api_authenticated]`
   """
 
+  # credo:disable-for-next-line Credo.Check.Refactor.LongQuoteBlocks
   defmacro __using__(_) do
+    # credo:disable-for-next-line Credo.Check.Refactor.LongQuoteBlocks
     quote do
       # Public API endpoints (no authentication)
       scope "/api", AtomicFiApi do

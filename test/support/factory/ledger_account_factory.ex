@@ -18,7 +18,9 @@ defmodule AtomicFi.Factory.LedgerAccountFactory do
   test does not trip the partial unique indexes.
   """
 
+  # credo:disable-for-next-line Credo.Check.Refactor.LongQuoteBlocks
   defmacro __using__(_opts) do
+    # credo:disable-for-next-line Credo.Check.Refactor.LongQuoteBlocks
     quote do
       alias AtomicFi.LedgerAccountContext.LedgerAccount
       alias AtomicFi.Repo

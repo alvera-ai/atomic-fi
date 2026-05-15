@@ -65,7 +65,7 @@ defmodule AtomicFi.ScreeningEngineTest do
       assert result.screened_entity_type == :individual
       assert result.screened_entity_name == "Blocked Person"
       assert result.sanctions_matches == []
-      assert length(result.blocklist_matches) >= 1
+      assert result.blocklist_matches != []
       assert hd(result.blocklist_matches).scope == :first_name
     end
   end

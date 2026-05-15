@@ -238,24 +238,26 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
   # changeset for validation preview).
   defp cast_and_validate_enabled_regimes(changeset) do
     Ecto.Changeset.prepare_changes(changeset, fn prepared ->
-      parent_regimes =
-        case Ecto.Changeset.get_field(prepared, :tenant_id) do
-          nil ->
-            AtomicFi.EnabledRegimes.default()
-
-          tenant_id ->
-            case prepared.repo.get(Tenant, tenant_id, skip_multi_tenancy_check: true) do
-              nil -> AtomicFi.EnabledRegimes.default()
-              %{enabled_regimes: regimes} -> regimes
-            end
-        end
-
       AtomicFi.EnabledRegimes.cast_and_validate(
         prepared,
         Ecto.Changeset.get_field(prepared, :enabled_regimes),
-        parent_regimes
+        parent_regimes(prepared)
       )
     end)
+  end
+
+  defp parent_regimes(prepared) do
+    case Ecto.Changeset.get_field(prepared, :tenant_id) do
+      nil -> AtomicFi.EnabledRegimes.default()
+      tenant_id -> tenant_regimes(prepared.repo, tenant_id)
+    end
+  end
+
+  defp tenant_regimes(repo, tenant_id) do
+    case repo.get(Tenant, tenant_id, skip_multi_tenancy_check: true) do
+      nil -> AtomicFi.EnabledRegimes.default()
+      %{enabled_regimes: regimes} -> regimes
+    end
   end
 
   # Cast nested legal_entity only when the key is present in attrs (not a nil default).

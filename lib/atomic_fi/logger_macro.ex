@@ -71,35 +71,7 @@ defmodule AtomicFi.LoggerMacro do
 
     # log_fields is required - will raise if not provided
     log_fields = Keyword.fetch!(opts, :log_fields)
-
-    # Build logging metadata for specified fields
-    log_metadata =
-      if log_fields == [] do
-        []
-      else
-        Enum.map(log_fields, fn field ->
-          # Find the arg that matches this field name
-          # Handle both regular args and args with default values
-          arg_var =
-            Enum.find(args || [], fn
-              # Match default parameter: params \\ %{}
-              {:\\, _, [{^field, _, _}, _default]} -> true
-              # Match regular parameter: params
-              {^field, _, _} -> true
-              _ -> false
-            end)
-
-          case arg_var do
-            # Extract variable from default parameter
-            {:\\, _, [var, _default]} -> {field, var}
-            # Use variable directly
-            var when var != nil -> {field, var}
-            # No matching argument found
-            nil -> {field, nil}
-          end
-        end)
-        |> Enum.filter(fn {_field, var} -> var != nil end)
-      end
+    log_metadata = build_log_metadata(log_fields, args || [])
 
     quote do
       def unquote(call) do
@@ -170,6 +142,29 @@ defmodule AtomicFi.LoggerMacro do
       end
     end
   end
+
+  # Walks the requested log_fields, matches each to an argument variable in the
+  # function signature, and returns a [{field, var}] keyword list — kept private
+  # to keep def_with_rls_and_logging readable and pass credo's complexity gate.
+  defp build_log_metadata([], _args), do: []
+
+  defp build_log_metadata(fields, args) do
+    fields
+    |> Enum.map(fn field -> {field, find_arg_var(args, field)} end)
+    |> Enum.reject(fn {_field, var} -> is_nil(var) end)
+  end
+
+  defp find_arg_var(args, field) do
+    case Enum.find(args, &arg_matches?(&1, field)) do
+      {:\\, _, [var, _default]} -> var
+      nil -> nil
+      var -> var
+    end
+  end
+
+  defp arg_matches?({:\\, _, [{name, _, _}, _default]}, field), do: name == field
+  defp arg_matches?({name, _, _}, field), do: name == field
+  defp arg_matches?(_other, _field), do: false
 
   @doc """
   Extracts status from function result for logging.

@@ -54,7 +54,7 @@ defmodule AtomicFi.RepoTest do
 
       users = Repo.all(User, session: session)
       assert Enum.all?(users, fn u -> u.tenant_id == tenant.id end)
-      assert length(users) >= 1
+      assert users != []
     end
 
     test "target_schemas == [] bypasses RLS", %{session: session, tenant: tenant} do
