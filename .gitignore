@@ -48,6 +48,8 @@ node_modules/
 # Local IDE / tooling caches — keep .claude/ tracked (intentional), ignore the rest.
 /.vscode/
 /.playwright-cli/
+# Per-session runtime lock from Claude's scheduled-task harness — pid + sessionId.
+/.claude/scheduled_tasks.lock
 
 # macOS Finder metadata.
 **/.DS_Store
