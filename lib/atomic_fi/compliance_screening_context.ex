@@ -407,8 +407,6 @@ defmodule AtomicFi.ComplianceScreeningContext do
     }
   end
 
-  defp legal_entity_from_request(nil, _tenant_id), do: nil
-
   defp legal_entity_from_request(%{} = le, tenant_id) do
     %LegalEntity{
       tenant_id: tenant_id,

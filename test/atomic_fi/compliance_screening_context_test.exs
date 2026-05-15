@@ -860,5 +860,74 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       assert persisted.account_holder_id == account_holder.id
       assert persisted.payment_account_id == payment_account.id
     end
+
+    test "persists nested sanctions + blocklist match rows", %{session: session} do
+      _ = init_session_cache(%{session: session})
+      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+
+      unsaved = %ComplianceScreening{
+        scope: :account_holder,
+        screening_type: :sanctions,
+        screening_status: :pending,
+        screening_score: Decimal.new("88.5"),
+        screened_entity_type: :individual,
+        screened_entity_name: "John Doe",
+        match_count: 1,
+        screened_at: DateTime.utc_now(),
+        sanctions_matches: [
+          %SanctionsMatch{
+            matched_name: "DOE, John",
+            matched_entity_type: "individual",
+            match_score: 0.885,
+            source_list: "us_ofac",
+            source_id: "SDN-12345",
+            source_data: %{"sdnName" => "DOE, John"},
+            addresses: [
+              %SanctionsMatch.WatchmanAddress{line1: "1 Sanction Way", city: "Havana"}
+            ],
+            business_data: nil,
+            person_data: %SanctionsMatch.WatchmanPerson{
+              given_name: "John",
+              family_name: "Doe",
+              dob: "1970-01-01",
+              gender: "M",
+              nationalities: ["CU"]
+            },
+            contact_data: %SanctionsMatch.WatchmanContact{emails: [], phones: [], websites: []},
+            false_positive_qualifier: :none,
+            list_synced_at: DateTime.utc_now(),
+            list_sources: %{lists: ["OFAC_SDN"], version: "1.0"}
+          }
+        ],
+        blocklist_matches: [
+          %BlocklistMatch{
+            matched_term: "doe",
+            match_type: :exact,
+            scope: :last_name,
+            reason: "internal watchlist",
+            blocklist_updated_at: DateTime.utc_now()
+          }
+        ]
+      }
+
+      assert {:ok, %ComplianceScreening{} = persisted} =
+               ComplianceScreeningContext.record_screening(session, unsaved, %{
+                 account_holder_id: account_holder.id
+               })
+
+      {:ok, {sanctions, _}} =
+        ComplianceScreeningContext.list_sanctions_matches(session, persisted.id)
+
+      {:ok, {blocklists, _}} =
+        ComplianceScreeningContext.list_blocklist_matches(session, persisted.id)
+
+      assert length(sanctions) == 1
+      assert length(blocklists) == 1
+      [sm] = sanctions
+      assert sm.matched_name == "DOE, John"
+      assert sm.person_data.given_name == "John"
+      [bm] = blocklists
+      assert bm.matched_term == "doe"
+    end
   end
 end
