@@ -1,0 +1,12 @@
+[project]
+name = "document-agent-client"
+version = "0.1.0"
+description = "Example client for the Document Agent API — compliance document processing"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.0",
+    "rich>=13.0",
+]
+
+[project.scripts]
+doc-extract = "client:main"
