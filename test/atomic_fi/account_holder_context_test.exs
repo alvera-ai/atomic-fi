@@ -3,6 +3,8 @@ defmodule AtomicFi.AccountHolderContextTest do
 
   alias AtomicFi.AccountHolderContext
   alias AtomicFi.AccountHolderContext.AccountHolder
+  alias AtomicFi.LedgerAccountContext
+  alias AtomicFi.LedgerContext
   alias AtomicFi.OpenApiSchema.AccountHolderRequest
   import AtomicFi.Factory
 
@@ -118,6 +120,181 @@ defmodule AtomicFi.AccountHolderContextTest do
     test "change_account_holder/1 returns an account_holder changeset", %{session: session} do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
       assert %Ecto.Changeset{} = AccountHolderContext.change_account_holder(account_holder)
+    end
+  end
+
+  describe "ledger account tree audit (issue #31 phase 1)" do
+    setup %{session: session, tenant: tenant} do
+      {:ok, _} =
+        AtomicFi.TenantContext.update_tenant(session, tenant, %{
+          enabled_regimes: ["ach", "wire"]
+        })
+
+      :ok
+    end
+
+    defp ah_request(session, legal_entity_id, currencies, regimes) do
+      %AccountHolderRequest{
+        legal_entity_id: legal_entity_id,
+        holder_type: :individual,
+        status: :pending,
+        kyc_status: :not_started,
+        risk_level: :low,
+        enabled_currencies: currencies,
+        enabled_regimes: regimes,
+        tenant_id: session.tenant_id,
+        chain_screening: false
+      }
+    end
+
+    test "create_account_holder/2 materialises one Ledger + AH-tree per enabled currency",
+         %{session: session} do
+      legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
+      request = ah_request(session, legal_entity.id, ["USD", "EUR"], ["ach", "wire"])
+
+      assert {:ok, ah} = AccountHolderContext.create_account_holder(session, request)
+
+      {:ok, {ledgers, _}} =
+        LedgerContext.list_ledgers(session, %{
+          filters: [%{field: :account_holder_id, op: :==, value: ah.id}]
+        })
+
+      assert Enum.map(ledgers, & &1.currency) |> Enum.sort() == ["EUR", "USD"]
+
+      las = LedgerAccountContext.list_for_entity(session, ah)
+
+      # Per ledger: 1 ah_root + 2 ah_regime_root → 3 × 2 ledgers = 6 LAs.
+      assert length(las) == 6
+      assert Enum.count(las, &(&1.la_type == :account_holder_root)) == 2
+      assert Enum.count(las, &(&1.la_type == :account_holder_regime_root)) == 4
+
+      regimes_per_ledger =
+        las
+        |> Enum.filter(&(&1.la_type == :account_holder_regime_root))
+        |> Enum.group_by(& &1.ledger_id, & &1.regime)
+
+      assert Enum.all?(regimes_per_ledger, fn {_lid, rs} -> Enum.sort(rs) == ["ach", "wire"] end)
+    end
+
+    test "create_account_holder/2 with empty enabled_currencies materialises no Ledgers / LAs",
+         %{session: session} do
+      legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
+      request = ah_request(session, legal_entity.id, [], ["ach"])
+
+      assert {:ok, ah} = AccountHolderContext.create_account_holder(session, request)
+
+      {:ok, {ledgers, _}} =
+        LedgerContext.list_ledgers(session, %{
+          filters: [%{field: :account_holder_id, op: :==, value: ah.id}]
+        })
+
+      assert ledgers == []
+      assert LedgerAccountContext.list_for_entity(session, ah) == []
+    end
+
+    test "create_account_holder/2 leaves AH LAs block-by-default until onboarding applies controls",
+         %{session: session} do
+      legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
+      request = ah_request(session, legal_entity.id, ["USD"], ["ach"])
+
+      assert {:ok, ah} = AccountHolderContext.create_account_holder(session, request)
+
+      las = LedgerAccountContext.list_for_entity(session, ah)
+      assert Enum.all?(las, & &1.is_blocked)
+      assert Enum.all?(las, &(is_binary(&1.block_reason) and &1.block_reason != ""))
+    end
+
+    test "update_account_holder/3 appends missing AH regime-root LAs when enabled_regimes grows",
+         %{session: session} do
+      legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
+
+      {:ok, ah} =
+        AccountHolderContext.create_account_holder(
+          session,
+          ah_request(session, legal_entity.id, ["USD"], ["ach"])
+        )
+
+      assert length(LedgerAccountContext.list_for_entity(session, ah)) == 2
+
+      {:ok, updated} =
+        AccountHolderContext.update_account_holder(
+          session,
+          ah,
+          ah_request(session, ah.legal_entity_id, ["USD"], ["ach", "wire"])
+        )
+
+      las = LedgerAccountContext.list_for_entity(session, updated)
+      assert length(las) == 3
+      regimes = las |> Enum.map(& &1.regime) |> Enum.sort()
+      assert regimes == ["ach", "root", "wire"]
+    end
+
+    test "update_account_holder/3 appends a new Ledger + AH-tree when enabled_currencies grows",
+         %{session: session} do
+      legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
+
+      {:ok, ah} =
+        AccountHolderContext.create_account_holder(
+          session,
+          ah_request(session, legal_entity.id, ["USD"], ["ach"])
+        )
+
+      {:ok, updated} =
+        AccountHolderContext.update_account_holder(
+          session,
+          ah,
+          ah_request(session, ah.legal_entity_id, ["USD", "EUR"], ["ach"])
+        )
+
+      {:ok, {ledgers, _}} =
+        LedgerContext.list_ledgers(session, %{
+          filters: [%{field: :account_holder_id, op: :==, value: updated.id}]
+        })
+
+      assert Enum.map(ledgers, & &1.currency) |> Enum.sort() == ["EUR", "USD"]
+
+      las = LedgerAccountContext.list_for_entity(session, updated)
+      # 2 ledgers × (1 root + 1 regime_root) = 4
+      assert length(las) == 4
+    end
+
+    test "update_account_holder/3 is idempotent — no duplicate LAs when regimes unchanged",
+         %{session: session} do
+      legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
+
+      {:ok, ah} =
+        AccountHolderContext.create_account_holder(
+          session,
+          ah_request(session, legal_entity.id, ["USD"], ["ach", "wire"])
+        )
+
+      before_count = length(LedgerAccountContext.list_for_entity(session, ah))
+
+      {:ok, updated} =
+        AccountHolderContext.update_account_holder(
+          session,
+          ah,
+          ah_request(session, ah.legal_entity_id, ["USD"], ["ach", "wire"])
+        )
+
+      assert length(LedgerAccountContext.list_for_entity(session, updated)) == before_count
+    end
+
+    test "delete_account_holder/2 is restricted by FK when LA tree exists",
+         %{session: session} do
+      legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
+
+      {:ok, ah} =
+        AccountHolderContext.create_account_holder(
+          session,
+          ah_request(session, legal_entity.id, ["USD"], ["ach"])
+        )
+
+      # AH has a materialised LA tree — Repo.delete should hit
+      # `ledger_accounts.account_holder_id` ON DELETE RESTRICT.
+      assert_raise Ecto.ConstraintError, fn ->
+        AccountHolderContext.delete_account_holder(session, ah)
+      end
     end
   end
 end

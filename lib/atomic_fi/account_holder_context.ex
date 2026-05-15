@@ -110,11 +110,7 @@ defmodule AtomicFi.AccountHolderContext do
                              %AccountHolderRequest{} = request
                            ),
                            log_fields: [:account_holder] do
-    with {:ok, updated} <-
-           account_holder
-           |> AccountHolder.changeset(request)
-           |> Repo.update(session: session)
-           |> preload_after_write(),
+    with {:ok, updated} <- write_ah_update_with_ledgers_and_las(session, account_holder, request),
          {:ok, updated} <- OnboardingContext.onboard(session, updated) do
       {:ok, updated}
     end
@@ -152,7 +148,7 @@ defmodule AtomicFi.AccountHolderContext do
     Multi.new()
     |> Multi.insert(:account_holder, AccountHolder.changeset(%AccountHolder{}, request))
     |> Multi.run(:ledgers, fn _repo, %{account_holder: account_holder} ->
-      insert_ledgers(session, account_holder)
+      ensure_ledgers(session, account_holder)
     end)
     |> Multi.run(:las, fn _repo, %{account_holder: account_holder} ->
       with :ok <- LedgerAccountContext.ensure_linked_ledger_accounts(session, account_holder) do
@@ -169,9 +165,54 @@ defmodule AtomicFi.AccountHolderContext do
     end
   end
 
-  defp insert_ledgers(session, %AccountHolder{enabled_currencies: currencies} = ah)
+  # Update sibling of `write_ah_with_ledgers_and_las`. Wraps AH update +
+  # ledger ensure + LA ensure in one transaction so growing
+  # `enabled_currencies` (adds Ledger + AH-tree per new currency) and
+  # growing `enabled_regimes` (adds AH-regime-root LAs per existing ledger)
+  # are picked up atomically. Both ensure helpers are idempotent — a
+  # no-op update leaves the tree unchanged.
+  defp write_ah_update_with_ledgers_and_las(
+         session,
+         %AccountHolder{} = account_holder,
+         %AccountHolderRequest{} = request
+       ) do
+    Multi.new()
+    |> Multi.update(:account_holder, AccountHolder.changeset(account_holder, request))
+    |> Multi.run(:ledgers, fn _repo, %{account_holder: updated} ->
+      ensure_ledgers(session, updated)
+    end)
+    |> Multi.run(:las, fn _repo, %{account_holder: updated} ->
+      with :ok <- LedgerAccountContext.ensure_linked_ledger_accounts(session, updated) do
+        {:ok, :ok}
+      end
+    end)
+    |> Repo.transaction(session: session)
+    |> case do
+      {:ok, %{account_holder: account_holder}} ->
+        preload_after_write({:ok, account_holder})
+
+      {:error, _step, reason, _changes} ->
+        {:error, reason}
+    end
+  end
+
+  # Idempotent: inserts a Ledger row for each entry in `enabled_currencies`
+  # that doesn't already exist for (account_holder_id, currency). Used by
+  # both create and update paths.
+  defp ensure_ledgers(session, %AccountHolder{enabled_currencies: currencies} = ah)
        when is_list(currencies) do
-    Enum.reduce_while(currencies, {:ok, []}, fn currency, {:ok, acc} ->
+    existing =
+      Repo.all(
+        from(l in Ledger,
+          where: l.account_holder_id == ^ah.id,
+          select: l.currency
+        ),
+        session: session
+      )
+
+    missing = currencies -- existing
+
+    Enum.reduce_while(missing, {:ok, []}, fn currency, {:ok, acc} ->
       attrs = %{
         account_holder_id: ah.id,
         currency: currency,
@@ -230,6 +271,4 @@ defmodule AtomicFi.AccountHolderContext do
   defp preload_after_write({:ok, %AccountHolder{} = account_holder}) do
     {:ok, Repo.preload(account_holder, @preloads, skip_multi_tenancy_check: true)}
   end
-
-  defp preload_after_write({:error, changeset}), do: {:error, changeset}
 end

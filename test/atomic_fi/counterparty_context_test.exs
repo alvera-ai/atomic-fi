@@ -1,8 +1,11 @@
 defmodule AtomicFi.CounterpartyContextTest do
   use AtomicFi.DataCase
 
+  alias AtomicFi.AccountHolderContext
   alias AtomicFi.CounterpartyContext
   alias AtomicFi.CounterpartyContext.Counterparty
+  alias AtomicFi.LedgerAccountContext
+  alias AtomicFi.OpenApiSchema.AccountHolderRequest
   alias AtomicFi.OpenApiSchema.CounterpartyRequest
   import AtomicFi.Factory
 
@@ -226,6 +229,164 @@ defmodule AtomicFi.CounterpartyContextTest do
     test "change_counterparty/1 returns a counterparty changeset", %{session: session} do
       counterparty = insert(:counterparty, tenant_id: session.tenant_id)
       assert %Ecto.Changeset{} = CounterpartyContext.change_counterparty(counterparty)
+    end
+  end
+
+  describe "ledger account tree audit (issue #31 phase 1)" do
+    setup %{session: session, tenant: tenant} do
+      {:ok, _} =
+        AtomicFi.TenantContext.update_tenant(session, tenant, %{
+          enabled_regimes: ["ach", "wire"]
+        })
+
+      :ok
+    end
+
+    # Builds an AH via the context so its Ledger + AH-tree exist before any CP write.
+    defp create_ah(session, currencies, regimes) do
+      legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
+
+      {:ok, ah} =
+        AccountHolderContext.create_account_holder(session, %AccountHolderRequest{
+          legal_entity_id: legal_entity.id,
+          holder_type: :individual,
+          status: :pending,
+          kyc_status: :not_started,
+          risk_level: :low,
+          enabled_currencies: currencies,
+          enabled_regimes: regimes,
+          tenant_id: session.tenant_id,
+          chain_screening: false
+        })
+
+      ah
+    end
+
+    test "create_counterparty/2 materialises CP-root + CP-regime-root LAs per AH ledger",
+         %{session: session} do
+      ah = create_ah(session, ["USD", "EUR"], ["ach", "wire"])
+      cp_le = insert(:legal_entity, tenant_id: session.tenant_id)
+
+      {:ok, cp} =
+        CounterpartyContext.create_counterparty(session, %CounterpartyRequest{
+          account_holder_id: ah.id,
+          legal_entity_id: cp_le.id,
+          status: :active,
+          enabled_regimes: ["ach", "wire"],
+          tenant_id: session.tenant_id,
+          chain_screening: false
+        })
+
+      las = LedgerAccountContext.list_for_entity(session, cp)
+
+      # 2 ledgers × (1 cp_root + 2 cp_regime_root) = 6
+      assert length(las) == 6
+      assert Enum.count(las, &(&1.la_type == :counter_party_root)) == 2
+      assert Enum.count(las, &(&1.la_type == :counter_party_regime_root)) == 4
+      assert Enum.all?(las, & &1.is_blocked)
+    end
+
+    test "create_counterparty/2 leaves the AH's own LAs untouched",
+         %{session: session} do
+      ah = create_ah(session, ["USD"], ["ach"])
+      before_ah_count = length(LedgerAccountContext.list_for_entity(session, ah))
+
+      cp_le = insert(:legal_entity, tenant_id: session.tenant_id)
+
+      {:ok, _cp} =
+        CounterpartyContext.create_counterparty(session, %CounterpartyRequest{
+          account_holder_id: ah.id,
+          legal_entity_id: cp_le.id,
+          status: :active,
+          enabled_regimes: ["ach"],
+          tenant_id: session.tenant_id,
+          chain_screening: false
+        })
+
+      assert length(LedgerAccountContext.list_for_entity(session, ah)) == before_ah_count
+    end
+
+    test "update_counterparty/3 appends missing CP regime-root LAs when enabled_regimes grows",
+         %{session: session} do
+      ah = create_ah(session, ["USD"], ["ach", "wire"])
+      cp_le = insert(:legal_entity, tenant_id: session.tenant_id)
+
+      {:ok, cp} =
+        CounterpartyContext.create_counterparty(session, %CounterpartyRequest{
+          account_holder_id: ah.id,
+          legal_entity_id: cp_le.id,
+          status: :active,
+          enabled_regimes: ["ach"],
+          tenant_id: session.tenant_id,
+          chain_screening: false
+        })
+
+      assert length(LedgerAccountContext.list_for_entity(session, cp)) == 2
+
+      {:ok, updated} =
+        CounterpartyContext.update_counterparty(session, cp, %CounterpartyRequest{
+          account_holder_id: cp.account_holder_id,
+          legal_entity_id: cp.legal_entity_id,
+          status: cp.status,
+          enabled_regimes: ["ach", "wire"],
+          tenant_id: session.tenant_id,
+          chain_screening: false
+        })
+
+      las = LedgerAccountContext.list_for_entity(session, updated)
+      assert length(las) == 3
+      regimes = las |> Enum.map(& &1.regime) |> Enum.sort()
+      assert regimes == ["ach", "root", "wire"]
+    end
+
+    test "update_counterparty/3 is idempotent — no duplicate LAs when regimes unchanged",
+         %{session: session} do
+      ah = create_ah(session, ["USD"], ["ach"])
+      cp_le = insert(:legal_entity, tenant_id: session.tenant_id)
+
+      {:ok, cp} =
+        CounterpartyContext.create_counterparty(session, %CounterpartyRequest{
+          account_holder_id: ah.id,
+          legal_entity_id: cp_le.id,
+          status: :active,
+          enabled_regimes: ["ach"],
+          tenant_id: session.tenant_id,
+          chain_screening: false
+        })
+
+      before_count = length(LedgerAccountContext.list_for_entity(session, cp))
+
+      {:ok, updated} =
+        CounterpartyContext.update_counterparty(session, cp, %CounterpartyRequest{
+          account_holder_id: cp.account_holder_id,
+          legal_entity_id: cp.legal_entity_id,
+          status: :suspended,
+          enabled_regimes: ["ach"],
+          tenant_id: session.tenant_id,
+          chain_screening: false
+        })
+
+      assert length(LedgerAccountContext.list_for_entity(session, updated)) == before_count
+    end
+
+    test "delete_counterparty/2 is restricted by FK when LA tree exists",
+         %{session: session} do
+      ah = create_ah(session, ["USD"], ["ach"])
+      cp_le = insert(:legal_entity, tenant_id: session.tenant_id)
+
+      {:ok, cp} =
+        CounterpartyContext.create_counterparty(session, %CounterpartyRequest{
+          account_holder_id: ah.id,
+          legal_entity_id: cp_le.id,
+          status: :active,
+          enabled_regimes: ["ach"],
+          tenant_id: session.tenant_id,
+          chain_screening: false
+        })
+
+      assert_raise Ecto.ConstraintError, fn ->
+        CounterpartyContext.delete_counterparty(session, cp)
+      end
     end
   end
 end

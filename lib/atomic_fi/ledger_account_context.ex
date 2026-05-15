@@ -219,7 +219,7 @@ defmodule AtomicFi.LedgerAccountContext do
       base = la_base(ah.id, ledger.id, ledger.currency, ah.tenant_id)
 
       multi
-      |> upsert_step({:ah_root, ledger.id}, session, base, :account_holder_root, "root", nil, nil)
+      |> upsert_step({:root, ledger.id}, session, base, :account_holder_root, "root", nil, nil)
       |> upsert_regime_steps(
         session,
         :account_holder_regime_root,

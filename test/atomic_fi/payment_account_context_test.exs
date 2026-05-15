@@ -1,6 +1,11 @@
 defmodule AtomicFi.PaymentAccountContextTest do
   use AtomicFi.DataCase
 
+  alias AtomicFi.AccountHolderContext
+  alias AtomicFi.CounterpartyContext
+  alias AtomicFi.LedgerAccountContext
+  alias AtomicFi.OpenApiSchema.AccountHolderRequest
+  alias AtomicFi.OpenApiSchema.CounterpartyRequest
   alias AtomicFi.OpenApiSchema.PaymentAccountRequest
   alias AtomicFi.PaymentAccountContext
   alias AtomicFi.PaymentAccountContext.PaymentAccount
@@ -259,6 +264,196 @@ defmodule AtomicFi.PaymentAccountContextTest do
       payment_account = insert(:payment_account, tenant_id: session.tenant_id)
 
       assert %Ecto.Changeset{} = PaymentAccountContext.change_payment_account(payment_account)
+    end
+  end
+
+  describe "ledger account tree audit (issue #31 phase 1)" do
+    setup %{session: session, tenant: tenant} do
+      {:ok, _} =
+        AtomicFi.TenantContext.update_tenant(session, tenant, %{
+          enabled_regimes: ["ach", "wire"]
+        })
+
+      :ok
+    end
+
+    defp create_ah(session, currencies, regimes) do
+      legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
+
+      {:ok, ah} =
+        AccountHolderContext.create_account_holder(session, %AccountHolderRequest{
+          legal_entity_id: legal_entity.id,
+          holder_type: :individual,
+          status: :pending,
+          kyc_status: :not_started,
+          risk_level: :low,
+          enabled_currencies: currencies,
+          enabled_regimes: regimes,
+          tenant_id: session.tenant_id,
+          chain_screening: false
+        })
+
+      ah
+    end
+
+    defp create_cp(session, ah, regimes) do
+      cp_le = insert(:legal_entity, tenant_id: session.tenant_id)
+
+      {:ok, cp} =
+        CounterpartyContext.create_counterparty(session, %CounterpartyRequest{
+          account_holder_id: ah.id,
+          legal_entity_id: cp_le.id,
+          status: :active,
+          enabled_regimes: regimes,
+          tenant_id: session.tenant_id,
+          chain_screening: false
+        })
+
+      cp
+    end
+
+    test "create_payment_account/2 (AH-owned) materialises AH-PA root + regime-root LAs",
+         %{session: session} do
+      ah = create_ah(session, ["USD"], ["ach", "wire"])
+
+      {:ok, pa} =
+        PaymentAccountContext.create_payment_account(session, %PaymentAccountRequest{
+          account_type: :bank_account,
+          currency: "USD",
+          account_holder_id: ah.id,
+          enabled_regimes: ["ach", "wire"],
+          tenant_id: session.tenant_id
+        })
+
+      las = LedgerAccountContext.list_for_entity(session, pa)
+
+      assert length(las) == 3
+      assert Enum.count(las, &(&1.la_type == :account_holder_payment_account_root)) == 1
+      assert Enum.count(las, &(&1.la_type == :account_holder_payment_account_regime_root)) == 2
+      assert Enum.all?(las, &(&1.counterparty_id == nil))
+      assert Enum.all?(las, & &1.is_blocked)
+    end
+
+    test "create_payment_account/2 (CP-owned) materialises CP-PA root + regime-root LAs",
+         %{session: session} do
+      ah = create_ah(session, ["USD"], ["ach"])
+      cp = create_cp(session, ah, ["ach"])
+
+      {:ok, pa} =
+        PaymentAccountContext.create_payment_account(session, %PaymentAccountRequest{
+          account_type: :bank_account,
+          currency: "USD",
+          account_holder_id: ah.id,
+          counterparty_id: cp.id,
+          enabled_regimes: ["ach"],
+          tenant_id: session.tenant_id
+        })
+
+      las = LedgerAccountContext.list_for_entity(session, pa)
+
+      assert length(las) == 2
+      assert Enum.count(las, &(&1.la_type == :counter_party_payment_account_root)) == 1
+      assert Enum.count(las, &(&1.la_type == :counter_party_payment_account_regime_root)) == 1
+      assert Enum.all?(las, &(&1.counterparty_id == cp.id))
+      assert Enum.all?(las, & &1.is_blocked)
+    end
+
+    test "create_payment_account/2 leaves the parent AH and CP own-LAs untouched",
+         %{session: session} do
+      ah = create_ah(session, ["USD"], ["ach"])
+      cp = create_cp(session, ah, ["ach"])
+
+      before_ah = length(LedgerAccountContext.list_for_entity(session, ah))
+      before_cp = length(LedgerAccountContext.list_for_entity(session, cp))
+
+      {:ok, _pa} =
+        PaymentAccountContext.create_payment_account(session, %PaymentAccountRequest{
+          account_type: :bank_account,
+          currency: "USD",
+          account_holder_id: ah.id,
+          counterparty_id: cp.id,
+          enabled_regimes: ["ach"],
+          tenant_id: session.tenant_id
+        })
+
+      assert length(LedgerAccountContext.list_for_entity(session, ah)) == before_ah
+      assert length(LedgerAccountContext.list_for_entity(session, cp)) == before_cp
+    end
+
+    test "update_payment_account/3 appends missing PA regime-root LAs when enabled_regimes grows",
+         %{session: session} do
+      ah = create_ah(session, ["USD"], ["ach", "wire"])
+
+      {:ok, pa} =
+        PaymentAccountContext.create_payment_account(session, %PaymentAccountRequest{
+          account_type: :bank_account,
+          currency: "USD",
+          account_holder_id: ah.id,
+          enabled_regimes: ["ach"],
+          tenant_id: session.tenant_id
+        })
+
+      assert length(LedgerAccountContext.list_for_entity(session, pa)) == 2
+
+      {:ok, updated} =
+        PaymentAccountContext.update_payment_account(session, pa, %PaymentAccountRequest{
+          account_type: pa.account_type,
+          currency: pa.currency,
+          account_holder_id: pa.account_holder_id,
+          enabled_regimes: ["ach", "wire"],
+          tenant_id: session.tenant_id
+        })
+
+      las = LedgerAccountContext.list_for_entity(session, updated)
+      assert length(las) == 3
+      regimes = las |> Enum.map(& &1.regime) |> Enum.sort()
+      assert regimes == ["ach", "root", "wire"]
+    end
+
+    test "update_payment_account/3 is idempotent — no duplicate LAs when regimes unchanged",
+         %{session: session} do
+      ah = create_ah(session, ["USD"], ["ach"])
+
+      {:ok, pa} =
+        PaymentAccountContext.create_payment_account(session, %PaymentAccountRequest{
+          account_type: :bank_account,
+          currency: "USD",
+          account_holder_id: ah.id,
+          enabled_regimes: ["ach"],
+          tenant_id: session.tenant_id
+        })
+
+      before_count = length(LedgerAccountContext.list_for_entity(session, pa))
+
+      {:ok, updated} =
+        PaymentAccountContext.update_payment_account(session, pa, %PaymentAccountRequest{
+          account_type: pa.account_type,
+          currency: pa.currency,
+          status: :suspended,
+          account_holder_id: pa.account_holder_id,
+          enabled_regimes: ["ach"],
+          tenant_id: session.tenant_id
+        })
+
+      assert length(LedgerAccountContext.list_for_entity(session, updated)) == before_count
+    end
+
+    test "delete_payment_account/2 is restricted by FK when LA tree exists",
+         %{session: session} do
+      ah = create_ah(session, ["USD"], ["ach"])
+
+      {:ok, pa} =
+        PaymentAccountContext.create_payment_account(session, %PaymentAccountRequest{
+          account_type: :bank_account,
+          currency: "USD",
+          account_holder_id: ah.id,
+          enabled_regimes: ["ach"],
+          tenant_id: session.tenant_id
+        })
+
+      assert_raise Ecto.ConstraintError, fn ->
+        PaymentAccountContext.delete_payment_account(session, pa)
+      end
     end
   end
 end
