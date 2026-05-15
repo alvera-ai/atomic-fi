@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.4.0](https://github.com/alvera-ai/atomic-fi/compare/v1.3.0...v1.4.0) (2026-05-15)
+
+
+### Features
+
+* **api:** add REST RuleController over RulesContext ([f766937](https://github.com/alvera-ai/atomic-fi/commit/f76693775e53460911a9a1f31489b0e9eb06753d))
+* **bruno:** add atomic-fi-smoke collection (29 requests, single Run All) ([1e67a5d](https://github.com/alvera-ai/atomic-fi/commit/1e67a5d109d462b9490e3fede43e0ea41fc761b2))
+* **counterparties:** cast_assoc(:legal_entity) + get-or-create on counterparty_number ([#27](https://github.com/alvera-ai/atomic-fi/issues/27)) ([e4c806f](https://github.com/alvera-ai/atomic-fi/commit/e4c806f69f9031af3013410319a49709eb911511))
+* **jdm-editor:** vendor gorules/editor frontend, wire simulator to ZenRule agent ([29a4db7](https://github.com/alvera-ai/atomic-fi/commit/29a4db76784d94b3bc6afcb905a9a73070c0b338))
+* **ledger:** create_entries + create_transaction flow; drop ledger-account side; PA enabled_regimes; worklog ([e76c103](https://github.com/alvera-ai/atomic-fi/commit/e76c1038c8326278700cb0b9654e58ce82469155))
+* **ledger:** extend LA tree with AH roots + belt-and-suspenders enforcement ([8d5f320](https://github.com/alvera-ai/atomic-fi/commit/8d5f32006b0be84b6858cb1f71a86332bd011c4f))
+* **ledger:** la_type tree + trigger-maintained ancestor/descendant_ids ([8d5cd25](https://github.com/alvera-ai/atomic-fi/commit/8d5cd256b66674ad1b73ae0f95f57c075f336e97))
+* **ledger:** PA/CP write lifecycle materialises direct-line LedgerAccounts ([3b90a75](https://github.com/alvera-ai/atomic-fi/commit/3b90a7531bde5fa8d3e726c967c8ca8373b83bfa))
+* **ledger:** rule-engine velocity limits — schema layer + RuleEngine behaviour (WIP) ([4a83f6b](https://github.com/alvera-ai/atomic-fi/commit/4a83f6b42003682d84a374b54a3e5f3134d3a547))
+* **onboarding:** ControlProtocol + OnboardingWorker + AH ledger fan-out ([1d5c2ac](https://github.com/alvera-ai/atomic-fi/commit/1d5c2ac46a35e9c0fb7b9aa5a7727a088f6361bd))
+* **onboarding:** introduce OnboardingContext for synchronous screen+engine+apply ([ecb95b3](https://github.com/alvera-ai/atomic-fi/commit/ecb95b3455ab393fc93233e2dedbdd6549b5c7db))
+* **regimes:** hierarchical enabled_regimes (config → Tenant → AH → CP → PA) ([b41e4f1](https://github.com/alvera-ai/atomic-fi/commit/b41e4f1f6b4c276d8a907ddc4dc8e2bf7b2663dc))
+* **rules:** add RulesContext fs wrapper + split JDM rules per rule_type ([6cc3bd7](https://github.com/alvera-ai/atomic-fi/commit/6cc3bd7c19db5a2b8dcc28c61e37d869007bbb5b))
+* **screening:** facts-only engine + stateless preview endpoints ([82e2d26](https://github.com/alvera-ai/atomic-fi/commit/82e2d26acd739bcf3f93d21be587d33df6328aea))
+* **skill:** add zenrule-author for English-to-JDM rule authoring ([4f0bc02](https://github.com/alvera-ai/atomic-fi/commit/4f0bc021d8108eaf933d87942fff7ac9f8b4b721))
+
+
+### Bug Fixes
+
+* **assets:** convert vendor/topbar.js to ESM ([#24](https://github.com/alvera-ai/atomic-fi/issues/24)) ([3ba817c](https://github.com/alvera-ai/atomic-fi/commit/3ba817ca622d06e4b390156ea9bd9285b981ca6a))
+* **jdm-editor:** unblock simulator — agent hot-reload + Graph→Input tab ([d63ec2f](https://github.com/alvera-ai/atomic-fi/commit/d63ec2fbe34cc07603a9a474b600161c99cd3563))
+* **make:** unbreak run-backing-services; align compose watchman with upstream ([#27](https://github.com/alvera-ai/atomic-fi/issues/27)) ([77a3678](https://github.com/alvera-ai/atomic-fi/commit/77a367891753a6b45935efa6a7cfc61ad6fa6311))
+* **rule_engine:** log when decode_rule_result hits the catch-all ([0825def](https://github.com/alvera-ai/atomic-fi/commit/0825def585ede8d2f283760e3501e5e91c9df9af))
+* **test:** wire ExCoveralls into mix.exs test_coverage ([#27](https://github.com/alvera-ai/atomic-fi/issues/27)) ([12ee652](https://github.com/alvera-ai/atomic-fi/commit/12ee6522aafe19588a697d0efc38991ad1241bcd))
+
 ## [1.3.0](https://github.com/alvera-ai/atomic-fi/compare/v1.2.0...v1.3.0) (2026-05-13)
 
 
