@@ -144,10 +144,6 @@ defmodule AtomicFi.Repo.Migrations.CreateComplianceScreenings do
         null: false,
         comment: "Watchman match confidence score (0.0–1.0)"
 
-      add :sanctions_match_type, :string,
-        default: "fuzzy",
-        comment: "exact | fuzzy | ubo | entity"
-
       add :source_list, :string,
         null: false,
         comment: "Source list name (OFAC_SDN, EU_CONSOLIDATED, UN_SC)"

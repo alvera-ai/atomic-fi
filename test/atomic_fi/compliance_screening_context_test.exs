@@ -327,7 +327,6 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
             matched_name: "Vladimir Vladimirovich PUTIN",
             match_score: 0.73,
             source_list: "us_ofac",
-            sanctions_match_type: :fuzzy,
             false_positive_qualifier: :none,
             tenant_id: session.tenant_id
           }
@@ -366,7 +365,6 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
             matched_name: "TEST ENTITY",
             match_score: 0.75,
             source_list: "us_ofac",
-            sanctions_match_type: :fuzzy,
             false_positive_qualifier: :none,
             tenant_id: session.tenant_id
           }
@@ -394,7 +392,6 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
             matched_name: "TEST ENTITY",
             match_score: 0.75,
             source_list: "us_ofac",
-            sanctions_match_type: :fuzzy,
             false_positive_qualifier: :none,
             tenant_id: session.tenant_id
           }

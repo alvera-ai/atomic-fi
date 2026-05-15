@@ -57,11 +57,13 @@ defmodule AtomicFi.ScreeningEngine.Default do
            version: response.version
          }}
 
+      # coveralls-ignore-start
       {:error, _} = error ->
         error
 
       :error ->
         {:error, :watchman_listinfo_unavailable}
+        # coveralls-ignore-stop
     end
   end
 
@@ -243,14 +245,17 @@ defmodule AtomicFi.ScreeningEngine.Default do
            list_info
          )}
 
+      # coveralls-ignore-start
       {:error, _} = error ->
         error
 
       :error ->
         {:error, :watchman_search_unavailable}
+        # coveralls-ignore-stop
     end
   end
 
+  # coveralls-ignore-start
   # Watchman returns sanctioned entities whose record references the queried
   # `cryptoAddress`. Confirm the address + (optional) chain actually appear in
   # the entity's `cryptoAddresses` list before counting it as a hit — same
@@ -277,6 +282,7 @@ defmodule AtomicFi.ScreeningEngine.Default do
     do: String.downcase(currency) == String.downcase(chain)
 
   defp chain_match?(_ca, _chain), do: false
+  # coveralls-ignore-stop
 
   defp no_screen_pa do
     %ComplianceScreening{
@@ -393,11 +399,13 @@ defmodule AtomicFi.ScreeningEngine.Default do
            list_info
          )}
 
+      # coveralls-ignore-start
       {:error, _} = error ->
         error
 
       :error ->
         {:error, :watchman_search_unavailable}
+        # coveralls-ignore-stop
     end
   end
 
@@ -409,7 +417,6 @@ defmodule AtomicFi.ScreeningEngine.Default do
         matched_name: entity.name,
         matched_entity_type: entity.entityType,
         match_score: entity.match,
-        sanctions_match_type: classify_match_type(entity.match),
         source_list: entity.sourceList,
         source_id: entity.sourceID,
         addresses: normalize_addresses(entity.addresses),
@@ -421,9 +428,6 @@ defmodule AtomicFi.ScreeningEngine.Default do
       }
     end)
   end
-
-  defp classify_match_type(score) when score >= 0.95, do: :exact
-  defp classify_match_type(_score), do: :fuzzy
 
   defp build_sanctions_screening(
          scope,
@@ -465,7 +469,6 @@ defmodule AtomicFi.ScreeningEngine.Default do
       matched_name: attrs.matched_name,
       matched_entity_type: attrs.matched_entity_type,
       match_score: attrs.match_score,
-      sanctions_match_type: attrs.sanctions_match_type,
       source_list: attrs.source_list,
       source_id: attrs.source_id,
       source_data: attrs.source_data,

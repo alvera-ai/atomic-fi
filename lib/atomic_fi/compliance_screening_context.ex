@@ -454,7 +454,6 @@ defmodule AtomicFi.ComplianceScreeningContext do
       matched_name: sm.matched_name,
       matched_entity_type: sm.matched_entity_type,
       match_score: sm.match_score,
-      sanctions_match_type: sm.sanctions_match_type,
       source_list: sm.source_list,
       source_id: sm.source_id,
       source_data: sm.source_data,
