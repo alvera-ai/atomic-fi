@@ -72,11 +72,9 @@ The pipeline splits at the canonical-JSON boundary. AI handles unstructured-to-s
         SYNTHESIS  (deterministic, every test run)       │
         ──────────────────────────────────────────────│
                                                          ▼
-                                          mix compliance.build
-                                                         ↓
-                                  compliance-db/compliance.sqlite
-                                                         ↓
                                   mix alvera.gen.compliance_corpus
+                                  (reads compliance-list/ JSON +
+                                   compliance-patterns/ JSON)
                                                          ↓
                           tmp/corpus/<seed>-<pass-rate>/shard_0001/
                               ah.ndjson  pa.ndjson  cp.ndjson  txn.ndjson
@@ -123,17 +121,16 @@ Some sources arrive already structured: OpenSanctions consolidated dumps [10], I
 }
 ```
 
-The folder layout is borrowed from Aqua Security's Trivy DB [15] — per-source canonical JSON, compiled to a fast lookup — but operated very differently. There's no scheduled refresh and no third-party distribution. The catalogue lives in this repo and refreshes when a maintainer runs the skill.
+The per-source folder layout is borrowed from Aqua Security's Trivy DB [15] — canonical, diffable JSON per source. We don't borrow Trivy's build step: there's no compiled index, no scheduled refresh, no third-party distribution. The catalogue lives in this repo, refreshes when a maintainer runs the skill, and the corpus generator reads JSON directly.
 
 ### Synthesis — Mix
 
 | Task | Reads | Writes |
 |---|---|---|
-| `mix compliance.build` | `compliance-list/` (extracted + curated) | `compliance-db/compliance.sqlite` + manifest |
-| `mix alvera.gen.compliance_corpus --shards N --pass-rate P --seed S` | patterns + compliance-db | `tmp/corpus/<seed>-<pass-rate>/shard_*/` NDJSON + screening CSVs |
+| `mix alvera.gen.compliance_corpus --shards N --pass-rate P --seed S` | `compliance-list/` (extracted + curated) + `compliance-patterns/` | `tmp/corpus/<seed>-<pass-rate>/shard_*/` NDJSON + screening CSVs |
 | `mix bench.seed` | NDJSON shards | bulk-inserts via `AccountHolderContext` / `CounterpartyContext` / `PaymentAccountContext` / `TransactionContext` (RLS-scoped via `Session`) |
 
-All three Mix tasks are pure functions of their inputs. Shard *k*'s sub-RNG is `:crypto.hash(:sha256, S ++ <<k::32>>)`. The compiled `compliance.sqlite` is gitignored; its checksum is recorded in `compliance-db/manifest.json`.
+Both tasks are pure functions of their inputs. The corpus generator reads JSON directly — no compiled index, no build step. Shard *k*'s sub-RNG is `:crypto.hash(:sha256, S ++ <<k::32>>)`.
 
 ### Pattern catalogue
 
@@ -173,10 +170,6 @@ compliance-list/                  ← canonical, source of truth
     opensanctions/sdn-subset.json
     iso/3166-1.json
     nacha/return-codes.json
-
-compliance-db/                    ← compiled lookup
-  compliance.sqlite                 (gitignored)
-  manifest.json                     (committed: checksums + provenance)
 
 compliance-patterns/              ← one file per catalog row
   <regime>/<NN>-<slug>.json
