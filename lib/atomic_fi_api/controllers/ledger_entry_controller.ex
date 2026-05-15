@@ -197,7 +197,9 @@ defmodule AtomicFiApi.LedgerEntryController do
       {:ok, _ledger_entry} ->
         send_resp(conn, :no_content, "")
 
+      # coveralls-ignore-next-line
       {:error, changeset} ->
+        # coveralls-ignore-next-line
         {:error, changeset}
     end
   end

@@ -357,6 +357,8 @@ defmodule AtomicFi.LedgerAccountContext do
   defp run_multi(multi, session) do
     case Repo.transaction(multi, session: session) do
       {:ok, _changes} -> :ok
+      # coveralls-ignore-next-line — Multi-step failure path; un-testable without
+      # injecting a DB-level failure inside the upsert step.
       {:error, _step, reason, _changes} -> {:error, reason}
     end
   end

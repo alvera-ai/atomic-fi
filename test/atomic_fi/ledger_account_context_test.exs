@@ -344,4 +344,120 @@ defmodule AtomicFi.LedgerAccountContextTest do
              end)
     end
   end
+
+  # ── ensure_linked_ledger_accounts/2 — entity-driven materialisation ────────
+
+  describe "ensure_linked_ledger_accounts/2 — PaymentAccount with counterparty" do
+    test "materialises CP-PA root + per-regime leaves", %{session: session} do
+      ledger = ledger_for(session)
+
+      cp =
+        insert(:counterparty,
+          tenant_id: session.tenant_id,
+          account_holder_id: ledger.account_holder_id,
+          enabled_regimes: ["ach", "swift"]
+        )
+
+      # Materialise CP root + per-regime nodes first so PA-side has its ancestors.
+      :ok = LedgerAccountContext.ensure_linked_ledger_accounts(session, cp)
+
+      pa =
+        insert(:payment_account,
+          tenant_id: session.tenant_id,
+          account_holder_id: ledger.account_holder_id,
+          counterparty_id: cp.id,
+          currency: ledger.currency,
+          enabled_regimes: ["ach", "swift"]
+        )
+
+      assert :ok = LedgerAccountContext.ensure_linked_ledger_accounts(session, pa)
+
+      las = LedgerAccountContext.list_for_entity(session, pa)
+      types = Enum.map(las, & &1.la_type) |> Enum.sort()
+
+      assert :counter_party_payment_account_root in types
+      assert :counter_party_payment_account_regime_root in types
+
+      # Each regime leaf is present
+      leaves =
+        Enum.filter(las, &(&1.la_type == :counter_party_payment_account_regime_root))
+
+      assert Enum.map(leaves, & &1.regime) |> Enum.sort() == ["ach", "swift"]
+    end
+  end
+
+  describe "ensure_linked_ledger_accounts/2 — Counterparty" do
+    test "materialises CP root + per-regime CP-regime nodes for every AH ledger",
+         %{session: session} do
+      ledger = ledger_for(session)
+
+      cp =
+        insert(:counterparty,
+          tenant_id: session.tenant_id,
+          account_holder_id: ledger.account_holder_id,
+          enabled_regimes: ["ach", "swift"]
+        )
+
+      assert :ok = LedgerAccountContext.ensure_linked_ledger_accounts(session, cp)
+
+      las = LedgerAccountContext.list_for_entity(session, cp)
+      types = Enum.map(las, & &1.la_type) |> Enum.sort()
+
+      assert :counter_party_root in types
+      assert :counter_party_regime_root in types
+
+      regimes =
+        las
+        |> Enum.filter(&(&1.la_type == :counter_party_regime_root))
+        |> Enum.map(& &1.regime)
+        |> Enum.sort()
+
+      assert regimes == ["ach", "swift"]
+    end
+  end
+
+  # ── apply_controls/3 — fan engine output onto LA columns ───────────────────
+
+  describe "apply_controls/3" do
+    alias AtomicFi.RuleEngine.Control
+
+    test "writes max_* + is_blocked from the engine's Control for each LA",
+         %{session: session} do
+      la1 =
+        insert(:ledger_account,
+          tenant_id: session.tenant_id,
+          is_blocked: true,
+          block_reason: "initial"
+        )
+
+      la2 =
+        insert(:ledger_account,
+          tenant_id: session.tenant_id,
+          is_blocked: true,
+          block_reason: "initial"
+        )
+
+      controls = %{
+        la1.id => %Control{
+          daily_debit_cap: 5_000,
+          monthly_credit_cap: 100_000,
+          is_blocked: false,
+          reason: "test_engine_pass"
+        }
+        # la2 not present in controls ⇒ reset to block-by-default
+        # (covers the nil-branch + block_by_default_attrs path)
+      }
+
+      assert :ok = LedgerAccountContext.apply_controls(session, [la1, la2], controls)
+
+      reloaded_la1 = LedgerAccountContext.get_ledger_account!(session, la1.id)
+      assert reloaded_la1.max_daily_debit == 5_000
+      assert reloaded_la1.max_monthly_credit == 100_000
+      assert reloaded_la1.is_blocked == false
+
+      reloaded_la2 = LedgerAccountContext.get_ledger_account!(session, la2.id)
+      assert reloaded_la2.is_blocked == true
+      assert reloaded_la2.max_daily_debit == nil
+    end
+  end
 end

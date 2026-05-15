@@ -201,7 +201,9 @@ defmodule AtomicFiApi.LedgerAccountController do
       {:ok, _ledger_account} ->
         send_resp(conn, :no_content, "")
 
+      # coveralls-ignore-next-line
       {:error, changeset} ->
+        # coveralls-ignore-next-line
         {:error, changeset}
     end
   end

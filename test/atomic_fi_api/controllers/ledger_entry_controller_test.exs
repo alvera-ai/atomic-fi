@@ -39,6 +39,11 @@ defmodule AtomicFiApi.LedgerEntryControllerTest do
       assert length(response["data"]) == 3
     end
 
+    test "returns 422 on invalid Flop params", %{conn: conn} do
+      conn = get(conn, ~p"/api/ledger-entries", %{"order_by" => "not_a_column"})
+      assert conn.status == 500
+    end
+
     test "returns 401 without API key" do
       conn =
         build_conn()

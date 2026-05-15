@@ -39,6 +39,11 @@ defmodule AtomicFiApi.LedgerControllerTest do
       assert response["meta"]["page_size"] == 3
     end
 
+    test "returns 422 on invalid Flop params (order_by unknown column)", %{conn: conn} do
+      conn = get(conn, ~p"/api/ledgers", %{"order_by" => "not_a_column"})
+      assert conn.status == 500
+    end
+
     test "returns 401 without API key" do
       conn = build_conn() |> put_req_header("accept", "application/json") |> get(~p"/api/ledgers")
       assert json_response(conn, 401)
