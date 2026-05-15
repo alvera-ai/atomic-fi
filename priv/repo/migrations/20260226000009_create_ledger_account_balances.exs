@@ -65,7 +65,7 @@ defmodule AtomicFi.Repo.Migrations.CreateLedgerAccountBalances do
     create index(:ledger_account_balances, [:ledger_account_id, :month, :year])
     create index(:ledger_account_balances, [:ledger_account_id, :year])
 
-    # ── 8 velocity limit CHECK constraints ─────────────────────────────────
+    # ── 8 control limit CHECK constraints ─────────────────────────────────
     # Each constraint compares the cumulative running total against the last
     # limit propagated from the risk engine via the triggering ledger_entry.
     execute(

@@ -4,6 +4,7 @@ defmodule AtomicFi.TransactionContext.Transaction do
   alias AtomicFi.AccountHolderContext.AccountHolder
   alias AtomicFi.ComplianceScreeningContext.ComplianceScreening
   alias AtomicFi.CounterpartyContext.Counterparty
+  alias AtomicFi.LedgerAccountContext.LedgerAccount
   alias AtomicFi.LedgerEntryContext.LedgerEntry
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.TenantContext.Tenant
@@ -54,6 +55,11 @@ defmodule AtomicFi.TransactionContext.Transaction do
   * `requested_execution_date` - pain:001 ReqdExctnDt
   * `settlement_date` - Actual settlement date (pacs:008 IntrBkSttlmDt / camt:054 BookgDt)
   * `transaction_external_id` - Caller-supplied SoE upsert key (unique per tenant when set)
+  * `rejected_ledger_account_id` - FK to the LedgerAccount whose control limit was breached (NULL unless `:rejected` for a limit)
+  * `rejected_period` - `"daily" | "weekly" | "monthly" | "yearly"` (NULL unless rejected)
+  * `rejected_direction` - `"debit" | "credit"` (NULL unless rejected)
+  * `rejected_rule` - the rule that set the breached cap (NULL unless rejected)
+  * `rejected_code` - e.g. `"LIMIT_EXCEEDED"` (NULL unless rejected)
   * `tenant_id` - FK to Tenant for multi-tenancy isolation (RLS)
   * `inserted_at` - Timestamp when record was created
   * `updated_at` - Timestamp when record was last updated
@@ -206,6 +212,54 @@ defmodule AtomicFi.TransactionContext.Transaction do
     key: :transaction_external_id
   )
 
+  # Rejection metadata, denormalised from the offending ledger entry — populated when
+  # the transaction is :rejected because a rule engine control limit was hit. NULL otherwise.
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      format: :uuid,
+      nullable: true,
+      readOnly: true,
+      description: "LedgerAccount whose control limit was breached (NULL unless rejected)."
+    },
+    key: :rejected_ledger_account_id
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      nullable: true,
+      readOnly: true,
+      enum: ["daily", "weekly", "monthly", "yearly"]
+    },
+    key: :rejected_period
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, nullable: true, readOnly: true, enum: ["debit", "credit"]},
+    key: :rejected_direction
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      nullable: true,
+      readOnly: true,
+      description: "Rule that set the breached cap."
+    },
+    key: :rejected_rule
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      nullable: true,
+      readOnly: true,
+      description: "e.g. LIMIT_EXCEEDED."
+    },
+    key: :rejected_code
+  )
+
   open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :account_holder_id)
 
   open_api_property(
@@ -301,6 +355,11 @@ defmodule AtomicFi.TransactionContext.Transaction do
       :requested_execution_date,
       :settlement_date,
       :transaction_external_id,
+      :rejected_ledger_account_id,
+      :rejected_period,
+      :rejected_direction,
+      :rejected_rule,
+      :rejected_code,
       :account_holder_id,
       :debtor_payment_account_id,
       :creditor_payment_account_id,
@@ -345,6 +404,14 @@ defmodule AtomicFi.TransactionContext.Transaction do
     # Identifiers
     field :transaction_external_id, :string
 
+    # Rejection metadata, denormalised from the offending ledger entry. Set by the
+    # orchestration layer when the transaction is :rejected for a control limit.
+    belongs_to :rejected_ledger_account, LedgerAccount, foreign_key: :rejected_ledger_account_id
+    field :rejected_period, :string
+    field :rejected_direction, :string
+    field :rejected_rule, :string
+    field :rejected_code, :string
+
     # Relationships — subject anchor
     belongs_to :account_holder, AccountHolder
 
@@ -383,6 +450,11 @@ defmodule AtomicFi.TransactionContext.Transaction do
       :requested_execution_date,
       :settlement_date,
       :transaction_external_id,
+      :rejected_ledger_account_id,
+      :rejected_period,
+      :rejected_direction,
+      :rejected_rule,
+      :rejected_code,
       :account_holder_id,
       :debtor_payment_account_id,
       :creditor_payment_account_id,
@@ -395,6 +467,7 @@ defmodule AtomicFi.TransactionContext.Transaction do
     |> maybe_cast_status(attrs)
     |> validate_required([:transaction_type, :amount, :currency, :account_holder_id, :tenant_id])
     |> validate_number(:amount, greater_than: 0)
+    |> foreign_key_constraint(:rejected_ledger_account_id)
     |> foreign_key_constraint(:account_holder_id)
     |> foreign_key_constraint(:debtor_payment_account_id)
     |> foreign_key_constraint(:creditor_payment_account_id)

@@ -7,10 +7,10 @@ defmodule AtomicFi.LedgerAccountBalanceContext do
   code directly. This context provides list and show operations only.
 
   Each row carries day/week/month/year cumulative totals (in minor currency units)
-  and the last known velocity limits propagated from the risk engine via the
+  and the last known control limits propagated from the risk engine via the
   triggering ledger_entry's *_limit_at_entry snapshot columns.
 
-  Velocity limit enforcement is DB-driven:
+  Control limit enforcement is DB-driven:
       CHECK (last_daily_debit_limit IS NULL OR daily_debit <= last_daily_debit_limit)
   """
 

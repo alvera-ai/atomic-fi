@@ -153,31 +153,32 @@ defmodule AtomicFiApi.Helpers.ApiHelpers do
   """
   @spec parse_flop_params(map()) :: map()
   def parse_flop_params(params) when is_map(params) do
-    # Handle both atom and string keys (test vs production)
-    parsed =
-      Enum.reduce(params, %{}, fn {key, value}, acc ->
-        # Normalize key to string for comparison
-        str_key = if is_atom(key), do: Atom.to_string(key), else: key
-
-        case str_key do
-          "page" -> Map.put(acc, :page, parse_integer(value))
-          "page_size" -> Map.put(acc, :page_size, parse_integer(value))
-          "order_by" -> Map.put(acc, :order_by, parse_order_by(value))
-          "order_directions" -> Map.put(acc, :order_directions, parse_order_directions(value))
-          "filters" -> Map.put(acc, :filters, value)
-          _ -> acc
-        end
-      end)
-
-    # Set default order_directions if order_by is provided but order_directions is not
-    if Map.has_key?(parsed, :order_by) && !Map.has_key?(parsed, :order_directions) do
-      # Default to :asc for all order_by fields
-      order_by_count = length(parsed[:order_by] || [])
-      Map.put(parsed, :order_directions, List.duplicate(:asc, order_by_count))
-    else
-      parsed
-    end
+    params
+    |> Enum.reduce(%{}, &reduce_flop_param/2)
+    |> apply_default_order_directions()
   end
+
+  defp reduce_flop_param({key, value}, acc) do
+    str_key = if is_atom(key), do: Atom.to_string(key), else: key
+    put_flop_param(acc, str_key, value)
+  end
+
+  defp put_flop_param(acc, "page", v), do: Map.put(acc, :page, parse_integer(v))
+  defp put_flop_param(acc, "page_size", v), do: Map.put(acc, :page_size, parse_integer(v))
+  defp put_flop_param(acc, "order_by", v), do: Map.put(acc, :order_by, parse_order_by(v))
+
+  defp put_flop_param(acc, "order_directions", v),
+    do: Map.put(acc, :order_directions, parse_order_directions(v))
+
+  defp put_flop_param(acc, "filters", v), do: Map.put(acc, :filters, v)
+  defp put_flop_param(acc, _other, _v), do: acc
+
+  defp apply_default_order_directions(%{order_by: order_by} = parsed)
+       when not is_map_key(parsed, :order_directions) do
+    Map.put(parsed, :order_directions, List.duplicate(:asc, length(order_by || [])))
+  end
+
+  defp apply_default_order_directions(parsed), do: parsed
 
   defp parse_integer(value) when is_integer(value), do: value
 

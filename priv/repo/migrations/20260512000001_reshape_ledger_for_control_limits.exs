@@ -1,0 +1,289 @@
+defmodule AtomicFi.Repo.Migrations.ReshapeLedgerForControlLimits do
+  use Ecto.Migration
+
+  # Reshape the ledger machinery for rule-engine (ZenRule) control limits.
+  #
+  #   * NEW composite type  control_limit (period varchar, direction varchar, cap bigint, rule varchar)
+  #   * ledger_accounts  : drop GAAP account_type (+ its unique); add regime (generic; mandatory —
+  #                        Ecto sets it incl. a sentinel for the root / "all" nodes), payment_account_id
+  #                        / counterparty_id FKs (NULL on the AccountHolder root); 3 partial unique
+  #                        indexes on [:ledger_id, …, :regime].  (No credit/debit-side accounts — one
+  #                        LedgerAccount per (entity, regime); each tracks both credit & debit
+  #                        balances via the existing ledger_account_balances columns.)
+  #   * payment_accounts : add enabled_regimes (text[]) — drives the LA tree built at PA create time.
+  #   * ledger_entries   : drop the 8 *_limit_at_entry int cols → limits_at_entry control_limit[]
+  #                        (the rule engine's output for this entry's leaf account: a list of
+  #                        {period, direction, cap, rule}).
+  #   * ledger_account_balances : UNCHANGED — keeps the 8 flat cumulative cols, the 8 flat
+  #                        last_*_limit cols, and the 8 CHECK constraints. (A CHECK can't iterate an
+  #                        array, so the limits the CHECKs reference must stay flat columns.)
+  #   * trigger propagate_ledger_entry_to_balances : becomes BEFORE INSERT OR UPDATE OF status.
+  #                        It walks ancestor_ids || self, bumps cumulative balances and fans the
+  #                        entry's limits_at_entry[] out into the flat last_*_limit columns on each
+  #                        ancestor balance row. The 8 CHECK constraints fire on a breach; the
+  #                        trigger's EXCEPTION handler then marks the entry :voided and records
+  #                        which account / period / direction / rule (rejected_* flat fields).
+  #
+  # Not reversible (the array reshape is one-way).
+
+  def up do
+    execute("""
+    DO $$ BEGIN
+      CREATE TYPE control_limit AS (period varchar, direction varchar, cap bigint, rule varchar);
+    EXCEPTION WHEN duplicate_object THEN null;
+    END $$;
+    """)
+
+    # ── ledger_accounts ────────────────────────────────────────────────────────
+    drop_if_exists index(:ledger_accounts, [:ledger_id, :account_type],
+                     name: :ledger_accounts_ledger_id_account_type_index
+                   )
+
+    alter table(:ledger_accounts) do
+      remove :account_type
+      add :regime, :string, null: false, default: "_root"
+
+      add :payment_account_id,
+          references(:payment_accounts, type: :binary_id, on_delete: :restrict)
+
+      add :counterparty_id,
+          references(:counterparties, type: :binary_id, on_delete: :restrict)
+    end
+
+    # Default exists only to backfill any pre-existing rows; new rows set regime explicitly.
+    execute("ALTER TABLE ledger_accounts ALTER COLUMN regime DROP DEFAULT")
+
+    create index(:ledger_accounts, [:payment_account_id])
+    create index(:ledger_accounts, [:counterparty_id])
+
+    create unique_index(:ledger_accounts, [:ledger_id, :regime],
+             name: :ledger_accounts_ledger_regime_root_unique,
+             where: "payment_account_id IS NULL AND counterparty_id IS NULL"
+           )
+
+    create unique_index(:ledger_accounts, [:ledger_id, :payment_account_id, :regime],
+             name: :ledger_accounts_ledger_pa_regime_unique,
+             where: "payment_account_id IS NOT NULL"
+           )
+
+    create unique_index(:ledger_accounts, [:ledger_id, :counterparty_id, :regime],
+             name: :ledger_accounts_ledger_cp_regime_unique,
+             where: "counterparty_id IS NOT NULL"
+           )
+
+    # ── payment_accounts ───────────────────────────────────────────────────────
+    alter table(:payment_accounts) do
+      add :enabled_regimes, {:array, :string}, null: false, default: []
+    end
+
+    # ── ledger_entries ─────────────────────────────────────────────────────────
+    alter table(:ledger_entries) do
+      add :limits_at_entry, {:array, :control_limit}
+      remove :daily_debit_limit_at_entry
+      remove :weekly_debit_limit_at_entry
+      remove :monthly_debit_limit_at_entry
+      remove :yearly_debit_limit_at_entry
+      remove :daily_credit_limit_at_entry
+      remove :weekly_credit_limit_at_entry
+      remove :monthly_credit_limit_at_entry
+      remove :yearly_credit_limit_at_entry
+    end
+
+    # ── trigger ────────────────────────────────────────────────────────────────
+    execute("DROP TRIGGER IF EXISTS ledger_entry_propagate_to_balances ON ledger_entries")
+    execute(new_trigger_fn())
+
+    execute("""
+    CREATE TRIGGER ledger_entry_propagate_to_balances
+      BEFORE INSERT OR UPDATE OF status ON ledger_entries
+      FOR EACH ROW EXECUTE FUNCTION propagate_ledger_entry_to_balances()
+    """)
+  end
+
+  def down do
+    raise Ecto.MigrationError,
+      message:
+        "ReshapeLedgerForControlLimits is not reversible — restore from a backup if needed."
+  end
+
+  defp new_trigger_fn do
+    """
+    CREATE OR REPLACE FUNCTION propagate_ledger_entry_to_balances()
+    RETURNS TRIGGER AS $$
+    DECLARE
+      v_debit_delta   INTEGER := 0;
+      v_credit_delta  INTEGER := 0;
+      v_limits        control_limit[];
+      v_ancestor_ids  UUID[];
+      v_account_ids   UUID[];
+      v_account_id    UUID;
+      v_breach_node   UUID;
+      v_constraint    TEXT;
+      v_period        TEXT;
+      v_direction     TEXT;
+      v_blocked_id    UUID;
+      v_block_reason  TEXT;
+      v_today         DATE    := (NOW() AT TIME ZONE 'UTC')::DATE;
+      v_iso_week      INTEGER := EXTRACT(WEEK  FROM (NOW() AT TIME ZONE 'UTC'))::INTEGER;
+      v_month         INTEGER := EXTRACT(MONTH FROM (NOW() AT TIME ZONE 'UTC'))::INTEGER;
+      v_year          INTEGER := EXTRACT(YEAR  FROM (NOW() AT TIME ZONE 'UTC'))::INTEGER;
+      v_prior_weekly_debit INTEGER; v_prior_weekly_credit INTEGER;
+      v_prior_monthly_debit INTEGER; v_prior_monthly_credit INTEGER;
+      v_prior_yearly_debit INTEGER; v_prior_yearly_credit INTEGER;
+      v_daily_debit_cap BIGINT; v_daily_credit_cap BIGINT;
+      v_weekly_debit_cap BIGINT; v_weekly_credit_cap BIGINT;
+      v_monthly_debit_cap BIGINT; v_monthly_credit_cap BIGINT;
+      v_yearly_debit_cap BIGINT; v_yearly_credit_cap BIGINT;
+    BEGIN
+      IF TG_OP = 'INSERT' THEN
+        -- A rejected entry (inserted already :voided) moves nothing.
+        IF NEW.status = 'voided' THEN
+          RETURN NEW;
+        END IF;
+        IF NEW.entry_type = 'debit'  THEN v_debit_delta  := NEW.amount; END IF;
+        IF NEW.entry_type = 'credit' THEN v_credit_delta := NEW.amount; END IF;
+        v_limits := NEW.limits_at_entry;
+      ELSIF TG_OP = 'UPDATE' AND NEW.status = 'voided' AND OLD.status != 'voided' THEN
+        IF OLD.entry_type = 'debit'  THEN v_debit_delta  := -OLD.amount; END IF;
+        IF OLD.entry_type = 'credit' THEN v_credit_delta := -OLD.amount; END IF;
+        v_limits := OLD.limits_at_entry;
+      ELSE
+        RETURN NEW;
+      END IF;
+
+      -- Fan the entry's control_limit[] out into the 8 flat per-period/direction caps.
+      v_daily_debit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'daily'   AND l.direction = 'debit'  LIMIT 1);
+      v_daily_credit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'daily'   AND l.direction = 'credit' LIMIT 1);
+      v_weekly_debit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'weekly'  AND l.direction = 'debit'  LIMIT 1);
+      v_weekly_credit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'weekly'  AND l.direction = 'credit' LIMIT 1);
+      v_monthly_debit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'monthly' AND l.direction = 'debit'  LIMIT 1);
+      v_monthly_credit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'monthly' AND l.direction = 'credit' LIMIT 1);
+      v_yearly_debit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'yearly'  AND l.direction = 'debit'  LIMIT 1);
+      v_yearly_credit_cap := (SELECT l.cap FROM unnest(v_limits) AS l WHERE l.period = 'yearly'  AND l.direction = 'credit' LIMIT 1);
+
+      SELECT ancestor_ids INTO v_ancestor_ids FROM ledger_accounts WHERE id = NEW.ledger_account_id;
+      v_account_ids := ARRAY[NEW.ledger_account_id] || COALESCE(v_ancestor_ids, ARRAY[]::UUID[]);
+
+      -- Belt: if any LA in the chain (self + ancestors) is_blocked, void
+      -- this entry without doing any balance work. Records which LA
+      -- caused the rejection + the configured block_reason.
+      SELECT id, block_reason
+      INTO v_blocked_id, v_block_reason
+      FROM ledger_accounts
+      WHERE id = ANY(v_account_ids) AND is_blocked = TRUE
+      ORDER BY array_position(v_account_ids, id)
+      LIMIT 1;
+
+      IF v_blocked_id IS NOT NULL THEN
+        NEW.status                     := 'voided';
+        NEW.rejected_ledger_account_id := v_blocked_id;
+        NEW.rejected_code              := 'BLOCKED';
+        NEW.rejected_rule              := v_block_reason;
+        RETURN NEW;
+      END IF;
+
+      -- Suspenders: tighten the entry's per-txn caps with the LA's hard
+      -- onboarding-time max_*. LEAST treats NULL as "no constraint", so
+      -- either side being NULL falls through to the other; both NULL =
+      -- truly unconstrained.
+      -- Suspenders: tighten the entry's per-txn caps with the LA's hard
+      -- onboarding-time max_*. LEAST treats NULL as "no constraint" — if
+      -- either side is NULL the other wins; both NULL = truly unconstrained.
+      SELECT
+        LEAST(MIN(max_daily_debit),   v_daily_debit_cap),
+        LEAST(MIN(max_daily_credit),  v_daily_credit_cap),
+        LEAST(MIN(max_weekly_debit),  v_weekly_debit_cap),
+        LEAST(MIN(max_weekly_credit), v_weekly_credit_cap),
+        LEAST(MIN(max_monthly_debit), v_monthly_debit_cap),
+        LEAST(MIN(max_monthly_credit),v_monthly_credit_cap),
+        LEAST(MIN(max_yearly_debit),  v_yearly_debit_cap),
+        LEAST(MIN(max_yearly_credit), v_yearly_credit_cap)
+      INTO
+        v_daily_debit_cap,   v_daily_credit_cap,
+        v_weekly_debit_cap,  v_weekly_credit_cap,
+        v_monthly_debit_cap, v_monthly_credit_cap,
+        v_yearly_debit_cap,  v_yearly_credit_cap
+      FROM ledger_accounts
+      WHERE id = ANY(v_account_ids);
+
+      BEGIN
+        -- Running net balance on the leaf + all ancestors (credit = +, debit = -).
+        UPDATE ledger_accounts
+        SET balance = balance + v_credit_delta - v_debit_delta
+        WHERE id = ANY(v_account_ids);
+
+        FOREACH v_account_id IN ARRAY v_account_ids LOOP
+          v_breach_node := v_account_id;  -- in case the next UPSERT trips a CHECK on this node
+
+          SELECT COALESCE(SUM(daily_debit), 0), COALESCE(SUM(daily_credit), 0)
+          INTO v_prior_weekly_debit, v_prior_weekly_credit
+          FROM ledger_account_balances
+          WHERE ledger_account_id = v_account_id AND iso_week = v_iso_week AND year = v_year AND balance_date != v_today;
+
+          SELECT COALESCE(SUM(daily_debit), 0), COALESCE(SUM(daily_credit), 0)
+          INTO v_prior_monthly_debit, v_prior_monthly_credit
+          FROM ledger_account_balances
+          WHERE ledger_account_id = v_account_id AND month = v_month AND year = v_year AND balance_date != v_today;
+
+          SELECT COALESCE(SUM(daily_debit), 0), COALESCE(SUM(daily_credit), 0)
+          INTO v_prior_yearly_debit, v_prior_yearly_credit
+          FROM ledger_account_balances
+          WHERE ledger_account_id = v_account_id AND year = v_year AND balance_date != v_today;
+
+          INSERT INTO ledger_account_balances
+            (id, ledger_account_id, tenant_id, balance_date, iso_week, month, year,
+             daily_debit, daily_credit, weekly_debit, weekly_credit, monthly_debit, monthly_credit,
+             yearly_debit, yearly_credit,
+             last_daily_debit_limit,    last_daily_credit_limit,
+             last_weekly_debit_limit,   last_weekly_credit_limit,
+             last_monthly_debit_limit,  last_monthly_credit_limit,
+             last_yearly_debit_limit,   last_yearly_credit_limit,
+             inserted_at, updated_at)
+          SELECT gen_random_uuid(), v_account_id, la.tenant_id, v_today, v_iso_week, v_month, v_year,
+            v_debit_delta, v_credit_delta,
+            v_prior_weekly_debit + v_debit_delta, v_prior_weekly_credit + v_credit_delta,
+            v_prior_monthly_debit + v_debit_delta, v_prior_monthly_credit + v_credit_delta,
+            v_prior_yearly_debit + v_debit_delta, v_prior_yearly_credit + v_credit_delta,
+            v_daily_debit_cap, v_daily_credit_cap, v_weekly_debit_cap, v_weekly_credit_cap, v_monthly_debit_cap, v_monthly_credit_cap, v_yearly_debit_cap, v_yearly_credit_cap,
+            NOW(), NOW()
+          FROM ledger_accounts la WHERE la.id = v_account_id
+          ON CONFLICT (ledger_account_id, balance_date) DO UPDATE SET
+            daily_debit    = ledger_account_balances.daily_debit   + EXCLUDED.daily_debit,
+            daily_credit   = ledger_account_balances.daily_credit  + EXCLUDED.daily_credit,
+            weekly_debit   = v_prior_weekly_debit + ledger_account_balances.daily_debit  + EXCLUDED.daily_debit,
+            weekly_credit  = v_prior_weekly_credit + ledger_account_balances.daily_credit + EXCLUDED.daily_credit,
+            monthly_debit  = v_prior_monthly_debit + ledger_account_balances.daily_debit  + EXCLUDED.daily_debit,
+            monthly_credit = v_prior_monthly_credit + ledger_account_balances.daily_credit + EXCLUDED.daily_credit,
+            yearly_debit   = v_prior_yearly_debit + ledger_account_balances.daily_debit  + EXCLUDED.daily_debit,
+            yearly_credit  = v_prior_yearly_credit + ledger_account_balances.daily_credit + EXCLUDED.daily_credit,
+            last_daily_debit_limit    = COALESCE(EXCLUDED.last_daily_debit_limit,    ledger_account_balances.last_daily_debit_limit),
+            last_daily_credit_limit   = COALESCE(EXCLUDED.last_daily_credit_limit,   ledger_account_balances.last_daily_credit_limit),
+            last_weekly_debit_limit   = COALESCE(EXCLUDED.last_weekly_debit_limit,   ledger_account_balances.last_weekly_debit_limit),
+            last_weekly_credit_limit  = COALESCE(EXCLUDED.last_weekly_credit_limit,  ledger_account_balances.last_weekly_credit_limit),
+            last_monthly_debit_limit  = COALESCE(EXCLUDED.last_monthly_debit_limit,  ledger_account_balances.last_monthly_debit_limit),
+            last_monthly_credit_limit = COALESCE(EXCLUDED.last_monthly_credit_limit, ledger_account_balances.last_monthly_credit_limit),
+            last_yearly_debit_limit   = COALESCE(EXCLUDED.last_yearly_debit_limit,   ledger_account_balances.last_yearly_debit_limit),
+            last_yearly_credit_limit  = COALESCE(EXCLUDED.last_yearly_credit_limit,  ledger_account_balances.last_yearly_credit_limit),
+            updated_at = NOW();
+        END LOOP;
+      EXCEPTION WHEN check_violation THEN
+        -- A ledger_account_balances CHECK (lab_<period>_<direction>_limit) fired on v_breach_node;
+        -- all balance changes above are rolled back. Persist the entry :voided with the details.
+        GET STACKED DIAGNOSTICS v_constraint = CONSTRAINT_NAME;
+        v_period    := split_part(v_constraint, '_', 2);   -- 'lab_weekly_debit_limit' → 'weekly'
+        v_direction := split_part(v_constraint, '_', 3);   --                          → 'debit'
+        NEW.status := 'voided';
+        NEW.rejected_ledger_account_id := v_breach_node;
+        NEW.rejected_period    := v_period;
+        NEW.rejected_direction := v_direction;
+        NEW.rejected_rule      := (SELECT l.rule FROM unnest(v_limits) AS l
+                                   WHERE l.period = v_period AND l.direction = v_direction LIMIT 1);
+        NEW.rejected_code      := 'LIMIT_EXCEEDED';
+      END;
+
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+    """
+  end
+end

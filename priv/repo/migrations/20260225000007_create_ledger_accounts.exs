@@ -75,7 +75,7 @@ defmodule AtomicFi.Repo.Migrations.CreateLedgerAccounts do
            )
 
     # NOTE: No balance CHECK constraint here.
-    # Velocity limit enforcement lives on ledger_account_balances via CHECK constraints
+    # Control limit enforcement lives on ledger_account_balances via CHECK constraints
     # that reference last_*_limit columns updated by the trigger from entry snapshots.
   end
 end

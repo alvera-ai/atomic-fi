@@ -146,15 +146,7 @@ defmodule AtomicFi.Repo do
 
   # Extract role scope from Session or User struct
   defp extract_role_scope(%{__struct__: Session} = session) do
-    # New pattern: Session has tenant_id and optional customer_id
-    scope = %{tenant_id: session.tenant_id}
-
-    # Add customer_id if present (nullable field)
-    if session.customer_id do
-      Map.put(scope, :customer_id, session.customer_id)
-    else
-      scope
-    end
+    %{tenant_id: session.tenant_id}
   end
 
   defp extract_role_scope(session) do

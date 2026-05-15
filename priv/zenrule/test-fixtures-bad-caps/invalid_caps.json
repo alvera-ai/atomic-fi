@@ -1,0 +1,36 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    { "id": "request", "type": "inputNode", "name": "Request", "position": { "x": 100, "y": 160 } },
+    {
+      "id": "caps",
+      "type": "decisionTableNode",
+      "name": "Invalid (negative) cap",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "hitPolicy": "first",
+        "inputs": [
+          { "id": "in_any", "type": "expression", "name": "Any", "field": "transaction.transaction_type" }
+        ],
+        "outputs": [
+          { "id": "out_ddc",    "type": "expression", "name": "daily_debit_cap", "field": "ledger_accounts.la_test_999.daily_debit_cap" },
+          { "id": "out_reason", "type": "expression", "name": "reason",          "field": "ledger_accounts.la_test_999.reason" }
+        ],
+        "rules": [
+          {
+            "_id": "rule_invalid_caps",
+            "_description": "Test fixture: emits negative daily_debit_cap so Control.changeset rejects → decode_controls_map halts.",
+            "in_any": "",
+            "out_ddc": "-100",
+            "out_reason": "\"test_invalid_caps\""
+          }
+        ]
+      }
+    },
+    { "id": "response", "type": "outputNode", "name": "Response", "position": { "x": 700, "y": 160 } }
+  ],
+  "edges": [
+    { "id": "edge_in",  "type": "edge", "sourceId": "request", "targetId": "caps" },
+    { "id": "edge_out", "type": "edge", "sourceId": "caps",    "targetId": "response" }
+  ]
+}

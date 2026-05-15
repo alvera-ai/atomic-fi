@@ -45,8 +45,20 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
   )
 
   open_api_property(
-    schema: %Schema{type: :string, format: :uuid},
+    schema: %Schema{type: :string, format: :uuid, nullable: true},
     key: :legal_entity_id
+  )
+
+  open_api_property(
+    schema: %OpenApiSpex.Reference{"$ref": "#/components/schemas/LegalEntityRequest"},
+    key: :legal_entity,
+    writeOnly: true
+  )
+
+  open_api_property(
+    schema: %OpenApiSpex.Reference{"$ref": "#/components/schemas/LegalEntityResponse"},
+    key: :legal_entity,
+    readOnly: true
   )
 
   open_api_property(
@@ -108,11 +120,12 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
       "Beneficial owner of a corporate account holder. " <>
         "≥25% ownership triggers FinCEN CDD Rule 31 CFR §1010.230 (FATF Rec 24). " <>
         "All PII lives in the linked LegalEntity.",
-    required: [:account_holder_id, :legal_entity_id, :control_type],
+    required: [:account_holder_id, :control_type],
     properties: [
       :id,
       :account_holder_id,
       :legal_entity_id,
+      :legal_entity,
       :ownership_pct,
       :control_type,
       :verification_status,
@@ -144,6 +157,10 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
     # Multi-tenancy: tenant_id references tenants for RLS
     belongs_to :tenant, Tenant
 
+    # FK to the currently-scheduled OnboardingWorker job. Owned by
+    # OnboardingContext / OnboardingWorker — see their moduledocs.
+    belongs_to :rescreen_job, Oban.Job, type: :integer
+
     timestamps(type: :utc_datetime_usec)
   end
 
@@ -159,7 +176,9 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
       :beneficial_owner_number,
       :tenant_id
     ])
-    |> validate_required([:account_holder_id, :legal_entity_id, :control_type, :tenant_id])
+    |> maybe_cast_assoc_legal_entity(attrs)
+    |> validate_required([:account_holder_id, :control_type, :tenant_id])
+    |> validate_legal_entity_present()
     |> validate_number(:ownership_pct, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
     |> foreign_key_constraint(:account_holder_id)
     |> foreign_key_constraint(:legal_entity_id)
@@ -167,5 +186,32 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
     |> unique_constraint([:account_holder_id, :legal_entity_id],
       name: :beneficial_owners_account_holder_legal_entity_unique
     )
+  end
+
+  # Cast nested legal_entity only when present in attrs.
+  defp maybe_cast_assoc_legal_entity(changeset, attrs) do
+    case Map.fetch(attrs, :legal_entity) do
+      {:ok, value} when not is_nil(value) ->
+        cast_assoc(changeset, :legal_entity, required: true)
+
+      _ ->
+        changeset
+    end
+  end
+
+  # Require either legal_entity_id (FK) or a nested legal_entity in this changeset.
+  defp validate_legal_entity_present(changeset) do
+    legal_entity_id = get_field(changeset, :legal_entity_id)
+    has_nested = Map.has_key?(changeset.changes, :legal_entity)
+
+    if is_nil(legal_entity_id) and not has_nested do
+      add_error(
+        changeset,
+        :legal_entity_id,
+        "must provide either legal_entity_id or a nested legal_entity"
+      )
+    else
+      changeset
+    end
   end
 end

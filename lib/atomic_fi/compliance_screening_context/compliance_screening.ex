@@ -20,7 +20,7 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
 
   - `:sanctions` — OFAC / Watchman SDN/EU/UN list
   - `:pep` — Politically Exposed Person
-  - `:aml` — Anti-Money Laundering velocity / geographic risk
+  - `:aml` — Anti-Money Laundering control / geographic risk
   - `:adverse_media` — Negative news screening
 
   ## False Positive Model
@@ -31,8 +31,8 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
 
   ## AML Fields
 
-  AML velocity and geographic risk fields provide camt:998-level risk signals:
-  - `aml_velocity_flag` / `aml_velocity_count` — unusual transaction frequency
+  AML control and geographic risk fields provide camt:998-level risk signals:
+  - `aml_control_flag` / `aml_control_count` — unusual transaction frequency
   - `aml_geographic_risk_flag` / `aml_high_risk_country` — FATF high-risk jurisdiction
 
   ## PEP Fields
@@ -111,7 +111,10 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
   )
 
   open_api_property(
-    schema: %Schema{type: :string, enum: ["individual", "company"]},
+    schema: %Schema{
+      type: :string,
+      enum: ["individual", "company", "crypto_address", "payment_account"]
+    },
     key: :screened_entity_type
   )
 
@@ -151,8 +154,8 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
     key: :aml_risk_score
   )
 
-  open_api_property(schema: %Schema{type: :boolean, nullable: true}, key: :aml_velocity_flag)
-  open_api_property(schema: %Schema{type: :integer, nullable: true}, key: :aml_velocity_count)
+  open_api_property(schema: %Schema{type: :boolean, nullable: true}, key: :aml_control_flag)
+  open_api_property(schema: %Schema{type: :integer, nullable: true}, key: :aml_control_count)
 
   open_api_property(
     schema: %Schema{type: :boolean, nullable: true},
@@ -195,7 +198,10 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
   )
 
   # Entity references (account_holder is always set; others are soft refs)
-  open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :account_holder_id)
+  open_api_property(
+    schema: %Schema{type: :string, format: :uuid, nullable: true},
+    key: :account_holder_id
+  )
 
   open_api_property(
     schema: %Schema{type: :string, format: :uuid, nullable: true},
@@ -258,8 +264,8 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
       :pep_indicator,
       :pep_list_name,
       :aml_risk_score,
-      :aml_velocity_flag,
-      :aml_velocity_count,
+      :aml_control_flag,
+      :aml_control_count,
       :aml_geographic_risk_flag,
       :aml_high_risk_country,
       :false_positive_qualifier,
@@ -295,7 +301,9 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
 
     field :screening_score, :decimal
 
-    field :screened_entity_type, Ecto.Enum, values: [:individual, :company]
+    field :screened_entity_type, Ecto.Enum,
+      values: [:individual, :company, :crypto_address, :payment_account]
+
     field :screened_entity_name, :string
     field :match_count, :integer, default: 0
 
@@ -313,8 +321,8 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
 
     # AML fields
     field :aml_risk_score, :decimal
-    field :aml_velocity_flag, :boolean, default: false
-    field :aml_velocity_count, :integer
+    field :aml_control_flag, :boolean, default: false
+    field :aml_control_count, :integer
     field :aml_geographic_risk_flag, :boolean, default: false
     field :aml_high_risk_country, :string
 
@@ -368,8 +376,8 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
       :pep_indicator,
       :pep_list_name,
       :aml_risk_score,
-      :aml_velocity_flag,
-      :aml_velocity_count,
+      :aml_control_flag,
+      :aml_control_count,
       :aml_geographic_risk_flag,
       :aml_high_risk_country,
       :false_positive_qualifier,

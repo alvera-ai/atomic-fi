@@ -1,17 +1,19 @@
-.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman
+.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight
 
 COMPOSE_FILE := local-dependencies.yaml
 
 run-backing-services:
-	@echo "Starting local backing services..."
+	@echo "Starting local backing services (docker compose: watchman)..."
 	@docker compose -f $(COMPOSE_FILE) up -d
-	@$(MAKE) run-watchman
 	@echo "Backing services ready. Run 'make deps.logs' to follow."
+	@echo "Note: compose-managed watchman uses upstream moov/watchman with the"
+	@echo "      same config + custom watchlist as 'make run-watchman'."
+	@echo "      The standalone target remains available for running watchman"
+	@echo "      outside compose (e.g. on a host without docker compose)."
 
 stop-backing-services:
-	@echo "Stopping local backing services..."
+	@echo "Stopping local backing services (docker compose)..."
 	@docker compose -f $(COMPOSE_FILE) down
-	@$(MAKE) stop-watchman
 	@echo "Backing services stopped."
 
 deps.logs:
@@ -52,6 +54,34 @@ console:
 	@echo "💡 Commands: recompile() | System.restart() | Ctrl+C twice to exit"
 	@iex --sname console@localhost --remsh phoenix@localhost
 
+up: run-backing-services
+	@echo "🛠  Setting up database..."
+	@mix ecto.setup
+	@$(MAKE) seed
+	@echo "✅ Stack ready. Run 'make server' (atomic-fi API) and 'make sight' (atomic-sight UI) in separate terminals."
+
+down: stop-backing-services
+
+seed:
+	@echo "🌱 Seeding atomic-fi from compliance corpus..."
+	@if [ ! -d priv/corpus/out ] || [ -z "$$(ls -A priv/corpus/out 2>/dev/null)" ]; then \
+		echo "  → no corpus found, generating default (--shards 100 --pass-rate 90)"; \
+		mix alvera.gen.compliance_corpus --shards 100 --pass-rate 90; \
+	fi
+	@mix bench.seed
+
+sight:
+	@echo "🎨 Starting atomic-sight-insight dev server..."
+	@cd packages/atomic-sight-insight && pnpm dev
+
+test-integration:
+	@echo "🧪 Running vitest integration suite..."
+	@cd integration-tests && pnpm test
+
+test-playwright:
+	@echo "🎭 Running playwright e2e suite..."
+	@cd playwright-e2e && pnpm test
+
 help:
 	@echo "Payments Compliance Platform - Available Commands"
 	@echo ""
@@ -68,6 +98,14 @@ help:
 	@echo "Watchman (Sanctions Screening):"
 	@echo "  make run-watchman            - Start Watchman standalone"
 	@echo "  make stop-watchman           - Stop Watchman"
+	@echo ""
+	@echo "One-shot:"
+	@echo "  make up                      - Backing services + db + seed (then run 'make server' and 'make sight')"
+	@echo "  make down                    - Stop backing services"
+	@echo "  make seed                    - (Re)seed db from priv/corpus/out, generating corpus if missing"
+	@echo "  make sight                   - Start atomic-sight-insight Vite dev server"
+	@echo "  make test-integration        - Run vitest integration suite"
+	@echo "  make test-playwright         - Run playwright e2e suite"
 	@echo ""
 	@echo "Usage:"
 	@echo "  1. Start services:  make run-backing-services"

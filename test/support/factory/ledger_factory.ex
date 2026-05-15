@@ -24,6 +24,8 @@ defmodule AtomicFi.Factory.LedgerFactory do
           status: :active,
           tenant_id: tenant_id
         }
+        |> merge_attributes(attrs)
+        |> evaluate_lazy_attributes()
       end
     end
   end

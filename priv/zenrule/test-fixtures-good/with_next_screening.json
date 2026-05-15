@@ -1,0 +1,38 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    { "id": "request", "type": "inputNode", "name": "Request", "position": { "x": 100, "y": 160 } },
+    {
+      "id": "caps",
+      "type": "decisionTableNode",
+      "name": "Caps + next_screening_at",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "hitPolicy": "first",
+        "inputs": [
+          { "id": "in_any", "type": "expression", "name": "Any", "field": "transaction.transaction_type" }
+        ],
+        "outputs": [
+          { "id": "out_ydc", "type": "expression", "name": "yearly_debit_cap", "field": "ledger_accounts.la_test_002.yearly_debit_cap" },
+          { "id": "out_reason", "type": "expression", "name": "reason",        "field": "ledger_accounts.la_test_002.reason" },
+          { "id": "out_nsa", "type": "expression", "name": "next_screening_at","field": "next_screening_at" }
+        ],
+        "rules": [
+          {
+            "_id": "rule_with_screening",
+            "_description": "Test fixture: emits ledger_accounts + valid ISO next_screening_at",
+            "in_any": "",
+            "out_ydc": "1000000",
+            "out_reason": "\"test_with_screening\"",
+            "out_nsa": "\"2026-12-31T00:00:00Z\""
+          }
+        ]
+      }
+    },
+    { "id": "response", "type": "outputNode", "name": "Response", "position": { "x": 700, "y": 160 } }
+  ],
+  "edges": [
+    { "id": "edge_in",  "type": "edge", "sourceId": "request", "targetId": "caps" },
+    { "id": "edge_out", "type": "edge", "sourceId": "caps",    "targetId": "response" }
+  ]
+}

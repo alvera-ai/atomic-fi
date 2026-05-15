@@ -45,37 +45,6 @@ defmodule AtomicFi.UserContext do
   end
 
   @doc """
-  Returns the list of users in a customer with pagination and filtering.
-
-  Lists users who have roles in the specified customer. Uses Flop for filtering,
-  sorting, and pagination.
-
-  ## Examples
-
-      iex> list_customer_users(session, customer_id, %{page: 1, page_size: 20})
-      {:ok, {[%User{}, ...], %Flop.Meta{}}}
-
-  """
-  @spec list_customer_users(Session.t(), Ecto.UUID.t(), map()) ::
-          {:ok, {list(User.t()), Flop.Meta.t()}} | {:error, Flop.Meta.t()}
-  def_with_rls_and_logging list_customer_users(session, customer_id, flop_params \\ %{}),
-    log_fields: [:customer_id, :flop_params] do
-    # Build base query filtered by customer through roles
-    from(u in User,
-      join: ur in assoc(u, :user_role_mappings),
-      join: r in assoc(ur, :role),
-      where: r.customer_id == ^customer_id,
-      distinct: true
-    )
-    |> preload_query()
-    |> Flop.validate_and_run(flop_params,
-      for: User,
-      repo: Repo,
-      query_opts: [session: session]
-    )
-  end
-
-  @doc """
   Gets a single user.
 
   Raises `Ecto.NoResultsError` if the User does not exist or user lacks access.
@@ -120,8 +89,7 @@ defmodule AtomicFi.UserContext do
       role =
         from(r in Role,
           where: r.name == ^RoleConstants.tenant_user(),
-          where: r.tenant_id == ^session.tenant_id,
-          where: is_nil(r.customer_id)
+          where: r.tenant_id == ^session.tenant_id
         )
         |> Repo.one(skip_multi_tenancy_check: true)
 

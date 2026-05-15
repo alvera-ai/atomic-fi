@@ -2,27 +2,42 @@ defmodule AtomicFi.LedgerEntryContextTest do
   use AtomicFi.DataCase
 
   alias AtomicFi.LedgerAccountContext
+  alias AtomicFi.LedgerAccountContext.ControlLimit
   alias AtomicFi.LedgerEntryContext
   alias AtomicFi.LedgerEntryContext.LedgerEntry
-  alias AtomicFi.OpenApiSchema.{LedgerAccountRequest, LedgerEntryRequest}
-  alias AtomicFi.Repo
+  alias AtomicFi.OpenApiSchema.LedgerEntryRequest
   import AtomicFi.Factory
 
   # ── Helpers ──────────────────────────────────────────────────────────────────
 
-  defp make_account(session, ledger, opts \\ []) do
-    request = %LedgerAccountRequest{
-      account_holder_id: ledger.account_holder_id,
-      ledger_id: ledger.id,
-      currency: "USD",
-      account_type: Keyword.get(opts, :account_type, :asset),
-      status: :active,
-      parent_ledger_account_id: Keyword.get(opts, :parent_ledger_account_id, nil),
-      tenant_id: session.tenant_id
-    }
+  # Map legacy keyword shorthands to %ControlLimit{}s for the composite-type array.
+  @limit_keys [
+    {:daily_debit_limit_at_entry, "daily", "debit"},
+    {:daily_credit_limit_at_entry, "daily", "credit"},
+    {:weekly_debit_limit_at_entry, "weekly", "debit"},
+    {:weekly_credit_limit_at_entry, "weekly", "credit"},
+    {:monthly_debit_limit_at_entry, "monthly", "debit"},
+    {:monthly_credit_limit_at_entry, "monthly", "credit"},
+    {:yearly_debit_limit_at_entry, "yearly", "debit"},
+    {:yearly_credit_limit_at_entry, "yearly", "credit"}
+  ]
 
-    {:ok, account} = LedgerAccountContext.create_ledger_account(session, request)
-    account
+  defp build_limits(opts) do
+    Enum.flat_map(@limit_keys, fn {key, period, direction} ->
+      case opts[key] do
+        nil -> []
+        cap -> [%ControlLimit{period: period, direction: direction, cap: cap, rule: "test"}]
+      end
+    end)
+  end
+
+  defp find_limit(limits, period, direction) do
+    Enum.find(limits, &(&1.period == period and &1.direction == direction))
+  end
+
+  # Default leaf — `:account_holder_payment_account_regime_root` with 1 ancestor.
+  defp make_account(session, _ledger \\ nil, _opts \\ []) do
+    insert(:ledger_account, tenant_id: session.tenant_id)
   end
 
   defp entry_request(session, account, opts \\ []) do
@@ -33,22 +48,14 @@ defmodule AtomicFi.LedgerEntryContextTest do
       amount: Keyword.get(opts, :amount, 10_000),
       entry_type: Keyword.get(opts, :entry_type, :credit),
       status: Keyword.get(opts, :status, :pending),
-      daily_debit_limit_at_entry: Keyword.get(opts, :daily_debit_limit_at_entry, nil),
-      daily_credit_limit_at_entry: Keyword.get(opts, :daily_credit_limit_at_entry, nil),
-      weekly_debit_limit_at_entry: Keyword.get(opts, :weekly_debit_limit_at_entry, nil),
-      weekly_credit_limit_at_entry: Keyword.get(opts, :weekly_credit_limit_at_entry, nil),
-      monthly_debit_limit_at_entry: Keyword.get(opts, :monthly_debit_limit_at_entry, nil),
-      monthly_credit_limit_at_entry: Keyword.get(opts, :monthly_credit_limit_at_entry, nil),
-      yearly_debit_limit_at_entry: Keyword.get(opts, :yearly_debit_limit_at_entry, nil),
-      yearly_credit_limit_at_entry: Keyword.get(opts, :yearly_credit_limit_at_entry, nil),
+      limits_at_entry: build_limits(opts),
       tenant_id: session.tenant_id
     }
   end
 
-  defp reload_account(session, account) do
-    alias AtomicFi.LedgerAccountContext.LedgerAccount
-
-    Repo.get!(LedgerAccount, account.id, session: session)
+  defp reload_account(session, account_or_id) do
+    id = if is_binary(account_or_id), do: account_or_id, else: account_or_id.id
+    LedgerAccountContext.get_ledger_account!(session, id)
   end
 
   # ── CRUD ─────────────────────────────────────────────────────────────────────
@@ -238,63 +245,61 @@ defmodule AtomicFi.LedgerEntryContextTest do
   # ── Ancestor rollup via trigger ──────────────────────────────────────────────
 
   describe "ledger_entries ancestor balance rollup (trigger)" do
-    test "credit entry increments balance on direct account AND all ancestor accounts", %{
-      session: session
-    } do
-      ledger = insert(:ledger, tenant_id: session.tenant_id)
+    test "credit on leaf rolls up balance to every AH-chain ancestor", %{session: session} do
+      # Default factory leaf = :account_holder_payment_account_regime_root,
+      # which carries 3 root-first ancestors: ah_root → ah_regime → ah_pa_root.
+      leaf = insert(:ledger_account, tenant_id: session.tenant_id)
+      assert length(leaf.ancestor_ids) == 3
 
-      root = make_account(session, ledger)
+      assert reload_account(session, leaf).balance == 0
 
-      child =
-        make_account(session, ledger, parent_ledger_account_id: root.id, account_type: :liability)
+      for anc_id <- leaf.ancestor_ids do
+        assert reload_account(session, anc_id).balance == 0
+      end
 
-      assert reload_account(session, root).balance == 0
-      assert reload_account(session, child).balance == 0
-
-      req = entry_request(session, child, amount: 5_000, entry_type: :credit)
+      req = entry_request(session, leaf, amount: 5_000, entry_type: :credit)
       assert {:ok, _} = LedgerEntryContext.create_ledger_entry(session, req)
 
-      assert reload_account(session, child).balance == 5_000
-      assert reload_account(session, root).balance == 5_000
+      assert reload_account(session, leaf).balance == 5_000
+
+      for anc_id <- leaf.ancestor_ids do
+        assert reload_account(session, anc_id).balance == 5_000
+      end
     end
 
-    test "credit rolls up through three-level hierarchy (root → child → grandchild)", %{
-      session: session
-    } do
-      ledger = insert(:ledger, tenant_id: session.tenant_id)
-
-      root = make_account(session, ledger)
-
-      child =
-        make_account(session, ledger, parent_ledger_account_id: root.id, account_type: :liability)
-
-      grandchild =
-        make_account(session, ledger,
-          parent_ledger_account_id: child.id,
-          account_type: :equity
+    test "credit rolls up through the full 3-ancestor chain", %{session: session} do
+      # CP-PA-regime-root has 3 root-first ancestors: cp_root → cp_regime → cp_pa_root.
+      leaf =
+        insert(:ledger_account,
+          tenant_id: session.tenant_id,
+          la_type: :counter_party_payment_account_regime_root,
+          regime: "ach"
         )
 
-      req = entry_request(session, grandchild, amount: 3_000, entry_type: :credit)
+      assert length(leaf.ancestor_ids) == 3
+
+      req = entry_request(session, leaf, amount: 3_000, entry_type: :credit)
       assert {:ok, _} = LedgerEntryContext.create_ledger_entry(session, req)
 
-      assert reload_account(session, grandchild).balance == 3_000
-      assert reload_account(session, child).balance == 3_000
-      assert reload_account(session, root).balance == 3_000
+      assert reload_account(session, leaf).balance == 3_000
+
+      for anc_id <- leaf.ancestor_ids do
+        assert reload_account(session, anc_id).balance == 3_000
+      end
     end
 
-    test "voiding reverses balance on direct account AND all ancestors", %{session: session} do
-      ledger = insert(:ledger, tenant_id: session.tenant_id)
+    test "voiding reverses balance on leaf AND every ancestor", %{session: session} do
+      leaf = insert(:ledger_account, tenant_id: session.tenant_id)
+      assert length(leaf.ancestor_ids) == 3
 
-      root = make_account(session, ledger)
-
-      child =
-        make_account(session, ledger, parent_ledger_account_id: root.id, account_type: :liability)
-
-      req = entry_request(session, child, amount: 8_000, entry_type: :credit)
+      req = entry_request(session, leaf, amount: 8_000, entry_type: :credit)
       assert {:ok, entry} = LedgerEntryContext.create_ledger_entry(session, req)
 
-      assert reload_account(session, child).balance == 8_000
-      assert reload_account(session, root).balance == 8_000
+      assert reload_account(session, leaf).balance == 8_000
+
+      for anc_id <- leaf.ancestor_ids do
+        assert reload_account(session, anc_id).balance == 8_000
+      end
 
       void_request = %LedgerEntryRequest{
         account_holder_id: entry.account_holder_id,
@@ -308,39 +313,47 @@ defmodule AtomicFi.LedgerEntryContextTest do
 
       assert {:ok, _} = LedgerEntryContext.update_ledger_entry(session, entry, void_request)
 
-      assert reload_account(session, child).balance == 0
-      assert reload_account(session, root).balance == 0
+      assert reload_account(session, leaf).balance == 0
+
+      for anc_id <- leaf.ancestor_ids do
+        assert reload_account(session, anc_id).balance == 0
+      end
     end
 
-    test "two independent children — entry on one child does not affect the other", %{
-      session: session
-    } do
-      ledger = insert(:ledger, tenant_id: session.tenant_id)
+    test "two independent leaves under the same AH — entry on one does not affect the other",
+         %{session: session} do
+      ah = insert(:account_holder, tenant_id: session.tenant_id)
+      ledger = insert(:ledger, tenant_id: session.tenant_id, account_holder_id: ah.id)
 
-      root = make_account(session, ledger)
-
-      child_a =
-        make_account(session, ledger, parent_ledger_account_id: root.id, account_type: :liability)
-
-      child_b =
-        make_account(session, ledger,
-          parent_ledger_account_id: root.id,
-          account_type: :equity
+      # Two distinct PAs ⇒ two distinct AH-PA trees.
+      leaf_a =
+        insert(:ledger_account,
+          tenant_id: session.tenant_id,
+          account_holder_id: ah.id,
+          ledger_id: ledger.id
         )
 
-      req = entry_request(session, child_a, amount: 4_000, entry_type: :credit)
+      leaf_b =
+        insert(:ledger_account,
+          tenant_id: session.tenant_id,
+          account_holder_id: ah.id,
+          ledger_id: ledger.id
+        )
+
+      req = entry_request(session, leaf_a, amount: 4_000, entry_type: :credit)
       assert {:ok, _} = LedgerEntryContext.create_ledger_entry(session, req)
 
-      assert reload_account(session, child_a).balance == 4_000
-      assert reload_account(session, child_b).balance == 0
-      assert reload_account(session, root).balance == 4_000
+      assert reload_account(session, leaf_a).balance == 4_000
+      assert reload_account(session, leaf_b).balance == 0
     end
   end
 
-  # ── Velocity limit snapshots ─────────────────────────────────────────────────
+  # ── Control limit snapshots ─────────────────────────────────────────────────
 
-  describe "ledger_entries *_limit_at_entry snapshot fields" do
-    test "stores velocity limit snapshots from risk engine on the entry row", %{session: session} do
+  describe "ledger_entries limits_at_entry composite-type array" do
+    test "stores control limit snapshots as a control_limit[] on the entry row", %{
+      session: session
+    } do
       account = insert(:ledger_account, tenant_id: session.tenant_id)
 
       req =
@@ -354,19 +367,27 @@ defmodule AtomicFi.LedgerEntryContextTest do
         )
 
       assert {:ok, entry} = LedgerEntryContext.create_ledger_entry(session, req)
-      assert entry.daily_credit_limit_at_entry == 50_000
-      assert entry.weekly_credit_limit_at_entry == 200_000
-      assert entry.monthly_credit_limit_at_entry == 500_000
-      assert entry.yearly_credit_limit_at_entry == 1_000_000
+      assert length(entry.limits_at_entry) == 4
+
+      assert %ControlLimit{cap: 50_000, rule: "test"} =
+               find_limit(entry.limits_at_entry, "daily", "credit")
+
+      assert %ControlLimit{cap: 200_000} =
+               find_limit(entry.limits_at_entry, "weekly", "credit")
+
+      assert %ControlLimit{cap: 500_000} =
+               find_limit(entry.limits_at_entry, "monthly", "credit")
+
+      assert %ControlLimit{cap: 1_000_000} =
+               find_limit(entry.limits_at_entry, "yearly", "credit")
     end
 
-    test "nil limits (unconstrained) are stored as nil on the entry row", %{session: session} do
+    test "no limits passed produces an empty limits_at_entry array", %{session: session} do
       account = insert(:ledger_account, tenant_id: session.tenant_id)
       req = entry_request(session, account, entry_type: :credit, amount: 1_000)
 
       assert {:ok, entry} = LedgerEntryContext.create_ledger_entry(session, req)
-      assert is_nil(entry.daily_credit_limit_at_entry)
-      assert is_nil(entry.daily_debit_limit_at_entry)
+      assert entry.limits_at_entry == []
     end
   end
 
@@ -426,6 +447,169 @@ defmodule AtomicFi.LedgerEntryContextTest do
       assert {:ok, voided} = LedgerEntryContext.update_ledger_entry(session, posted, void_req)
       assert voided.status == :voided
       assert reload_account(session, account).balance == 0
+    end
+  end
+
+  # ── create_entries/3 — balanced debit/credit pair from a Transaction ────────
+
+  describe "create_entries/3" do
+    alias AtomicFi.RuleEngine.Control
+
+    # Build the minimum entity tree the orchestrator needs:
+    #   AH + debtor PA + AH-PA regime leaf LA
+    #      + counterparty + creditor PA + CP-PA regime leaf LA
+    #   + a Transaction tying the two PAs.
+    defp setup_balanced_transaction(session, amount) do
+      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+      ledger = insert(:ledger, tenant_id: session.tenant_id, account_holder_id: account_holder.id)
+
+      debtor_pa =
+        insert(:payment_account,
+          tenant_id: session.tenant_id,
+          account_holder_id: account_holder.id,
+          currency: "USD"
+        )
+
+      debtor_leaf =
+        insert(:ledger_account,
+          tenant_id: session.tenant_id,
+          account_holder_id: account_holder.id,
+          ledger_id: ledger.id,
+          payment_account_id: debtor_pa.id,
+          la_type: :account_holder_payment_account_regime_root,
+          regime: "ach"
+        )
+
+      counterparty =
+        insert(:counterparty,
+          tenant_id: session.tenant_id,
+          account_holder_id: account_holder.id
+        )
+
+      creditor_pa =
+        insert(:payment_account,
+          tenant_id: session.tenant_id,
+          account_holder_id: account_holder.id,
+          counterparty_id: counterparty.id,
+          currency: "USD"
+        )
+
+      creditor_leaf =
+        insert(:ledger_account,
+          tenant_id: session.tenant_id,
+          account_holder_id: account_holder.id,
+          ledger_id: ledger.id,
+          payment_account_id: creditor_pa.id,
+          counterparty_id: counterparty.id,
+          la_type: :counter_party_payment_account_regime_root,
+          regime: "ach"
+        )
+
+      transaction =
+        insert(:transaction,
+          tenant_id: session.tenant_id,
+          account_holder_id: account_holder.id,
+          debtor_payment_account_id: debtor_pa.id,
+          creditor_payment_account_id: creditor_pa.id,
+          currency: "USD",
+          amount: amount
+        )
+
+      %{transaction: transaction, debtor_leaf: debtor_leaf, creditor_leaf: creditor_leaf}
+    end
+
+    test "posts a balanced pair when caps allow", %{session: session} do
+      %{transaction: txn, debtor_leaf: dl, creditor_leaf: cl} =
+        setup_balanced_transaction(session, 5_000)
+
+      controls = %{
+        dl.id => %Control{daily_debit_cap: 100_000, reason: "test_pair_pass"},
+        cl.id => %Control{daily_credit_cap: 100_000, reason: "test_pair_pass"}
+      }
+
+      assert {:ok, [debit, credit]} = LedgerEntryContext.create_entries(session, txn, controls)
+
+      assert debit.status == :posted
+      assert debit.entry_type == :debit
+      assert debit.ledger_account_id == dl.id
+
+      assert credit.status == :posted
+      assert credit.entry_type == :credit
+      assert credit.ledger_account_id == cl.id
+
+      assert reload_account(session, dl).balance == -5_000
+      assert reload_account(session, cl).balance == 5_000
+    end
+
+    test "voids the pair when a debit cap is breached; no balance moves",
+         %{session: session} do
+      %{transaction: txn, debtor_leaf: dl, creditor_leaf: cl} =
+        setup_balanced_transaction(session, 10_000)
+
+      # daily_debit_cap < amount ⇒ debit's CHECK fires inside the trigger,
+      # status flips :voided, partial balance changes are rolled back by the
+      # trigger's EXCEPTION block. create_entries then re-records both as
+      # :voided so the audit pair tells the same rejected story.
+      controls = %{
+        dl.id => %Control{daily_debit_cap: 1_000, reason: "test_pair_rejected"},
+        cl.id => %Control{daily_credit_cap: 100_000, reason: "test_pair_rejected"}
+      }
+
+      assert {:ok, [debit, credit]} = LedgerEntryContext.create_entries(session, txn, controls)
+
+      assert debit.status == :voided
+      assert credit.status == :voided
+      assert debit.rejected_period == "daily"
+      assert debit.rejected_direction == "debit"
+      assert debit.rejected_rule == "test_pair_rejected"
+      assert credit.rejected_rule == "test_pair_rejected"
+
+      assert reload_account(session, dl).balance == 0
+      assert reload_account(session, cl).balance == 0
+    end
+
+    test "voids the pair when a credit cap is breached after debit posts",
+         %{session: session} do
+      %{transaction: txn, debtor_leaf: dl, creditor_leaf: cl} =
+        setup_balanced_transaction(session, 10_000)
+
+      # Scenario B: debit posts, then credit's CHECK fires. The wrapping
+      # Repo.transaction rolls back the debtor's balance moves; both legs
+      # are re-recorded :voided.
+      controls = %{
+        dl.id => %Control{daily_debit_cap: 100_000, reason: "rule_pass_debit"},
+        cl.id => %Control{daily_credit_cap: 1_000, reason: "rule_rejected_credit"}
+      }
+
+      assert {:ok, [debit, credit]} = LedgerEntryContext.create_entries(session, txn, controls)
+
+      assert debit.status == :voided
+      assert credit.status == :voided
+      assert credit.rejected_period == "daily"
+      assert credit.rejected_direction == "credit"
+      assert credit.rejected_rule == "rule_rejected_credit"
+
+      # Both sides untouched after rollback + voided re-record.
+      assert reload_account(session, dl).balance == 0
+      assert reload_account(session, cl).balance == 0
+    end
+
+    test "controls_to_limits handles nil control (no caps for one side)",
+         %{session: session} do
+      %{transaction: txn, debtor_leaf: dl, creditor_leaf: cl} =
+        setup_balanced_transaction(session, 1_000)
+
+      # Only the debit side has caps; the credit side falls through controls_to_limits(nil).
+      controls = %{
+        dl.id => %Control{daily_debit_cap: 100_000, reason: "test_nil_credit_side"}
+      }
+
+      # resolve_leaf_accounts gives credit_la_id = nil (no entry for creditor PA);
+      # changeset fails ledger_account_id required ⇒ surfaces as {:error, changeset}.
+      assert {:error, %Ecto.Changeset{valid?: false} = cs} =
+               LedgerEntryContext.create_entries(session, txn, controls)
+
+      assert cs.errors[:ledger_account_id]
     end
   end
 end

@@ -20,6 +20,8 @@ defmodule AtomicFi.PaymentAccountContext do
   import Ecto.Query, warn: false
   use AtomicFi.LoggerMacro
 
+  alias AtomicFi.LedgerAccountContext
+  alias AtomicFi.OnboardingContext
   alias AtomicFi.OpenApiSchema.PaymentAccountRequest
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.Repo
@@ -86,9 +88,7 @@ defmodule AtomicFi.PaymentAccountContext do
                              %PaymentAccountRequest{} = request
                            ),
                            log_fields: [] do
-    %PaymentAccount{}
-    |> PaymentAccount.changeset(request)
-    |> Repo.insert(session: session)
+    after_pa_changed(session, PaymentAccount.changeset(%PaymentAccount{}, request))
   end
 
   @doc """
@@ -111,9 +111,71 @@ defmodule AtomicFi.PaymentAccountContext do
                              %PaymentAccountRequest{} = request
                            ),
                            log_fields: [:payment_account] do
-    payment_account
-    |> PaymentAccount.changeset(request)
-    |> Repo.update(session: session)
+    after_pa_changed(session, PaymentAccount.changeset(payment_account, request))
+  end
+
+  # Lifecycle hook shared by create + update.
+  #
+  # Three-step flow:
+  #
+  #   txn 1 — wraps the PA insert/update + AH-tree ensure + PA-tree ensure
+  #           in one transaction. LAs created here are block-by-default
+  #           (`is_blocked: true`, `block_reason: "pending onboarding screening"`).
+  #   txn 2 — HTTP call to the RuleEngine (no DB transaction).
+  #   txn 3 — applies the engine's per-LA controls (unblocks + sets max_*).
+  #
+  # If the engine call fails, the PA still exists and its LAs stay blocked
+  # — fail-closed by design. Re-issuing the PA update will retry onboarding.
+  defp after_pa_changed(session, %Ecto.Changeset{} = changeset) do
+    with {:ok, pa} <- write_pa_and_ensure_las(session, changeset),
+         {:ok, pa} <- OnboardingContext.onboard(session, pa) do
+      {:ok, pa}
+    end
+  end
+
+  @doc """
+  `AtomicFi.ControlProtocol` callback for `%PaymentAccount{}`.
+
+  Resolves the PA's LedgerAccounts, applies the engine's controls
+  (resetting any LA the engine did NOT emit a Control for back to
+  blocked), enqueues the next `OnboardingWorker`, and writes the new
+  job id onto `rescreen_job_id` via a narrow `Ecto.Changeset.change/2`
+  — does NOT go through the public `update_payment_account/3` path
+  (which would re-trigger this onboarding flow).
+  """
+  @spec process_controls(PaymentAccount.t(), Session.t(), OnboardingContext.result()) ::
+          {:ok, PaymentAccount.t()} | {:error, term()}
+  def process_controls(%PaymentAccount{} = payment_account, session, %{
+        controls: controls,
+        next_screening_at: next_screening_at
+      }) do
+    ledger_accounts = LedgerAccountContext.list_for_entity(session, payment_account)
+
+    with :ok <- LedgerAccountContext.apply_controls(session, ledger_accounts, controls),
+         {:ok, job_id} <- OnboardingContext.enqueue_next(payment_account, next_screening_at),
+         {:ok, payment_account} <-
+           payment_account
+           |> Ecto.Changeset.change(%{rescreen_job_id: job_id})
+           |> Repo.update(session: session) do
+      {:ok, payment_account}
+    end
+  end
+
+  defp write_pa_and_ensure_las(session, %Ecto.Changeset{} = changeset) do
+    Repo.transaction(
+      fn ->
+        with {:ok, pa} <- Repo.insert_or_update(changeset, session: session),
+             ah <-
+               AtomicFi.AccountHolderContext.get_account_holder!(session, pa.account_holder_id),
+             :ok <- LedgerAccountContext.ensure_linked_ledger_accounts(session, ah),
+             :ok <- LedgerAccountContext.ensure_linked_ledger_accounts(session, pa) do
+          pa
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end,
+      session: session
+    )
   end
 
   @doc """

@@ -46,6 +46,12 @@ defmodule AtomicFi.TenantContext.Tenant do
   )
 
   open_api_property(schema: %Schema{type: :object, nullable: true}, key: :metadata)
+
+  open_api_property(
+    schema: %Schema{type: :array, items: %Schema{type: :string}, nullable: true},
+    key: :enabled_regimes
+  )
+
   open_api_property(schema: %Schema{type: :string, format: :"date-time"}, key: :inserted_at)
   open_api_property(schema: %Schema{type: :string, format: :"date-time"}, key: :updated_at)
 
@@ -60,6 +66,7 @@ defmodule AtomicFi.TenantContext.Tenant do
       :status,
       :tenant_type,
       :metadata,
+      :enabled_regimes,
       :inserted_at,
       :updated_at
     ]
@@ -71,6 +78,7 @@ defmodule AtomicFi.TenantContext.Tenant do
     field :status, Ecto.Enum, values: [:active, :suspended, :inactive]
     field :tenant_type, Ecto.Enum, values: [:platform, :standard]
     field :metadata, :map
+    field :enabled_regimes, {:array, :string}, default: []
 
     # Multi-tenancy: tenant_id is generated from id for RLS
     # This allows Tenant to participate in RLS queries without self-reference
@@ -82,10 +90,21 @@ defmodule AtomicFi.TenantContext.Tenant do
   @doc false
   def changeset(tenant, attrs) do
     tenant
-    |> cast(attrs, [:name, :slug, :status, :tenant_type, :metadata])
+    |> cast(attrs, [:name, :slug, :status, :tenant_type, :metadata, :enabled_regimes])
     |> validate_required([:name, :status, :tenant_type])
+    |> cast_and_validate_enabled_regimes()
     |> validate_platform_tenant_creation()
     |> unique_constraint(:slug)
+  end
+
+  # Parent of Tenant is the config default — pure, no Repo lookup needed.
+  # Empty override → inherit config; set override → must be subset of config.
+  defp cast_and_validate_enabled_regimes(changeset) do
+    AtomicFi.EnabledRegimes.cast_and_validate(
+      changeset,
+      Ecto.Changeset.get_field(changeset, :enabled_regimes),
+      AtomicFi.EnabledRegimes.default()
+    )
   end
 
   # Validate platform tenants can only be created via migrations

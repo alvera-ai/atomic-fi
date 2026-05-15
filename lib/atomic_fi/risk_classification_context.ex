@@ -2,7 +2,7 @@ defmodule AtomicFi.RiskClassificationContext do
   @moduledoc """
   RiskClassification context — formal risk-level records for AccountHolders.
 
-  Drives the LedgerAccount limit cascade: the MASTER LedgerAccount velocity
+  Drives the LedgerAccount limit cascade: the MASTER LedgerAccount control
   limit is a function of the currently active RiskClassification.risk_level.
 
   ## Active-classification invariant

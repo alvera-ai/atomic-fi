@@ -8,7 +8,7 @@ defmodule AtomicFi.Application do
   @impl true
   def start(_type, _args) do
     # Initialize BlocklistCache ETS table before supervision tree
-    AtomicFi.DecisionContext.BlocklistCache.init()
+    AtomicFi.BlocklistContext.BlocklistCache.init()
 
     children = [
       # Start the Telemetry supervisor

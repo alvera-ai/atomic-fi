@@ -13,19 +13,12 @@ config :atomic_fi,
   # Generator defaults: binary IDs and microsecond timestamps
   generators: [binary_id: true, timestamp_type: :utc_datetime_usec],
   # Row-Level Security (RLS) hierarchy
-  # Architecture: Tenant-based multi-tenancy with customer isolation
-  # Hierarchy is evaluated in order: tenant_id (required), then customer_id (optional)
-  # If session has customer_id, RLS filters by both tenant_id and customer_id
+  # Architecture: single-tenant per deployment; every row scoped by tenant_id.
   rls_hierarchy: [
     %{
       field: :tenant_id,
       table: :tenants,
       module: AtomicFi.TenantContext.Tenant
-    },
-    %{
-      field: :customer_id,
-      table: :customers,
-      module: AtomicFi.CustomerContext.Customer
     }
   ]
 
@@ -97,20 +90,46 @@ config :phoenix, :json_library, Jason
 # Configure Flop for pagination
 config :flop, repo: AtomicFi.Repo, default_limit: 20
 
-# Watchman sanctions screening service
-config :atomic_fi, :watchman_base_url, "http://localhost:8084"
+# Default enabled regimes — the global root of the regime hierarchy.
+# Tenant inherits this when its own :enabled_regimes is unset; AccountHolder
+# inherits Tenant; PaymentAccount inherits AccountHolder (or Counterparty if
+# `counterparty_id` is set); Counterparty inherits Tenant. At every level
+# an explicit override is allowed but must be a subset of the parent's
+# effective regimes. See `AtomicFi.EnabledRegimes`.
+config :atomic_fi, :enabled_regimes, ["ach", "wire", "card", "stablecoin", "internal_transfer"]
+
+# Watchman sanctions screening service — per-module config slice (Swoosh-style)
+config :atomic_fi, AtomicFi.Watchman.Client, base_url: "http://localhost:8084"
+
+# ZenRule rules/limits engine (GoRules Agent). The rule_engine impl satisfies
+# AtomicFi.RuleEngine.Behaviour and is consulted synchronously when a
+# Transaction/AccountHolder/Counterparty is created or updated. Mirrors the
+# ScreeningEngine seam — the caller picks the impl via
+# `Application.compile_env` (RuleEngine in prod; RuleEngineMock in test).
+config :atomic_fi, :rule_engine, AtomicFi.RuleEngine
+config :atomic_fi, AtomicFi.RuleEngine, base_url: "http://localhost:8090"
+
+# RulesContext rule-type → ZenRule project name (which is also the on-disk
+# subdir under priv/zenrule/). Tests can extend this map in config/test.exs
+# without prod's compiled binary seeing the extra types — Application.compile_env
+# reads the map at compile time per MIX_ENV.
+config :atomic_fi, AtomicFi.RulesContext,
+  rule_types: %{
+    onboarding: "onboarding",
+    transaction_screening: "transaction-screening"
+  }
 
 # Oban background job processing
 config :atomic_fi, Oban,
   prefix: "oban",
   repo: AtomicFi.Repo,
-  queues: [compliance_screening: 10]
+  queues: [onboarding: 10]
 
 # Quantum scheduler - cron-like job scheduling
 config :atomic_fi, AtomicFi.Scheduler,
   jobs: [
     # Refresh blocklist cache every hour
-    {"0 * * * *", {AtomicFi.DecisionContext.BlocklistCache, :refresh_all_caches, []}}
+    {"0 * * * *", {AtomicFi.BlocklistContext.BlocklistCache, :refresh_all_caches, []}}
   ]
 
 # Migration paths: schema migrations run first, then seed_migrations bootstrap

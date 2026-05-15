@@ -58,27 +58,10 @@ defmodule AtomicFi.Factory.SessionFactory do
               # For API sessions, use the API key's role_id
               api_key_id = if is_struct(api_key), do: api_key.id, else: api_key
 
-              role_id =
-                if api_key_id == nil do
-                  # If api_key_id is nil (testing invalid session), don't fetch role
-                  Map.get(attrs, :role_id, nil)
-                else
-                  Map.get_lazy(attrs, :role_id, fn ->
-                    if is_struct(api_key) do
-                      api_key.role_id
-                    else
-                      # If api_key_id was passed directly, fetch the api_key
-                      Repo.get!(AtomicFi.ApiKeyContext.ApiKey, api_key_id,
-                        skip_multi_tenancy_check: true
-                      ).role_id
-                    end
-                  end)
-                end
+              role_id = resolve_api_role_id(attrs, api_key, api_key_id)
 
               {nil, api_key_id, role_id}
           end
-
-        customer_id = Map.get(attrs, :customer_id, nil)
 
         %Session{
           type: type,
@@ -94,9 +77,25 @@ defmodule AtomicFi.Factory.SessionFactory do
           user_id: user_id,
           api_key_id: api_key_id,
           role_id: role_id,
-          tenant_id: tenant_id,
-          customer_id: customer_id
+          tenant_id: tenant_id
         }
+      end
+
+      # If api_key_id is nil (testing invalid session) → no role lookup.
+      # Otherwise prefer attrs[:role_id]; fall back to the api_key's role_id
+      # (re-fetching from the repo if only the id was passed).
+      defp resolve_api_role_id(attrs, _api_key, nil),
+        do: Map.get(attrs, :role_id, nil)
+
+      defp resolve_api_role_id(attrs, api_key, _api_key_id) when is_struct(api_key),
+        do: Map.get_lazy(attrs, :role_id, fn -> api_key.role_id end)
+
+      defp resolve_api_role_id(attrs, _api_key, api_key_id) do
+        Map.get_lazy(attrs, :role_id, fn ->
+          AtomicFi.Repo.get!(AtomicFi.ApiKeyContext.ApiKey, api_key_id,
+            skip_multi_tenancy_check: true
+          ).role_id
+        end)
       end
     end
   end

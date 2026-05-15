@@ -7,11 +7,13 @@ defmodule AtomicFiApi.PaymentAccountControllerTest do
   alias AtomicFiApi.ApiSpec
 
   @base_attrs %{
-    account_type: "bank_account"
+    account_type: "bank_account",
+    currency: "USD"
   }
 
   @update_attrs %{
     account_type: "bank_account",
+    currency: "USD",
     status: "suspended"
   }
 
@@ -33,6 +35,20 @@ defmodule AtomicFiApi.PaymentAccountControllerTest do
 
   setup %{platform_tenant: platform_tenant} do
     account_holder = insert(:account_holder, tenant_id: platform_tenant.id)
+    # The PA lifecycle hook requires a Ledger for (AH, currency) — seed USD + EUR
+    # to cover every controller test in this file.
+    insert(:ledger,
+      tenant_id: platform_tenant.id,
+      account_holder_id: account_holder.id,
+      currency: "USD"
+    )
+
+    insert(:ledger,
+      tenant_id: platform_tenant.id,
+      account_holder_id: account_holder.id,
+      currency: "EUR"
+    )
+
     %{account_holder: account_holder}
   end
 

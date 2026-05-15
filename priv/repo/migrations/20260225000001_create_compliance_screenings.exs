@@ -59,8 +59,8 @@ defmodule AtomicFi.Repo.Migrations.CreateComplianceScreenings do
 
       # AML fields (camt:998)
       add :aml_risk_score, :decimal
-      add :aml_velocity_flag, :boolean, default: false
-      add :aml_velocity_count, :integer
+      add :aml_control_flag, :boolean, default: false
+      add :aml_control_count, :integer
       add :aml_geographic_risk_flag, :boolean, default: false
 
       add :aml_high_risk_country, :string, comment: "ISO 3166-1 alpha-2 high-risk country code"
@@ -143,10 +143,6 @@ defmodule AtomicFi.Repo.Migrations.CreateComplianceScreenings do
       add :match_score, :float,
         null: false,
         comment: "Watchman match confidence score (0.0–1.0)"
-
-      add :sanctions_match_type, :string,
-        default: "fuzzy",
-        comment: "exact | fuzzy | ubo | entity"
 
       add :source_list, :string,
         null: false,

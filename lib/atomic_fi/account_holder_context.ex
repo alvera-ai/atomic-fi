@@ -9,11 +9,14 @@ defmodule AtomicFi.AccountHolderContext do
   import Ecto.Query, warn: false
   use AtomicFi.LoggerMacro
 
-  alias AtomicFi.ComplianceScreeningContext.ScreeningWorker
+  alias AtomicFi.AccountHolderContext.AccountHolder
+  alias AtomicFi.LedgerAccountContext
+  alias AtomicFi.LedgerContext.Ledger
+  alias AtomicFi.OnboardingContext
   alias AtomicFi.OpenApiSchema.AccountHolderRequest
   alias AtomicFi.Repo
-  alias AtomicFi.AccountHolderContext.AccountHolder
   alias AtomicFi.SessionContext.Session
+  alias Ecto.Multi
 
   @preloads [legal_entity: [:addresses, :phone_numbers, :identifications]]
 
@@ -81,23 +84,8 @@ defmodule AtomicFi.AccountHolderContext do
                              %AccountHolderRequest{} = request
                            ),
                            log_fields: [] do
-    result =
-      %AccountHolder{}
-      |> AccountHolder.changeset(request)
-      |> Repo.insert(session: session)
-      |> preload_after_write()
-
-    with {:ok, account_holder} <- result do
-      if request.chain_screening do
-        %{
-          subject: "account_holder",
-          account_holder_id: account_holder.id,
-          tenant_id: account_holder.tenant_id
-        }
-        |> ScreeningWorker.new()
-        |> Oban.insert!()
-      end
-
+    with {:ok, account_holder} <- write_ah_with_ledgers_and_las(session, request),
+         {:ok, account_holder} <- OnboardingContext.onboard(session, account_holder) do
       {:ok, account_holder}
     end
   end
@@ -122,10 +110,82 @@ defmodule AtomicFi.AccountHolderContext do
                              %AccountHolderRequest{} = request
                            ),
                            log_fields: [:account_holder] do
-    account_holder
-    |> AccountHolder.changeset(request)
-    |> Repo.update(session: session)
-    |> preload_after_write()
+    with {:ok, updated} <-
+           account_holder
+           |> AccountHolder.changeset(request)
+           |> Repo.update(session: session)
+           |> preload_after_write(),
+         {:ok, updated} <- OnboardingContext.onboard(session, updated) do
+      {:ok, updated}
+    end
+  end
+
+  @doc """
+  `AtomicFi.ControlProtocol` callback for `%AccountHolder{}`. Resolves
+  the AH's own LedgerAccounts (AH-root + AH-regime-roots), applies the
+  engine's controls, enqueues + links the next `OnboardingWorker`.
+  """
+  @spec process_controls(AccountHolder.t(), Session.t(), OnboardingContext.result()) ::
+          {:ok, AccountHolder.t()} | {:error, term()}
+  def process_controls(%AccountHolder{} = account_holder, session, %{
+        controls: controls,
+        next_screening_at: next_screening_at
+      }) do
+    ledger_accounts = LedgerAccountContext.list_for_entity(session, account_holder)
+
+    with :ok <- LedgerAccountContext.apply_controls(session, ledger_accounts, controls),
+         {:ok, job_id} <- OnboardingContext.enqueue_next(account_holder, next_screening_at),
+         {:ok, account_holder} <-
+           account_holder
+           |> Ecto.Changeset.change(%{rescreen_job_id: job_id})
+           |> Repo.update(session: session) do
+      {:ok, account_holder}
+    end
+  end
+
+  # Inserts the AH, fans out one Ledger per `enabled_currencies` entry,
+  # and materialises the AH-root + AH-regime-root LedgerAccounts in a
+  # single transaction. Empty `enabled_currencies` means no Ledgers and
+  # no AH LAs — onboarding still runs (the engine just gets nothing to
+  # cap).
+  defp write_ah_with_ledgers_and_las(session, %AccountHolderRequest{} = request) do
+    Multi.new()
+    |> Multi.insert(:account_holder, AccountHolder.changeset(%AccountHolder{}, request))
+    |> Multi.run(:ledgers, fn _repo, %{account_holder: account_holder} ->
+      insert_ledgers(session, account_holder)
+    end)
+    |> Multi.run(:las, fn _repo, %{account_holder: account_holder} ->
+      with :ok <- LedgerAccountContext.ensure_linked_ledger_accounts(session, account_holder) do
+        {:ok, :ok}
+      end
+    end)
+    |> Repo.transaction(session: session)
+    |> case do
+      {:ok, %{account_holder: account_holder}} ->
+        preload_after_write({:ok, account_holder})
+
+      {:error, _step, reason, _changes} ->
+        {:error, reason}
+    end
+  end
+
+  defp insert_ledgers(session, %AccountHolder{enabled_currencies: currencies} = ah)
+       when is_list(currencies) do
+    Enum.reduce_while(currencies, {:ok, []}, fn currency, {:ok, acc} ->
+      attrs = %{
+        account_holder_id: ah.id,
+        currency: currency,
+        tenant_id: ah.tenant_id
+      }
+
+      %Ledger{}
+      |> Ledger.changeset(attrs)
+      |> Repo.insert(session: session)
+      |> case do
+        {:ok, ledger} -> {:cont, {:ok, [ledger | acc]}}
+        {:error, _} = err -> {:halt, err}
+      end
+    end)
   end
 
   @doc """

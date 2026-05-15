@@ -14,7 +14,9 @@ defmodule AtomicFiApi.Routes do
      - Pipe through: `[:api, :api_authenticated]`
   """
 
+  # credo:disable-for-next-line Credo.Check.Refactor.LongQuoteBlocks
   defmacro __using__(_) do
+    # credo:disable-for-next-line Credo.Check.Refactor.LongQuoteBlocks
     quote do
       # Public API endpoints (no authentication)
       scope "/api", AtomicFiApi do
@@ -50,15 +52,11 @@ defmodule AtomicFiApi.Routes do
         # User CRUD endpoints (PUT only for full replacement semantics)
         resources "/users", UserController, only: [:index, :show, :create, :update, :delete]
 
-        # Role CRUD endpoints (tenant & customer-scoped authorization roles)
+        # Role CRUD endpoints (tenant-scoped authorization roles)
         resources "/roles", RoleController, only: [:index, :show, :create, :update, :delete]
 
         # API Key endpoints — no PUT (rotate via delete + create)
         resources "/api-keys", ApiKeyController, only: [:index, :show, :create, :delete]
-
-        # Customer CRUD endpoints (optional multi-customer-per-tenant segmentation)
-        resources "/customers", CustomerController,
-          only: [:index, :show, :create, :update, :delete]
 
         # Session endpoints (Bearer lifecycle)
         get "/sessions/verify", SessionController, :verify
@@ -81,6 +79,10 @@ defmodule AtomicFiApi.Routes do
         post "/compliance-screenings/screen-counterparty",
              ComplianceScreeningController,
              :screen_counterparty
+
+        post "/compliance-screenings/screen-payment-account",
+             ComplianceScreeningController,
+             :screen_payment_account
 
         # Legal entity CRUD endpoints (PUT only for full replacement semantics)
         get "/legal-entities", LegalEntityController, :index
@@ -109,6 +111,13 @@ defmodule AtomicFiApi.Routes do
         post "/counterparties", CounterpartyController, :create
         put "/counterparties/:id", CounterpartyController, :update
         delete "/counterparties/:id", CounterpartyController, :delete
+
+        # Rule (JDM) file CRUD — thin REST shim over RulesContext / shared
+        # ZenRule volume. rule_type is the kebab-case folder slug.
+        get "/rules/:rule_type", RuleController, :index
+        get "/rules/:rule_type/:name", RuleController, :show
+        put "/rules/:rule_type/:name", RuleController, :update
+        delete "/rules/:rule_type/:name", RuleController, :delete
 
         # KYC requirement CRUD endpoints (FATF CDD/EDD/wire/UBO compliance verification)
         get "/kyc-requirements", KycRequirementController, :index

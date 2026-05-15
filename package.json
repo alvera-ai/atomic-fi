@@ -8,5 +8,10 @@
     "sdk:check": "pnpm --filter @atomic-fi/sdk check",
     "test:e2e": "pnpm --filter atomic-fi-integration-tests test:e2e"
   },
-  "packageManager": "pnpm@9.15.0"
+  "packageManager": "pnpm@9.15.0",
+  "pnpm": {
+    "patchedDependencies": {
+      "@gorules/jdm-editor": "patches/@gorules__jdm-editor.patch"
+    }
+  }
 }

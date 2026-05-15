@@ -12,7 +12,6 @@ defmodule AtomicFi.Factory do
   use AtomicFi.Factory.ApiKeyFactory
   use AtomicFi.Factory.UserRoleMappingFactory
   use AtomicFi.Factory.SessionFactory
-  use AtomicFi.Factory.CustomerFactory
   use AtomicFi.Factory.AccountHolderFactory
   use AtomicFi.Factory.BlocklistEntryFactory
 
@@ -30,7 +29,7 @@ defmodule AtomicFi.Factory do
   """
   def insert_tenant_with_cache(attrs \\ %{}) do
     tenant = insert(:tenant, attrs)
-    AtomicFi.DecisionContext.BlocklistCache.refresh_tenant_cache(tenant.id)
+    AtomicFi.BlocklistContext.BlocklistCache.refresh_tenant_cache(tenant.id)
     tenant
   end
 

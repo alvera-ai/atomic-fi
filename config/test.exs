@@ -15,8 +15,33 @@ config :atomic_fi, :bot_user, email: "bot@atomic-fi.local"
 
 config :atomic_fi, :root_api_key, "alvera_root_api_key_test"
 
-# Watchman client (uses Req.Test mocking in tests)
-config :atomic_fi, :watchman_base_url, "http://localhost:8084"
+# Watchman base URL — per-module slice (Swoosh-style); used by Watchman.Client when delegated to in tests.
+config :atomic_fi, AtomicFi.Watchman.Client, base_url: "http://localhost:8084"
+
+# Swap the screening engine to a Mox mock. DataCase/ConnCase setup hooks
+# stub_with the Default impl so existing tests keep hitting the live :8084
+# Watchman container; new tests can override per-call with Mox.expect/3 to
+# return canned screening results without setting up Watchman state.
+config :atomic_fi, :screening_engine, AtomicFi.ScreeningEngineMock
+
+# Swap the rule engine to a Mox mock. DataCase/ConnCase setup hooks
+# stub_with the real engine so existing tests keep hitting the live :8090
+# GoRules Agent; new tests can override per-call with Mox.expect/3 to
+# return canned limits without setting up ZenRule state.
+config :atomic_fi, :rule_engine, AtomicFi.RuleEngineMock
+config :atomic_fi, AtomicFi.RuleEngine, base_url: "http://localhost:8090"
+
+# Extend RulesContext with two test-only rule_types, each a subfolder of the
+# shared "test-fixtures" ZenRule project. Prod's compiled binary doesn't see
+# these — Application.compile_env reads this map at test compile time only.
+config :atomic_fi, AtomicFi.RulesContext,
+  rule_types: %{
+    onboarding: "onboarding",
+    transaction_screening: "transaction-screening",
+    test_fixtures_good: "test-fixtures-good",
+    test_fixtures_bad: "test-fixtures-bad",
+    test_fixtures_bad_caps: "test-fixtures-bad-caps"
+  }
 
 # Configure encryption vault
 config :atomic_fi, AtomicFi.Vault,

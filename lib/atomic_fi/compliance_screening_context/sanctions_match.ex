@@ -215,11 +215,6 @@ defmodule AtomicFi.ComplianceScreeningContext.SanctionsMatch do
   open_api_property(schema: %Schema{type: :string, nullable: true}, key: :matched_entity_type)
   open_api_property(schema: %Schema{type: :number, format: :float}, key: :match_score)
 
-  open_api_property(
-    schema: %Schema{type: :string, enum: ["exact", "fuzzy", "ubo", "entity"]},
-    key: :sanctions_match_type
-  )
-
   open_api_property(schema: %Schema{type: :string}, key: :source_list)
   open_api_property(schema: %Schema{type: :string, nullable: true}, key: :source_id)
   open_api_property(schema: %Schema{type: :object, nullable: true}, key: :source_data)
@@ -295,14 +290,13 @@ defmodule AtomicFi.ComplianceScreeningContext.SanctionsMatch do
       "One Watchman / OFAC sanctions match. false_positive_qualifier persists reviewer decisions " <>
         "across re-screenings: :manual_override (human override) or :auto_suppressed (system dedup). " <>
         "ISO 20022 auth:018.",
-    required: [:matched_name, :match_score, :source_list, :sanctions_match_type],
+    required: [:matched_name, :match_score, :source_list],
     properties: [
       :id,
       :compliance_screening_id,
       :matched_name,
       :matched_entity_type,
       :match_score,
-      :sanctions_match_type,
       :source_list,
       :source_id,
       :source_data,
@@ -327,10 +321,6 @@ defmodule AtomicFi.ComplianceScreeningContext.SanctionsMatch do
     field :matched_entity_type, :string
 
     field :match_score, :float
-
-    field :sanctions_match_type, Ecto.Enum,
-      values: [:exact, :fuzzy, :ubo, :entity],
-      default: :fuzzy
 
     field :source_list, :string
     field :source_id, :string
@@ -368,7 +358,6 @@ defmodule AtomicFi.ComplianceScreeningContext.SanctionsMatch do
       :matched_name,
       :matched_entity_type,
       :match_score,
-      :sanctions_match_type,
       :source_list,
       :source_id,
       :source_data,

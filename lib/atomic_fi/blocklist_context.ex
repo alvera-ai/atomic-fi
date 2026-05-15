@@ -8,7 +8,7 @@ defmodule AtomicFi.BlocklistContext do
 
   alias AtomicFi.Repo
   alias AtomicFi.BlocklistContext.BlocklistEntry
-  alias AtomicFi.DecisionContext.BlocklistCache
+  alias AtomicFi.BlocklistContext.BlocklistCache
   alias AtomicFi.SessionContext.Session
 
   @doc """

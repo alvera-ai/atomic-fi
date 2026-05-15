@@ -162,6 +162,27 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
     schema: %Schema{
       type: :string,
       nullable: true,
+      description:
+        "On-chain wallet address (the actual identifier funds settle to). " <>
+          "Set together with wallet_chain when account_type = :crypto_wallet."
+    },
+    key: :wallet_address
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      nullable: true,
+      description:
+        ~s|Blockchain / asset ticker the wallet_address lives on (e.g. "BTC", "ETH", "TRON"). Disambiguates same-format addresses across chains.|
+    },
+    key: :wallet_chain
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      nullable: true,
       description: "Opaque internal payment account number"
     },
     key: :payment_account_number
@@ -191,6 +212,11 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
   open_api_property(
     schema: %Schema{type: :string, format: :uuid, nullable: true},
     key: :ledger_account_id
+  )
+
+  open_api_property(
+    schema: %Schema{type: :array, nullable: true, items: %Schema{type: :string}},
+    key: :enabled_regimes
   )
 
   open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :tenant_id)
@@ -224,12 +250,15 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
       :swift_bic,
       :bank_name,
       :card_pan,
+      :wallet_address,
+      :wallet_chain,
       :payment_account_number,
       :payment_account_external_id,
       :account_holder_id,
       :legal_entity_id,
       :counterparty_id,
       :ledger_account_id,
+      :enabled_regimes,
       :tenant_id,
       :inserted_at,
       :updated_at
@@ -253,9 +282,19 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
     field :bank_name, :string
     field :card_pan, :string
 
+    # Crypto-wallet rail (account_type :crypto_wallet). wallet_chain
+    # disambiguates same-format addresses across chains (e.g. USDT on
+    # ETH vs TRON). Both must be set together for the on-chain screen.
+    field :wallet_address, :string
+    field :wallet_chain, :string
+
     # Identifiers
     field :payment_account_number, :string
     field :payment_account_external_id, :string
+
+    # Hierarchical enabled regimes — populated by parent (AH or CP) at create
+    # via AtomicFi.EnabledRegimes; subset of parent.enabled_regimes.
+    field :enabled_regimes, {:array, :string}, default: []
 
     # Relationships
     belongs_to :account_holder, AccountHolder
@@ -265,6 +304,10 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
 
     # Multi-tenancy: tenant_id references tenants for RLS
     belongs_to :tenant, Tenant
+
+    # FK to the currently-scheduled OnboardingWorker job. Owned by
+    # OnboardingContext / OnboardingWorker — see their moduledocs.
+    belongs_to :rescreen_job, Oban.Job, type: :integer
 
     timestamps(type: :utc_datetime_usec)
   end
@@ -281,16 +324,21 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
       :swift_bic,
       :bank_name,
       :card_pan,
+      :wallet_address,
+      :wallet_chain,
       :payment_account_number,
       :payment_account_external_id,
       :account_holder_id,
       :legal_entity_id,
       :counterparty_id,
       :ledger_account_id,
+      :enabled_regimes,
       :tenant_id
     ])
     |> maybe_cast_status(attrs)
-    |> validate_required([:account_type, :account_holder_id, :tenant_id])
+    |> validate_required([:account_type, :account_holder_id, :currency, :tenant_id])
+    |> validate_length(:currency, is: 3)
+    |> cast_and_validate_enabled_regimes()
     |> foreign_key_constraint(:account_holder_id)
     |> foreign_key_constraint(:legal_entity_id)
     |> foreign_key_constraint(:counterparty_id)
@@ -304,6 +352,31 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
       name: :payment_accounts_number_tenant_unique,
       message: "has already been taken"
     )
+  end
+
+  # Parent is the linked Counterparty (when counterparty_id is set) or the
+  # linked AccountHolder otherwise. Repo lookup deferred via prepare_changes/2.
+  defp cast_and_validate_enabled_regimes(changeset) do
+    Ecto.Changeset.prepare_changes(changeset, fn prepared ->
+      {parent_module, parent_id} =
+        case Ecto.Changeset.get_field(prepared, :counterparty_id) do
+          nil -> {AccountHolder, Ecto.Changeset.get_field(prepared, :account_holder_id)}
+          counterparty_id -> {Counterparty, counterparty_id}
+        end
+
+      parent_regimes =
+        case parent_id &&
+               prepared.repo.get(parent_module, parent_id, skip_multi_tenancy_check: true) do
+          %{enabled_regimes: regimes} -> regimes
+          _ -> AtomicFi.EnabledRegimes.default()
+        end
+
+      AtomicFi.EnabledRegimes.cast_and_validate(
+        prepared,
+        Ecto.Changeset.get_field(prepared, :enabled_regimes),
+        parent_regimes
+      )
+    end)
   end
 
   # Only cast status when explicitly provided and non-nil.

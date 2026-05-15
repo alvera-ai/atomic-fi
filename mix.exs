@@ -13,9 +13,20 @@ defmodule AtomicFi.MixProject do
       docs: docs(),
       description: description(),
       package: package(),
-      source_url: "https://github.com/alvera-ai/atomicfi",
-      homepage_url: "https://github.com/alvera-ai/atomicfi",
-      listeners: [Phoenix.CodeReloader]
+      source_url: "https://github.com/alvera-ai/atomic-fi",
+      homepage_url: "https://github.com/alvera-ai/atomic-fi",
+      listeners: [Phoenix.CodeReloader],
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.json": :test,
+        "coveralls.xml": :test,
+        "coveralls.lcov": :test,
+        "coveralls.cobertura": :test
+      ]
     ]
   end
 
@@ -27,7 +38,7 @@ defmodule AtomicFi.MixProject do
   defp package do
     [
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/alvera-ai/atomicfi"},
+      links: %{"GitHub" => "https://github.com/alvera-ai/atomic-fi"},
       maintainers: ["AtomicFi contributors"]
     ]
   end
@@ -118,6 +129,7 @@ defmodule AtomicFi.MixProject do
       {:wallaby, "~> 0.30", runtime: false, only: :test},
       {:ex_machina, "~> 2.8", only: :test},
       {:mimic, "~> 1.10", only: :test},
+      {:mox, "~> 1.2", only: :test},
       {:exvcr, "~> 0.15", only: :test},
 
       # Code quality

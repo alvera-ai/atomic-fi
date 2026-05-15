@@ -11,11 +11,14 @@ defmodule AtomicFi.CounterpartyContext do
   import Ecto.Query, warn: false
   use AtomicFi.LoggerMacro
 
-  alias AtomicFi.ComplianceScreeningContext.ScreeningWorker
+  alias AtomicFi.CounterpartyContext.Counterparty
+  alias AtomicFi.LedgerAccountContext
+  alias AtomicFi.OnboardingContext
   alias AtomicFi.OpenApiSchema.CounterpartyRequest
   alias AtomicFi.Repo
-  alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.SessionContext.Session
+
+  @preloads [legal_entity: [:addresses, :phone_numbers, :identifications]]
 
   @doc """
   Returns the list of counterparties with pagination and filtering.
@@ -33,6 +36,7 @@ defmodule AtomicFi.CounterpartyContext do
   def_with_rls_and_logging list_counterparties(session, flop_params \\ %{}),
     log_fields: [:flop_params] do
     Counterparty
+    |> preload_query()
     |> Flop.validate_and_run(flop_params,
       for: Counterparty,
       repo: Repo,
@@ -56,7 +60,9 @@ defmodule AtomicFi.CounterpartyContext do
   """
   @spec get_counterparty!(Session.t(), Ecto.UUID.t()) :: Counterparty.t()
   def_with_rls_and_logging get_counterparty!(session, id), log_fields: [:id] do
-    Repo.get!(Counterparty, id, session: session)
+    Counterparty
+    |> preload_query()
+    |> Repo.get!(id, session: session)
   end
 
   @doc """
@@ -78,23 +84,36 @@ defmodule AtomicFi.CounterpartyContext do
                              %CounterpartyRequest{} = request
                            ),
                            log_fields: [] do
-    with {:ok, counterparty} <-
-           %Counterparty{}
-           |> Counterparty.changeset(request)
-           |> Repo.insert(session: session) do
-      if request.chain_screening do
-        %{
-          subject: "counterparty",
-          account_holder_id: counterparty.account_holder_id,
-          counterparty_id: counterparty.id,
-          tenant_id: counterparty.tenant_id
-        }
-        |> ScreeningWorker.new()
-        |> Oban.insert!()
-      end
+    case maybe_get_by_external_id(session, request) do
+      %Counterparty{} = existing ->
+        {:ok, existing}
 
-      {:ok, counterparty}
+      nil ->
+        after_cp_changed(session, Counterparty.changeset(%Counterparty{}, request))
     end
+  end
+
+  # Get-or-create: the SoE-supplied counterparty_number is the external idempotency key.
+  # When the client repeats a POST with the same counterparty_number, return the existing
+  # record (RLS scopes to the calling tenant via session). When no counterparty_number is
+  # given, fall through to normal insert (the (account_holder_id, legal_entity_id) unique
+  # constraint still prevents accidental duplicates).
+  defp maybe_get_by_external_id(_session, %CounterpartyRequest{counterparty_number: nil}),
+    do: nil
+
+  defp maybe_get_by_external_id(session, %CounterpartyRequest{counterparty_number: number})
+       when is_binary(number) and number != "" do
+    Counterparty
+    |> preload_query()
+    |> Ecto.Query.where(counterparty_number: ^number)
+    |> Repo.one(session: session)
+  end
+
+  defp maybe_get_by_external_id(_session, _request), do: nil
+
+  # Pipes the preload into the query so Flop and Repo.get! always load associations.
+  defp preload_query(query) do
+    preload(query, ^@preloads)
   end
 
   @doc """
@@ -117,9 +136,60 @@ defmodule AtomicFi.CounterpartyContext do
                              %CounterpartyRequest{} = request
                            ),
                            log_fields: [:counterparty] do
-    counterparty
-    |> Counterparty.changeset(request)
-    |> Repo.update(session: session)
+    after_cp_changed(session, Counterparty.changeset(counterparty, request))
+  end
+
+  # Lifecycle hook shared by create + update.
+  #
+  # Three-step flow (see `PaymentAccountContext.after_pa_changed/2` for the
+  # PA equivalent):
+  #
+  #   txn 1 — CP insert/update + CP-tree ensure (block-by-default LAs).
+  #   txn 2 — HTTP call to the RuleEngine.
+  #   txn 3 — applies the engine's per-LA controls (unblock + max_*).
+  defp after_cp_changed(session, %Ecto.Changeset{} = changeset) do
+    with {:ok, counterparty} <- write_cp_and_ensure_las(session, changeset),
+         {:ok, counterparty} <- OnboardingContext.onboard(session, counterparty) do
+      {:ok, counterparty}
+    end
+  end
+
+  @doc """
+  `AtomicFi.ControlProtocol` callback for `%Counterparty{}`. See
+  `AtomicFi.PaymentAccountContext.process_controls/3` for the shared
+  shape — resolves the CP's own LAs, applies the engine's controls,
+  enqueues + links the next `OnboardingWorker`.
+  """
+  @spec process_controls(Counterparty.t(), Session.t(), OnboardingContext.result()) ::
+          {:ok, Counterparty.t()} | {:error, term()}
+  def process_controls(%Counterparty{} = counterparty, session, %{
+        controls: controls,
+        next_screening_at: next_screening_at
+      }) do
+    ledger_accounts = LedgerAccountContext.list_for_entity(session, counterparty)
+
+    with :ok <- LedgerAccountContext.apply_controls(session, ledger_accounts, controls),
+         {:ok, job_id} <- OnboardingContext.enqueue_next(counterparty, next_screening_at),
+         {:ok, counterparty} <-
+           counterparty
+           |> Ecto.Changeset.change(%{rescreen_job_id: job_id})
+           |> Repo.update(session: session) do
+      {:ok, counterparty}
+    end
+  end
+
+  defp write_cp_and_ensure_las(session, %Ecto.Changeset{} = changeset) do
+    Repo.transaction(
+      fn ->
+        with {:ok, counterparty} <- Repo.insert_or_update(changeset, session: session),
+             :ok <- LedgerAccountContext.ensure_linked_ledger_accounts(session, counterparty) do
+          Repo.preload(counterparty, @preloads, skip_multi_tenancy_check: true)
+        else
+          {:error, reason} -> Repo.rollback(reason)
+        end
+      end,
+      session: session
+    )
   end
 
   @doc """

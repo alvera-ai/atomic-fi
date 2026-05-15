@@ -1,0 +1,85 @@
+docs {
+  # atomic-fi-scenarios
+
+  The canonical Bruno collection for the **AtomicFi payments compliance platform**.
+  Every regulatory scenario from the use-case catalog at
+  [`guides/use-cases.md`](https://github.com/alvera-ai/atomic-fi/blob/main/guides/use-cases.md)
+  is exercised here against the live HTTP API, so the same artefact serves three purposes:
+
+  - **Demo tape** — Bruno's recursive runner walks the entire collection in one click,
+    producing realistic data and a green status board suitable for a live customer demo.
+  - **Regression smoke** — `bru run --env local` from CI catches contract drift between
+    the OpenAPI spec, the Phoenix controllers, and the documented scenarios.
+  - **Compliance evidence** — each scenario maps to a row in the catalog, so a regulator
+    or auditor can request "scenario §2.3.1 (OFAC SDN exact match)" and receive exactly
+    one piece of executable evidence with one assertion path.
+
+  ## What's here today
+
+  | Folder | Purpose | Count |
+  | --- | --- | --- |
+  | `smoke-tests/` | Baseline data-seeding smoke. Auth → BlocklistCache warmup → 2 AccountHolders → 5 Counterparties → 20 Transactions. Idempotent re-runs (counterparty_number is the external SoE id). | 29 requests |
+
+  Future folders mirror the regulatory regimes in `guides/use-cases.md` (`01-cip/`,
+  `02-ofac-sanctions/`, `03-edd/`, `04-cta-ubo/`, `05-aml-velocity/`, etc.), one `.bru`
+  file per scenario.
+
+  ## Quick start
+
+  1. **Install Bruno** — `brew install --cask bruno` or download from <https://www.usebruno.com>.
+  2. **Bring atomic-fi up locally** from the repo root:
+     ```
+     make run-backing-services   # docker compose: upstream moov/watchman on :8084
+     make server                  # Phoenix on :4100
+     ```
+  3. **Refresh bootstrap creds** so the local env matches what's in the running DB:
+     ```
+     mix atomic_fi.dump_bootstrap_creds
+     ```
+  4. **Copy the env template** (one-time):
+     ```
+     cp environments/local.example.bru environments/local.bru
+     ```
+     Then edit `local.bru` with the values from `priv/repo/.bootstrap_creds.json`.
+  5. **Run the smoke** — either click the Runner button in the Bruno UI, or from CLI:
+     ```
+     cd bruno/atomic-fi-scenarios
+     bru run smoke-tests --env local
+     ```
+
+  Expected result: **29/29 requests pass, 66/66 assertions green** in roughly 4 seconds.
+
+  ## Authentication
+
+  All requests after `001-auth.bru` use bearer authentication. `001-auth.bru` exchanges
+  `{email, password, tenant_slug}` for a session bearer via `POST /api/sessions`; the
+  token, tenant id, and running id arrays (`ahIds`, `cpIds`) are stashed as env vars by
+  the post-response script and reused by every downstream request.
+
+  `001-auth.bru` also resets the running id arrays on every invocation, so re-runs start
+  from a clean state without manual env clearing.
+
+  ## Design principles
+
+  - **Real Watchman, real BlocklistCache, real DB.** No mocks anywhere — compliance
+    scenarios must validate the actual pipeline. The compose-managed
+    `moov/watchman:v0.61.1` container is part of the test harness.
+  - **One scenario, one `.bru` file.** A regulator can request "scenario 23" and receive
+    exactly one piece of executable evidence.
+  - **Child entities are nested via `cast_assoc`**, not created via standalone endpoints.
+    A counterparty POST carries its LegalEntity inline; the HTTP surface stays smaller
+    than the DB schema count.
+  - **Idempotency via the external SoE identifier.** Counterparty creation is
+    get-or-create on `counterparty_number`; the same POST replayed returns the original
+    record unchanged. Updates use PUT.
+  - **Per-tenant RLS isolation.** Every assertion runs inside the platform tenant's
+    session scope; cross-tenant visibility is explicitly tested via secondary tenants in
+    the regulatory folders.
+
+  ## Related
+
+  - [`guides/use-cases.md`](https://github.com/alvera-ai/atomic-fi/blob/main/guides/use-cases.md) — the catalog (source of truth for scenarios)
+  - [`integration-tests/`](https://github.com/alvera-ai/atomic-fi/tree/main/integration-tests) — vitest mirror against the same live server
+  - [`test/atomic_fi/`](https://github.com/alvera-ai/atomic-fi/tree/main/test/atomic_fi) — ExUnit context + controller tests (in-process, no HTTP)
+  - [`CLAUDE.md`](https://github.com/alvera-ai/atomic-fi/blob/main/CLAUDE.md) — Controller / Context Contract, OpenAPI Schema Patterns, Multi-Tenancy Pattern
+}

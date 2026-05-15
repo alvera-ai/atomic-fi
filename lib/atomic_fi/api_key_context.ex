@@ -33,7 +33,8 @@ defmodule AtomicFi.ApiKeyContext do
   """
   @spec list_api_keys(Session.t(), map()) ::
           {:ok, {list(ApiKey.t()), Flop.Meta.t()}} | {:error, Flop.Meta.t()}
-  def_with_rls_and_logging list_api_keys(session, flop_params \\ %{}), log_fields: [:flop_params] do
+  def_with_rls_and_logging list_api_keys(session, flop_params \\ %{}),
+    log_fields: [:flop_params] do
     ApiKey
     |> preload_query()
     |> Flop.validate_and_run(flop_params,

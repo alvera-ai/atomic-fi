@@ -27,10 +27,23 @@ defmodule AtomicFi.TransactionContext do
   import Ecto.Query, warn: false
   use AtomicFi.LoggerMacro
 
+  alias AtomicFi.LedgerEntryContext
   alias AtomicFi.OpenApiSchema.TransactionRequest
   alias AtomicFi.Repo
+  alias AtomicFi.RuleEngine
   alias AtomicFi.SessionContext.Session
   alias AtomicFi.TransactionContext.Transaction
+
+  # Associations preloaded before handing the transaction to the rule engine, so it
+  # can evaluate the full entity tree (debtor/creditor payment accounts + counterparties
+  # + the account holder) and resolve the leaf ledger accounts in play.
+  @rule_engine_preloads [
+    :account_holder,
+    :debtor_payment_account,
+    :creditor_payment_account,
+    :debtor_counterparty,
+    :creditor_counterparty
+  ]
 
   @doc """
   Returns the list of transactions with pagination and filtering.
@@ -77,25 +90,79 @@ defmodule AtomicFi.TransactionContext do
   @doc """
   Creates a transaction.
 
+  Flow:
+
+  1. Insert the transaction `:pending`.
+  2. Preload the entity tree (`#{inspect(@rule_engine_preloads)}`).
+  3. `RuleEngine.get_limits(transaction)` → `%{ledger_account_id => [ControlLimit.t()]}`
+     (the rule engine maps `transaction_type → regime` and returns limits for the leaf
+     ledger accounts in play, plus their ancestors).
+  4. `LedgerEntryContext.create_entries/3` posts the balanced debit/credit pair, carrying
+     those limits; the BEFORE-INSERT trigger fans them up the ancestor chain and the
+     `ledger_account_balances` CHECK constraints enforce them. If a limit is breached, the
+     entries come back `:voided` with `rejected_*` and nothing posts.
+  5. Update the transaction: `:rejected` + `rejected_*` (from the voided entry) if any leg
+     was voided, otherwise `:accepted`.
+
   ## Examples
 
       iex> create_transaction(session, %{field: value})
-      {:ok, %Transaction{}}
+      {:ok, %Transaction{status: :accepted}}
 
-      iex> create_transaction(session, %{field: bad_value})
-      {:error, %Ecto.Changeset{}}
+      iex> create_transaction(session, %{...amount over a control limit...})
+      {:ok, %Transaction{status: :rejected, rejected_rule: "...", ...}}
 
   """
   @spec create_transaction(Session.t(), TransactionRequest.t()) ::
-          {:ok, Transaction.t()} | {:error, Ecto.Changeset.t()}
+          {:ok, Transaction.t()} | {:error, Ecto.Changeset.t() | term()}
   def_with_rls_and_logging create_transaction(
                              session,
                              %TransactionRequest{} = request
                            ),
                            log_fields: [] do
-    %Transaction{}
-    |> Transaction.changeset(request)
-    |> Repo.insert(session: session)
+    with {:ok, transaction} <-
+           %Transaction{} |> Transaction.changeset(request) |> Repo.insert(session: session),
+         transaction <-
+           Repo.preload(transaction, @rule_engine_preloads, skip_multi_tenancy_check: true) do
+      case RuleEngine.get_controls(session, :transaction_screening, transaction) do
+        {:ok, :no_limits} ->
+          # Engine declined to score this transaction; leave it :pending with no
+          # ledger movement.
+          {:ok, transaction}
+
+        {:ok, %{controls: controls}} ->
+          # next_screening_at is meaningful only for onboarding; transactions
+          # are one-shot, so we ignore it here.
+          with {:ok, entries} <-
+                 LedgerEntryContext.create_entries(session, transaction, controls) do
+            transaction
+            |> Transaction.changeset(transaction_outcome(entries))
+            |> Repo.update(session: session)
+          end
+
+        {:error, _} = err ->
+          err
+      end
+    end
+  end
+
+  # Maps the posted/voided ledger-entry pair to the transaction's resulting status
+  # (+ denormalised rejection metadata when a control limit was hit).
+  defp transaction_outcome(entries) do
+    case Enum.find(entries, &(&1.status == :voided)) do
+      nil ->
+        %{status: :accepted}
+
+      voided ->
+        %{
+          status: :rejected,
+          rejected_ledger_account_id: voided.rejected_ledger_account_id,
+          rejected_period: voided.rejected_period,
+          rejected_direction: voided.rejected_direction,
+          rejected_rule: voided.rejected_rule,
+          rejected_code: voided.rejected_code
+        }
+    end
   end
 
   @doc """

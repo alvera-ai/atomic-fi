@@ -23,7 +23,7 @@ defmodule AtomicFiApi.LedgerAccountBalanceController do
     Balance rows are created and updated entirely by the `ledger_entry_propagate_to_balances`
     PostgreSQL trigger — never by application code directly.
 
-    Each row carries day/week/month/year cumulative totals and the last known velocity limits
+    Each row carries day/week/month/year cumulative totals and the last known control limits
     propagated from the risk engine via the triggering ledger_entry's *_limit_at_entry snapshot.
 
     Supports Flop pagination and filtering:
@@ -78,7 +78,7 @@ defmodule AtomicFiApi.LedgerAccountBalanceController do
     summary: "Get ledger account balance by ID",
     description: """
     Returns a single daily balance snapshot. The snapshot is trigger-maintained and
-    carries day/week/month/year cumulative totals and the last known velocity limits
+    carries day/week/month/year cumulative totals and the last known control limits
     from the risk engine.
     """,
     parameters: [

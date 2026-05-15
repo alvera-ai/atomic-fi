@@ -13,11 +13,14 @@ defmodule AtomicFi.BeneficialOwnerContext do
   import Ecto.Query, warn: false
   use AtomicFi.LoggerMacro
 
-  alias AtomicFi.ComplianceScreeningContext.ScreeningWorker
+  alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
+  alias AtomicFi.LedgerAccountContext
+  alias AtomicFi.OnboardingContext
   alias AtomicFi.OpenApiSchema.BeneficialOwnerRequest
   alias AtomicFi.Repo
-  alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
   alias AtomicFi.SessionContext.Session
+
+  @preloads [legal_entity: [:addresses, :phone_numbers, :identifications]]
 
   @doc """
   Returns the list of beneficial_owners with pagination and filtering.
@@ -35,6 +38,7 @@ defmodule AtomicFi.BeneficialOwnerContext do
   def_with_rls_and_logging list_beneficial_owners(session, flop_params \\ %{}),
     log_fields: [:flop_params] do
     BeneficialOwner
+    |> preload_query()
     |> Flop.validate_and_run(flop_params,
       for: BeneficialOwner,
       repo: Repo,
@@ -58,7 +62,9 @@ defmodule AtomicFi.BeneficialOwnerContext do
   """
   @spec get_beneficial_owner!(Session.t(), Ecto.UUID.t()) :: BeneficialOwner.t()
   def_with_rls_and_logging get_beneficial_owner!(session, id), log_fields: [:id] do
-    Repo.get!(BeneficialOwner, id, session: session)
+    BeneficialOwner
+    |> preload_query()
+    |> Repo.get!(id, session: session)
   end
 
   @doc """
@@ -83,18 +89,9 @@ defmodule AtomicFi.BeneficialOwnerContext do
     with {:ok, beneficial_owner} <-
            %BeneficialOwner{}
            |> BeneficialOwner.changeset(request)
-           |> Repo.insert(session: session) do
-      if request.chain_screening do
-        %{
-          subject: "beneficial_owner",
-          account_holder_id: beneficial_owner.account_holder_id,
-          beneficial_owner_id: beneficial_owner.id,
-          tenant_id: beneficial_owner.tenant_id
-        }
-        |> ScreeningWorker.new()
-        |> Oban.insert!()
-      end
-
+           |> Repo.insert(session: session)
+           |> bo_lifecycle(),
+         {:ok, beneficial_owner} <- OnboardingContext.onboard(session, beneficial_owner) do
       {:ok, beneficial_owner}
     end
   end
@@ -119,9 +116,43 @@ defmodule AtomicFi.BeneficialOwnerContext do
                              %BeneficialOwnerRequest{} = request
                            ),
                            log_fields: [:beneficial_owner] do
-    beneficial_owner
-    |> BeneficialOwner.changeset(request)
-    |> Repo.update(session: session)
+    with {:ok, beneficial_owner} <-
+           beneficial_owner
+           |> BeneficialOwner.changeset(request)
+           |> Repo.update(session: session)
+           |> bo_lifecycle(),
+         {:ok, beneficial_owner} <- OnboardingContext.onboard(session, beneficial_owner) do
+      {:ok, beneficial_owner}
+    end
+  end
+
+  @doc """
+  `AtomicFi.ControlProtocol` callback for `%BeneficialOwner{}`.
+
+  BOs have no LedgerAccounts of their own; the engine ran against the
+  BO's parent (carried on `result.engine_entity`) and the returned
+  controls target THAT entity's LAs. This impl applies controls to the
+  engine_entity's LAs, enqueues + links the BO's own re-screen
+  `OnboardingWorker` so the BO is periodically re-screened on its own
+  schedule.
+  """
+  @spec process_controls(BeneficialOwner.t(), Session.t(), OnboardingContext.result()) ::
+          {:ok, BeneficialOwner.t()} | {:error, term()}
+  def process_controls(%BeneficialOwner{} = beneficial_owner, session, %{
+        controls: controls,
+        next_screening_at: next_screening_at,
+        engine_entity: engine_entity
+      }) do
+    engine_entity_las = LedgerAccountContext.list_for_entity(session, engine_entity)
+
+    with :ok <- LedgerAccountContext.apply_controls(session, engine_entity_las, controls),
+         {:ok, job_id} <- OnboardingContext.enqueue_next(beneficial_owner, next_screening_at),
+         {:ok, beneficial_owner} <-
+           beneficial_owner
+           |> Ecto.Changeset.change(%{rescreen_job_id: job_id})
+           |> Repo.update(session: session) do
+      {:ok, beneficial_owner}
+    end
   end
 
   @doc """
@@ -158,4 +189,15 @@ defmodule AtomicFi.BeneficialOwnerContext do
   def change_beneficial_owner(%BeneficialOwner{} = beneficial_owner, attrs \\ %{}) do
     BeneficialOwner.changeset(beneficial_owner, attrs)
   end
+
+  # ── private: query + post-write lifecycle ────────────────────────────────
+
+  defp preload_query(query), do: preload(query, ^@preloads)
+
+  defp preload(%BeneficialOwner{} = bo) do
+    Repo.preload(bo, @preloads, skip_multi_tenancy_check: true)
+  end
+
+  defp bo_lifecycle({:ok, %BeneficialOwner{} = bo}), do: {:ok, preload(bo)}
+  defp bo_lifecycle({:error, _} = err), do: err
 end
