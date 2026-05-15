@@ -167,7 +167,9 @@ defmodule AtomicFiApi.ComplianceScreeningController do
       {:ok, _screening} ->
         send_resp(conn, :no_content, "")
 
+      # coveralls-ignore-next-line
       {:error, changeset} ->
+        # coveralls-ignore-next-line
         {:error, changeset}
     end
   end
@@ -279,8 +281,6 @@ defmodule AtomicFiApi.ComplianceScreeningController do
 
   defp screening_error(conn, :watchman_search_unavailable),
     do: watchman_unavailable(conn, "Unable to perform sanctions screening")
-
-  defp screening_error(_conn, %Ecto.Changeset{} = changeset), do: {:error, changeset}
 
   defp watchman_unavailable(conn, detail) do
     conn

@@ -625,6 +625,67 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
     end
   end
 
+  describe "screen_payment_account (POST /api/compliance-screenings/screen-payment-account)" do
+    test "non-crypto PA returns pending no-screen bypass", %{
+      conn: conn,
+      account_holder: account_holder
+    } do
+      body = %{
+        tenant_id: account_holder.tenant_id,
+        account_holder_id: account_holder.id,
+        account_type: "bank_account",
+        currency: "USD"
+      }
+
+      conn = post(conn, ~p"/api/compliance-screenings/screen-payment-account", body)
+      response = json_response(conn, 200)
+
+      assert_schema(response, "ComplianceScreeningResponse", ApiSpec.spec())
+      assert response["scope"] == "payment_account"
+      assert response["screening_status"] == "pending"
+      assert response["screened_entity_type"] == "payment_account"
+      assert response["screened_entity_name"] == "non-crypto-payment-account-bypass"
+    end
+
+    test "crypto PA with wallet_address triggers Watchman crypto screen", %{
+      conn: conn,
+      account_holder: account_holder
+    } do
+      body = %{
+        tenant_id: account_holder.tenant_id,
+        account_holder_id: account_holder.id,
+        account_type: "crypto_wallet",
+        currency: "USDT",
+        wallet_address: "0x0000000000000000000000000000000000000000",
+        wallet_chain: "ETH"
+      }
+
+      conn = post(conn, ~p"/api/compliance-screenings/screen-payment-account", body)
+      response = json_response(conn, 200)
+
+      assert_schema(response, "ComplianceScreeningResponse", ApiSpec.spec())
+      assert response["scope"] == "payment_account"
+      assert response["screening_status"] == "pending"
+    end
+
+    test "returns 401 without API key", %{account_holder: account_holder} do
+      body = %{
+        tenant_id: account_holder.tenant_id,
+        account_holder_id: account_holder.id,
+        account_type: "bank_account",
+        currency: "USD"
+      }
+
+      conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/compliance-screenings/screen-payment-account", body)
+
+      assert json_response(conn, 401)
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # OpenAPI spec validation
   # ---------------------------------------------------------------------------
@@ -772,6 +833,27 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
           counterparty_screen_body(account_holder, counterparty)
         )
 
+      assert json_response(conn, 503)["error"] == "Watchman service unavailable"
+    end
+
+    test "screen_payment_account returns 503 when screening fails", %{
+      conn: conn,
+      account_holder: account_holder
+    } do
+      expect(AtomicFi.ScreeningEngineMock, :screen_payment_account, fn _, _, _ ->
+        {:error, :watchman_search_unavailable}
+      end)
+
+      body = %{
+        tenant_id: account_holder.tenant_id,
+        account_holder_id: account_holder.id,
+        account_type: "crypto_wallet",
+        currency: "USDT",
+        wallet_address: "0x0000000000000000000000000000000000000000",
+        wallet_chain: "ETH"
+      }
+
+      conn = post(conn, ~p"/api/compliance-screenings/screen-payment-account", body)
       assert json_response(conn, 503)["error"] == "Watchman service unavailable"
     end
 
