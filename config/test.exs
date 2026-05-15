@@ -31,6 +31,18 @@ config :atomic_fi, :screening_engine, AtomicFi.ScreeningEngineMock
 config :atomic_fi, :rule_engine, AtomicFi.RuleEngineMock
 config :atomic_fi, AtomicFi.RuleEngine, base_url: "http://localhost:8090"
 
+# Extend RulesContext with two test-only rule_types, each a subfolder of the
+# shared "test-fixtures" ZenRule project. Prod's compiled binary doesn't see
+# these — Application.compile_env reads this map at test compile time only.
+config :atomic_fi, AtomicFi.RulesContext,
+  rule_types: %{
+    onboarding: "onboarding",
+    transaction_screening: "transaction-screening",
+    test_fixtures_good: "test-fixtures-good",
+    test_fixtures_bad: "test-fixtures-bad",
+    test_fixtures_bad_caps: "test-fixtures-bad-caps"
+  }
+
 # Configure encryption vault
 config :atomic_fi, AtomicFi.Vault,
   ciphers: [

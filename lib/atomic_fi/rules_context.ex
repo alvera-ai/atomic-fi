@@ -29,11 +29,14 @@ defmodule AtomicFi.RulesContext do
 
   alias AtomicFi.SessionContext.Session
 
-  @type rule_type :: :onboarding | :transaction_screening
+  @type rule_type :: atom()
   @type name :: String.t()
   @type body :: binary()
 
-  @rule_types [:onboarding, :transaction_screening]
+  # rule_type → on-disk path under priv/zenrule/. Read from compile_env so test
+  # config can extend this map with extra entries without prod knowing.
+  @rule_paths Application.compile_env!(:atomic_fi, [AtomicFi.RulesContext, :rule_types])
+  @rule_types Map.keys(@rule_paths)
 
   @rules_subdir "zenrule"
 
@@ -160,8 +163,8 @@ defmodule AtomicFi.RulesContext do
   rule_type atom.
   """
   @spec project_name(rule_type()) :: String.t()
-  def project_name(:onboarding), do: "onboarding"
-  def project_name(:transaction_screening), do: "transaction-screening"
+  def project_name(rule_type) when is_map_key(@rule_paths, rule_type),
+    do: Map.fetch!(@rule_paths, rule_type)
 
   # ── private helpers ────────────────────────────────────────────────────
 

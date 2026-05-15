@@ -1,0 +1,36 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    { "id": "request", "type": "inputNode", "name": "Request", "position": { "x": 100, "y": 160 } },
+    {
+      "id": "caps",
+      "type": "decisionTableNode",
+      "name": "Earlier next_screening_at",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "hitPolicy": "first",
+        "inputs": [
+          { "id": "in_any", "type": "expression", "name": "Any", "field": "transaction.transaction_type" }
+        ],
+        "outputs": [
+          { "id": "out_reason", "type": "expression", "name": "reason", "field": "ledger_accounts.la_test_004.reason" },
+          { "id": "out_nsa",    "type": "expression", "name": "next_screening_at", "field": "next_screening_at" }
+        ],
+        "rules": [
+          {
+            "_id": "rule_earlier_screening",
+            "_description": "Test fixture: emits an ISO next_screening_at earlier than with_next_screening's (2026-06-01 < 2026-12-31). Drives earliest/2 to compare two non-nil DateTimes.",
+            "in_any": "",
+            "out_reason": "\"test_early_screening\"",
+            "out_nsa": "\"2026-06-01T00:00:00Z\""
+          }
+        ]
+      }
+    },
+    { "id": "response", "type": "outputNode", "name": "Response", "position": { "x": 700, "y": 160 } }
+  ],
+  "edges": [
+    { "id": "edge_in",  "type": "edge", "sourceId": "request", "targetId": "caps" },
+    { "id": "edge_out", "type": "edge", "sourceId": "caps",    "targetId": "response" }
+  ]
+}

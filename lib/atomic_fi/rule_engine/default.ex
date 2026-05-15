@@ -114,6 +114,7 @@ defmodule AtomicFi.RuleEngine.Default do
   end
 
   defp decode_next_screening_at(nil), do: {:ok, nil}
+  # coveralls-ignore-next-line — JSON decode never yields %DateTime{} structs
   defp decode_next_screening_at(%DateTime{} = dt), do: {:ok, dt}
 
   defp decode_next_screening_at(iso) when is_binary(iso) do
@@ -123,5 +124,6 @@ defmodule AtomicFi.RuleEngine.Default do
     end
   end
 
+  # coveralls-ignore-next-line — JSON decode never yields non-string/non-nil here
   defp decode_next_screening_at(other), do: {:error, {:invalid_next_screening_at, other}}
 end

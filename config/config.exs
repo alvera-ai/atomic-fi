@@ -109,6 +109,16 @@ config :atomic_fi, AtomicFi.Watchman.Client, base_url: "http://localhost:8084"
 config :atomic_fi, :rule_engine, AtomicFi.RuleEngine
 config :atomic_fi, AtomicFi.RuleEngine, base_url: "http://localhost:8090"
 
+# RulesContext rule-type → ZenRule project name (which is also the on-disk
+# subdir under priv/zenrule/). Tests can extend this map in config/test.exs
+# without prod's compiled binary seeing the extra types — Application.compile_env
+# reads the map at compile time per MIX_ENV.
+config :atomic_fi, AtomicFi.RulesContext,
+  rule_types: %{
+    onboarding: "onboarding",
+    transaction_screening: "transaction-screening"
+  }
+
 # Oban background job processing
 config :atomic_fi, Oban,
   prefix: "oban",
