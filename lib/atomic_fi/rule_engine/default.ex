@@ -26,6 +26,7 @@ defmodule AtomicFi.RuleEngine.Default do
 
   @behaviour AtomicFi.RuleEngine.Behaviour
 
+  require Logger
   use AtomicFi.LoggerMacro
 
   alias AtomicFi.RuleEngine
@@ -96,7 +97,19 @@ defmodule AtomicFi.RuleEngine.Default do
     end
   end
 
-  defp decode_rule_result(_other), do: {:ok, %{controls: %{}, next_screening_at: nil}}
+  # Any result that doesn't have a top-level "ledger_accounts" map is treated as
+  # "engine produced no LA-shaped output". This is the right behaviour for rules
+  # like de_minimis.json that write to transaction.* keys (no LA controls to
+  # apply), but it also catches drift — a rule that mistakenly emits the wrong
+  # shape will silently produce :no_limits. Log a warning so the drift is
+  # visible in test/dev runs.
+  defp decode_rule_result(other) do
+    Logger.warning("rule_engine: rule output has no ledger_accounts map",
+      result: inspect(other, limit: :infinity, printable_limit: 4096)
+    )
+
+    {:ok, %{controls: %{}, next_screening_at: nil}}
+  end
 
   defp decode_controls_map(by_id) do
     Enum.reduce_while(by_id, {:ok, %{}}, fn {la_id, attrs}, {:ok, acc} ->
