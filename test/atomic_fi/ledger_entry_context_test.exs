@@ -449,4 +449,167 @@ defmodule AtomicFi.LedgerEntryContextTest do
       assert reload_account(session, account).balance == 0
     end
   end
+
+  # ── create_entries/3 — balanced debit/credit pair from a Transaction ────────
+
+  describe "create_entries/3" do
+    alias AtomicFi.RuleEngine.Control
+
+    # Build the minimum entity tree the orchestrator needs:
+    #   AH + debtor PA + AH-PA regime leaf LA
+    #      + counterparty + creditor PA + CP-PA regime leaf LA
+    #   + a Transaction tying the two PAs.
+    defp setup_balanced_transaction(session, amount) do
+      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+      ledger = insert(:ledger, tenant_id: session.tenant_id, account_holder_id: account_holder.id)
+
+      debtor_pa =
+        insert(:payment_account,
+          tenant_id: session.tenant_id,
+          account_holder_id: account_holder.id,
+          currency: "USD"
+        )
+
+      debtor_leaf =
+        insert(:ledger_account,
+          tenant_id: session.tenant_id,
+          account_holder_id: account_holder.id,
+          ledger_id: ledger.id,
+          payment_account_id: debtor_pa.id,
+          la_type: :account_holder_payment_account_regime_root,
+          regime: "ach"
+        )
+
+      counterparty =
+        insert(:counterparty,
+          tenant_id: session.tenant_id,
+          account_holder_id: account_holder.id
+        )
+
+      creditor_pa =
+        insert(:payment_account,
+          tenant_id: session.tenant_id,
+          account_holder_id: account_holder.id,
+          counterparty_id: counterparty.id,
+          currency: "USD"
+        )
+
+      creditor_leaf =
+        insert(:ledger_account,
+          tenant_id: session.tenant_id,
+          account_holder_id: account_holder.id,
+          ledger_id: ledger.id,
+          payment_account_id: creditor_pa.id,
+          counterparty_id: counterparty.id,
+          la_type: :counter_party_payment_account_regime_root,
+          regime: "ach"
+        )
+
+      transaction =
+        insert(:transaction,
+          tenant_id: session.tenant_id,
+          account_holder_id: account_holder.id,
+          debtor_payment_account_id: debtor_pa.id,
+          creditor_payment_account_id: creditor_pa.id,
+          currency: "USD",
+          amount: amount
+        )
+
+      %{transaction: transaction, debtor_leaf: debtor_leaf, creditor_leaf: creditor_leaf}
+    end
+
+    test "posts a balanced pair when caps allow", %{session: session} do
+      %{transaction: txn, debtor_leaf: dl, creditor_leaf: cl} =
+        setup_balanced_transaction(session, 5_000)
+
+      controls = %{
+        dl.id => %Control{daily_debit_cap: 100_000, reason: "test_pair_pass"},
+        cl.id => %Control{daily_credit_cap: 100_000, reason: "test_pair_pass"}
+      }
+
+      assert {:ok, [debit, credit]} = LedgerEntryContext.create_entries(session, txn, controls)
+
+      assert debit.status == :posted
+      assert debit.entry_type == :debit
+      assert debit.ledger_account_id == dl.id
+
+      assert credit.status == :posted
+      assert credit.entry_type == :credit
+      assert credit.ledger_account_id == cl.id
+
+      assert reload_account(session, dl).balance == -5_000
+      assert reload_account(session, cl).balance == 5_000
+    end
+
+    test "voids the pair when a debit cap is breached; no balance moves",
+         %{session: session} do
+      %{transaction: txn, debtor_leaf: dl, creditor_leaf: cl} =
+        setup_balanced_transaction(session, 10_000)
+
+      # daily_debit_cap < amount ⇒ debit's CHECK fires inside the trigger,
+      # status flips :voided, partial balance changes are rolled back by the
+      # trigger's EXCEPTION block. create_entries then re-records both as
+      # :voided so the audit pair tells the same rejected story.
+      controls = %{
+        dl.id => %Control{daily_debit_cap: 1_000, reason: "test_pair_rejected"},
+        cl.id => %Control{daily_credit_cap: 100_000, reason: "test_pair_rejected"}
+      }
+
+      assert {:ok, [debit, credit]} = LedgerEntryContext.create_entries(session, txn, controls)
+
+      assert debit.status == :voided
+      assert credit.status == :voided
+      assert debit.rejected_period == "daily"
+      assert debit.rejected_direction == "debit"
+      assert debit.rejected_rule == "test_pair_rejected"
+      assert credit.rejected_rule == "test_pair_rejected"
+
+      assert reload_account(session, dl).balance == 0
+      assert reload_account(session, cl).balance == 0
+    end
+
+    test "voids the pair when a credit cap is breached after debit posts",
+         %{session: session} do
+      %{transaction: txn, debtor_leaf: dl, creditor_leaf: cl} =
+        setup_balanced_transaction(session, 10_000)
+
+      # Scenario B: debit posts, then credit's CHECK fires. The wrapping
+      # Repo.transaction rolls back the debtor's balance moves; both legs
+      # are re-recorded :voided.
+      controls = %{
+        dl.id => %Control{daily_debit_cap: 100_000, reason: "rule_pass_debit"},
+        cl.id => %Control{daily_credit_cap: 1_000, reason: "rule_rejected_credit"}
+      }
+
+      assert {:ok, [debit, credit]} = LedgerEntryContext.create_entries(session, txn, controls)
+
+      assert debit.status == :voided
+      assert credit.status == :voided
+      assert credit.rejected_period == "daily"
+      assert credit.rejected_direction == "credit"
+      assert credit.rejected_rule == "rule_rejected_credit"
+
+      # Both sides untouched after rollback + voided re-record.
+      assert reload_account(session, dl).balance == 0
+      assert reload_account(session, cl).balance == 0
+    end
+
+    test "controls_to_limits handles nil control (no caps for one side)",
+         %{session: session} do
+      %{transaction: txn, debtor_leaf: dl, creditor_leaf: cl} =
+        setup_balanced_transaction(session, 1_000)
+
+      # Only the debit side has caps; the credit side falls through controls_to_limits(nil).
+      controls = %{
+        dl.id => %Control{daily_debit_cap: 100_000, reason: "test_nil_credit_side"}
+      }
+
+      # resolve_leaf_accounts gives credit_la_id = nil (no entry for creditor PA);
+      # changeset fails ledger_account_id required ⇒ surfaces as {:error, changeset}.
+      assert {:error, %Ecto.Changeset{valid?: false} = cs} =
+               LedgerEntryContext.create_entries(session, txn, controls)
+
+      assert cs.errors[:ledger_account_id]
+    end
+  end
 end

@@ -19,6 +19,7 @@ defmodule AtomicFi.LedgerEntryContext do
   """
 
   import Ecto.Query, warn: false
+  require Logger
   use AtomicFi.LoggerMacro
 
   alias AtomicFi.LedgerAccountContext.LedgerAccount
@@ -123,31 +124,31 @@ defmodule AtomicFi.LedgerEntryContext do
     log_fields: [] do
     {debit_la_id, credit_la_id} = resolve_leaf_accounts(transaction, controls)
 
-    debit_attrs =
-      entry_attrs(
-        transaction,
-        debit_la_id,
-        :debit,
-        controls_to_limits(Map.get(controls, debit_la_id))
-      )
+    debit_cs =
+      build_changeset(transaction, debit_la_id, :debit, Map.get(controls, debit_la_id))
 
-    credit_attrs =
-      entry_attrs(
-        transaction,
-        credit_la_id,
-        :credit,
-        controls_to_limits(Map.get(controls, credit_la_id))
-      )
+    credit_cs =
+      build_changeset(transaction, credit_la_id, :credit, Map.get(controls, credit_la_id))
 
+    # The transaction is load-bearing for the case where the debit posts
+    # (debtor ancestor balances move) but the credit insert's trigger flips
+    # status to :voided (creditor side unchanged) — without the wrapper the
+    # ledger would be left unbalanced. When the debit itself comes back :voided,
+    # the trigger's own EXCEPTION block already rolled its partial balance
+    # changes back, but we keep a single shape across both paths.
     first_attempt =
       Repo.transaction(fn ->
-        debit = insert_entry!(session, debit_attrs)
-        credit = insert_entry!(session, credit_attrs)
-
-        if debit.status == :voided or credit.status == :voided do
-          Repo.rollback({:rejected, rejection_from(debit, credit)})
+        with {:ok, debit} <- insert_entry(session, debit_cs),
+             {:ok, credit} <- insert_entry(session, credit_cs) do
+          if debit.status == :voided or credit.status == :voided do
+            Repo.rollback({:rejected, rejection_from(debit, credit)})
+          else
+            [debit, credit]
+          end
         else
-          [debit, credit]
+          {:error, %Ecto.Changeset{} = cs} ->
+            Logger.warning("create_entries: changeset invalid", errors: inspect(cs.errors))
+            Repo.rollback(cs)
         end
       end)
 
@@ -158,9 +159,24 @@ defmodule AtomicFi.LedgerEntryContext do
       {:error, {:rejected, rejection}} ->
         # Re-record both legs :voided (trigger skips voided inserts ⇒ no balance moves).
         Repo.transaction(fn ->
-          debit = insert_entry!(session, Map.merge(debit_attrs, voided_overrides(rejection)))
-          credit = insert_entry!(session, Map.merge(credit_attrs, voided_overrides(rejection)))
-          [debit, credit]
+          with {:ok, debit} <- insert_entry(session, put_voided(debit_cs, rejection)),
+               {:ok, credit} <- insert_entry(session, put_voided(credit_cs, rejection)) do
+            [debit, credit]
+          else
+            # coveralls-ignore-start — first attempt's insert succeeded at the
+            # DB level (changeset was valid; trigger merely flipped status to
+            # :voided), so the SAME attrs with put_change(:status, :voided)
+            # would only fail here if the FK target was concurrently deleted
+            # between the two transactions. Real but un-testable in single-
+            # process tests.
+            {:error, %Ecto.Changeset{} = cs} ->
+              Logger.warning("create_entries: void re-record invalid",
+                errors: inspect(cs.errors)
+              )
+
+              Repo.rollback(cs)
+              # coveralls-ignore-stop
+          end
         end)
 
       {:error, reason} ->
@@ -224,40 +240,40 @@ defmodule AtomicFi.LedgerEntryContext do
     end)
   end
 
-  defp entry_attrs(%Transaction{} = txn, ledger_account_id, entry_type, limits_at_entry) do
-    %{
+  defp build_changeset(%Transaction{} = txn, ledger_account_id, entry_type, control) do
+    LedgerEntry.changeset(%LedgerEntry{}, %{
       account_holder_id: txn.account_holder_id,
       ledger_account_id: ledger_account_id,
       currency: txn.currency,
       amount: txn.amount,
       entry_type: entry_type,
       status: :posted,
-      limits_at_entry: limits_at_entry,
+      limits_at_entry: controls_to_limits(control),
       tenant_id: txn.tenant_id
-    }
+    })
   end
 
-  defp insert_entry!(session, attrs) do
-    %LedgerEntry{}
-    |> LedgerEntry.changeset(attrs)
-    |> Repo.insert!(session: session)
-    # The BEFORE trigger may have flipped status/rejected_* — re-read the row.
-    |> Repo.reload!(session: session)
+  # `returning: true` brings the trigger-mutated row back in a single round-trip —
+  # status/rejected_* reflect any BEFORE-INSERT trigger changes without a reload.
+  defp insert_entry(session, %Ecto.Changeset{} = cs) do
+    Repo.insert(cs, session: session, returning: true)
   end
 
   defp rejection_from(debit, credit) do
-    entry = if debit.status == :voided, do: debit, else: credit
-
-    %{
-      rejected_ledger_account_id: entry.rejected_ledger_account_id,
-      rejected_period: entry.rejected_period,
-      rejected_direction: entry.rejected_direction,
-      rejected_rule: entry.rejected_rule,
-      rejected_code: entry.rejected_code
-    }
+    if debit.status == :voided, do: debit, else: credit
   end
 
-  defp voided_overrides(rejection), do: Map.merge(%{status: :voided}, rejection)
+  # Re-record both legs of a rejected pair as :voided. Carries the trigger's
+  # rejected_* diagnostics forward so the audit pair tells the same story.
+  defp put_voided(%Ecto.Changeset{} = cs, %LedgerEntry{} = rejected) do
+    cs
+    |> Ecto.Changeset.put_change(:status, :voided)
+    |> Ecto.Changeset.put_change(:rejected_ledger_account_id, rejected.rejected_ledger_account_id)
+    |> Ecto.Changeset.put_change(:rejected_period, rejected.rejected_period)
+    |> Ecto.Changeset.put_change(:rejected_direction, rejected.rejected_direction)
+    |> Ecto.Changeset.put_change(:rejected_rule, rejected.rejected_rule)
+    |> Ecto.Changeset.put_change(:rejected_code, rejected.rejected_code)
+  end
 
   @doc """
   Updates a ledger_entry.
