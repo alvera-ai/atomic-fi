@@ -24,7 +24,8 @@ defmodule AtomicFi.TenantContext do
   """
   @spec list_tenants(Session.t(), map()) ::
           {:ok, {list(Tenant.t()), Flop.Meta.t()}} | {:error, Flop.Meta.t()}
-  def_with_rls_and_logging list_tenants(session, flop_params \\ %{}), log_fields: [:flop_params] do
+  def_with_rls_and_logging list_tenants(session, flop_params \\ %{}),
+    log_fields: [:flop_params] do
     Tenant
     |> Flop.validate_and_run(flop_params,
       for: Tenant,
