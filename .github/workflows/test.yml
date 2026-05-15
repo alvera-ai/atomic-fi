@@ -35,9 +35,36 @@ jobs:
           - 8084:8084
           - 9094:9094
 
+      zenrule:
+        image: gorules/agent:latest
+        env:
+          PROVIDER__TYPE: Filesystem
+        ports:
+          - 8090:8080
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Seed ZenRule rule corpus into the service container
+        # The zenrule service starts before checkout, so its filesystem provider
+        # finds an empty mount and registers zero projects. We docker cp the rules
+        # in, then restart the container so it rescans the provider root and
+        # registers each top-level subdir as a ZenRule project.
+        run: |
+          docker cp priv/zenrule/. ${{ job.services.zenrule.id }}:/home/nonroot/data/
+          docker restart ${{ job.services.zenrule.id }}
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+            if curl -sf -X POST "http://localhost:8090/api/projects/transaction-screening/evaluate/de_minimis.json" \
+                 -H 'Content-Type: application/json' -d '{"context":{}}' >/dev/null 2>&1; then
+              echo "ZenRule up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "ZenRule did not come up; last logs:"
+          docker logs ${{ job.services.zenrule.id }}
+          exit 1
 
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
