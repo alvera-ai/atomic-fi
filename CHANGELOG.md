@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0](https://github.com/alvera-ai/atomic-fi/compare/v1.2.0...v1.3.0) (2026-05-13)
+
+
+### Features
+
+* **atomic-fi-web:** per-node editor, CodeMirror, design pass ([8dd17c4](https://github.com/alvera-ai/atomic-fi/commit/8dd17c4bafbe12b23d40f1025aa73dc85a816e71))
+* **atomic-fi-web:** scaffold JDM workflow editor POC ([8a8cc9b](https://github.com/alvera-ai/atomic-fi/commit/8a8cc9b5ec69d14906beb49722bc21088c9f6a91))
+
 ## [1.2.0](https://github.com/alvera-ai/atomic-fi/compare/v1.1.0...v1.2.0) (2026-05-01)
 
 
