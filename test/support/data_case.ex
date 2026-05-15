@@ -40,12 +40,9 @@ defmodule AtomicFi.DataCase do
     AtomicFi.DataCase.setup_sandbox(tags)
     AtomicFi.DataCase.setup_screening_engine_mock(tags)
     AtomicFi.DataCase.setup_rule_engine_mock(tags)
-    tenant = system_tenant()
-    # Onboarding (PA / CP / AH / BO write paths) now screens synchronously,
-    # which requires the BlocklistCache to be initialised for the session's
-    # tenant. Refresh once per test so every write path "just works".
-    AtomicFi.BlocklistContext.BlocklistCache.refresh_tenant_cache(tenant.id)
-    {:ok, tenant: tenant, session: system_session()}
+    # BlocklistCache for the platform tenant is initialised once in
+    # test/test_helper.exs — in-memory state outlives sandbox rollback.
+    {:ok, tenant: system_tenant(), session: system_session()}
   end
 
   @doc """

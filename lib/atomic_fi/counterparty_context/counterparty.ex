@@ -182,17 +182,12 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
   end
 
   defp parent_regimes(prepared) do
-    case Ecto.Changeset.get_field(prepared, :account_holder_id) do
-      nil -> AtomicFi.EnabledRegimes.default()
-      account_holder_id -> account_holder_regimes(prepared.repo, account_holder_id)
-    end
-  end
+    account_holder_id = Ecto.Changeset.get_field(prepared, :account_holder_id)
 
-  defp account_holder_regimes(repo, account_holder_id) do
-    case repo.get(AccountHolder, account_holder_id, skip_multi_tenancy_check: true) do
-      nil -> AtomicFi.EnabledRegimes.default()
-      %{enabled_regimes: regimes} -> regimes
-    end
+    %AccountHolder{enabled_regimes: regimes} =
+      prepared.repo.get!(AccountHolder, account_holder_id, skip_multi_tenancy_check: true)
+
+    regimes
   end
 
   # Cast nested legal_entity only when the key is present in attrs (not a nil default).

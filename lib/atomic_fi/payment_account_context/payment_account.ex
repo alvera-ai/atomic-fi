@@ -364,12 +364,8 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
           counterparty_id -> {Counterparty, counterparty_id}
         end
 
-      parent_regimes =
-        case parent_id &&
-               prepared.repo.get(parent_module, parent_id, skip_multi_tenancy_check: true) do
-          %{enabled_regimes: regimes} -> regimes
-          _ -> AtomicFi.EnabledRegimes.default()
-        end
+      %{enabled_regimes: parent_regimes} =
+        prepared.repo.get!(parent_module, parent_id, skip_multi_tenancy_check: true)
 
       AtomicFi.EnabledRegimes.cast_and_validate(
         prepared,

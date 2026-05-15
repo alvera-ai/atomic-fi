@@ -464,6 +464,40 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
     end
   end
 
+  describe "refresh (POST /api/counterparties/:id/refresh)" do
+    setup [:create_counterparty]
+
+    setup %{platform_tenant: platform_tenant} do
+      init_blocklist_cache(platform_tenant.id)
+      :ok
+    end
+
+    test "re-runs the onboarding flow and returns the refreshed CP", %{
+      conn: conn,
+      counterparty: counterparty
+    } do
+      conn = post(conn, ~p"/api/counterparties/#{counterparty.id}/refresh", %{})
+      response = json_response(conn, 200)
+
+      assert response["id"] == counterparty.id
+      assert_schema(response, "CounterpartyResponse", ApiSpec.spec())
+    end
+
+    test "returns 404 when counterparty does not exist", %{conn: conn} do
+      conn = post(conn, ~p"/api/counterparties/#{Ecto.UUID.generate()}/refresh", %{})
+      assert json_response(conn, 404)
+    end
+
+    test "returns 401 without API key", %{counterparty: counterparty} do
+      conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/api/counterparties/#{counterparty.id}/refresh", %{})
+
+      assert json_response(conn, 401)
+    end
+  end
+
   describe "OpenAPI spec validation" do
     test "OpenAPI spec includes counterparty endpoints", %{conn: conn} do
       conn = get(conn, ~p"/api/openapi")

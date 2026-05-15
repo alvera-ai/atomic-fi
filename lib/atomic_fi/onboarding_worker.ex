@@ -30,34 +30,12 @@ defmodule AtomicFi.OnboardingWorker do
   use Oban.Worker, queue: :onboarding, max_attempts: 3
 
   alias AtomicFi.OnboardingContext
-  alias AtomicFi.Repo
-  alias AtomicFi.TenantContext.Tenant
 
   @impl Oban.Worker
-  def perform(%Oban.Job{
-        args: %{
-          "entity_module" => entity_module,
-          "entity_id" => entity_id,
-          "tenant_id" => tenant_id
-        }
-      }) do
-    session = build_session(tenant_id)
-    module = String.to_existing_atom(entity_module)
-    entity = Repo.get!(module, entity_id, session: session)
-
-    {:ok, entity} =
-      entity
-      |> Ecto.Changeset.change(%{rescreen_job_id: nil})
-      |> Repo.update(session: session)
-
-    case OnboardingContext.onboard(session, entity) do
-      {:ok, _entity} -> :ok
-      {:error, reason} -> {:error, reason}
+  def perform(%Oban.Job{args: args}) do
+    with {:ok, session, entity} <- OnboardingContext.load_for_rescreen(args),
+         {:ok, _entity} <- OnboardingContext.refresh(session, entity) do
+      :ok
     end
-  end
-
-  defp build_session(tenant_id) do
-    tenant = Repo.get!(Tenant, tenant_id, skip_multi_tenancy_check: true)
-    %{tenant_id: tenant_id, tenant: tenant}
   end
 end

@@ -8,6 +8,25 @@ This file provides guidance to Claude Code when working with code in this reposi
 
 ---
 
+## Hard requirements
+
+### No graceful fallbacks, no silent failures
+
+A missing or invalid invariant **must** fail loud. Do not paper over it with a default value, a `_ -> nil`, a rescue that swallows the error, or any other quiet recovery.
+
+- **Banned patterns:**
+  - `case Repo.get(...) do %{...} -> ...; nil -> Module.default() end`
+  - `case Repo.get(...) do %{...} = x -> x; _ -> %DefaultStruct{} end`
+  - `Map.get(map, :key, some_default)` where the key being absent is an invariant violation
+  - `try ... rescue _ -> some_default end` around a domain call
+  - Defensive `# coveralls-ignore` on a nil/`_` fallback branch — that branch should not exist; delete it instead of ignoring it
+
+- **Required patterns:** `Repo.get!/3`, `Map.fetch!/2`, `Application.fetch_env!/2`, pattern-match only the success shape (`%Tenant{enabled_regimes: r} = repo.get!(...)`), or `raise "<invariant message>"`. Let the process crash; surface the bug.
+
+This applies to every layer — contexts, controllers, workers, schema `prepare_changes`, behaviour impls. The only exception is external transport boundaries (Watchman client, etc.) where the calling domain Behaviour explicitly defines an error case; even there, the **decision** to fall back belongs to the caller, not the transport.
+
+---
+
 ## Development Commands
 
 **Testing**

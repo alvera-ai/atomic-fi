@@ -95,6 +95,7 @@ defmodule AtomicFiApi.Routes do
         get "/account-holders", AccountHolderController, :index
         get "/account-holders/:id", AccountHolderController, :show
         post "/account-holders", AccountHolderController, :create
+        post "/account-holders/:id/refresh", AccountHolderController, :refresh
         put "/account-holders/:id", AccountHolderController, :update
         delete "/account-holders/:id", AccountHolderController, :delete
 
@@ -109,6 +110,7 @@ defmodule AtomicFiApi.Routes do
         get "/counterparties", CounterpartyController, :index
         get "/counterparties/:id", CounterpartyController, :show
         post "/counterparties", CounterpartyController, :create
+        post "/counterparties/:id/refresh", CounterpartyController, :refresh
         put "/counterparties/:id", CounterpartyController, :update
         delete "/counterparties/:id", CounterpartyController, :delete
 
@@ -162,6 +164,7 @@ defmodule AtomicFiApi.Routes do
         get "/payment-accounts", PaymentAccountController, :index
         get "/payment-accounts/:id", PaymentAccountController, :show
         post "/payment-accounts", PaymentAccountController, :create
+        post "/payment-accounts/:id/refresh", PaymentAccountController, :refresh
         put "/payment-accounts/:id", PaymentAccountController, :update
         delete "/payment-accounts/:id", PaymentAccountController, :delete
 

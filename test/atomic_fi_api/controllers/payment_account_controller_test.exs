@@ -406,6 +406,35 @@ defmodule AtomicFiApi.PaymentAccountControllerTest do
     end
   end
 
+  describe "refresh (POST /api/payment-accounts/:id/refresh)" do
+    setup [:create_payment_account]
+
+    test "re-runs the onboarding flow and returns the refreshed PA", %{
+      conn: conn,
+      payment_account: payment_account
+    } do
+      conn = post(conn, ~p"/api/payment-accounts/#{payment_account.id}/refresh", %{})
+      response = json_response(conn, 200)
+
+      assert response["id"] == payment_account.id
+      assert_schema(response, "PaymentAccountResponse", ApiSpec.spec())
+    end
+
+    test "returns 404 when payment account does not exist", %{conn: conn} do
+      conn = post(conn, ~p"/api/payment-accounts/#{Ecto.UUID.generate()}/refresh", %{})
+      assert json_response(conn, 404)
+    end
+
+    test "returns 401 without API key", %{payment_account: payment_account} do
+      conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/api/payment-accounts/#{payment_account.id}/refresh", %{})
+
+      assert json_response(conn, 401)
+    end
+  end
+
   describe "OpenAPI spec validation" do
     test "OpenAPI spec includes payment account endpoints", %{conn: conn} do
       conn = get(conn, ~p"/api/openapi")

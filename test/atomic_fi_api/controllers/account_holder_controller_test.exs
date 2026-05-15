@@ -467,6 +467,40 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
     end
   end
 
+  describe "refresh (POST /api/account-holders/:id/refresh)" do
+    setup [:create_account_holder]
+
+    setup %{platform_tenant: platform_tenant} do
+      init_blocklist_cache(platform_tenant.id)
+      :ok
+    end
+
+    test "re-runs the onboarding flow and returns the refreshed AH", %{
+      conn: conn,
+      account_holder: account_holder
+    } do
+      conn = post(conn, ~p"/api/account-holders/#{account_holder.id}/refresh", %{})
+      response = json_response(conn, 200)
+
+      assert response["id"] == account_holder.id
+      assert_schema(response, "AccountHolderResponse", ApiSpec.spec())
+    end
+
+    test "returns 404 when account holder does not exist", %{conn: conn} do
+      conn = post(conn, ~p"/api/account-holders/#{Ecto.UUID.generate()}/refresh", %{})
+      assert json_response(conn, 404)
+    end
+
+    test "returns 401 without API key", %{account_holder: account_holder} do
+      conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/api/account-holders/#{account_holder.id}/refresh", %{})
+
+      assert json_response(conn, 401)
+    end
+  end
+
   describe "OpenAPI spec validation" do
     test "OpenAPI spec includes account holder endpoints", %{conn: conn} do
       conn = get(conn, ~p"/api/openapi")

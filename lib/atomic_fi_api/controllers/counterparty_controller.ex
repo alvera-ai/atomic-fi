@@ -3,6 +3,7 @@ defmodule AtomicFiApi.CounterpartyController do
   use OpenApiSpex.ControllerSpecs
 
   alias AtomicFi.CounterpartyContext
+  alias AtomicFi.OnboardingContext
   alias AtomicFi.OpenApiSchema
   alias AtomicFi.OpenApiSchema.CounterpartyListResponse
   alias AtomicFi.OpenApiSchema.CounterpartyRequest
@@ -184,6 +185,42 @@ defmodule AtomicFiApi.CounterpartyController do
 
       {:error, changeset} ->
         {:error, changeset}
+    end
+  end
+
+  operation(:refresh,
+    summary: "Refresh counterparty onboarding",
+    description: """
+    Manually re-runs the onboarding pipeline for an existing counterparty.
+    Same `OnboardingContext.refresh/2` invoked by `AtomicFi.OnboardingWorker`
+    on the scheduled cadence.
+    """,
+    parameters: [
+      id: [
+        in: :path,
+        description: "Counterparty ID",
+        schema: %Schema{type: :string, format: :uuid},
+        example: "123e4567-e89b-12d3-a456-426614174000"
+      ]
+    ],
+    responses: [
+      ok:
+        {"Refreshed counterparty", "application/json",
+         %Reference{"$ref": "#/components/schemas/CounterpartyResponse"}},
+      not_found: {"Not found", "application/json", OpenApiSchema.ErrorResponse}
+    ]
+  )
+
+  def refresh(conn, %{id: id}) do
+    session = conn.assigns.api_session
+    counterparty = CounterpartyContext.get_counterparty!(session, id)
+
+    case OnboardingContext.refresh(session, counterparty) do
+      {:ok, counterparty} ->
+        ApiHelpers.json_response(conn, counterparty, CounterpartyResponse)
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 end
