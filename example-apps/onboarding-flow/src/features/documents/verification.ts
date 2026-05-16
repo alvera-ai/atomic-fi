@@ -58,7 +58,7 @@ export async function verifyDocument(
   // Image dimension check (best-effort)
   if (file.type.startsWith("image/")) {
     const dims = await readImageDimensions(file).catch(() => null);
-    if (dims && (dims.width < 600 || dims.height < 600)) {
+    if (dims && (dims.width < 100 || dims.height < 100)) {
       if (!flags.includes("ILLEGIBLE")) flags.push("ILLEGIBLE");
     }
   }
