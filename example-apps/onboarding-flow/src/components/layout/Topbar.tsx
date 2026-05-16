@@ -1,8 +1,8 @@
 import { Menu, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { UserMenu } from "./UserMenu";
 import { ThemeToggle } from "./ThemeToggle";
+import { UserMenu } from "./UserMenu";
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -15,17 +15,12 @@ export function Topbar({ onMenuClick, showMenuButton }: TopbarProps) {
       {/* Left: Hamburger Menu (mobile) + Search */}
       <div className="flex items-center gap-3 flex-1">
         {showMenuButton && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onMenuClick}
-            className="h-9 w-9 lg:hidden"
-          >
+          <Button variant="ghost" size="icon" onClick={onMenuClick} className="h-9 w-9 lg:hidden">
             <Menu className="h-5 w-5" />
             <span className="sr-only">Toggle menu</span>
           </Button>
         )}
-        
+
         {/* Search Input - Left aligned */}
         <div className="hidden sm:flex max-w-md">
           <div className="relative w-full">

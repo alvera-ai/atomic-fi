@@ -1,4 +1,4 @@
-import { DocumentType, VerificationResult, VerificationFlag } from "@/types/onboarding";
+import type { DocumentType, VerificationFlag, VerificationResult } from "@/types/onboarding";
 import { classifyFilename } from "./documentClassifier";
 
 const ACCEPTED_MIME = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
@@ -13,7 +13,7 @@ interface VerifyOptions {
 
 export async function verifyDocument(
   file: File,
-  { expectedType, trusted }: VerifyOptions
+  { expectedType, trusted }: VerifyOptions,
 ): Promise<VerificationResult> {
   if (trusted) {
     return { status: "PASS", flags: [], message: "Verified" };
@@ -43,7 +43,11 @@ export async function verifyDocument(
 
   // Filename / type mismatch
   const detected = classifyFilename(file.name);
-  if (expectedType !== "OTHER" && detected.docType !== "OTHER" && detected.docType !== expectedType) {
+  if (
+    expectedType !== "OTHER" &&
+    detected.docType !== "OTHER" &&
+    detected.docType !== expectedType
+  ) {
     flags.push("IRRELEVANT");
   }
 
@@ -91,9 +95,11 @@ function readImageDimensions(file: File): Promise<{ width: number; height: numbe
   });
 }
 
-export function summarizeVerification(
-  results: Array<VerificationResult | undefined>
-): { fail: number; warn: number; pass: number } {
+export function summarizeVerification(results: Array<VerificationResult | undefined>): {
+  fail: number;
+  warn: number;
+  pass: number;
+} {
   const out = { fail: 0, warn: 0, pass: 0 };
   for (const r of results) {
     if (!r) continue;

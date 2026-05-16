@@ -1,43 +1,54 @@
+import { Eye, Filter, MoreHorizontal, Search } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Filter, MoreHorizontal, Eye, ChevronRight } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
-} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useApplicationsList } from "@/hooks/useApplication";
-import { ApplicationStatus } from "@/types/onboarding";
-import { AppLayout } from "@/components/layout";
+import { cn } from "@/lib/utils";
+import type { ApplicationStatus } from "@/types/onboarding";
 
 const STATUS_STYLES: Record<ApplicationStatus, { label: string; className: string }> = {
-  DRAFT: { label: 'Draft', className: 'bg-muted text-muted-foreground' },
-  SUBMITTED: { label: 'Submitted', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
-  UNDER_REVIEW: { label: 'Under Review', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' },
-  ACTION_REQUIRED: { label: 'Action Required', className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' },
-  APPROVED: { label: 'Approved', className: 'bg-primary/10 text-primary' },
-  UNABLE_TO_PROCEED: { label: 'Unable to Proceed', className: 'bg-destructive/10 text-destructive' },
+  DRAFT: { label: "Draft", className: "bg-muted text-muted-foreground" },
+  SUBMITTED: {
+    label: "Submitted",
+    className: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+  },
+  UNDER_REVIEW: {
+    label: "Under Review",
+    className: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+  },
+  ACTION_REQUIRED: {
+    label: "Action Required",
+    className: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+  },
+  APPROVED: { label: "Approved", className: "bg-primary/10 text-primary" },
+  UNABLE_TO_PROCEED: {
+    label: "Unable to Proceed",
+    className: "bg-destructive/10 text-destructive",
+  },
 };
 
 export default function OpsListPage() {
   const navigate = useNavigate();
   const { applications, loading } = useApplicationsList();
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredApplications = applications.filter(app => {
+  const filteredApplications = applications.filter((app) => {
     const searchLower = searchQuery.toLowerCase();
     return (
       app.application_id.toLowerCase().includes(searchLower) ||
@@ -50,9 +61,7 @@ export default function OpsListPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Applications</h1>
-        <p className="text-muted-foreground mt-1">
-          Review and manage onboarding applications
-        </p>
+        <p className="text-muted-foreground mt-1">Review and manage onboarding applications</p>
       </div>
 
       {/* Search and filters */}
@@ -77,7 +86,7 @@ export default function OpsListPage() {
       ) : filteredApplications.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-muted-foreground mb-4">No applications found</p>
-          <Button onClick={() => navigate('/start')}>Create Test Application</Button>
+          <Button onClick={() => navigate("/start")}>Create Test Application</Button>
         </div>
       ) : (
         <div className="border rounded-lg">
@@ -96,16 +105,14 @@ export default function OpsListPage() {
               {filteredApplications.map((app) => {
                 const statusStyle = STATUS_STYLES[app.status];
                 return (
-                  <TableRow 
+                  <TableRow
                     key={app.application_id}
                     className="cursor-pointer"
                     onClick={() => navigate(`/ops/${app.application_id}`)}
                   >
-                    <TableCell className="font-mono text-sm">
-                      {app.application_id}
-                    </TableCell>
+                    <TableCell className="font-mono text-sm">{app.application_id}</TableCell>
                     <TableCell className="font-medium">
-                      {app.business_profile.legal_name || '—'}
+                      {app.business_profile.legal_name || "—"}
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className={cn("text-xs", statusStyle.className)}>
@@ -113,7 +120,7 @@ export default function OpsListPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {app.onboarding_method === 'UPLOAD_PREFILL' ? 'Upload' : 'Manual'}
+                      {app.onboarding_method === "UPLOAD_PREFILL" ? "Upload" : "Manual"}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(app.created_at).toLocaleDateString()}

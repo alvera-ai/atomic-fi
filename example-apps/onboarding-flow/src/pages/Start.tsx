@@ -1,31 +1,42 @@
+import { ArrowRight, Clock, FileText, PenLine, Upload } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Upload, PenLine, FileText, Clock, ArrowRight } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { createNewApplication, getAllApplications, saveApplication } from "@/hooks/useApplication";
-import { OnboardingMethod, Application } from "@/types/onboarding";
-import { UserMenu } from "@/components/layout/UserMenu";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { UserMenu } from "@/components/layout/UserMenu";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { createNewApplication, getAllApplications, saveApplication } from "@/hooks/useApplication";
+import { cn } from "@/lib/utils";
+import type { Application, OnboardingMethod } from "@/types/onboarding";
 
 export default function StartPage() {
   const navigate = useNavigate();
   const [selectedMethod, setSelectedMethod] = useState<OnboardingMethod | null>(null);
-  
-  const existingApplications = getAllApplications().filter(app => app.status === 'DRAFT');
+
+  const existingApplications = getAllApplications().filter((app) => app.status === "DRAFT");
 
   const handleCreateApplication = () => {
     if (!selectedMethod) return;
-    
+
     const newApp = createNewApplication(selectedMethod);
     saveApplication(newApp);
     navigate(`/onboarding/${newApp.application_id}/documents`);
   };
 
   const handleResumeApplication = (app: Application) => {
-    const stepPaths = ['documents', 'identity', 'addresses', 'contacts', 'activity', 'transfers', 'ownership', 'directors', 'ubos', 'review'];
-    const currentPath = stepPaths[app.current_step - 1] || 'documents';
+    const stepPaths = [
+      "documents",
+      "identity",
+      "addresses",
+      "contacts",
+      "activity",
+      "transfers",
+      "ownership",
+      "directors",
+      "ubos",
+      "review",
+    ];
+    const currentPath = stepPaths[app.current_step - 1] || "documents";
     navigate(`/onboarding/${app.application_id}/${currentPath}`);
   };
 
@@ -45,9 +56,7 @@ export default function StartPage() {
 
       <main className="max-w-3xl mx-auto px-6 py-12">
         <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold text-foreground mb-2">
-            Start your application
-          </h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">Start your application</h1>
           <p className="text-muted-foreground">
             Open a US business account for your UAE-based company
           </p>
@@ -56,10 +65,12 @@ export default function StartPage() {
         {/* Resume existing applications */}
         {existingApplications.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-sm font-medium text-muted-foreground mb-3">Resume saved application</h2>
+            <h2 className="text-sm font-medium text-muted-foreground mb-3">
+              Resume saved application
+            </h2>
             <div className="space-y-3">
               {existingApplications.map((app) => (
-                <Card 
+                <Card
                   key={app.application_id}
                   className="cursor-pointer hover:border-primary/50 transition-colors"
                   onClick={() => handleResumeApplication(app)}
@@ -71,7 +82,7 @@ export default function StartPage() {
                       </div>
                       <div>
                         <p className="font-medium text-foreground">
-                          {app.business_profile.legal_name || 'Untitled Application'}
+                          {app.business_profile.legal_name || "Untitled Application"}
                         </p>
                         <p className="text-sm text-muted-foreground flex items-center gap-1">
                           <Clock className="h-3 w-3" />
@@ -94,11 +105,11 @@ export default function StartPage() {
             <Card
               className={cn(
                 "cursor-pointer transition-all",
-                selectedMethod === 'UPLOAD_PREFILL' 
-                  ? "border-primary ring-2 ring-primary/20" 
-                  : "hover:border-primary/50"
+                selectedMethod === "UPLOAD_PREFILL"
+                  ? "border-primary ring-2 ring-primary/20"
+                  : "hover:border-primary/50",
               )}
-              onClick={() => setSelectedMethod('UPLOAD_PREFILL')}
+              onClick={() => setSelectedMethod("UPLOAD_PREFILL")}
             >
               <CardHeader className="text-center pb-2">
                 <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
@@ -116,11 +127,11 @@ export default function StartPage() {
             <Card
               className={cn(
                 "cursor-pointer transition-all",
-                selectedMethod === 'MANUAL' 
-                  ? "border-primary ring-2 ring-primary/20" 
-                  : "hover:border-primary/50"
+                selectedMethod === "MANUAL"
+                  ? "border-primary ring-2 ring-primary/20"
+                  : "hover:border-primary/50",
               )}
-              onClick={() => setSelectedMethod('MANUAL')}
+              onClick={() => setSelectedMethod("MANUAL")}
             >
               <CardHeader className="text-center pb-2">
                 <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mx-auto mb-3">
@@ -136,9 +147,9 @@ export default function StartPage() {
             </Card>
           </div>
 
-          <Button 
-            className="w-full" 
-            size="lg" 
+          <Button
+            className="w-full"
+            size="lg"
             disabled={!selectedMethod}
             onClick={handleCreateApplication}
           >

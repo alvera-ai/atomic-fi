@@ -2,10 +2,16 @@ import { useOutletContext } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Application } from "@/types/onboarding";
+import { Textarea } from "@/components/ui/textarea";
+import type { Application } from "@/types/onboarding";
 
 interface OnboardingContext {
   application: Application;
@@ -27,9 +33,7 @@ export function StepTransfers() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Transfer Volume</CardTitle>
-          <CardDescription>
-            Estimate your monthly transfer activity
-          </CardDescription>
+          <CardDescription>Estimate your monthly transfer activity</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
@@ -75,7 +79,7 @@ export function StepTransfers() {
             <Textarea
               id="counterparties"
               placeholder="Describe your typical counterparties (suppliers, partners, etc.)"
-              defaultValue={application.transfer_behavior.expected_counterparties?.join(', ')}
+              defaultValue={application.transfer_behavior.expected_counterparties?.join(", ")}
               rows={2}
             />
           </div>

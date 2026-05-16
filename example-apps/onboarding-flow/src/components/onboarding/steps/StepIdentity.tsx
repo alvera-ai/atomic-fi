@@ -2,8 +2,14 @@ import { useOutletContext } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Application } from "@/types/onboarding";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { Application } from "@/types/onboarding";
 
 interface OnboardingContext {
   application: Application;
@@ -17,17 +23,13 @@ export function StepIdentity() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Business identity</h1>
-        <p className="text-muted-foreground mt-1">
-          Provide your business registration details.
-        </p>
+        <p className="text-muted-foreground mt-1">Provide your business registration details.</p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Legal Information</CardTitle>
-          <CardDescription>
-            Official business registration details
-          </CardDescription>
+          <CardDescription>Official business registration details</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">

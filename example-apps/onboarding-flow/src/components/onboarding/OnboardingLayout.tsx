@@ -1,27 +1,28 @@
-import { useState, useEffect } from "react";
-import { Outlet, useParams, useNavigate, useLocation } from "react-router-dom";
 import { ChevronLeft, ChevronRight, HelpCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { OnboardingStepper } from "./OnboardingStepper";
-import { OnboardingActionBar } from "./OnboardingActionBar";
-import { AutosaveIndicator } from "./AutosaveIndicator";
-import { useApplication } from "@/hooks/useApplication";
-import { ONBOARDING_STEPS } from "@/types/onboarding";
-import { UserMenu } from "@/components/layout/UserMenu";
+import { useEffect, useState } from "react";
+import { Outlet, useLocation, useNavigate, useParams } from "react-router-dom";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { UserMenu } from "@/components/layout/UserMenu";
+import { Button } from "@/components/ui/button";
+import { useApplication } from "@/hooks/useApplication";
+import { cn } from "@/lib/utils";
+import { ONBOARDING_STEPS } from "@/types/onboarding";
+import { AutosaveIndicator } from "./AutosaveIndicator";
+import { OnboardingActionBar } from "./OnboardingActionBar";
+import { OnboardingStepper } from "./OnboardingStepper";
 
 export function OnboardingLayout() {
   const { applicationId } = useParams<{ applicationId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  
-  const { application, loading, lastSaved, setCurrentStep, updateApplication } = useApplication(applicationId);
+
+  const { application, loading, lastSaved, setCurrentStep, updateApplication } =
+    useApplication(applicationId);
 
   // Determine current step from URL
-  const currentPath = location.pathname.split('/').pop() || 'documents';
-  const currentStepDef = ONBOARDING_STEPS.find(s => s.path === currentPath);
+  const currentPath = location.pathname.split("/").pop() || "documents";
+  const currentStepDef = ONBOARDING_STEPS.find((s) => s.path === currentPath);
   const currentStepId = currentStepDef?.id || 1;
 
   // Update current step when URL changes
@@ -43,13 +44,13 @@ export function OnboardingLayout() {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background gap-4">
         <div className="text-muted-foreground">Application not found</div>
-        <Button onClick={() => navigate('/start')}>Start New Application</Button>
+        <Button onClick={() => navigate("/start")}>Start New Application</Button>
       </div>
     );
   }
 
   const handleStepClick = (stepId: number) => {
-    const step = ONBOARDING_STEPS.find(s => s.id === stepId);
+    const step = ONBOARDING_STEPS.find((s) => s.id === stepId);
     if (step) {
       navigate(`/onboarding/${applicationId}/${step.path}`);
     }
@@ -57,7 +58,7 @@ export function OnboardingLayout() {
 
   const handleBack = () => {
     if (currentStepId > 1) {
-      const prevStep = ONBOARDING_STEPS.find(s => s.id === currentStepId - 1);
+      const prevStep = ONBOARDING_STEPS.find((s) => s.id === currentStepId - 1);
       if (prevStep) {
         navigate(`/onboarding/${applicationId}/${prevStep.path}`);
       }
@@ -66,7 +67,7 @@ export function OnboardingLayout() {
 
   const handleContinue = () => {
     if (currentStepId < ONBOARDING_STEPS.length) {
-      const nextStep = ONBOARDING_STEPS.find(s => s.id === currentStepId + 1);
+      const nextStep = ONBOARDING_STEPS.find((s) => s.id === currentStepId + 1);
       if (nextStep) {
         navigate(`/onboarding/${applicationId}/${nextStep.path}`);
       }
@@ -74,7 +75,7 @@ export function OnboardingLayout() {
   };
 
   const handleSaveExit = () => {
-    navigate('/start');
+    navigate("/start");
   };
 
   const isLastStep = currentStepId === ONBOARDING_STEPS.length;
@@ -85,24 +86,30 @@ export function OnboardingLayout() {
       <aside
         className={cn(
           "relative flex flex-col h-full bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-in-out",
-          sidebarCollapsed ? "w-16" : "w-64"
+          sidebarCollapsed ? "w-16" : "w-64",
         )}
       >
         {/* Sidebar Header */}
-        <div className={cn(
-          "flex items-center h-14 border-b border-sidebar-border px-3 shrink-0",
-          sidebarCollapsed ? "justify-center" : "justify-between"
-        )}>
+        <div
+          className={cn(
+            "flex items-center h-14 border-b border-sidebar-border px-3 shrink-0",
+            sidebarCollapsed ? "justify-center" : "justify-between",
+          )}
+        >
           {!sidebarCollapsed && (
             <span className="font-semibold text-sidebar-foreground text-sm">Onboarding</span>
           )}
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setSidebarCollapsed(prev => !prev)}
+            onClick={() => setSidebarCollapsed((prev) => !prev)}
             className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent"
           >
-            {sidebarCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            {sidebarCollapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
           </Button>
         </div>
 
@@ -123,7 +130,7 @@ export function OnboardingLayout() {
             <span className="font-semibold text-foreground">Dubai → US</span>
             <AutosaveIndicator lastSaved={lastSaved} />
           </div>
-          
+
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
               <HelpCircle className="h-4 w-4" />

@@ -1,8 +1,8 @@
-import { CheckCircle2, AlertTriangle, XCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { VerificationResult } from "@/types/onboarding";
+import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { FLAG_LABELS } from "@/lib/documentVerification";
+import { cn } from "@/lib/utils";
+import type { VerificationResult } from "@/types/onboarding";
 
 interface Props {
   result?: VerificationResult;
@@ -10,8 +10,16 @@ interface Props {
 }
 
 const CONFIG = {
-  PASS: { icon: CheckCircle2, label: "Verified", className: "text-emerald-600 dark:text-emerald-400" },
-  WARN: { icon: AlertTriangle, label: "Needs review", className: "text-amber-600 dark:text-amber-400" },
+  PASS: {
+    icon: CheckCircle2,
+    label: "Verified",
+    className: "text-emerald-600 dark:text-emerald-400",
+  },
+  WARN: {
+    icon: AlertTriangle,
+    label: "Needs review",
+    className: "text-amber-600 dark:text-amber-400",
+  },
   FAIL: { icon: XCircle, label: "Rejected", className: "text-destructive" },
 };
 

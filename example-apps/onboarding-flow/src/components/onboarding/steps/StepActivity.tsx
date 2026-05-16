@@ -1,10 +1,15 @@
 import { useOutletContext } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Application } from "@/types/onboarding";
+import type { Application } from "@/types/onboarding";
 
 interface OnboardingContext {
   application: Application;
@@ -26,9 +31,7 @@ export function StepActivity() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Business Activities</CardTitle>
-          <CardDescription>
-            What does your business do?
-          </CardDescription>
+          <CardDescription>What does your business do?</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">

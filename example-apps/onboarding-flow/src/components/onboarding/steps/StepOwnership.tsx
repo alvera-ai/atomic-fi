@@ -1,10 +1,10 @@
-import { useOutletContext } from "react-router-dom";
 import { Upload } from "lucide-react";
+import { useOutletContext } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Application } from "@/types/onboarding";
+import type { Application } from "@/types/onboarding";
 
 interface OnboardingContext {
   application: Application;
@@ -26,9 +26,7 @@ export function StepOwnership() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Corporate Structure</CardTitle>
-          <CardDescription>
-            Is your company a subsidiary of another entity?
-          </CardDescription>
+          <CardDescription>Is your company a subsidiary of another entity?</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
@@ -72,19 +70,13 @@ export function StepOwnership() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Ownership Chart</CardTitle>
-          <CardDescription>
-            Upload an ownership structure diagram (optional)
-          </CardDescription>
+          <CardDescription>Upload an ownership structure diagram (optional)</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary/50 hover:bg-muted/30 transition-colors cursor-pointer">
             <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">
-              Drag & drop or click to upload
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              PDF, JPG, PNG up to 10MB
-            </p>
+            <p className="text-sm text-muted-foreground">Drag & drop or click to upload</p>
+            <p className="text-xs text-muted-foreground mt-1">PDF, JPG, PNG up to 10MB</p>
           </div>
         </CardContent>
       </Card>

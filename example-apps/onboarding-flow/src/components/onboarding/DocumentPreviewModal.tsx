@@ -1,7 +1,13 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { DocumentType, DOCUMENT_TYPE_LABELS } from "@/types/onboarding";
 import { SAMPLE_IMAGES } from "@/data/sampleDocuments";
+import { DOCUMENT_TYPE_LABELS, type DocumentType } from "@/types/onboarding";
 
 interface DocumentPreviewModalProps {
   open: boolean;
@@ -22,12 +28,8 @@ export function DocumentPreviewModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl max-h-[90vh] p-0 gap-0">
         <DialogHeader className="px-6 py-4 border-b border-border">
-          <DialogTitle>
-            {docType ? DOCUMENT_TYPE_LABELS[docType] : "Document"}
-          </DialogTitle>
-          {filename && (
-            <DialogDescription className="text-xs">{filename}</DialogDescription>
-          )}
+          <DialogTitle>{docType ? DOCUMENT_TYPE_LABELS[docType] : "Document"}</DialogTitle>
+          {filename && <DialogDescription className="text-xs">{filename}</DialogDescription>}
         </DialogHeader>
         <ScrollArea className="max-h-[75vh]">
           <div className="p-6 bg-muted/30 flex justify-center">
@@ -39,9 +41,7 @@ export function DocumentPreviewModal({
                 loading="lazy"
               />
             ) : (
-              <div className="py-12 text-sm text-muted-foreground">
-                No preview available
-              </div>
+              <div className="py-12 text-sm text-muted-foreground">No preview available</div>
             )}
           </div>
         </ScrollArea>

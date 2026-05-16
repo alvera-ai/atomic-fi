@@ -1,11 +1,10 @@
-import { useOutletContext } from "react-router-dom";
 import { Plus, User } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useOutletContext } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Application } from "@/types/onboarding";
+import type { Application } from "@/types/onboarding";
 
 interface OnboardingContext {
   application: Application;
@@ -13,9 +12,9 @@ interface OnboardingContext {
 }
 
 const CONTACT_TYPES = [
-  { value: 'PRIMARY', label: 'Primary Contact' },
-  { value: 'COMPLIANCE', label: 'Compliance Contact' },
-  { value: 'FINANCE', label: 'Finance Contact' },
+  { value: "PRIMARY", label: "Primary Contact" },
+  { value: "COMPLIANCE", label: "Compliance Contact" },
+  { value: "FINANCE", label: "Finance Contact" },
 ];
 
 export function StepContacts() {
@@ -25,9 +24,7 @@ export function StepContacts() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Business contacts</h1>
-        <p className="text-muted-foreground mt-1">
-          Add key contact persons for your business.
-        </p>
+        <p className="text-muted-foreground mt-1">Add key contact persons for your business.</p>
       </div>
 
       {application.business_contacts.length === 0 ? (
@@ -51,7 +48,7 @@ export function StepContacts() {
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-base">
-                    {CONTACT_TYPES.find(t => t.value === contact.type)?.label}
+                    {CONTACT_TYPES.find((t) => t.value === contact.type)?.label}
                   </CardTitle>
                 </div>
               </CardHeader>

@@ -1,6 +1,5 @@
 import { Building2, ChevronDown, Settings } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,6 +9,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 
 const brands = [
   { id: "1", name: "Prime Family Medicine" },
@@ -30,7 +30,7 @@ export function BrandSwitcher({ collapsed }: BrandSwitcherProps) {
         variant="ghost"
         className={cn(
           "w-full justify-start gap-2 h-10 px-3 text-sidebar-foreground hover:bg-sidebar-accent",
-          collapsed && "justify-center px-0"
+          collapsed && "justify-center px-0",
         )}
       >
         <Building2 className="h-5 w-5 shrink-0" />
@@ -67,10 +67,7 @@ export function BrandSwitcher({ collapsed }: BrandSwitcherProps) {
           <DropdownMenuItem
             key={brand.id}
             onClick={() => setSelectedBrand(brand)}
-            className={cn(
-              "cursor-pointer",
-              selectedBrand.id === brand.id && "bg-accent"
-            )}
+            className={cn("cursor-pointer", selectedBrand.id === brand.id && "bg-accent")}
           >
             <Building2 className="mr-2 h-4 w-4" />
             <span className="truncate">{brand.name}</span>

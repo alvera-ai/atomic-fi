@@ -1,5 +1,4 @@
-import { ReactNode } from "react";
-import { ChevronLeft, Save, ArrowRight } from "lucide-react";
+import { ArrowRight, ChevronLeft, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface OnboardingActionBarProps {

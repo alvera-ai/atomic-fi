@@ -1,5 +1,6 @@
-import { User, Settings, LifeBuoy, LogOut } from "lucide-react";
+import { LifeBuoy, LogOut, Settings, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,13 +8,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
 
 export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-10 w-10 rounded-full p-0 hover:bg-transparent">
+        <Button
+          variant="ghost"
+          className="relative h-10 w-10 rounded-full p-0 hover:bg-transparent"
+        >
           <Avatar className="h-10 w-10 border-2 border-primary/20">
             <AvatarImage src="/placeholder.svg" alt="User avatar" />
             <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">

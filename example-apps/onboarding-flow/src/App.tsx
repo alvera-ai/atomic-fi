@@ -1,28 +1,28 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "@/components/layout";
 import { OnboardingLayout } from "@/components/onboarding/OnboardingLayout";
-import { 
-  StepDocuments, 
-  StepIdentity, 
-  StepAddresses, 
-  StepContacts, 
-  StepActivity, 
-  StepTransfers, 
-  StepOwnership, 
-  StepDirectors, 
-  StepUBOs, 
-  StepReview 
+import {
+  StepActivity,
+  StepAddresses,
+  StepContacts,
+  StepDirectors,
+  StepDocuments,
+  StepIdentity,
+  StepOwnership,
+  StepReview,
+  StepTransfers,
+  StepUBOs,
 } from "@/components/onboarding/steps";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import NotFound from "./pages/NotFound";
+import OpsDetailPage from "./pages/OpsDetail";
+import OpsListPage from "./pages/OpsList";
 import StartPage from "./pages/Start";
 import StatusPage from "./pages/Status";
-import OpsListPage from "./pages/OpsList";
-import OpsDetailPage from "./pages/OpsDetail";
-import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -36,10 +36,10 @@ const App = () => (
           <Routes>
             {/* Redirect root to start */}
             <Route path="/" element={<Navigate to="/start" replace />} />
-            
+
             {/* Start page - choose onboarding method */}
             <Route path="/start" element={<StartPage />} />
-            
+
             {/* Onboarding flow with stepper */}
             <Route path="/onboarding/:applicationId" element={<OnboardingLayout />}>
               <Route index element={<Navigate to="documents" replace />} />
@@ -54,16 +54,16 @@ const App = () => (
               <Route path="ubos" element={<StepUBOs />} />
               <Route path="review" element={<StepReview />} />
             </Route>
-            
+
             {/* Customer status page */}
             <Route path="/status/:applicationId" element={<StatusPage />} />
-            
+
             {/* Ops dashboard */}
             <Route element={<AppLayout />}>
               <Route path="/ops" element={<OpsListPage />} />
               <Route path="/ops/:applicationId" element={<OpsDetailPage />} />
             </Route>
-            
+
             {/* Catch-all */}
             <Route path="*" element={<NotFound />} />
           </Routes>

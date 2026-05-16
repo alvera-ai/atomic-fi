@@ -1,14 +1,25 @@
-import { useOutletContext, useNavigate } from "react-router-dom";
-import { CheckCircle, AlertCircle, FileText, Building, MapPin, Users, Briefcase, ArrowRightLeft, Network, UserCheck } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  AlertCircle,
+  ArrowRightLeft,
+  Briefcase,
+  Building,
+  CheckCircle,
+  FileText,
+  MapPin,
+  Network,
+  UserCheck,
+  Users,
+} from "lucide-react";
+import { useNavigate, useOutletContext } from "react-router-dom";
+import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { saveApplication, useApplication } from "@/hooks/useApplication";
 import { cn } from "@/lib/utils";
-import { Application, ONBOARDING_STEPS } from "@/types/onboarding";
-import { useApplication, saveApplication } from "@/hooks/useApplication";
-import { toast } from "sonner";
+import { type Application, ONBOARDING_STEPS } from "@/types/onboarding";
 
 interface OnboardingContext {
   application: Application;
@@ -34,7 +45,7 @@ export function StepReview() {
   const { updateApplication } = useApplication(applicationId);
 
   const incompleteSteps = ONBOARDING_STEPS.filter(
-    step => !application.completed_steps.includes(step.id) && step.id !== 10
+    (step) => !application.completed_steps.includes(step.id) && step.id !== 10,
   );
 
   const handleSubmit = () => {
@@ -43,8 +54,10 @@ export function StepReview() {
       return;
     }
 
-    if (!application.submission_confirmations.confirm_accuracy || 
-        !application.submission_confirmations.confirm_authority) {
+    if (
+      !application.submission_confirmations.confirm_accuracy ||
+      !application.submission_confirmations.confirm_authority
+    ) {
       toast.error("Please confirm all declarations before submitting");
       return;
     }
@@ -52,11 +65,11 @@ export function StepReview() {
     // Update status to submitted
     const updatedApp = {
       ...application,
-      status: 'SUBMITTED' as const,
+      status: "SUBMITTED" as const,
       updated_at: new Date().toISOString(),
     };
     saveApplication(updatedApp);
-    
+
     toast.success("Application submitted successfully!");
     navigate(`/status/${applicationId}`);
   };
@@ -65,36 +78,39 @@ export function StepReview() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Review & submit</h1>
-        <p className="text-muted-foreground mt-1">
-          Review your application before submitting.
-        </p>
+        <p className="text-muted-foreground mt-1">Review your application before submitting.</p>
       </div>
 
       {/* Steps completion status */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Application Checklist</CardTitle>
-          <CardDescription>
-            All steps must be completed before submission
-          </CardDescription>
+          <CardDescription>All steps must be completed before submission</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
             {ONBOARDING_STEPS.slice(0, -1).map((step) => {
               const isComplete = application.completed_steps.includes(step.id);
               const Icon = STEP_ICONS[step.id] || FileText;
-              
+
               return (
                 <div
                   key={step.id}
                   className={cn(
                     "flex items-center justify-between p-3 rounded-lg transition-colors",
-                    isComplete ? "bg-primary/5" : "bg-muted/50"
+                    isComplete ? "bg-primary/5" : "bg-muted/50",
                   )}
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className={cn("h-4 w-4", isComplete ? "text-primary" : "text-muted-foreground")} />
-                    <span className={cn("text-sm font-medium", !isComplete && "text-muted-foreground")}>
+                    <Icon
+                      className={cn(
+                        "h-4 w-4",
+                        isComplete ? "text-primary" : "text-muted-foreground",
+                      )}
+                    />
+                    <span
+                      className={cn("text-sm font-medium", !isComplete && "text-muted-foreground")}
+                    >
                       {step.title}
                     </span>
                   </div>
@@ -117,9 +133,7 @@ export function StepReview() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Declarations</CardTitle>
-          <CardDescription>
-            Please confirm the following before submitting
-          </CardDescription>
+          <CardDescription>Please confirm the following before submitting</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-start gap-3">
@@ -136,8 +150,8 @@ export function StepReview() {
               }}
             />
             <Label htmlFor="confirm_accuracy" className="text-sm leading-relaxed cursor-pointer">
-              I confirm that all information provided in this application is true, accurate, and complete 
-              to the best of my knowledge.
+              I confirm that all information provided in this application is true, accurate, and
+              complete to the best of my knowledge.
             </Label>
           </div>
 
@@ -155,8 +169,8 @@ export function StepReview() {
               }}
             />
             <Label htmlFor="confirm_authority" className="text-sm leading-relaxed cursor-pointer">
-              I confirm that I am authorized to submit this application on behalf of the business entity 
-              and bind it to the terms and conditions.
+              I confirm that I am authorized to submit this application on behalf of the business
+              entity and bind it to the terms and conditions.
             </Label>
           </div>
         </CardContent>
@@ -164,8 +178,8 @@ export function StepReview() {
 
       {/* Submit button */}
       <div className="flex justify-end pt-4">
-        <Button 
-          size="lg" 
+        <Button
+          size="lg"
           onClick={handleSubmit}
           disabled={incompleteSteps.length > 0}
           className="gap-2"

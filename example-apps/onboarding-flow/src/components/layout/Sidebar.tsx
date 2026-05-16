@@ -1,8 +1,8 @@
-import { ClipboardList, Users, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, ClipboardList, Users } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import { BrandSwitcher } from "./BrandSwitcher";
 
 interface SidebarProps {
@@ -23,14 +23,16 @@ export function Sidebar({ collapsed, onToggle, onItemClick }: SidebarProps) {
     <aside
       className={cn(
         "relative flex flex-col h-full bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-in-out",
-        collapsed ? "w-16" : "w-60"
+        collapsed ? "w-16" : "w-60",
       )}
     >
       {/* Sidebar Header with Toggle */}
-      <div className={cn(
-        "flex items-center h-14 border-b border-sidebar-border px-3 shrink-0",
-        collapsed ? "justify-center" : "justify-between"
-      )}>
+      <div
+        className={cn(
+          "flex items-center h-14 border-b border-sidebar-border px-3 shrink-0",
+          collapsed ? "justify-center" : "justify-between",
+        )}
+      >
         {!collapsed && (
           <span className="font-semibold text-sidebar-foreground text-sm">Compliance</span>
         )}
@@ -47,8 +49,9 @@ export function Sidebar({ collapsed, onToggle, onItemClick }: SidebarProps) {
       {/* Navigation Menu */}
       <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto pb-16">
         {menuItems.map((item) => {
-          const isActive = location.pathname === item.path || 
-            (item.path === '/ops' && location.pathname.startsWith('/ops'));
+          const isActive =
+            location.pathname === item.path ||
+            (item.path === "/ops" && location.pathname.startsWith("/ops"));
           const Icon = item.icon;
 
           const linkContent = (
@@ -58,9 +61,7 @@ export function Sidebar({ collapsed, onToggle, onItemClick }: SidebarProps) {
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
                 "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-primary"
-                  : "text-sidebar-foreground"
+                isActive ? "bg-sidebar-accent text-sidebar-primary" : "text-sidebar-foreground",
               )}
             >
               <Icon className={cn("h-5 w-5 shrink-0", isActive && "text-sidebar-primary")} />

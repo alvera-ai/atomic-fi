@@ -1,4 +1,3 @@
-import { ReactNode } from "react";
 import { CheckCircle } from "lucide-react";
 
 interface AutosaveIndicatorProps {
@@ -9,7 +8,7 @@ export function AutosaveIndicator({ lastSaved }: AutosaveIndicatorProps) {
   if (!lastSaved) return null;
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
   return (

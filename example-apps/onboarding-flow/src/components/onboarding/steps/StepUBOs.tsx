@@ -1,10 +1,10 @@
-import { useOutletContext } from "react-router-dom";
 import { Plus, UserCheck } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useOutletContext } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Application } from "@/types/onboarding";
+import type { Application } from "@/types/onboarding";
 
 interface OnboardingContext {
   application: Application;
@@ -43,7 +43,7 @@ export function StepUBOs() {
             <Card key={ubo.id}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">{ubo.full_name || 'Beneficial Owner'}</CardTitle>
+                  <CardTitle className="text-base">{ubo.full_name || "Beneficial Owner"}</CardTitle>
                   <span className="text-sm font-semibold text-primary">
                     {ubo.ownership_percentage}% ownership
                   </span>

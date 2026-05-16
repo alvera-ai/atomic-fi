@@ -1,25 +1,46 @@
+import {
+  AlertCircle,
+  ArrowLeft,
+  ArrowRightLeft,
+  Briefcase,
+  Building,
+  CheckCircle,
+  Clock,
+  FileText,
+  MapPin,
+  Network,
+  Plus,
+  UserCheck,
+  Users,
+  XCircle,
+} from "lucide-react";
 import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Save, Plus, FileText, Building, MapPin, Users, Briefcase, ArrowRightLeft, Network, UserCheck, MessageSquare, CheckCircle, Clock, AlertCircle, XCircle } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
-import { useApplication } from "@/hooks/useApplication";
-import { ApplicationStatus, OpsNote, ONBOARDING_STEPS } from "@/types/onboarding";
+import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { useApplication } from "@/hooks/useApplication";
+import { cn } from "@/lib/utils";
+import { type ApplicationStatus, ONBOARDING_STEPS, type OpsNote } from "@/types/onboarding";
 
 const STATUS_OPTIONS: { value: ApplicationStatus; label: string; icon: typeof CheckCircle }[] = [
-  { value: 'DRAFT', label: 'Draft', icon: FileText },
-  { value: 'SUBMITTED', label: 'Submitted', icon: Clock },
-  { value: 'UNDER_REVIEW', label: 'Under Review', icon: Clock },
-  { value: 'ACTION_REQUIRED', label: 'Action Required', icon: AlertCircle },
-  { value: 'APPROVED', label: 'Approved', icon: CheckCircle },
-  { value: 'UNABLE_TO_PROCEED', label: 'Unable to Proceed', icon: XCircle },
+  { value: "DRAFT", label: "Draft", icon: FileText },
+  { value: "SUBMITTED", label: "Submitted", icon: Clock },
+  { value: "UNDER_REVIEW", label: "Under Review", icon: Clock },
+  { value: "ACTION_REQUIRED", label: "Action Required", icon: AlertCircle },
+  { value: "APPROVED", label: "Approved", icon: CheckCircle },
+  { value: "UNABLE_TO_PROCEED", label: "Unable to Proceed", icon: XCircle },
 ];
 
 const SECTION_ICONS: Record<string, typeof FileText> = {
@@ -38,7 +59,7 @@ export default function OpsDetailPage() {
   const { applicationId } = useParams<{ applicationId: string }>();
   const navigate = useNavigate();
   const { application, loading, updateApplication, updateStatus } = useApplication(applicationId);
-  const [newNote, setNewNote] = useState('');
+  const [newNote, setNewNote] = useState("");
 
   if (loading) {
     return (
@@ -52,14 +73,14 @@ export default function OpsDetailPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <p className="text-muted-foreground">Application not found</p>
-        <Button onClick={() => navigate('/ops')}>Back to Applications</Button>
+        <Button onClick={() => navigate("/ops")}>Back to Applications</Button>
       </div>
     );
   }
 
   const handleStatusChange = (newStatus: ApplicationStatus) => {
     updateStatus(newStatus);
-    toast.success(`Status updated to ${newStatus.replace('_', ' ')}`);
+    toast.success(`Status updated to ${newStatus.replace("_", " ")}`);
   };
 
   const handleAddNote = () => {
@@ -67,7 +88,7 @@ export default function OpsDetailPage() {
 
     const note: OpsNote = {
       id: `note-${Date.now()}`,
-      author: 'Ops User',
+      author: "Ops User",
       content: newNote.trim(),
       created_at: new Date().toISOString(),
     };
@@ -76,8 +97,8 @@ export default function OpsDetailPage() {
       ops_notes: [...application.ops_notes, note],
     });
 
-    setNewNote('');
-    toast.success('Note added');
+    setNewNote("");
+    toast.success("Note added");
   };
 
   return (
@@ -85,23 +106,21 @@ export default function OpsDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/ops')}>
+          <Button variant="ghost" size="icon" onClick={() => navigate("/ops")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">
-              {application.business_profile.legal_name || 'Untitled Application'}
+              {application.business_profile.legal_name || "Untitled Application"}
             </h1>
-            <p className="text-sm text-muted-foreground font-mono">
-              {application.application_id}
-            </p>
+            <p className="text-sm text-muted-foreground font-mono">{application.application_id}</p>
           </div>
         </div>
 
         {/* Status selector */}
         <div className="flex items-center gap-3">
-          <Select 
-            value={application.status} 
+          <Select
+            value={application.status}
             onValueChange={(value) => handleStatusChange(value as ApplicationStatus)}
           >
             <SelectTrigger className="w-48">
@@ -138,16 +157,22 @@ export default function OpsDetailPage() {
               <dl className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
                   <dt className="text-muted-foreground">Created</dt>
-                  <dd className="font-medium">{new Date(application.created_at).toLocaleDateString()}</dd>
+                  <dd className="font-medium">
+                    {new Date(application.created_at).toLocaleDateString()}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Updated</dt>
-                  <dd className="font-medium">{new Date(application.updated_at).toLocaleDateString()}</dd>
+                  <dd className="font-medium">
+                    {new Date(application.updated_at).toLocaleDateString()}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground">Method</dt>
                   <dd className="font-medium">
-                    {application.onboarding_method === 'UPLOAD_PREFILL' ? 'Upload & Prefill' : 'Manual Entry'}
+                    {application.onboarding_method === "UPLOAD_PREFILL"
+                      ? "Upload & Prefill"
+                      : "Manual Entry"}
                   </dd>
                 </div>
                 <div>
@@ -199,7 +224,8 @@ export default function OpsDetailPage() {
             <CardHeader>
               <CardTitle className="text-base">Uploaded Documents</CardTitle>
               <CardDescription>
-                {application.documents.length} document{application.documents.length !== 1 ? 's' : ''} uploaded
+                {application.documents.length} document
+                {application.documents.length !== 1 ? "s" : ""} uploaded
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -210,7 +236,7 @@ export default function OpsDetailPage() {
               ) : (
                 <div className="space-y-2">
                   {application.documents.map((doc) => (
-                    <div 
+                    <div
                       key={doc.file_id}
                       className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
                     >
@@ -236,9 +262,7 @@ export default function OpsDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Ops Notes</CardTitle>
-              <CardDescription>
-                Internal notes and comments
-              </CardDescription>
+              <CardDescription>Internal notes and comments</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Add note */}
@@ -249,8 +273,8 @@ export default function OpsDetailPage() {
                   onChange={(e) => setNewNote(e.target.value)}
                   rows={3}
                 />
-                <Button 
-                  onClick={handleAddNote} 
+                <Button
+                  onClick={handleAddNote}
                   disabled={!newNote.trim()}
                   size="sm"
                   className="gap-2"
@@ -264,16 +288,11 @@ export default function OpsDetailPage() {
 
               {/* Notes list */}
               {application.ops_notes.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">
-                  No notes yet
-                </p>
+                <p className="text-sm text-muted-foreground py-4 text-center">No notes yet</p>
               ) : (
                 <div className="space-y-3">
                   {[...application.ops_notes].reverse().map((note) => (
-                    <div 
-                      key={note.id}
-                      className="p-3 bg-muted/50 rounded-lg"
-                    >
+                    <div key={note.id} className="p-3 bg-muted/50 rounded-lg">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium">{note.author}</span>
                         <span className="text-xs text-muted-foreground">

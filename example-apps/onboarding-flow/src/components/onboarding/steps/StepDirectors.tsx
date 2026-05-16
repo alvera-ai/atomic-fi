@@ -1,12 +1,12 @@
-import { useOutletContext } from "react-router-dom";
 import { Plus, Users } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useOutletContext } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Badge } from "@/components/ui/badge";
-import { Application } from "@/types/onboarding";
+import type { Application } from "@/types/onboarding";
 
 interface OnboardingContext {
   application: Application;
@@ -20,9 +20,7 @@ export function StepDirectors() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Directors & signatories</h1>
-        <p className="text-muted-foreground mt-1">
-          Add all directors and authorized signatories.
-        </p>
+        <p className="text-muted-foreground mt-1">Add all directors and authorized signatories.</p>
       </div>
 
       {application.directors.length === 0 ? (
@@ -45,11 +43,9 @@ export function StepDirectors() {
             <Card key={director.id}>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-base">{director.full_name || 'Director'}</CardTitle>
+                  <CardTitle className="text-base">{director.full_name || "Director"}</CardTitle>
                   <div className="flex items-center gap-2">
-                    {director.is_signatory && (
-                      <Badge variant="secondary">Signatory</Badge>
-                    )}
+                    {director.is_signatory && <Badge variant="secondary">Signatory</Badge>}
                   </div>
                 </div>
               </CardHeader>

@@ -1,45 +1,45 @@
 // Application status enum
-export type ApplicationStatus = 
-  | 'DRAFT' 
-  | 'SUBMITTED' 
-  | 'UNDER_REVIEW' 
-  | 'ACTION_REQUIRED' 
-  | 'APPROVED' 
-  | 'UNABLE_TO_PROCEED';
+export type ApplicationStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "UNDER_REVIEW"
+  | "ACTION_REQUIRED"
+  | "APPROVED"
+  | "UNABLE_TO_PROCEED";
 
 // Onboarding method enum
-export type OnboardingMethod = 'UPLOAD_PREFILL' | 'MANUAL';
+export type OnboardingMethod = "UPLOAD_PREFILL" | "MANUAL";
 
 // Document status enum
-export type DocumentStatus = 'UPLOADED' | 'PROCESSING' | 'EXTRACTED' | 'NEEDS_ATTENTION';
+export type DocumentStatus = "UPLOADED" | "PROCESSING" | "EXTRACTED" | "NEEDS_ATTENTION";
 
 // Document types for categorized upload
-export type DocumentType = 
-  | 'TRADE_LICENSE'
-  | 'MEMORANDUM_OF_ASSOCIATION'
-  | 'CERTIFICATE_OF_INCORPORATION'
-  | 'PASSPORT'
-  | 'EMIRATES_ID'
-  | 'PROOF_OF_ADDRESS'
-  | 'BANK_STATEMENT'
-  | 'OTHER';
+export type DocumentType =
+  | "TRADE_LICENSE"
+  | "MEMORANDUM_OF_ASSOCIATION"
+  | "CERTIFICATE_OF_INCORPORATION"
+  | "PASSPORT"
+  | "EMIRATES_ID"
+  | "PROOF_OF_ADDRESS"
+  | "BANK_STATEMENT"
+  | "OTHER";
 
 // Verification
 export type VerificationFlag =
-  | 'ILLEGIBLE'
-  | 'FAKE_SUSPECTED'
-  | 'IRRELEVANT'
-  | 'WRONG_FORMAT'
-  | 'EXPIRED';
+  | "ILLEGIBLE"
+  | "FAKE_SUSPECTED"
+  | "IRRELEVANT"
+  | "WRONG_FORMAT"
+  | "EXPIRED";
 
 export interface VerificationResult {
-  status: 'PASS' | 'WARN' | 'FAIL';
+  status: "PASS" | "WARN" | "FAIL";
   flags: VerificationFlag[];
   message: string;
 }
 
 // Upload mode
-export type UploadMode = 'BULK' | 'INDIVIDUAL';
+export type UploadMode = "BULK" | "INDIVIDUAL";
 
 // Document interface
 export interface Document {
@@ -105,7 +105,7 @@ export interface BusinessProfile {
 // Address interface
 export interface Address {
   id: string;
-  type: 'REGISTERED' | 'OPERATING' | 'CORRESPONDENCE';
+  type: "REGISTERED" | "OPERATING" | "CORRESPONDENCE";
   line1: string;
   line2?: string;
   city: string;
@@ -117,7 +117,7 @@ export interface Address {
 // Business contact
 export interface BusinessContact {
   id: string;
-  type: 'PRIMARY' | 'COMPLIANCE' | 'FINANCE';
+  type: "PRIMARY" | "COMPLIANCE" | "FINANCE";
   full_name: string;
   email: string;
   phone: string;
@@ -173,7 +173,7 @@ export interface Application {
   current_step: number;
   completed_steps: number[];
   upload_mode?: UploadMode;
-  
+
   // Nested data
   business_profile: BusinessProfile;
   addresses: Address[];
@@ -200,26 +200,61 @@ export interface StepDefinition {
 
 // All onboarding steps
 export const ONBOARDING_STEPS: StepDefinition[] = [
-  { id: 1, title: 'Upload documents', path: 'documents', description: 'Upload required business documents' },
-  { id: 2, title: 'Business identity', path: 'identity', description: 'Basic business information' },
-  { id: 3, title: 'Addresses', path: 'addresses', description: 'Registered and operating addresses' },
-  { id: 4, title: 'Business contacts', path: 'contacts', description: 'Key contact persons' },
-  { id: 5, title: 'Business activity & purpose', path: 'activity', description: 'Nature of business operations' },
-  { id: 6, title: 'Expected transfer behavior', path: 'transfers', description: 'UAE to US transfer patterns' },
-  { id: 7, title: 'Ownership structure', path: 'ownership', description: 'Company ownership details' },
-  { id: 8, title: 'Directors & signatories', path: 'directors', description: 'Key decision makers' },
-  { id: 9, title: 'UBOs', path: 'ubos', description: 'Ultimate beneficial owners' },
-  { id: 10, title: 'Review & submit', path: 'review', description: 'Final review and submission' },
+  {
+    id: 1,
+    title: "Upload documents",
+    path: "documents",
+    description: "Upload required business documents",
+  },
+  {
+    id: 2,
+    title: "Business identity",
+    path: "identity",
+    description: "Basic business information",
+  },
+  {
+    id: 3,
+    title: "Addresses",
+    path: "addresses",
+    description: "Registered and operating addresses",
+  },
+  { id: 4, title: "Business contacts", path: "contacts", description: "Key contact persons" },
+  {
+    id: 5,
+    title: "Business activity & purpose",
+    path: "activity",
+    description: "Nature of business operations",
+  },
+  {
+    id: 6,
+    title: "Expected transfer behavior",
+    path: "transfers",
+    description: "UAE to US transfer patterns",
+  },
+  {
+    id: 7,
+    title: "Ownership structure",
+    path: "ownership",
+    description: "Company ownership details",
+  },
+  {
+    id: 8,
+    title: "Directors & signatories",
+    path: "directors",
+    description: "Key decision makers",
+  },
+  { id: 9, title: "UBOs", path: "ubos", description: "Ultimate beneficial owners" },
+  { id: 10, title: "Review & submit", path: "review", description: "Final review and submission" },
 ];
 
 // Document type labels
 export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
-  TRADE_LICENSE: 'Trade License',
-  MEMORANDUM_OF_ASSOCIATION: 'Memorandum of Association',
-  CERTIFICATE_OF_INCORPORATION: 'Certificate of Incorporation',
-  PASSPORT: 'Passport (Authorized Signatory)',
-  EMIRATES_ID: 'Emirates ID',
-  PROOF_OF_ADDRESS: 'Proof of Address',
-  BANK_STATEMENT: 'Bank Statement',
-  OTHER: 'Other Documents',
+  TRADE_LICENSE: "Trade License",
+  MEMORANDUM_OF_ASSOCIATION: "Memorandum of Association",
+  CERTIFICATE_OF_INCORPORATION: "Certificate of Incorporation",
+  PASSPORT: "Passport (Authorized Signatory)",
+  EMIRATES_ID: "Emirates ID",
+  PROOF_OF_ADDRESS: "Proof of Address",
+  BANK_STATEMENT: "Bank Statement",
+  OTHER: "Other Documents",
 };

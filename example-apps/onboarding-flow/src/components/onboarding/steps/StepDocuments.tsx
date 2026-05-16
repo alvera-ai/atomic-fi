@@ -1,25 +1,34 @@
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle,
+  Eye,
+  FileText,
+  Loader2,
+  Sparkles,
+  Upload,
+} from "lucide-react";
 import { useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Upload, FileText, AlertCircle, CheckCircle, Loader2, Eye, Sparkles, AlertTriangle } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-import {
-  Application,
-  DocumentType,
-  DOCUMENT_TYPE_LABELS,
-  DocumentStatus,
-  UploadMode,
-} from "@/types/onboarding";
-import { SAMPLE_DOCUMENTS, buildSampleDocument } from "@/data/sampleDocuments";
-import { DocumentPreviewModal } from "../DocumentPreviewModal";
-import { BulkUploadZone } from "../BulkUploadZone";
-import { DocumentVerificationBadge } from "../DocumentVerificationBadge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { buildSampleDocument, SAMPLE_DOCUMENTS } from "@/data/sampleDocuments";
 import { summarizeVerification } from "@/lib/documentVerification";
+import { cn } from "@/lib/utils";
+import {
+  type Application,
+  DOCUMENT_TYPE_LABELS,
+  type DocumentStatus,
+  type DocumentType,
+  type UploadMode,
+} from "@/types/onboarding";
+import { BulkUploadZone } from "../BulkUploadZone";
+import { DocumentPreviewModal } from "../DocumentPreviewModal";
+import { DocumentVerificationBadge } from "../DocumentVerificationBadge";
 
 interface OnboardingContext {
   application: Application;
@@ -89,8 +98,8 @@ export function StepDocuments() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">Upload documents</h1>
         <p className="text-muted-foreground mt-1">
-          Choose how you'd like to upload — drop everything at once and we'll sort it, or upload
-          one document per category.
+          Choose how you'd like to upload — drop everything at once and we'll sort it, or upload one
+          document per category.
         </p>
       </div>
 
@@ -141,7 +150,12 @@ export function StepDocuments() {
                       </div>
                       <div className="flex items-center gap-3 shrink-0">
                         <DocumentVerificationBadge result={doc.verification} />
-                        <div className={cn("flex items-center gap-1.5 text-xs", statusConfig.className)}>
+                        <div
+                          className={cn(
+                            "flex items-center gap-1.5 text-xs",
+                            statusConfig.className,
+                          )}
+                        >
                           <StatusIcon className="h-3.5 w-3.5" />
                           <span>{statusConfig.label}</span>
                         </div>
@@ -149,7 +163,9 @@ export function StepDocuments() {
                           variant="ghost"
                           size="sm"
                           className="h-7 gap-1.5 text-xs"
-                          onClick={() => setPreviewDoc({ docType: doc.doc_type, filename: doc.filename })}
+                          onClick={() =>
+                            setPreviewDoc({ docType: doc.doc_type, filename: doc.filename })
+                          }
                         >
                           <Eye className="h-3.5 w-3.5" />
                           Preview
@@ -220,7 +236,7 @@ export function StepDocuments() {
                                 <div
                                   className={cn(
                                     "flex items-center gap-1.5 text-xs",
-                                    statusConfig.className
+                                    statusConfig.className,
                                   )}
                                 >
                                   <StatusIcon className="h-3.5 w-3.5" />

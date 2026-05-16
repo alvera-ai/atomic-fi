@@ -1,16 +1,11 @@
-import tradeLicense from "@/assets/samples/trade-license.png";
-import moa from "@/assets/samples/moa.png";
-import incorporation from "@/assets/samples/incorporation.png";
-import passport from "@/assets/samples/passport.png";
-import emiratesId from "@/assets/samples/emirates-id.png";
-import proofOfAddress from "@/assets/samples/proof-of-address.png";
 import bankStatement from "@/assets/samples/bank-statement.png";
-import {
-  Application,
-  DocumentType,
-  Document,
-  FieldProvenance,
-} from "@/types/onboarding";
+import emiratesId from "@/assets/samples/emirates-id.png";
+import incorporation from "@/assets/samples/incorporation.png";
+import moa from "@/assets/samples/moa.png";
+import passport from "@/assets/samples/passport.png";
+import proofOfAddress from "@/assets/samples/proof-of-address.png";
+import tradeLicense from "@/assets/samples/trade-license.png";
+import type { Application, Document, DocumentType, FieldProvenance } from "@/types/onboarding";
 
 export interface SampleDocument {
   doc_type: DocumentType;
@@ -40,7 +35,7 @@ const conf = (
   source_doc_type: DocumentType,
   page_number: number,
   confidence: number,
-  snippet: string
+  snippet: string,
 ): FieldProvenance => ({ source_doc_type, page_number, confidence, snippet });
 
 export const SAMPLE_DOCUMENTS: Record<DocumentType, SampleDocument | null> = {
@@ -53,37 +48,17 @@ export const SAMPLE_DOCUMENTS: Record<DocumentType, SampleDocument | null> = {
         "TRADE_LICENSE",
         1,
         98,
-        "Falcon Crypto Trading Limited Liability Company"
+        "Falcon Crypto Trading Limited Liability Company",
       ),
-      "business_profile.trade_name": conf(
-        "TRADE_LICENSE",
-        1,
-        97,
-        "Falcon Crypto Trading LLC"
-      ),
-      "business_profile.license_number": conf(
-        "TRADE_LICENSE",
-        1,
-        99,
-        "License No: 1234567"
-      ),
-      "business_profile.license_expiry": conf(
-        "TRADE_LICENSE",
-        1,
-        96,
-        "Expiry Date: 14/03/2026"
-      ),
-      "business_profile.jurisdiction": conf(
-        "TRADE_LICENSE",
-        1,
-        92,
-        "Government of Dubai - DED"
-      ),
+      "business_profile.trade_name": conf("TRADE_LICENSE", 1, 97, "Falcon Crypto Trading LLC"),
+      "business_profile.license_number": conf("TRADE_LICENSE", 1, 99, "License No: 1234567"),
+      "business_profile.license_expiry": conf("TRADE_LICENSE", 1, 96, "Expiry Date: 14/03/2026"),
+      "business_profile.jurisdiction": conf("TRADE_LICENSE", 1, 92, "Government of Dubai - DED"),
       "business_profile.entity_type": conf(
         "TRADE_LICENSE",
         1,
         94,
-        "Legal Form: Limited Liability Company"
+        "Legal Form: Limited Liability Company",
       ),
     },
     applyPrefill: (app) => ({
@@ -107,20 +82,10 @@ export const SAMPLE_DOCUMENTS: Record<DocumentType, SampleDocument | null> = {
         "MEMORANDUM_OF_ASSOCIATION",
         1,
         88,
-        "Share Capital: AED 300,000 / 300 shares"
+        "Share Capital: AED 300,000 / 300 shares",
       ),
-      "ubos[0].full_name": conf(
-        "MEMORANDUM_OF_ASSOCIATION",
-        1,
-        96,
-        "Ahmed Al Mansouri 60%"
-      ),
-      "ubos[1].full_name": conf(
-        "MEMORANDUM_OF_ASSOCIATION",
-        1,
-        95,
-        "Sarah Khan 40%"
-      ),
+      "ubos[0].full_name": conf("MEMORANDUM_OF_ASSOCIATION", 1, 96, "Ahmed Al Mansouri 60%"),
+      "ubos[1].full_name": conf("MEMORANDUM_OF_ASSOCIATION", 1, 95, "Sarah Khan 40%"),
     },
     applyPrefill: (app) => ({
       ownership_structure: {
@@ -148,8 +113,7 @@ export const SAMPLE_DOCUMENTS: Record<DocumentType, SampleDocument | null> = {
                 date_of_birth: "1988-09-22",
                 ownership_percentage: 40,
                 passport_number: "B98765432",
-                residential_address:
-                  "Villa 14, Al Barsha South, Dubai, UAE",
+                residential_address: "Villa 14, Al Barsha South, Dubai, UAE",
               },
             ],
     }),
@@ -163,7 +127,7 @@ export const SAMPLE_DOCUMENTS: Record<DocumentType, SampleDocument | null> = {
         "CERTIFICATE_OF_INCORPORATION",
         1,
         97,
-        "incorporated on the 15th day of March 2023"
+        "incorporated on the 15th day of March 2023",
       ),
     },
     applyPrefill: (app) => ({
@@ -206,12 +170,7 @@ export const SAMPLE_DOCUMENTS: Record<DocumentType, SampleDocument | null> = {
     filename: "emirates-id-ahmed.png",
     imageUrl: emiratesId,
     provenance: {
-      "directors[0].emirates_id": conf(
-        "EMIRATES_ID",
-        1,
-        98,
-        "784-1985-1234567-1"
-      ),
+      "directors[0].emirates_id": conf("EMIRATES_ID", 1, 98, "784-1985-1234567-1"),
     },
     applyPrefill: (app) => ({
       // Emirates ID confirms the same person; no extra prefill needed beyond directors.
@@ -223,12 +182,7 @@ export const SAMPLE_DOCUMENTS: Record<DocumentType, SampleDocument | null> = {
     filename: "dewa-bill-proof-of-address.png",
     imageUrl: proofOfAddress,
     provenance: {
-      "addresses[0].line1": conf(
-        "PROOF_OF_ADDRESS",
-        1,
-        93,
-        "Apartment 2105, Marina Heights Tower"
-      ),
+      "addresses[0].line1": conf("PROOF_OF_ADDRESS", 1, 93, "Apartment 2105, Marina Heights Tower"),
       "addresses[0].city": conf("PROOF_OF_ADDRESS", 1, 95, "Dubai Marina"),
     },
     applyPrefill: (app) => ({
@@ -267,7 +221,7 @@ export const SAMPLE_DOCUMENTS: Record<DocumentType, SampleDocument | null> = {
         "BANK_STATEMENT",
         1,
         85,
-        "Closing balance AED 612,300"
+        "Closing balance AED 612,300",
       ),
     },
     applyPrefill: (app) => ({

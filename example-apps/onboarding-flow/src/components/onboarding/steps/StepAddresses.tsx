@@ -1,11 +1,17 @@
+import { MapPin, Plus } from "lucide-react";
 import { useOutletContext } from "react-router-dom";
-import { Plus, MapPin } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Application } from "@/types/onboarding";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import type { Application } from "@/types/onboarding";
 
 interface OnboardingContext {
   application: Application;
@@ -13,9 +19,9 @@ interface OnboardingContext {
 }
 
 const ADDRESS_TYPES = [
-  { value: 'REGISTERED', label: 'Registered Address' },
-  { value: 'OPERATING', label: 'Operating Address' },
-  { value: 'CORRESPONDENCE', label: 'Correspondence Address' },
+  { value: "REGISTERED", label: "Registered Address" },
+  { value: "OPERATING", label: "Operating Address" },
+  { value: "CORRESPONDENCE", label: "Correspondence Address" },
 ];
 
 export function StepAddresses() {
@@ -50,7 +56,7 @@ export function StepAddresses() {
             <Card key={address.id}>
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">
-                  {ADDRESS_TYPES.find(t => t.value === address.type)?.label}
+                  {ADDRESS_TYPES.find((t) => t.value === address.type)?.label}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
