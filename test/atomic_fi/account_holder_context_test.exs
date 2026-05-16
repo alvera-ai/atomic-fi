@@ -6,7 +6,23 @@ defmodule AtomicFi.AccountHolderContextTest do
   alias AtomicFi.LedgerAccountContext
   alias AtomicFi.LedgerContext
   alias AtomicFi.OpenApiSchema.AccountHolderRequest
+  alias AtomicFi.OpenApiSchema.LegalEntityRequest
   import AtomicFi.Factory
+
+  # Minimal nested LegalEntityRequest for AH POST bodies. Inheriting from the
+  # parent AH's tenant is the contract — the request struct must carry the
+  # `tenant_id` field set by the caller.
+  defp le_request(session, overrides \\ %{}) do
+    base = %LegalEntityRequest{
+      legal_entity_type: :individual,
+      tenant_id: session.tenant_id,
+      first_name: "Test",
+      last_name: "Holder",
+      citizenship_country: "US"
+    }
+
+    struct(base, overrides)
+  end
 
   describe "account_holders" do
     test "list_account_holders/1 returns all account_holders for tenant", %{session: session} do
@@ -28,7 +44,10 @@ defmodule AtomicFi.AccountHolderContextTest do
       session: session
     } do
       account_holder =
-        insert(:account_holder, external_id: "ah-by-ext", tenant_id: session.tenant_id)
+        insert_account_holder_with_legal_entity(
+          external_id: "ah-by-ext",
+          tenant_id: session.tenant_id
+        )
 
       by_id = AccountHolderContext.get_account_holder!(session, account_holder.id)
       by_ext = AccountHolderContext.get_account_holder_by_external_id(session, "ah-by-ext")
@@ -49,9 +68,8 @@ defmodule AtomicFi.AccountHolderContextTest do
     test "create_account_holder/2 with valid data creates an account_holder", %{
       session: session
     } do
-      legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
-
       request = %AccountHolderRequest{
+        legal_entity: le_request(session, %{first_name: "Alice", last_name: "Anders"}),
         account_holder_type: :individual,
         status: :pending,
         kyc_status: :not_started,
@@ -64,7 +82,11 @@ defmodule AtomicFi.AccountHolderContextTest do
       assert {:ok, %AccountHolder{} = account_holder} =
                AccountHolderContext.create_account_holder(session, request)
 
-      assert account_holder.legal_entity_id == legal_entity.id
+      # AH no longer owns a `legal_entity_id` column — LE points back via
+      # `legal_entities.account_holder_id` (subject_type = :account_holder).
+      assert account_holder.legal_entity.account_holder_id == account_holder.id
+      assert account_holder.legal_entity.subject_type == :account_holder
+      assert account_holder.legal_entity.first_name == "Alice"
       assert account_holder.account_holder_type == :individual
       assert account_holder.status == :pending
       assert account_holder.kyc_status == :not_started
@@ -89,8 +111,12 @@ defmodule AtomicFi.AccountHolderContextTest do
     test "update_account_holder/3 with valid data updates the account_holder", %{
       session: session
     } do
-      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+      # AH owns no FK to LE — the paired identity LE is inserted separately.
+      account_holder = insert_account_holder_with_legal_entity(tenant_id: session.tenant_id)
 
+      # Update body does NOT carry a nested legal_entity (LE PII replacement is
+      # a separate nested route). The changeset's maybe_cast_assoc_legal_entity
+      # is a no-op for non-insert changesets, so the existing LE stays put.
       request = %AccountHolderRequest{
         account_holder_type: account_holder.account_holder_type,
         status: :active,
@@ -110,10 +136,13 @@ defmodule AtomicFi.AccountHolderContextTest do
     end
 
     test "update_account_holder/3 with invalid data returns error changeset", %{session: session} do
-      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+      account_holder = insert_account_holder_with_legal_entity(tenant_id: session.tenant_id)
 
+      # `account_holder_type` is non-nullable in the OpenAPI schema, so sending
+      # `nil` would be stripped by `Mapper.to_map`'s nil-aware-put. Use an
+      # invalid enum value instead so Ecto's cast fails the changeset.
       request = %AccountHolderRequest{
-        account_holder_type: nil,
+        account_holder_type: :not_a_valid_type,
         status: :pending,
         kyc_status: :not_started,
         risk_level: :low,
@@ -153,8 +182,12 @@ defmodule AtomicFi.AccountHolderContextTest do
       :ok
     end
 
-    defp ah_request(session, legal_entity_id, currencies, regimes) do
+    # `legal_entity_id` arg is vestigial (AH no longer has that column) — kept
+    # for callsite signature compatibility; only `session` / `currencies` /
+    # `regimes` shape the request. Nested LE is built inline.
+    defp ah_request(session, _legal_entity_id, currencies, regimes) do
       %AccountHolderRequest{
+        legal_entity: le_request(session),
         account_holder_type: :individual,
         status: :pending,
         kyc_status: :not_started,
@@ -239,7 +272,7 @@ defmodule AtomicFi.AccountHolderContextTest do
         AccountHolderContext.update_account_holder(
           session,
           ah,
-          ah_request(session, ah.legal_entity_id, ["USD"], ["ach", "wire"])
+          ah_request(session, nil, ["USD"], ["ach", "wire"])
         )
 
       las = LedgerAccountContext.list_for_entity(session, updated)
@@ -262,7 +295,7 @@ defmodule AtomicFi.AccountHolderContextTest do
         AccountHolderContext.update_account_holder(
           session,
           ah,
-          ah_request(session, ah.legal_entity_id, ["USD", "EUR"], ["ach"])
+          ah_request(session, nil, ["USD", "EUR"], ["ach"])
         )
 
       {:ok, {ledgers, _}} =
@@ -293,7 +326,7 @@ defmodule AtomicFi.AccountHolderContextTest do
         AccountHolderContext.update_account_holder(
           session,
           ah,
-          ah_request(session, ah.legal_entity_id, ["USD"], ["ach", "wire"])
+          ah_request(session, nil, ["USD"], ["ach", "wire"])
         )
 
       assert length(LedgerAccountContext.list_for_entity(session, updated)) == before_count
