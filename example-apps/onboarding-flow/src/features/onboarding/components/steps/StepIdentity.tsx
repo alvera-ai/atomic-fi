@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Application } from "@/types/onboarding";
+import type { Application } from "@/features/onboarding/types";
 
 interface OnboardingContext {
   application: Application;

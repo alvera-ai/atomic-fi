@@ -5,9 +5,13 @@ import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { createNewApplication, getAllApplications, saveApplication } from "@/hooks/useApplication";
+import {
+  createNewApplication,
+  getAllApplications,
+  saveApplication,
+} from "@/features/onboarding/store";
+import type { Application, OnboardingMethod } from "@/features/onboarding/types";
 import { cn } from "@/lib/utils";
-import type { Application, OnboardingMethod } from "@/types/onboarding";
 
 export default function StartPage() {
   const navigate = useNavigate();

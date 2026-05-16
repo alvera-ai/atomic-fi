@@ -1,8 +1,8 @@
 import { AlertCircle, Check } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { ONBOARDING_STEPS } from "@/features/onboarding/constants";
 import { cn } from "@/lib/utils";
-import { ONBOARDING_STEPS } from "@/types/onboarding";
 
 interface OnboardingStepperProps {
   currentStep: number;

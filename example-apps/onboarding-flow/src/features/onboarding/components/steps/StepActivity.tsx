@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { Application } from "@/types/onboarding";
+import type { Application } from "@/features/onboarding/types";
 
 interface OnboardingContext {
   application: Application;

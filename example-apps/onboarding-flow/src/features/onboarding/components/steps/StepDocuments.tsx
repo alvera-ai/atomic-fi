@@ -16,19 +16,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { buildSampleDocument, SAMPLE_DOCUMENTS } from "@/data/sampleDocuments";
-import { summarizeVerification } from "@/lib/documentVerification";
+import { buildSampleDocument, SAMPLE_DOCUMENTS } from "@/features/documents/samples";
+import { summarizeVerification } from "@/features/documents/verification";
+import { DOCUMENT_TYPE_LABELS } from "@/features/onboarding/constants";
+import type {
+  Application,
+  DocumentStatus,
+  DocumentType,
+  UploadMode,
+} from "@/features/onboarding/types";
 import { cn } from "@/lib/utils";
-import {
-  type Application,
-  DOCUMENT_TYPE_LABELS,
-  type DocumentStatus,
-  type DocumentType,
-  type UploadMode,
-} from "@/types/onboarding";
-import { BulkUploadZone } from "../BulkUploadZone";
-import { DocumentPreviewModal } from "../DocumentPreviewModal";
-import { DocumentVerificationBadge } from "../DocumentVerificationBadge";
+import { BulkUploadZone } from "../../../documents/components/BulkUploadZone";
+import { DocumentPreviewModal } from "../../../documents/components/DocumentPreviewModal";
+import { DocumentVerificationBadge } from "../../../documents/components/DocumentVerificationBadge";
 
 interface OnboardingContext {
   application: Application;

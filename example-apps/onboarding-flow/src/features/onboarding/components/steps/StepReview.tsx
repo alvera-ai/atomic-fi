@@ -17,9 +17,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { saveApplication, useApplication } from "@/hooks/useApplication";
+import { ONBOARDING_STEPS } from "@/features/onboarding/constants";
+import { saveApplication } from "@/features/onboarding/store";
+import type { Application } from "@/features/onboarding/types";
+import { useApplication } from "@/features/onboarding/useApplication";
 import { cn } from "@/lib/utils";
-import { type Application, ONBOARDING_STEPS } from "@/types/onboarding";
 
 interface OnboardingContext {
   application: Application;

@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import type { Application } from "@/types/onboarding";
+import type { Application } from "@/features/onboarding/types";
 
 interface OnboardingContext {
   application: Application;
