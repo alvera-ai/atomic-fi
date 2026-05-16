@@ -4,8 +4,11 @@ defmodule AtomicFi.Factory.BeneficialOwnerFactory do
 
   BeneficialOwner owns no FK to LegalEntity — LE carries the FK back via
   `legal_entities.beneficial_owner_id` (subject_type = :beneficial_owner).
-  This factory only inserts the BO; tests that need the paired LE use
-  `insert_beneficial_owner_with_legal_entity/1` (in `AtomicFi.Factory`).
+  This factory only inserts the BO; no LE is cascaded. `legal_entity` is
+  initialised to `nil` so `bo.legal_entity` reads don't trip on the
+  `%Ecto.Association.NotLoaded{}` sentinel before hydration. Tests that
+  need the LE loaded call `with_hydrated_beneficial_owner/1` from
+  `AtomicFi.Factory` after inserting the LE.
   """
 
   defmacro __using__(_opts) do
@@ -24,6 +27,7 @@ defmodule AtomicFi.Factory.BeneficialOwnerFactory do
           end)
 
         %BeneficialOwner{
+          legal_entity: nil,
           account_holder_id: account_holder_id,
           ownership_pct: 25.0,
           control_type: :shareholder,

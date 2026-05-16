@@ -34,102 +34,67 @@ defmodule AtomicFi.Factory do
   end
 
   @doc """
-  Inserts an AccountHolder + its identity LegalEntity in two steps.
+  Hydrates an inserted AccountHolder with its identity LegalEntity tree
+  (LE + LE's identifications, addresses, phone_numbers).
 
-  Returns the AccountHolder with `legal_entity` preloaded. Use this where
-  tests previously relied on `insert(:account_holder)` auto-attaching an LE
-  via the (now-removed) `legal_entity_id` column on AccountHolder.
+  `Repo.preload(..., force: true)` re-queries every assoc — needed when
+  the test inserted an LE row AFTER the factory built the AH struct, since
+  the factory pre-sets `legal_entity: nil` and stale-nil fields aren't
+  re-hydrated by a default preload call.
+
+  Pattern-matches on `%AccountHolder{}` so the wrong arg blows up loudly
+  at the callsite.
 
   ## Examples
 
-      ah = insert_account_holder_with_legal_entity(tenant_id: tenant.id)
+      ah = insert(:account_holder, tenant_id: tenant.id)
+      insert(:legal_entity, account_holder_id: ah.id, tenant_id: tenant.id)
+      ah = with_hydrated_account_holder(ah)
       ah.legal_entity.id  # the AH-owned identity LE
   """
-  def insert_account_holder_with_legal_entity(attrs \\ %{}) do
-    attrs = Enum.into(attrs, %{})
-
-    tenant_id =
-      Map.get_lazy(attrs, :tenant_id, fn ->
-        insert(:tenant).id
-      end)
-
-    {le_attrs, ah_attrs} = Map.pop(attrs, :legal_entity, %{})
-
-    ah_attrs = Map.put(ah_attrs, :tenant_id, tenant_id)
-    ah = insert(:account_holder, ah_attrs)
-
-    le_attrs =
-      le_attrs
-      |> Enum.into(%{})
-      |> Map.put(:tenant_id, tenant_id)
-      |> Map.put(:account_holder_id, ah.id)
-      |> Map.put_new(:subject_type, :account_holder)
-
-    le = insert(:legal_entity, le_attrs)
-
-    %{ah | legal_entity: le}
+  @spec with_hydrated_account_holder(AtomicFi.AccountHolderContext.AccountHolder.t()) ::
+          AtomicFi.AccountHolderContext.AccountHolder.t()
+  def with_hydrated_account_holder(%AtomicFi.AccountHolderContext.AccountHolder{} = ah) do
+    AtomicFi.Repo.preload(
+      ah,
+      [legal_entity: [:addresses, :phone_numbers, :identifications]],
+      force: true,
+      skip_multi_tenancy_check: true
+    )
   end
 
   @doc """
-  Inserts a Counterparty + its identity LegalEntity (subject_type=:counterparty).
+  Hydrates an inserted Counterparty with its identity LegalEntity tree.
 
-  Returns the CP with `legal_entity` preloaded. The LE's `account_holder_id`
-  rolls up to the CP's parent AH for AH-uniform compliance attribution.
+  See `with_hydrated_account_holder/1` for the rationale around `force: true`
+  and the explicit pattern match.
   """
-  def insert_counterparty_with_legal_entity(attrs \\ %{}) do
-    attrs = Enum.into(attrs, %{})
-
-    tenant_id =
-      Map.get_lazy(attrs, :tenant_id, fn ->
-        insert(:tenant).id
-      end)
-
-    {le_attrs, cp_attrs} = Map.pop(attrs, :legal_entity, %{})
-    cp_attrs = Map.put(cp_attrs, :tenant_id, tenant_id)
-    cp = insert(:counterparty, cp_attrs)
-
-    le_attrs =
-      le_attrs
-      |> Enum.into(%{})
-      |> Map.put(:tenant_id, tenant_id)
-      |> Map.put(:subject_type, :counterparty)
-      |> Map.put(:account_holder_id, cp.account_holder_id)
-      |> Map.put(:counterparty_id, cp.id)
-
-    le = insert(:legal_entity, le_attrs)
-
-    %{cp | legal_entity: le}
+  @spec with_hydrated_counterparty(AtomicFi.CounterpartyContext.Counterparty.t()) ::
+          AtomicFi.CounterpartyContext.Counterparty.t()
+  def with_hydrated_counterparty(%AtomicFi.CounterpartyContext.Counterparty{} = cp) do
+    AtomicFi.Repo.preload(
+      cp,
+      [legal_entity: [:addresses, :phone_numbers, :identifications]],
+      force: true,
+      skip_multi_tenancy_check: true
+    )
   end
 
   @doc """
-  Inserts a BeneficialOwner + its identity LegalEntity (subject_type=:beneficial_owner).
+  Hydrates an inserted BeneficialOwner with its identity LegalEntity tree.
 
-  Returns the BO with `legal_entity` preloaded. The LE's `account_holder_id`
-  rolls up to the BO's parent AH.
+  See `with_hydrated_account_holder/1` for the rationale around `force: true`
+  and the explicit pattern match.
   """
-  def insert_beneficial_owner_with_legal_entity(attrs \\ %{}) do
-    attrs = Enum.into(attrs, %{})
-
-    tenant_id =
-      Map.get_lazy(attrs, :tenant_id, fn ->
-        insert(:tenant).id
-      end)
-
-    {le_attrs, bo_attrs} = Map.pop(attrs, :legal_entity, %{})
-    bo_attrs = Map.put(bo_attrs, :tenant_id, tenant_id)
-    bo = insert(:beneficial_owner, bo_attrs)
-
-    le_attrs =
-      le_attrs
-      |> Enum.into(%{})
-      |> Map.put(:tenant_id, tenant_id)
-      |> Map.put(:subject_type, :beneficial_owner)
-      |> Map.put(:account_holder_id, bo.account_holder_id)
-      |> Map.put(:beneficial_owner_id, bo.id)
-
-    le = insert(:legal_entity, le_attrs)
-
-    %{bo | legal_entity: le}
+  @spec with_hydrated_beneficial_owner(AtomicFi.BeneficialOwnerContext.BeneficialOwner.t()) ::
+          AtomicFi.BeneficialOwnerContext.BeneficialOwner.t()
+  def with_hydrated_beneficial_owner(%AtomicFi.BeneficialOwnerContext.BeneficialOwner{} = bo) do
+    AtomicFi.Repo.preload(
+      bo,
+      [legal_entity: [:addresses, :phone_numbers, :identifications]],
+      force: true,
+      skip_multi_tenancy_check: true
+    )
   end
 
   use AtomicFi.Factory.LegalEntityFactory

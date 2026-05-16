@@ -44,10 +44,12 @@ defmodule AtomicFi.AccountHolderContextTest do
       session: session
     } do
       account_holder =
-        insert_account_holder_with_legal_entity(
-          external_id: "ah-by-ext",
-          tenant_id: session.tenant_id
-        )
+        insert(:account_holder, external_id: "ah-by-ext", tenant_id: session.tenant_id)
+
+      insert(:legal_entity,
+        account_holder_id: account_holder.id,
+        tenant_id: session.tenant_id
+      )
 
       by_id = AccountHolderContext.get_account_holder!(session, account_holder.id)
       by_ext = AccountHolderContext.get_account_holder_by_external_id(session, "ah-by-ext")
@@ -111,8 +113,16 @@ defmodule AtomicFi.AccountHolderContextTest do
     test "update_account_holder/3 with valid data updates the account_holder", %{
       session: session
     } do
-      # AH owns no FK to LE — the paired identity LE is inserted separately.
-      account_holder = insert_account_holder_with_legal_entity(tenant_id: session.tenant_id)
+      # AH owns no FK to LE — insert AH + its paired identity LE separately,
+      # then hydrate so the onboarding screening path has a non-nil LE to read.
+      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+
+      insert(:legal_entity,
+        account_holder_id: account_holder.id,
+        tenant_id: session.tenant_id
+      )
+
+      account_holder = with_hydrated_account_holder(account_holder)
 
       # Update body does NOT carry a nested legal_entity (LE PII replacement is
       # a separate nested route). The changeset's maybe_cast_assoc_legal_entity
@@ -136,7 +146,12 @@ defmodule AtomicFi.AccountHolderContextTest do
     end
 
     test "update_account_holder/3 with invalid data returns error changeset", %{session: session} do
-      account_holder = insert_account_holder_with_legal_entity(tenant_id: session.tenant_id)
+      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+
+      insert(:legal_entity,
+        account_holder_id: account_holder.id,
+        tenant_id: session.tenant_id
+      )
 
       # `account_holder_type` is non-nullable in the OpenAPI schema, so sending
       # `nil` would be stripped by `Mapper.to_map`'s nil-aware-put. Use an
