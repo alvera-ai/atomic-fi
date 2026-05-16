@@ -25,6 +25,28 @@ defmodule AtomicFi.CounterpartyContextTest do
       assert id == counterparty.id
     end
 
+    test "get_counterparty_by_external_id/2 matches get_counterparty!/2 preloads", %{
+      session: session
+    } do
+      counterparty =
+        insert(:counterparty, external_id: "cp-by-ext", tenant_id: session.tenant_id)
+
+      by_id = CounterpartyContext.get_counterparty!(session, counterparty.id)
+      by_ext = CounterpartyContext.get_counterparty_by_external_id(session, "cp-by-ext")
+
+      assert by_ext.id == by_id.id
+      assert by_ext.legal_entity.id == by_id.legal_entity.id
+      assert is_list(by_ext.legal_entity.addresses)
+      assert is_list(by_ext.legal_entity.phone_numbers)
+      assert is_list(by_ext.legal_entity.identifications)
+    end
+
+    test "get_counterparty_by_external_id/2 returns nil when handle is unknown", %{
+      session: session
+    } do
+      assert CounterpartyContext.get_counterparty_by_external_id(session, "missing") == nil
+    end
+
     test "create_counterparty/2 with valid data creates a counterparty", %{session: session} do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
       legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)

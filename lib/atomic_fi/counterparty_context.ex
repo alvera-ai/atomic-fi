@@ -66,6 +66,18 @@ defmodule AtomicFi.CounterpartyContext do
   end
 
   @doc """
+  Fetches a counterparty by caller-supplied SoE handle. Returns the
+  fully-preloaded struct or `nil`.
+  """
+  @spec get_counterparty_by_external_id(Session.t(), String.t()) :: Counterparty.t() | nil
+  def_with_rls_and_logging get_counterparty_by_external_id(session, external_id),
+    log_fields: [:external_id] do
+    Counterparty
+    |> preload_query()
+    |> Repo.get_by([external_id: external_id], session: session)
+  end
+
+  @doc """
   Creates a counterparty.
 
   ## Examples

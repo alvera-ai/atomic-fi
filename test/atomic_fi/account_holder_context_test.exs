@@ -24,6 +24,28 @@ defmodule AtomicFi.AccountHolderContextTest do
       assert id == account_holder.id
     end
 
+    test "get_account_holder_by_external_id/2 matches get_account_holder!/2 preloads", %{
+      session: session
+    } do
+      account_holder =
+        insert(:account_holder, external_id: "ah-by-ext", tenant_id: session.tenant_id)
+
+      by_id = AccountHolderContext.get_account_holder!(session, account_holder.id)
+      by_ext = AccountHolderContext.get_account_holder_by_external_id(session, "ah-by-ext")
+
+      assert by_ext.id == by_id.id
+      assert by_ext.legal_entity.id == by_id.legal_entity.id
+      assert is_list(by_ext.legal_entity.addresses)
+      assert is_list(by_ext.legal_entity.phone_numbers)
+      assert is_list(by_ext.legal_entity.identifications)
+    end
+
+    test "get_account_holder_by_external_id/2 returns nil when handle is unknown", %{
+      session: session
+    } do
+      assert AccountHolderContext.get_account_holder_by_external_id(session, "missing") == nil
+    end
+
     test "create_account_holder/2 with valid data creates an account_holder", %{
       session: session
     } do

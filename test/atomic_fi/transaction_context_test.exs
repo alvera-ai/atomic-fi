@@ -30,6 +30,25 @@ defmodule AtomicFi.TransactionContextTest do
       assert id == transaction.id
     end
 
+    test "get_transaction_by_external_id/2 matches get_transaction!/2 shape", %{
+      session: session
+    } do
+      transaction =
+        insert(:transaction, external_id: "txn-by-ext", tenant_id: session.tenant_id)
+
+      by_id = TransactionContext.get_transaction!(session, transaction.id)
+      by_ext = TransactionContext.get_transaction_by_external_id(session, "txn-by-ext")
+
+      assert by_ext.id == by_id.id
+      assert by_ext == by_id
+    end
+
+    test "get_transaction_by_external_id/2 returns nil when handle is unknown", %{
+      session: session
+    } do
+      assert TransactionContext.get_transaction_by_external_id(session, "missing") == nil
+    end
+
     test "create_transaction/2 with valid data creates a transaction", %{session: session} do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 

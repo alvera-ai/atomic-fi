@@ -66,6 +66,19 @@ defmodule AtomicFi.AccountHolderContext do
   end
 
   @doc """
+  Fetches an account holder by caller-supplied SoE handle. Returns the
+  fully-preloaded struct or `nil`. Used for idempotent upserts where the
+  caller wants to distinguish create vs. update by their own key.
+  """
+  @spec get_account_holder_by_external_id(Session.t(), String.t()) :: AccountHolder.t() | nil
+  def_with_rls_and_logging get_account_holder_by_external_id(session, external_id),
+    log_fields: [:external_id] do
+    AccountHolder
+    |> preload_query()
+    |> Repo.get_by([external_id: external_id], session: session)
+  end
+
+  @doc """
   Creates a account_holder.
 
   ## Examples

@@ -88,6 +88,16 @@ defmodule AtomicFi.TransactionContext do
   end
 
   @doc """
+  Fetches a transaction by caller-supplied SoE handle. Returns the
+  struct or `nil`.
+  """
+  @spec get_transaction_by_external_id(Session.t(), String.t()) :: Transaction.t() | nil
+  def_with_rls_and_logging get_transaction_by_external_id(session, external_id),
+    log_fields: [:external_id] do
+    Repo.get_by(Transaction, [external_id: external_id], session: session)
+  end
+
+  @doc """
   Creates a transaction.
 
   Flow:

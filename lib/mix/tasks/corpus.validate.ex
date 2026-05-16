@@ -57,7 +57,6 @@ defmodule Mix.Tasks.Corpus.Validate do
   alias AtomicFi.SessionContext.Session
   alias AtomicFi.TenantContext.Tenant
   alias AtomicFi.TransactionContext
-  alias AtomicFi.TransactionContext.Transaction
 
   @impl true
   def run(args) do
@@ -118,7 +117,7 @@ defmodule Mix.Tasks.Corpus.Validate do
         |> stamp_tenant(session.tenant_id)
         |> to_request(AccountHolderRequest)
 
-      case Repo.get_by(AccountHolder, [external_id: ext_id], session: session) do
+      case AccountHolderContext.get_account_holder_by_external_id(session, ext_id) do
         nil ->
           Mix.shell().info("   AH #{ext_id} [create]")
 
@@ -153,7 +152,7 @@ defmodule Mix.Tasks.Corpus.Validate do
         |> stamp_tenant(session.tenant_id)
         |> to_request(CounterpartyRequest)
 
-      case Repo.get_by(Counterparty, [external_id: number], session: session) do
+      case CounterpartyContext.get_counterparty_by_external_id(session, number) do
         nil ->
           Mix.shell().info("   CP #{number} [create]")
 
@@ -187,7 +186,7 @@ defmodule Mix.Tasks.Corpus.Validate do
         |> stamp_tenant(session.tenant_id)
         |> to_request(PaymentAccountRequest)
 
-      case Repo.get_by(PaymentAccount, [external_id: ext_id], session: session) do
+      case PaymentAccountContext.get_payment_account_by_external_id(session, ext_id) do
         nil ->
           Mix.shell().info("   PA #{ext_id} [create]")
 
@@ -233,7 +232,7 @@ defmodule Mix.Tasks.Corpus.Validate do
     ext_id = row["external_id"]
 
     result =
-      case Repo.get_by(Transaction, [external_id: ext_id], session: session) do
+      case TransactionContext.get_transaction_by_external_id(session, ext_id) do
         nil ->
           Mix.shell().info("   txn #{ext_id} [create]")
 

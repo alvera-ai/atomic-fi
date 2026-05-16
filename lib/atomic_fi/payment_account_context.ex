@@ -70,6 +70,16 @@ defmodule AtomicFi.PaymentAccountContext do
   end
 
   @doc """
+  Fetches a payment account by caller-supplied SoE handle. Returns the
+  struct or `nil`.
+  """
+  @spec get_payment_account_by_external_id(Session.t(), String.t()) :: PaymentAccount.t() | nil
+  def_with_rls_and_logging get_payment_account_by_external_id(session, external_id),
+    log_fields: [:external_id] do
+    Repo.get_by(PaymentAccount, [external_id: external_id], session: session)
+  end
+
+  @doc """
   Creates a payment account.
 
   ## Examples

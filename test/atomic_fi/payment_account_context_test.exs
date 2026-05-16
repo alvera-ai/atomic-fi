@@ -35,6 +35,25 @@ defmodule AtomicFi.PaymentAccountContextTest do
       assert id == payment_account.id
     end
 
+    test "get_payment_account_by_external_id/2 matches get_payment_account!/2 shape", %{
+      session: session
+    } do
+      payment_account =
+        insert(:payment_account, external_id: "pa-by-ext", tenant_id: session.tenant_id)
+
+      by_id = PaymentAccountContext.get_payment_account!(session, payment_account.id)
+      by_ext = PaymentAccountContext.get_payment_account_by_external_id(session, "pa-by-ext")
+
+      assert by_ext.id == by_id.id
+      assert by_ext == by_id
+    end
+
+    test "get_payment_account_by_external_id/2 returns nil when handle is unknown", %{
+      session: session
+    } do
+      assert PaymentAccountContext.get_payment_account_by_external_id(session, "missing") == nil
+    end
+
     test "create_payment_account/2 with valid data creates a payment account", %{
       session: session
     } do
