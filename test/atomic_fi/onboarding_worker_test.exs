@@ -4,7 +4,6 @@ defmodule AtomicFi.OnboardingWorkerTest do
 
   alias AtomicFi.AccountHolderContext
   alias AtomicFi.OnboardingWorker
-  alias AtomicFi.OpenApiSchema.AccountHolderRequest
   alias AtomicFi.RuleEngineMock
   alias AtomicFi.SessionContext.Session
 
@@ -44,20 +43,8 @@ defmodule AtomicFi.OnboardingWorkerTest do
   end
 
   defp build_ah(%Session{} = session) do
-    legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
-
-    {:ok, ah} =
-      AccountHolderContext.create_account_holder(session, %AccountHolderRequest{
-        account_holder_type: :individual,
-        status: :pending,
-        kyc_status: :not_started,
-        risk_level: :low,
-        enabled_currencies: ["USD"],
-        enabled_regimes: ["ach"],
-        tenant_id: session.tenant_id,
-        chain_screening: false
-      })
-
-    ah
+    ah = insert(:account_holder, tenant_id: session.tenant_id, enabled_regimes: ["ach"])
+    insert(:legal_entity, account_holder_id: ah.id, tenant_id: session.tenant_id)
+    AccountHolderContext.get_account_holder!(session, ah.id)
   end
 end

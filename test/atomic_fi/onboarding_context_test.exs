@@ -73,19 +73,13 @@ defmodule AtomicFi.OnboardingContextTest do
 
     test "resolves session + CP entity from Oban args", %{session: session} do
       ah = build_ah(session)
-      cp_le = insert(:legal_entity, tenant_id: session.tenant_id)
-
-      {:ok, cp} =
-        AtomicFi.CounterpartyContext.create_counterparty(
-          session,
-          %AtomicFi.OpenApiSchema.CounterpartyRequest{
-            account_holder_id: ah.id,
-            status: :active,
-            enabled_regimes: ["ach"],
-            tenant_id: session.tenant_id,
-            chain_screening: false
-          }
-        )
+      cp = insert(:counterparty, account_holder_id: ah.id, tenant_id: session.tenant_id)
+      insert(:legal_entity,
+        counterparty_id: cp.id,
+        subject_type: :counterparty,
+        account_holder_id: ah.id,
+        tenant_id: session.tenant_id
+      )
 
       args = %{
         "entity_module" => "Elixir.AtomicFi.CounterpartyContext.Counterparty",
@@ -162,8 +156,6 @@ defmodule AtomicFi.OnboardingContextTest do
   end
 
   defp build_ah(%Session{} = session) do
-    legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
-
     {:ok, ah} =
       AccountHolderContext.create_account_holder(session, %AccountHolderRequest{
         account_holder_type: :individual,
@@ -173,7 +165,14 @@ defmodule AtomicFi.OnboardingContextTest do
         enabled_currencies: ["USD"],
         enabled_regimes: ["ach"],
         tenant_id: session.tenant_id,
-        chain_screening: false
+        chain_screening: false,
+        legal_entity: %AtomicFi.OpenApiSchema.LegalEntityRequest{
+          legal_entity_type: :individual,
+          tenant_id: session.tenant_id,
+          first_name: "Test",
+          last_name: "Holder",
+          citizenship_country: "US"
+        }
       })
 
     ah
