@@ -1,402 +1,234 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Button, Divider, Dropdown, message, Modal, theme, Typography } from 'antd';
-import { BulbOutlined, CheckOutlined, PlayCircleOutlined } from '@ant-design/icons';
-import { decisionTemplates } from '../assets/decision-templates';
-import { displayError } from '../helpers/error-message.ts';
-import { DecisionContent, DecisionEdge, DecisionNode } from '../helpers/graph.ts';
-import { useSearchParams } from 'react-router-dom';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Dropdown, message, theme as antTheme } from 'antd';
+import { ArrowLeftOutlined, BulbOutlined, CheckOutlined, PlayCircleOutlined, SaveOutlined } from '@ant-design/icons';
 import { DecisionGraph, DecisionGraphRef, DecisionGraphType, GraphSimulator, Simulation } from '@gorules/jdm-editor';
-import { PageHeader } from '../components/page-header.tsx';
 import { DirectedGraph } from 'graphology';
 import { hasCycle } from 'graphology-dag';
-import { Stack } from '../components/stack.tsx';
-import { match, P } from 'ts-pattern';
+import { useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
-import classes from './decision-simple.module.css';
-import { ThemePreference, useTheme } from '../context/theme.provider.tsx';
-import { fileNameToKey, runSimulation } from '../helpers/simulator';
+import { displayError, errorMessage } from '../helpers/error-message';
+import { getRule, RULE_TYPES, RULE_TYPE_LABELS, type RuleType, saveRule } from '../helpers/rules-api';
+import { runSimulation } from '../helpers/simulator';
+import { ThemePreference, useTheme } from '../context/theme.provider';
 
-enum DocumentFileTypes {
-  Decision = 'application/vnd.gorules.decision',
-}
+const DECISION_CONTENT_TYPE = 'application/vnd.gorules.decision';
 
-const supportFSApi = Object.hasOwn(window, 'showSaveFilePicker');
+const isRuleType = (s: string | undefined): s is RuleType =>
+  s !== undefined && (RULE_TYPES as string[]).includes(s);
+
+const emptyGraph: DecisionGraphType = { nodes: [], edges: [] };
+
+const checkCyclic = (graph: DecisionGraphType): void => {
+  const diGraph = new DirectedGraph();
+  graph.edges.forEach((edge) => {
+    if (edge.sourceId && edge.targetId) diGraph.mergeEdge(edge.sourceId, edge.targetId);
+  });
+  if (hasCycle(diGraph)) {
+    throw new Error('Circular dependencies detected');
+  }
+};
 
 export const DecisionSimplePage: React.FC = () => {
-  const { token } = theme.useToken();
-  const fileInput = useRef<HTMLInputElement>(null);
-  const graphRef = React.useRef<DecisionGraphRef>(null);
-  const { themePreference, setThemePreference } = useTheme();
-
+  const navigate = useNavigate();
+  const { ruleType: ruleTypeParam, name: nameParam } = useParams<{ ruleType: string; name: string }>();
   const [searchParams] = useSearchParams();
-  const [fileHandle, setFileHandle] = useState<FileSystemFileHandle>();
-  const [graph, setGraph] = useState<DecisionGraphType>({ nodes: [], edges: [] });
-  const [fileName, setFileName] = useState('Untitled Decision');
+  const { themePreference, setThemePreference } = useTheme();
+  const { token } = antTheme.useToken();
+  const graphRef = useRef<DecisionGraphRef>(null);
+
+  const ruleType: RuleType = isRuleType(ruleTypeParam) ? ruleTypeParam : 'onboarding';
+  const name = useMemo(() => (nameParam ? decodeURIComponent(nameParam) : ''), [nameParam]);
+  const isNew = searchParams.get('new') === '1';
+
+  const [graph, setGraph] = useState<DecisionGraphType>(emptyGraph);
   const [graphTrace, setGraphTrace] = useState<Simulation>();
+  const [revision, setRevision] = useState(0);
+  const [savedRevision, setSavedRevision] = useState(0);
+  const [loading, setLoading] = useState(!isNew);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const dirty = revision !== savedRevision;
 
   useEffect(() => {
-    const templateParam = searchParams.get('template');
-    if (templateParam) {
-      loadTemplateGraph(templateParam);
-    }
-  }, []);
-
-  const loadTemplateGraph = (template: string) => {
-    const templateGraph = match(template)
-      .with(P.string, (template) => decisionTemplates?.[template])
-      .otherwise(() => undefined);
-
-    if (templateGraph) {
-      setGraph(templateGraph);
-    }
-  };
-
-  const openFile = async () => {
-    if (!supportFSApi) {
-      fileInput.current?.click?.();
+    if (isNew || !name) {
+      setLoading(false);
       return;
     }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const data = await getRule(ruleType, name);
+        if (cancelled) return;
+        setGraph({ nodes: data.nodes ?? [], edges: data.edges ?? [] });
+        setRevision(0);
+        setSavedRevision(0);
+      } catch (e) {
+        if (!cancelled) setLoadError(errorMessage(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [ruleType, name, isNew]);
 
-    try {
-      const [handle] = await window.showOpenFilePicker({
-        types: [{ accept: { 'application/json': ['.json'] } }],
-      });
+  const handleChange = useCallback((value: DecisionGraphType) => {
+    setGraph(value);
+    setRevision((r) => r + 1);
+  }, []);
 
-      setFileHandle(handle);
-
-      const file = await handle.getFile();
-      const content = await file.text();
-      setFileName(file?.name);
-      const parsed = JSON.parse(content);
-      setGraph({
-        nodes: parsed?.nodes || [],
-        edges: parsed?.edges || [],
-      });
-    } catch (err) {
-      displayError(err);
+  const handleSave = useCallback(async () => {
+    if (!name) {
+      message.error('Missing rule name.');
+      return;
     }
-  };
-
-  const saveFileAs = async () => {
-    if (!supportFSApi) {
-      return await handleDownload();
-    }
-
-    let writable: FileSystemWritableFileStream | undefined = undefined;
     try {
-      checkCyclic();
-      const json = JSON.stringify({ contentType: DocumentFileTypes.Decision, ...graph }, null, 2);
-      const newFileName = `${fileName.replaceAll('.json', '')}.json`;
-      const handle = await window.showSaveFilePicker({
-        types: [{ description: newFileName, accept: { 'application/json': ['.json'] } }],
-      });
-
-      writable = await handle.createWritable();
-      await writable.write(json);
-      setFileHandle(handle);
-      const file = await handle.getFile();
-      setFileName(file.name);
-      message.success('File saved');
+      checkCyclic(graph);
+    } catch (e) {
+      displayError(e);
+      return;
+    }
+    setSaving(true);
+    try {
+      await saveRule(ruleType, name, { contentType: DECISION_CONTENT_TYPE, ...graph });
+      setSavedRevision(revision);
+      message.success(`Saved ${name}`);
     } catch (e) {
       displayError(e);
     } finally {
-      writable?.close?.();
+      setSaving(false);
     }
-  };
+  }, [ruleType, name, graph, revision]);
 
-  const saveFile = async () => {
-    if (!supportFSApi) {
-      message.error('Unsupported file system API');
-      return;
+  // Warn on in-app navigation while dirty (route changes).
+  const blocker = useBlocker(dirty);
+  useEffect(() => {
+    if (blocker.state === 'blocked') {
+      const proceed = window.confirm('You have unsaved changes. Leave without saving?');
+      if (proceed) blocker.proceed();
+      else blocker.reset();
     }
+  }, [blocker]);
 
-    if (fileHandle) {
-      let writable: FileSystemWritableFileStream | undefined = undefined;
-      try {
-        writable = await fileHandle.createWritable();
-        checkCyclic();
-
-        const json = JSON.stringify({ contentType: DocumentFileTypes.Decision, ...graph }, null, 2);
-        await writable.write(json);
-        message.success('File saved');
-      } catch (e) {
-        displayError(e);
-      } finally {
-        writable?.close?.();
-      }
-    }
-  };
-
-  const handleNew = async () => {
-    Modal.confirm({
-      title: 'New decision',
-      icon: false,
-      content: <div>Are you sure you want to create new blank decision, your current work might be lost?</div>,
-      onOk: async () => {
-        setGraph({
-          nodes: [],
-          edges: [],
-        });
-      },
-    });
-  };
-
-  const handleOpenMenu = async (e: { key: string }) => {
-    switch (e.key) {
-      case 'file-system':
-        openFile();
-        break;
-      default: {
-        if (Object.hasOwn(decisionTemplates, e.key)) {
-          Modal.confirm({
-            title: 'Open example',
-            icon: false,
-            content: <div>Are you sure you want to open example decision, your current work might be lost?</div>,
-            onOk: async () => loadTemplateGraph(e.key),
-          });
-        }
-        break;
-      }
-    }
-  };
-
-  const checkCyclic = (dc: DecisionContent | undefined = undefined) => {
-    const decisionContent = match(dc)
-      .with(P.nullish, () => graph)
-      .otherwise((data) => data);
-
-    const diGraph = new DirectedGraph();
-    (decisionContent?.edges || []).forEach((edge) => {
-      diGraph.mergeEdge(edge.sourceId, edge.targetId);
-    });
-
-    if (hasCycle(diGraph)) {
-      throw new Error('Circular dependencies detected');
-    }
-  };
-
-  const handleDownload = async () => {
-    try {
-      checkCyclic();
-      // create file in browser
-      const newFileName = `${fileName.replaceAll('.json', '')}.json`;
-      const json = JSON.stringify({ contentType: DocumentFileTypes.Decision, ...graph }, null, 2);
-      const blob = new Blob([json], { type: 'application/json' });
-      const href = URL.createObjectURL(blob);
-
-      // create "a" HTLM element with href to file
-      const link = window.document.createElement('a');
-      link.href = href;
-      link.download = newFileName;
-      window.document.body.appendChild(link);
-      link.click();
-
-      // clean up "a" element & remove ObjectURL
-      window.document.body.removeChild(link);
-      URL.revokeObjectURL(href);
-    } catch (e) {
-      displayError(e);
-    }
-  };
-
-  const handleUploadInput = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = event?.target?.files as FileList;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const parsed = JSON.parse(e?.target?.result as string);
-        if (parsed?.contentType !== DocumentFileTypes.Decision) {
-          throw new Error('Invalid content type');
-        }
-
-        const nodes: DecisionNode[] = parsed.nodes || [];
-        const nodeIds = nodes.map((node) => node.id);
-        const edges: DecisionEdge[] = ((parsed.edges || []) as DecisionEdge[]).filter(
-          (edge) => nodeIds.includes(edge?.targetId) && nodeIds.includes(edge?.sourceId),
-        );
-
-        checkCyclic({ edges, nodes });
-        setGraph({ edges, nodes });
-        setFileName(fileList?.[0]?.name);
-      } catch (e) {
-        displayError(e);
-      }
+  // Warn on tab close / hard reload while dirty.
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
     };
-
-    reader.readAsText(Array.from(fileList)?.[0], 'UTF-8');
-  };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
 
   return (
-    <>
-      <input
-        hidden
-        accept="application/json"
-        type="file"
-        ref={fileInput}
-        onChange={handleUploadInput}
-        onClick={(event) => {
-          if ('value' in event.target) {
-            event.target.value = null;
-          }
-        }}
-      />
-      <div className={classes.page}>
-        <PageHeader
-          style={{
-            padding: '8px',
-            background: token.colorBgLayout,
-            boxSizing: 'border-box',
-            borderBottom: `1px solid ${token.colorBorder}`,
-          }}
-          title={
-            <div className={classes.heading}>
-              <Typography.Text strong style={{ padding: '0 8px' }}>
-                atomic-fi rules
-              </Typography.Text>
-              <Divider type="vertical" style={{ margin: 0 }} />
-              <div className={classes.headingContent}>
-                <Typography.Title
-                  level={4}
-                  style={{ margin: 0, fontWeight: 400 }}
-                  className={classes.headingTitle}
-                  editable={{
-                    text: fileName,
-                    maxLength: 24,
-                    autoSize: { maxRows: 1 },
-                    onChange: (value) => setFileName(value.trim()),
-                    triggerType: ['text'],
-                  }}
-                >
-                  {fileName}
-                </Typography.Title>
-                <Stack horizontal verticalAlign="center" gap={8}>
-                  <Button onClick={handleNew} type={'text'} size={'small'}>
-                    New
-                  </Button>
-                  <Dropdown
-                    menu={{
-                      onClick: handleOpenMenu,
-                      items: [
-                        {
-                          label: 'File system',
-                          key: 'file-system',
-                        },
-                        {
-                          type: 'divider',
-                        },
-                        {
-                          label: 'Fintech: Company analysis',
-                          key: 'company-analysis',
-                        },
-                        {
-                          label: 'Fintech: AML',
-                          key: 'aml',
-                        },
-                        {
-                          label: 'Retail: Shipping fees',
-                          key: 'shipping-fees',
-                        },
-                      ],
-                    }}
-                  >
-                    <Button type={'text'} size={'small'}>
-                      Open
-                    </Button>
-                  </Dropdown>
-                  {supportFSApi && (
-                    <Button onClick={saveFile} type={'text'} size={'small'}>
-                      Save
-                    </Button>
-                  )}
-                  <Button onClick={saveFileAs} type={'text'} size={'small'}>
-                    Save as
-                  </Button>
-                </Stack>
-              </div>
-            </div>
-          }
-          ghost={false}
-          extra={[
-            <Dropdown
-              overlayStyle={{ minWidth: 150 }}
-              menu={{
-                onClick: ({ key }) => setThemePreference(key as ThemePreference),
-                items: [
-                  {
-                    label: 'Automatic',
-                    key: ThemePreference.Automatic,
-                    icon: (
-                      <CheckOutlined
-                        style={{ visibility: themePreference === ThemePreference.Automatic ? 'visible' : 'hidden' }}
-                      />
-                    ),
-                  },
-                  {
-                    label: 'Dark',
-                    key: ThemePreference.Dark,
-                    icon: (
-                      <CheckOutlined
-                        style={{ visibility: themePreference === ThemePreference.Dark ? 'visible' : 'hidden' }}
-                      />
-                    ),
-                  },
-                  {
-                    label: 'Light',
-                    key: ThemePreference.Light,
-                    icon: (
-                      <CheckOutlined
-                        style={{ visibility: themePreference === ThemePreference.Light ? 'visible' : 'hidden' }}
-                      />
-                    ),
-                  },
-                ],
-              }}
-            >
-              <Button type="text" icon={<BulbOutlined />} />
-            </Dropdown>,
-          ]}
-        />
-        <div className={classes.contentWrapper}>
-          <div className={classes.content}>
-            <DecisionGraph
-              ref={graphRef}
-              value={graph}
-              onChange={(value) => setGraph(value)}
-              reactFlowProOptions={{ hideAttribution: true }}
-              simulate={graphTrace}
-              panels={[
-                {
-                  id: 'simulator',
-                  title: 'Simulator',
-                  icon: <PlayCircleOutlined />,
-                  renderPanel: () => (
-                    <GraphSimulator
-                      onClear={() => setGraphTrace(undefined)}
-                      onRun={async ({ graph, context }) => {
-                        const key = fileNameToKey(fileName);
-                        if (!key) {
-                          message.error(
-                            'Save the decision into priv/zenrule/atomic-fi/<name>.json before simulating.',
-                          );
-                          return;
-                        }
-                        const sim = await runSimulation({
-                          key,
-                          input: { graph, context },
-                        });
-                        setGraphTrace(sim);
-                        if (sim.error?.message) {
-                          message.error(sim.error.message);
-                        }
-                      }}
-                    />
-                  ),
-                },
-              ]}
-            />
-          </div>
+    <div className="flex flex-col h-screen bg-surface text-ink">
+      <header
+        className="flex items-center justify-between px-6 py-3 border-b border-rule"
+        style={{ background: token.colorBgLayout }}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <Button
+            type="text"
+            icon={<ArrowLeftOutlined />}
+            onClick={() => navigate(`/rules/${ruleType}`)}
+            aria-label="Back to rules"
+          />
+          <nav className="flex items-center gap-2 min-w-0 text-sm">
+            <span className="font-display italic text-ink-muted">Rules</span>
+            <span className="text-ink-muted">/</span>
+            <span className="font-display italic text-ink-muted">{RULE_TYPE_LABELS[ruleType]}</span>
+            <span className="text-ink-muted">/</span>
+            <span className="font-mono text-ink truncate">{name || 'untitled'}</span>
+            {dirty && (
+              <span
+                className="inline-block w-1.5 h-1.5 rounded-full bg-accent ml-1 shrink-0"
+                aria-label="unsaved changes"
+                title="Unsaved changes"
+              />
+            )}
+          </nav>
         </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            type={dirty ? 'primary' : 'default'}
+            icon={<SaveOutlined />}
+            onClick={handleSave}
+            loading={saving}
+            disabled={!name || (!dirty && !isNew)}
+          >
+            Save
+          </Button>
+          <Dropdown
+            menu={{
+              onClick: ({ key }) => setThemePreference(key as ThemePreference),
+              items: [
+                { label: 'Automatic', key: ThemePreference.Automatic, icon: <ThemeCheck active={themePreference === ThemePreference.Automatic} /> },
+                { label: 'Dark', key: ThemePreference.Dark, icon: <ThemeCheck active={themePreference === ThemePreference.Dark} /> },
+                { label: 'Light', key: ThemePreference.Light, icon: <ThemeCheck active={themePreference === ThemePreference.Light} /> },
+              ],
+            }}
+          >
+            <Button type="text" icon={<BulbOutlined />} />
+          </Dropdown>
+        </div>
+      </header>
+
+      <div className="flex-1 overflow-hidden">
+        {loadError ? (
+          <div className="h-full flex flex-col items-center justify-center gap-3 text-ink-muted">
+            <p className="text-sm">Could not load rule. {loadError}</p>
+            <Button type="link" onClick={() => navigate(`/rules/${ruleType}`)}>
+              Back to rules
+            </Button>
+          </div>
+        ) : loading ? (
+          <div className="h-full flex items-center justify-center text-ink-muted text-sm">loading…</div>
+        ) : (
+          <DecisionGraph
+            ref={graphRef}
+            value={graph}
+            onChange={handleChange}
+            reactFlowProOptions={{ hideAttribution: true }}
+            simulate={graphTrace}
+            panels={[
+              {
+                id: 'simulator',
+                title: 'Simulator',
+                icon: <PlayCircleOutlined />,
+                renderPanel: () => (
+                  <GraphSimulator
+                    onClear={() => setGraphTrace(undefined)}
+                    onRun={async ({ graph: simGraph, context }) => {
+                      if (!name) {
+                        message.error('Save the rule before simulating.');
+                        return;
+                      }
+                      if (dirty) {
+                        message.warning('Simulator evaluates the last saved version. Save your changes first.');
+                      }
+                      const sim = await runSimulation({
+                        ruleType,
+                        name,
+                        input: { graph: simGraph, context },
+                      });
+                      setGraphTrace(sim);
+                      if (sim.error?.message) message.error(sim.error.message);
+                    }}
+                  />
+                ),
+              },
+            ]}
+          />
+        )}
       </div>
-    </>
+    </div>
   );
 };
+
+const ThemeCheck: React.FC<{ active: boolean }> = ({ active }) => (
+  <CheckOutlined style={{ visibility: active ? 'visible' : 'hidden' }} />
+);

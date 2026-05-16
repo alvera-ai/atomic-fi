@@ -1,4 +1,4 @@
-import type { DecisionContent } from './graph';
+import type { DecisionGraphType } from '@gorules/jdm-editor';
 import { atomicFiClient } from './clients';
 
 export type RuleType = 'onboarding' | 'transaction-screening';
@@ -12,7 +12,7 @@ export const RULE_TYPE_LABELS: Record<RuleType, string> = {
 
 // JDM-on-disk shape. The editor stores `{ contentType, nodes, edges }`;
 // the backend stores raw bytes and returns whatever was last written.
-export type RuleFile = DecisionContent & {
+export type RuleFile = DecisionGraphType & {
   contentType?: string;
 };
 
