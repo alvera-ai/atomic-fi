@@ -11,17 +11,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { buildSampleDocument, SAMPLE_DOCUMENTS } from "@/data/sampleDocuments";
-import { classifyFilename } from "@/lib/documentClassifier";
-import { verifyDocument } from "@/lib/documentVerification";
+import { classifyFilename } from "@/features/documents/classifier";
+import { buildSampleDocument, SAMPLE_DOCUMENTS } from "@/features/documents/samples";
+import { verifyDocument } from "@/features/documents/verification";
+import { DOCUMENT_TYPE_LABELS } from "@/features/onboarding/constants";
+import type {
+  Application,
+  Document,
+  DocumentType,
+  VerificationResult,
+} from "@/features/onboarding/types";
 import { cn } from "@/lib/utils";
-import {
-  type Application,
-  DOCUMENT_TYPE_LABELS,
-  type Document,
-  type DocumentType,
-  type VerificationResult,
-} from "@/types/onboarding";
 import { DocumentVerificationBadge } from "./DocumentVerificationBadge";
 
 interface PendingFile {

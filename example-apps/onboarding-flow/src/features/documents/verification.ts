@@ -1,5 +1,9 @@
-import type { DocumentType, VerificationFlag, VerificationResult } from "@/types/onboarding";
-import { classifyFilename } from "./documentClassifier";
+import type {
+  DocumentType,
+  VerificationFlag,
+  VerificationResult,
+} from "@/features/onboarding/types";
+import { classifyFilename } from "./classifier";
 
 const ACCEPTED_MIME = ["application/pdf", "image/png", "image/jpeg", "image/jpg"];
 const SUSPICIOUS = /\b(test|dummy|fake|copy|untitled|screenshot|img_\d+)\b/i;

@@ -1,4 +1,4 @@
-import type { DocumentType } from "@/types/onboarding";
+import type { DocumentType } from "@/features/onboarding/types";
 
 export interface ClassificationResult {
   docType: DocumentType;

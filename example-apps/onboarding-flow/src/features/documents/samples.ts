@@ -5,7 +5,12 @@ import moa from "@/assets/samples/moa.png";
 import passport from "@/assets/samples/passport.png";
 import proofOfAddress from "@/assets/samples/proof-of-address.png";
 import tradeLicense from "@/assets/samples/trade-license.png";
-import type { Application, Document, DocumentType, FieldProvenance } from "@/types/onboarding";
+import type {
+  Application,
+  Document,
+  DocumentType,
+  FieldProvenance,
+} from "@/features/onboarding/types";
 
 export interface SampleDocument {
   doc_type: DocumentType;

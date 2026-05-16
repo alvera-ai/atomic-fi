@@ -1,8 +1,8 @@
 import { AlertTriangle, CheckCircle2, XCircle } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { FLAG_LABELS } from "@/lib/documentVerification";
+import { FLAG_LABELS } from "@/features/documents/verification";
+import type { VerificationResult } from "@/features/onboarding/types";
 import { cn } from "@/lib/utils";
-import type { VerificationResult } from "@/types/onboarding";
 
 interface Props {
   result?: VerificationResult;

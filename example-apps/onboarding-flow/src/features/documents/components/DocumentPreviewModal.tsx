@@ -6,8 +6,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { SAMPLE_IMAGES } from "@/data/sampleDocuments";
-import { DOCUMENT_TYPE_LABELS, type DocumentType } from "@/types/onboarding";
+import { SAMPLE_IMAGES } from "@/features/documents/samples";
+import { DOCUMENT_TYPE_LABELS } from "@/features/onboarding/constants";
+import type { DocumentType } from "@/features/onboarding/types";
 
 interface DocumentPreviewModalProps {
   open: boolean;
