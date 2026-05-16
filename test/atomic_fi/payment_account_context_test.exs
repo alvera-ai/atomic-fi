@@ -6,10 +6,21 @@ defmodule AtomicFi.PaymentAccountContextTest do
   alias AtomicFi.LedgerAccountContext
   alias AtomicFi.OpenApiSchema.AccountHolderRequest
   alias AtomicFi.OpenApiSchema.CounterpartyRequest
+  alias AtomicFi.OpenApiSchema.LegalEntityRequest
   alias AtomicFi.OpenApiSchema.PaymentAccountRequest
   alias AtomicFi.PaymentAccountContext
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   import AtomicFi.Factory
+
+  defp le_req(session, name) do
+    %LegalEntityRequest{
+      legal_entity_type: :individual,
+      tenant_id: session.tenant_id,
+      first_name: name,
+      last_name: "Holder",
+      citizenship_country: "US"
+    }
+  end
 
   describe "payment_accounts" do
     test "list_payment_accounts/1 returns all payment accounts for tenant", %{session: session} do
@@ -297,8 +308,6 @@ defmodule AtomicFi.PaymentAccountContextTest do
     end
 
     defp create_ah(session, currencies, regimes) do
-      legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
-
       {:ok, ah} =
         AccountHolderContext.create_account_holder(session, %AccountHolderRequest{
           account_holder_type: :individual,
@@ -308,22 +317,22 @@ defmodule AtomicFi.PaymentAccountContextTest do
           enabled_currencies: currencies,
           enabled_regimes: regimes,
           tenant_id: session.tenant_id,
-          chain_screening: false
+          chain_screening: false,
+          legal_entity: le_req(session, "AH")
         })
 
       ah
     end
 
     defp create_cp(session, ah, regimes) do
-      cp_le = insert(:legal_entity, tenant_id: session.tenant_id)
-
       {:ok, cp} =
         CounterpartyContext.create_counterparty(session, %CounterpartyRequest{
           account_holder_id: ah.id,
           status: :active,
           enabled_regimes: regimes,
           tenant_id: session.tenant_id,
-          chain_screening: false
+          chain_screening: false,
+          legal_entity: le_req(session, "CP")
         })
 
       cp
