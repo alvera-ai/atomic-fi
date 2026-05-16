@@ -1,13 +1,13 @@
 ---
 name: corpus-from-rule
-description: Generates a deterministic test corpus for a ZenRule JDM rule and verifies it against the live rule-engine docker. Use whenever the user wants to "build fixtures for de_minimis", "generate test data for the SDN rule", "make a corpus for transaction-screening/X", "trust-but-verify this rule", or any phrasing that asks for synthetic payloads paired with expected rule-engine responses. The skill reads the JDM, drafts N payloads per declared verdict band, invokes `mix corpus.validate` against the running ZenRule agent, diffs actual vs expected ratios, iterates the draft until convergence, and commits the resulting fixture triples under `test/support/upstream/<rule_id>/fixtures/`.
+description: Generates a deterministic test corpus for a ZenRule JDM rule and verifies it against the live atomic-fi write path. Use whenever the user wants to "build fixtures for de_minimis", "generate test data for the SDN rule", "make a corpus for transaction-screening/X", "trust-but-verify this rule", or any phrasing that asks for synthetic payloads paired with expected rule-engine responses. The skill authors four NDJSON files (account_holders, counterparties, payment_accounts, transactions) under `corpus/zen_rules/<rule_corpus>/`, invokes `mix corpus.validate` which inserts each row through the production contexts and creates the transaction (running the full RuleEngine path), then diffs the resulting `%Transaction{}` state against each row's inline `_expected` block. Iterates until convergence.
 ---
 
 # corpus-from-rule
 
-Turn a ZenRule JDM rule into a deterministic test corpus — payloads paired with expected rule-engine responses — verified by running the actual engine and iterating until the response ratio matches the rule's declared bands.
+Turn a ZenRule JDM rule into a deterministic test corpus — four NDJSON files paired with inline expected rule-engine outcomes — verified by running the actual atomic-fi write path and iterating until reality matches the claim.
 
-You are the author and the QA. The user names a rule; you draft payloads, run the live engine, read the drift report, iterate, commit on convergence.
+You are the author and the QA. The user names a rule; you draft the entity graph + transactions with declared verdicts, run `mix corpus.validate`, read the drift report, iterate, commit on convergence.
 
 ## When to use
 
@@ -18,7 +18,31 @@ Trigger whenever the user asks for fixtures rooted in a rule:
 - "Trust-but-verify transaction-screening/<rule_id>"
 - "Cover this rule with fixtures"
 
-If they only ask whether a rule is correct, run `mix corpus.validate "<rule_id>/**"` and report — don't loop.
+If they only ask whether a rule is correct, run `mix corpus.validate corpus/zen_rules/<rule_corpus>` and report — don't loop.
+
+---
+
+## Corpus folder layout
+
+```
+corpus/zen_rules/<rule_corpus>/
+  account_holders.ndjson      one AccountHolderRequest row per line; `external_id`
+                              is the stable handle. `legal_entity` nested.
+  counterparties.ndjson       optional. Reference parent AH via
+                              `account_holder_external_id`. The `counterparty_number`
+                              field is the stable handle.
+  payment_accounts.ndjson     reference parent via `account_holder_external_id`
+                              OR `counterparty_external_id`.
+  transactions.ndjson         each row carries:
+                                - top-level scalars (transaction_type, amount, …)
+                                - `*_external_id` keys for all FK refs
+                                - inline `_label` { regime, cite, scenario }
+                                - inline `_expected` { status, rejected_rule, … }
+```
+
+`<rule_corpus>` may differ from the JDM filename — e.g. `de_minimis_stablecoin` is a focused corpus for the part of `de_minimis.json` that covers stablecoin transfers.
+
+The `mix corpus.validate` task walks the four files in FK order (AH → CP → PA → txn), inserts each through the production context, then calls `TransactionContext.create_transaction` for each transaction and diffs the resulting `%Transaction{}` state against the row's `_expected`.
 
 ---
 
@@ -27,17 +51,15 @@ If they only ask whether a rule is correct, run `mix corpus.validate "<rule_id>/
 ```
 1. READ      → priv/zenrule/<rule_type>/<rule_id>.json + use-cases.md citations
 2. CLASSIFY  → onboarding | transaction_screening; expected verdict bands
-3. DRAFT     → N payloads per band into test/support/upstream/<rule_id>/fixtures/
-4. VALIDATE  → mix corpus.validate "<rule_id>/**" — first run captures responses
-5. EXPECT    → for each fixture: commit the captured response as expected.json
-                (only after a human eyeball that it matches the band the rule
-                 was supposed to produce)
-6. ITERATE   → re-run validate; on drift, regenerate the diverging fixtures
-                and repeat up to --iter cap (default 5)
-7. RECORD    → commit fixtures + a short note in the fixture dir's README.md
+3. DRAFT     → four ndjson files under corpus/zen_rules/<rule_corpus>/
+4. VALIDATE  → make run-backing-services
+                mix corpus.validate corpus/zen_rules/<rule_corpus>
+5. ITERATE   → for each `mismatch` row: either the payload is wrong (edit
+                the ndjson) or the rule is wrong (hand off to zenrule-author).
+                Re-run validate.
+6. RECORD    → on convergence, commit with conventional commit. Cross-reference
+                guides/use-cases.md if the corpus maps to a catalog row.
 ```
-
-Steps 1–3 are preparation. Step 4 (and the iterate arm at step 6) is the verified loop — the load-bearing part. Step 5 is the human-in-the-loop checkpoint that turns observed responses into the source of truth.
 
 ---
 
@@ -49,13 +71,9 @@ Open the rule:
 priv/zenrule/<rule_type>/<rule_id>.json
 ```
 
-`<rule_type>` is one of `onboarding` or `transaction-screening`. Capture:
+Capture: input fields, decision-table rows (each row is a verdict band), `_description` strings (often cite use-case rows).
 
-- The `inputNode` schema — which fields the payload must populate.
-- Every `decisionTableNode` — its inputs, outputs, and rule rows. Each row is a verdict band.
-- Any `_description` strings — they often cite the use-case row in `guides/use-cases.md`.
-
-Also read `.claude/skills/zenrule-author/references/payload-schema.md` for the canonical `AtomicFi.RuleEngine.Payload` shape — your drafted payloads must match it.
+Read `.claude/skills/zenrule-author/references/payload-schema.md` for the canonical `AtomicFi.RuleEngine.Payload` shape — the rule reads from this tree, and your fixtures must populate it via the production write paths.
 
 ---
 
@@ -64,149 +82,106 @@ Also read `.claude/skills/zenrule-author/references/payload-schema.md` for the c
 Decide:
 
 - **rule_type** — `onboarding` or `transaction_screening`. The directory the rule lives in tells you.
-- **Verdict bands** — read the decision-table rows. Each row corresponds to one observable outcome; usually the `transaction.rule` output or an `ledger_accounts.<id>` control. Map each row to one of `PASS | REVIEW | BLOCK | FREEZE` for the `_label.json` regulator-facing label.
+- **Verdict bands** — map each decision-table row to one of `accepted | rejected` (the actual `%Transaction{}.status` values). For `rejected`, include the expected `rejected_rule` string.
 
-For `de_minimis` for example:
-- `rule_ach_de_minimis` → PASS (within cap)
-- `rule_stablecoin_de_minimis` → PASS (within cap)
-- `rule_default` → REVIEW (no rule matched)
-
-Then a transaction *exceeding* a cap is a separate scenario the rule doesn't bake in — that's a fixture you draft, not one read from the rule. Each band needs at least one fixture; ratios are dataset-specific.
+Example for a stablecoin-block variant of de_minimis:
+- recipient KYC-approved → `status: accepted`
+- recipient KYC-pending + stablecoin → `status: rejected, rejected_rule: "stablecoin_block_unverified"`
+- recipient KYC-pending + ACH over cap → `status: rejected, rejected_rule: "ach_de_minimis"`
 
 ---
 
 ## Step 3 — Draft
 
-Write fixture triples to `test/support/upstream/<rule_id>/fixtures/<NN>-<slug>/`:
+Four ndjson files. One row per AH/CP/PA/txn. Each `external_id` is a stable handle; `*_external_id` keys reference handles.
 
-```
-01-clean-ach-under-cap/
-  payload.json     ← context object POSTed verbatim to ZenRule
-  _label.json      ← see schema below
-  (expected.json comes from step 5, not here)
-```
+`account_holders.ndjson` row (must set `status: "pending"` and `risk_level` because nil overrides Ecto defaults):
 
-`_label.json` schema:
-
-```json
-{
-  "synthetic": true,
-  "source": "rule:<rule_id>",
-  "rule_type": "transaction_screening",
-  "rule_decision": "<rule_id>.json",
-  "regime": "aml-cip",
-  "cite": "31 CFR §1020.220",
-  "verdict": "PASS"
-}
+```jsonl
+{"external_id":"dms-ah-sender","holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"Alice","last_name":"Sender"}}
 ```
 
-`payload.json` must:
+`payment_accounts.ndjson` row:
 
-- match the `AtomicFi.RuleEngine.Payload` schema (see `zenrule-author/references/payload-schema.md`),
-- exercise the specific decision-table row this fixture is meant to hit,
-- be deterministic — no random UUIDs, no current-timestamps; if a key needs a UUID, use a fixed one tied to the scenario slug.
+```jsonl
+{"external_id":"dms-pa-sender","account_holder_external_id":"dms-ah-sender","account_type":"wallet","currency":"USD"}
+```
 
-Aim for: one fixture per band + one decoy near each boundary (e.g. cap+1 unit, cap-1 unit). Decoys catch off-by-one regressions cheaply.
+`transactions.ndjson` row:
+
+```jsonl
+{"external_id":"dms-txn-01","transaction_type":"internal_transfer","amount":10000,"currency":"USD","account_holder_external_id":"dms-ah-sender","debtor_payment_account_external_id":"dms-pa-sender","creditor_payment_account_external_id":"dms-pa-creditor-verified","_label":{"regime":"aml-cip","cite":"31 CFR §1020.220","scenario":"recipient verified, small stablecoin"},"_expected":{"status":"accepted","rejected_rule":null}}
+```
+
+Use unique handle prefixes per corpus (`dms-` for de_minimis_stablecoin) so reruns don't clash with siblings.
 
 ---
 
 ## Step 4 — Validate
 
-Bring the engine up if it isn't already:
+Bring backing services up if they aren't:
 
 ```sh
-make run-backing-services    # starts ZenRule + Watchman + Postgres
+make run-backing-services
 ```
 
-Then run:
+Run:
 
 ```sh
-mix corpus.validate "<rule_id>/**" --out tmp/corpus/<rule_id>-report.md
+mix corpus.validate corpus/zen_rules/<rule_corpus>
 ```
 
-The first run shows every fixture as `🆕 new (no expected.json)` because we haven't committed expectations yet. The report shows the actual response per fixture in collapsible blocks.
+The task prints per-row progress as it inserts AHs/CPs/PAs/txns, then a markdown report at the end:
 
-If any fixture reports `⚠ engine_error`: the rule rejected the payload shape. Read the error, fix the payload, re-run. Loud failure here is correct.
+- `match` — `_expected` matches actual `%Transaction{}` state
+- `new` — no `_expected` block on the row; actual captured for the human to review
+- `mismatch` — diff shown
+- `setup_error` — context create returned an Ecto changeset error; payload is wrong
+- `engine_error` — `TransactionContext.create_transaction` errored; usually rule engine reachability or shape
 
 ---
 
-## Step 5 — Expect (human checkpoint)
+## Step 5 — Iterate
 
-For each fixture in the report, eyeball the actual response. Two questions:
+Mismatches mean either:
 
-1. **Does the response match the decision-table row this fixture was meant to hit?** Compare the `transaction.rule` (or LA control) the engine returned against the row's `_id`.
-2. **Does the verdict label in `_label.json` correctly describe what the engine did?**
+- **the payload is wrong** — edit the ndjson row to better exercise the band. Re-run validate.
+- **the rule is wrong** — hand off to `zenrule-author` to extend the JDM. Re-run validate.
 
-If both answers are yes: commit the captured response as `expected.json` in that fixture's directory. The skill writes one of these formats:
-
-```json
-{
-  "transaction": {
-    "rule": "ach_de_minimis",
-    "max_amount": 2500,
-    "daily_debit_limit": 10000
-    ...
-  }
-}
-```
-
-If either answer is no: the payload was wrong, not the rule. Edit `payload.json` and go back to step 4. **Do not** edit the rule from inside this skill — that is `zenrule-author`'s job.
+Don't edit rules from this skill. Stay on corpus authoring.
 
 ---
 
-## Step 6 — Iterate
+## Step 6 — Record
 
-Re-run validate:
-
-```sh
-mix corpus.validate "<rule_id>/**"
-```
-
-Every fixture should now report `✓ match`. Any `✗ mismatch` means either:
-
-- the rule changed since the last `expected.json` capture (commit the new expected after re-verifying the row mapping), or
-- the engine is non-deterministic on some field (most often timestamps; strip them from `expected.json` if so).
-
-The `--iter` cap (default 5) lives in the skill, not the mix task: if five iterations of redrafting + re-validating don't converge, stop and ask the user.
-
----
-
-## Step 7 — Record
-
-Once all fixtures are `✓ match`:
-
-```
-test/support/upstream/<rule_id>/
-  README.md                   ← one paragraph: what the rule does, what
-                                 the fixtures cover, last-validated date
-  fixtures/<NN>-<slug>/
-    payload.json
-    expected.json
-    _label.json
-```
-
-Conventional commit, GPG-signed (per CLAUDE.md):
+On full convergence, commit:
 
 ```sh
-git commit -S -m "feat(corpus): add fixtures for transaction-screening/<rule_id>"
+git commit -S -m "feat(corpus): add fixtures for <rule_corpus>"
 ```
 
-Cross-reference: if the rule maps to a row in `guides/use-cases.md`, add the fixture dir to that row's Test column in the same commit.
+If the corpus maps to rows in `guides/use-cases.md`, add the corpus folder path to that row's Test column in the same commit.
 
 ---
 
 ## Hard requirements
 
-- **No graceful fallbacks.** If `_label.json` is missing or malformed, the mix task crashes loudly. Do not paper over it.
-- **Deterministic payloads.** A re-run of the skill on the same rule + seed produces byte-identical fixtures. UUIDs come from `(rule_id, scenario_slug)`, never `Ecto.UUID.generate/0`.
-- **Don't edit rules from here.** This skill authors corpus, not rules. Rule edits route through `zenrule-author`.
-- **Engine is real.** Mox stubs are for unit tests; this skill talks to the live ZenRule agent at `http://localhost:8090`.
+- **No graceful fallbacks.** A missing required key in any ndjson row crashes the mix task. Loud failure is correct.
+- **Deterministic external_ids.** Reruns on the same ndjson must produce the same logical setup. Don't fabricate UUIDs in the ndjson; the contexts assign them on insert.
+- **Don't edit rules from here.** Rule edits route through `zenrule-author`.
+- **Engine + backing services real.** Mox stubs are for unit tests; this task talks to the live atomic-fi process tree (Postgres + ZenRule + Watchman).
+
+---
+
+## Known issues
+
+- `mix corpus.validate` currently stalls partway through AH onboarding when run in `:dev`. Suspected dev-pool deadlock against the in-flight Watchman / ZenRule HTTP calls inside `OnboardingContext.onboard/2`. Diagnose next: try `MIX_ENV=test`, bump dev pool size, or add a `--skip-onboarding` flag that creates AHs via narrow Repo writes.
+- Failed runs leave AH rows behind because `write_ah_with_ledgers_and_las` commits before `onboard/2` runs. Manual cleanup is currently required; a `--reset` flag that purges the corpus's `external_id` prefix before inserting would fix this.
 
 ---
 
 ## Related
 
-- [zenrule-author](../zenrule-author/SKILL.md) — sister skill, authors the JDM rule files themselves
-- [guides/verifying_correctness.md](../../../guides/verifying_correctness.md) — the why and the where of this whole pipeline
-- [zenrule-author/references/payload-schema.md](../zenrule-author/references/payload-schema.md) — the canonical `Payload` shape your drafts must match
-- [zenrule-author/scripts/evaluate.sh](../zenrule-author/scripts/evaluate.sh) — single-payload curl helper if you need to debug one fixture by hand
+- [zenrule-author](../zenrule-author/SKILL.md) — authors the JDM rule files themselves
+- [guides/verifying_correctness.md](../../../guides/verifying_correctness.md) — the why and where
+- [zenrule-author/references/payload-schema.md](../zenrule-author/references/payload-schema.md) — canonical Payload shape the rule reads from

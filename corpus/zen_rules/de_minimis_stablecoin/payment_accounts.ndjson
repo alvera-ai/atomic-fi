@@ -1,0 +1,3 @@
+{"external_id":"dms-pa-sender","account_holder_external_id":"dms-ah-sender","account_type":"wallet","currency":"USD"}
+{"external_id":"dms-pa-creditor-verified","account_holder_external_id":"dms-ah-recipient-verified","account_type":"wallet","currency":"USD"}
+{"external_id":"dms-pa-creditor-unverified","account_holder_external_id":"dms-ah-recipient-unverified","account_type":"wallet","currency":"USD"}
