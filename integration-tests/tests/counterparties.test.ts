@@ -155,7 +155,7 @@ describe('counterparties — /api/counterparties', () => {
     await safeDelete(`/api/counterparties/${body.id}`, bearerHeaders(bearer))
   })
 
-  it('POST /api/counterparties is get-or-create on counterparty_number → 201 returns same id', async () => {
+  it('POST /api/counterparties is get-or-create on external_id → 201 returns same id', async () => {
     // Use a fresh LE so the (account_holder_id, legal_entity_id) pair is
     // distinct from the one already taken by the earlier POST → 201 test
     // (the unique constraint on that pair is orthogonal to get-or-create).
@@ -180,7 +180,7 @@ describe('counterparties — /api/counterparties', () => {
           account_holder_id: accountHolderId,
           legal_entity_id: freshLeId,
           tenant_id: primaryTenantId,
-          counterparty_number: number,
+          external_id: number,
           chain_screening: false,
           ...extra,
         }),
@@ -190,7 +190,7 @@ describe('counterparties — /api/counterparties', () => {
     expect(res1.status, await res1.clone().text()).toBe(201)
     const body1 = (await res1.json()) as AnyJson
 
-    // Re-POST with same counterparty_number but different status — returns
+    // Re-POST with same external_id but different status — returns
     // the original record unchanged (external SoE id wins; PUT for updates).
     const res2 = await post({ status: 'suspended' })
     expect(res2.status).toBe(201)
@@ -198,7 +198,7 @@ describe('counterparties — /api/counterparties', () => {
 
     expect(body2.id).toBe(body1.id)
     expect(body2.status).toBe('active')
-    expect(body2.counterparty_number).toBe(number)
+    expect(body2.external_id).toBe(number)
 
     await safeDelete(`/api/counterparties/${body1.id as string}`, bearerHeaders(bearer))
   })

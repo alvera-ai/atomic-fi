@@ -81,7 +81,7 @@ defmodule AtomicFi.PaymentAccountContextTest do
         swift_bic: "DEUTDEDB",
         bank_name: "Deutsche Bank",
         payment_account_number: "ACC-2026-001",
-        payment_account_external_id: "ext-acc-001",
+        external_id: "ext-acc-001",
         account_holder_id: account_holder.id,
         tenant_id: session.tenant_id
       }
@@ -97,7 +97,7 @@ defmodule AtomicFi.PaymentAccountContextTest do
       assert payment_account.swift_bic == "DEUTDEDB"
       assert payment_account.bank_name == "Deutsche Bank"
       assert payment_account.payment_account_number == "ACC-2026-001"
-      assert payment_account.payment_account_external_id == "ext-acc-001"
+      assert payment_account.external_id == "ext-acc-001"
     end
 
     test "create_payment_account/2 with card type and card_pan", %{session: session} do
@@ -161,7 +161,7 @@ defmodule AtomicFi.PaymentAccountContextTest do
                PaymentAccountContext.create_payment_account(session, request)
     end
 
-    test "create_payment_account/2 enforces unique payment_account_external_id per tenant", %{
+    test "create_payment_account/2 enforces unique external_id per tenant", %{
       session: session
     } do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
@@ -175,7 +175,7 @@ defmodule AtomicFi.PaymentAccountContextTest do
       request = %PaymentAccountRequest{
         account_type: :bank_account,
         currency: "USD",
-        payment_account_external_id: "ext-unique-001",
+        external_id: "ext-unique-001",
         account_holder_id: account_holder.id,
         tenant_id: session.tenant_id
       }
@@ -185,7 +185,7 @@ defmodule AtomicFi.PaymentAccountContextTest do
 
       errors = errors_on(changeset)
 
-      assert Map.get(errors, :payment_account_external_id) == ["has already been taken"] or
+      assert Map.get(errors, :external_id) == ["has already been taken"] or
                Map.get(errors, :tenant_id) == ["has already been taken"]
     end
 

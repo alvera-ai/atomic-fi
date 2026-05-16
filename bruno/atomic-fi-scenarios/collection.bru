@@ -18,7 +18,7 @@ docs {
 
   | Folder | Purpose | Count |
   | --- | --- | --- |
-  | `smoke-tests/` | Baseline data-seeding smoke. Auth → BlocklistCache warmup → 2 AccountHolders → 5 Counterparties → 20 Transactions. Idempotent re-runs (counterparty_number is the external SoE id). | 29 requests |
+  | `smoke-tests/` | Baseline data-seeding smoke. Auth → BlocklistCache warmup → 2 AccountHolders → 5 Counterparties → 20 Transactions. Idempotent re-runs (external_id is the external SoE id). | 29 requests |
 
   Future folders mirror the regulatory regimes in `guides/use-cases.md` (`01-cip/`,
   `02-ofac-sanctions/`, `03-edd/`, `04-cta-ubo/`, `05-aml-velocity/`, etc.), one `.bru`
@@ -70,7 +70,7 @@ docs {
     A counterparty POST carries its LegalEntity inline; the HTTP surface stays smaller
     than the DB schema count.
   - **Idempotency via the external SoE identifier.** Counterparty creation is
-    get-or-create on `counterparty_number`; the same POST replayed returns the original
+    get-or-create on `external_id`; the same POST replayed returns the original
     record unchanged. Updates use PUT.
   - **Per-tenant RLS isolation.** Every assertion runs inside the platform tenant's
     session scope; cross-tenant visibility is explicitly tested via secondary tenants in

@@ -66,7 +66,7 @@ defmodule AtomicFi.TransactionContextTest do
         status_reason_code: "ACCP",
         requested_execution_date: ~D[2026-03-01],
         settlement_date: ~D[2026-03-02],
-        transaction_external_id: "ext-txn-001",
+        external_id: "ext-txn-001",
         account_holder_id: account_holder.id,
         tenant_id: session.tenant_id
       }
@@ -83,7 +83,7 @@ defmodule AtomicFi.TransactionContextTest do
       assert transaction.status_reason_code == "ACCP"
       assert transaction.requested_execution_date == ~D[2026-03-01]
       assert transaction.settlement_date == ~D[2026-03-02]
-      assert transaction.transaction_external_id == "ext-txn-001"
+      assert transaction.external_id == "ext-txn-001"
     end
 
     test "create_transaction/2 with payment account links", %{session: session} do
@@ -168,7 +168,7 @@ defmodule AtomicFi.TransactionContextTest do
       assert errors[:amount] != nil
     end
 
-    test "create_transaction/2 enforces unique transaction_external_id per tenant", %{
+    test "create_transaction/2 enforces unique external_id per tenant", %{
       session: session
     } do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
@@ -177,7 +177,7 @@ defmodule AtomicFi.TransactionContextTest do
         transaction_type: :credit_transfer,
         amount: 1000,
         currency: "USD",
-        transaction_external_id: "ext-unique-001",
+        external_id: "ext-unique-001",
         account_holder_id: account_holder.id,
         tenant_id: session.tenant_id
       }
@@ -187,7 +187,7 @@ defmodule AtomicFi.TransactionContextTest do
 
       errors = errors_on(changeset)
 
-      assert Map.get(errors, :transaction_external_id) == ["has already been taken"] or
+      assert Map.get(errors, :external_id) == ["has already been taken"] or
                Map.get(errors, :tenant_id) == ["has already been taken"]
     end
 

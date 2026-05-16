@@ -46,7 +46,7 @@ defmodule AtomicFi.CounterpartyContextTest do
       assert counterparty.tenant_id == session.tenant_id
     end
 
-    test "create_counterparty/2 with optional counterparty_number", %{session: session} do
+    test "create_counterparty/2 with optional external_id", %{session: session} do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
       legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
 
@@ -54,7 +54,7 @@ defmodule AtomicFi.CounterpartyContextTest do
         account_holder_id: account_holder.id,
         legal_entity_id: legal_entity.id,
         status: :active,
-        counterparty_number: "CP-001",
+        external_id: "CP-001",
         tenant_id: session.tenant_id,
         chain_screening: false
       }
@@ -62,7 +62,7 @@ defmodule AtomicFi.CounterpartyContextTest do
       assert {:ok, %Counterparty{} = counterparty} =
                CounterpartyContext.create_counterparty(session, request)
 
-      assert counterparty.counterparty_number == "CP-001"
+      assert counterparty.external_id == "CP-001"
     end
 
     test "create_counterparty/2 with invalid data returns error changeset", %{session: session} do
@@ -75,7 +75,7 @@ defmodule AtomicFi.CounterpartyContextTest do
                CounterpartyContext.create_counterparty(session, request)
     end
 
-    test "create_counterparty/2 enforces unique (account_holder_id, legal_entity_id) when no counterparty_number is supplied",
+    test "create_counterparty/2 enforces unique (account_holder_id, legal_entity_id) when no external_id is supplied",
          %{session: session} do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
       legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
@@ -94,7 +94,7 @@ defmodule AtomicFi.CounterpartyContextTest do
                CounterpartyContext.create_counterparty(session, request)
     end
 
-    test "create_counterparty/2 is get-or-create on counterparty_number (external SoE id)",
+    test "create_counterparty/2 is get-or-create on external_id (external SoE id)",
          %{session: session} do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
       legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
@@ -102,16 +102,16 @@ defmodule AtomicFi.CounterpartyContextTest do
       request = %CounterpartyRequest{
         account_holder_id: account_holder.id,
         legal_entity_id: legal_entity.id,
-        counterparty_number: "EXT-CP-42",
+        external_id: "EXT-CP-42",
         status: :active,
         tenant_id: session.tenant_id,
         chain_screening: false
       }
 
-      assert {:ok, %Counterparty{id: id1, counterparty_number: "EXT-CP-42"}} =
+      assert {:ok, %Counterparty{id: id1, external_id: "EXT-CP-42"}} =
                CounterpartyContext.create_counterparty(session, request)
 
-      # Re-POST with same counterparty_number — returns existing record (idempotent),
+      # Re-POST with same external_id — returns existing record (idempotent),
       # even if other fields (status, FKs) would differ. External-system idempotency
       # key wins; updates go through PUT.
       other_le = insert(:legal_entity, tenant_id: session.tenant_id)
@@ -119,7 +119,7 @@ defmodule AtomicFi.CounterpartyContextTest do
       request2 = %CounterpartyRequest{
         account_holder_id: account_holder.id,
         legal_entity_id: other_le.id,
-        counterparty_number: "EXT-CP-42",
+        external_id: "EXT-CP-42",
         status: :suspended,
         tenant_id: session.tenant_id,
         chain_screening: false

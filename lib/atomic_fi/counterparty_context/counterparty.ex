@@ -18,7 +18,7 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
   * `account_holder_id` - FK to the internal AccountHolder transacting with this party
   * `legal_entity_id` - FK to LegalEntity (all PII / identity for the external party)
   * `status` - Relationship lifecycle: `active` | `suspended` | `blocked`
-  * `counterparty_number` - Opaque external SoE identifier (nullable)
+  * `external_id` - Opaque external SoE identifier (nullable)
   * `tenant_id` - FK to tenant for multi-tenancy isolation (RLS)
   * `inserted_at` - Timestamp when record was created
   * `updated_at` - Timestamp when record was last updated
@@ -70,7 +70,7 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
 
   open_api_property(
     schema: %Schema{type: :string, nullable: true},
-    key: :counterparty_number
+    key: :external_id
   )
 
   open_api_property(
@@ -117,7 +117,7 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
       :legal_entity_id,
       :legal_entity,
       :status,
-      :counterparty_number,
+      :external_id,
       :enabled_regimes,
       :tenant_id,
       :inserted_at,
@@ -132,7 +132,7 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
 
     field :status, Ecto.Enum, values: [:active, :suspended, :blocked], default: :active
 
-    field :counterparty_number, :string
+    field :external_id, :string
     field :enabled_regimes, {:array, :string}, default: []
 
     # Virtual: controls whether a compliance screening job is enqueued on create
@@ -154,7 +154,7 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
       :account_holder_id,
       :legal_entity_id,
       :status,
-      :counterparty_number,
+      :external_id,
       :enabled_regimes,
       :tenant_id
     ])

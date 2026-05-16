@@ -196,7 +196,7 @@ defmodule AtomicFiApi.TransactionControllerTest do
           status_reason_code: "ACCP",
           requested_execution_date: "2026-03-01",
           settlement_date: "2026-03-02",
-          transaction_external_id: "ext-txn-ctrl-001"
+          external_id: "ext-txn-ctrl-001"
         })
 
       conn = post(conn, ~p"/api/transactions", attrs)
