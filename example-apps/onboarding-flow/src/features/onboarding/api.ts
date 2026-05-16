@@ -1,8 +1,17 @@
-import type { LegalEntityAddressRequest, LegalEntityIdentificationRequest } from "@atomic-fi/sdk";
+import type {
+  AccountHolderResponse,
+  KycRequirementResponse,
+  LegalEntityAddressRequest,
+  LegalEntityIdentificationRequest,
+  LegalEntityResponse,
+} from "@atomic-fi/sdk";
 import {
   atomicFiApiAccountHolderControllerCreate,
+  atomicFiApiAccountHolderControllerShow,
   atomicFiApiDocumentControllerCreate,
   atomicFiApiKycRequirementControllerCreate,
+  atomicFiApiKycRequirementControllerShow,
+  atomicFiApiLegalEntityControllerShow,
   buildApiKeySdk,
 } from "@atomic-fi/sdk";
 import type { Application, DocumentType } from "./types";
@@ -177,5 +186,31 @@ export async function submitOnboarding(app: Application): Promise<OnboardingResu
     legalEntityId,
     documentIds,
     kycRequirementId: kycBody.id,
+  };
+}
+
+export type SubmissionDetails = {
+  accountHolder: AccountHolderResponse;
+  legalEntity: LegalEntityResponse;
+  kycRequirement: KycRequirementResponse;
+};
+
+export async function fetchSubmissionDetails(
+  result: OnboardingResult,
+): Promise<SubmissionDetails | null> {
+  if (!API_KEY) return null;
+
+  const [ahRes, leRes, kycRes] = await Promise.all([
+    atomicFiApiAccountHolderControllerShow({ path: { id: result.accountHolderId } }),
+    atomicFiApiLegalEntityControllerShow({ path: { id: result.legalEntityId } }),
+    atomicFiApiKycRequirementControllerShow({ path: { id: result.kycRequirementId } }),
+  ]);
+
+  if (ahRes.error || leRes.error || kycRes.error) return null;
+
+  return {
+    accountHolder: ahRes.data as unknown as AccountHolderResponse,
+    legalEntity: leRes.data as unknown as LegalEntityResponse,
+    kycRequirement: kycRes.data as unknown as KycRequirementResponse,
   };
 }

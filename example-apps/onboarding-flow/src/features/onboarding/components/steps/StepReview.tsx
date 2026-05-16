@@ -92,7 +92,13 @@ export function StepReview() {
 
     try {
       const result = await submitOnboarding(application);
-      markSubmitted();
+      const updatedApp = {
+        ...application,
+        status: "SUBMITTED" as const,
+        updated_at: new Date().toISOString(),
+        api_result: result,
+      };
+      saveApplication(updatedApp);
       toast.success("Application submitted successfully!", {
         description: `AccountHolder: ${result.accountHolderId}`,
       });

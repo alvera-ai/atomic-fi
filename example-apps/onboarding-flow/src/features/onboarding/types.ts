@@ -188,6 +188,13 @@ export interface Application {
   field_provenance: Record<string, FieldProvenance>;
   submission_confirmations: SubmissionConfirmations;
   ops_notes: OpsNote[];
+
+  api_result?: {
+    accountHolderId: string;
+    legalEntityId: string;
+    documentIds: string[];
+    kycRequirementId: string;
+  };
 }
 
 // Step definition
