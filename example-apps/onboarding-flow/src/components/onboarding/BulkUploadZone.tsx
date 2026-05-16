@@ -1,5 +1,7 @@
+import { FileText, Info, Sparkles, Trash2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
-import { Upload, Trash2, Sparkles, Info, FileText } from "lucide-react";
+import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -9,20 +11,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-import {
-  Application,
-  Document,
-  DocumentType,
-  DOCUMENT_TYPE_LABELS,
-  VerificationResult,
-} from "@/types/onboarding";
+import { buildSampleDocument, SAMPLE_DOCUMENTS } from "@/data/sampleDocuments";
 import { classifyFilename } from "@/lib/documentClassifier";
 import { verifyDocument } from "@/lib/documentVerification";
+import { cn } from "@/lib/utils";
+import {
+  type Application,
+  DOCUMENT_TYPE_LABELS,
+  type Document,
+  type DocumentType,
+  type VerificationResult,
+} from "@/types/onboarding";
 import { DocumentVerificationBadge } from "./DocumentVerificationBadge";
-import { SAMPLE_DOCUMENTS, buildSampleDocument } from "@/data/sampleDocuments";
 
 interface PendingFile {
   id: string;
@@ -75,7 +75,7 @@ export function BulkUploadZone({ application, updateApplication }: Props) {
       if (!entry.file) continue;
       const result = await verifyDocument(entry.file, { expectedType: entry.detectedType });
       setPending((p) =>
-        p.map((x) => (x.id === entry.id ? { ...x, verification: result, verifying: false } : x))
+        p.map((x) => (x.id === entry.id ? { ...x, verification: result, verifying: false } : x)),
       );
     }
   };
@@ -92,12 +92,17 @@ export function BulkUploadZone({ application, updateApplication }: Props) {
   };
 
   const updateType = async (id: string, docType: DocumentType) => {
-    setPending((p) => p.map((x) => (x.id === id ? { ...x, detectedType: docType, verifying: !!x.file } : x)));
+    setPending((p) =>
+      p.map((x) => (x.id === id ? { ...x, detectedType: docType, verifying: !!x.file } : x)),
+    );
     const entry = pending.find((x) => x.id === id);
     if (entry?.file) {
-      const result = await verifyDocument(entry.file, { expectedType: docType, trusted: entry.trusted });
+      const result = await verifyDocument(entry.file, {
+        expectedType: docType,
+        trusted: entry.trusted,
+      });
       setPending((p) =>
-        p.map((x) => (x.id === id ? { ...x, verification: result, verifying: false } : x))
+        p.map((x) => (x.id === id ? { ...x, verification: result, verifying: false } : x)),
       );
     }
   };
@@ -181,7 +186,7 @@ export function BulkUploadZone({ application, updateApplication }: Props) {
       else if (p.verification?.status === "PASS") acc.pass++;
       return acc;
     },
-    { pass: 0, warn: 0, fail: 0 }
+    { pass: 0, warn: 0, fail: 0 },
   );
 
   return (
@@ -200,15 +205,21 @@ export function BulkUploadZone({ application, updateApplication }: Props) {
             <li>bank-statement_2025-01.pdf → Bank Statement</li>
           </ul>
           <p className="text-xs mt-2 text-muted-foreground">
-            Files that don't match a keyword will land in "Other" — you can re-categorize them below.
+            Files that don't match a keyword will land in "Other" — you can re-categorize them
+            below.
           </p>
         </AlertDescription>
       </Alert>
 
+      {/* biome-ignore lint/a11y/useSemanticElements: drop zone needs drag events that <button> doesn't support well */}
       <div
+        role="button"
+        tabIndex={0}
         className={cn(
           "border-2 border-dashed rounded-lg p-10 text-center transition-colors cursor-pointer",
-          dragOver ? "border-primary bg-primary/5" : "border-border hover:border-primary/50 hover:bg-muted/30"
+          dragOver
+            ? "border-primary bg-primary/5"
+            : "border-border hover:border-primary/50 hover:bg-muted/30",
         )}
         onDragOver={(e) => {
           e.preventDefault();
@@ -217,6 +228,12 @@ export function BulkUploadZone({ application, updateApplication }: Props) {
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
       >
         <input
           ref={inputRef}
@@ -277,7 +294,10 @@ export function BulkUploadZone({ application, updateApplication }: Props) {
                       </div>
                     )}
                   </div>
-                  <Select value={p.detectedType} onValueChange={(v) => updateType(p.id, v as DocumentType)}>
+                  <Select
+                    value={p.detectedType}
+                    onValueChange={(v) => updateType(p.id, v as DocumentType)}
+                  >
                     <SelectTrigger className="h-8 w-[220px] text-xs">
                       <SelectValue />
                     </SelectTrigger>
@@ -296,7 +316,12 @@ export function BulkUploadZone({ application, updateApplication }: Props) {
                       <DocumentVerificationBadge result={p.verification} className="justify-end" />
                     )}
                   </div>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeEntry(p.id)}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={() => removeEntry(p.id)}
+                  >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>

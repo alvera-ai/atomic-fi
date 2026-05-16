@@ -1,8 +1,8 @@
-import { Check, AlertCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { ONBOARDING_STEPS } from "@/types/onboarding";
+import { AlertCircle, Check } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
+import { ONBOARDING_STEPS } from "@/types/onboarding";
 
 interface OnboardingStepperProps {
   currentStep: number;
@@ -20,9 +20,9 @@ export function OnboardingStepper({
   const progress = (completedSteps.length / ONBOARDING_STEPS.length) * 100;
 
   const getStepStatus = (stepId: number) => {
-    if (completedSteps.includes(stepId)) return 'complete';
-    if (stepId === currentStep) return 'current';
-    return 'incomplete';
+    if (completedSteps.includes(stepId)) return "complete";
+    if (stepId === currentStep) return "current";
+    return "incomplete";
   };
 
   return (
@@ -42,19 +42,20 @@ export function OnboardingStepper({
       <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
         {ONBOARDING_STEPS.map((step) => {
           const status = getStepStatus(step.id);
-          const isComplete = status === 'complete';
-          const isCurrent = status === 'current';
-          const isIncomplete = status === 'incomplete';
+          const isComplete = status === "complete";
+          const isCurrent = status === "current";
+          const isIncomplete = status === "incomplete";
 
           const stepContent = (
             <button
+              type="button"
               onClick={() => onStepClick(step.id)}
               className={cn(
                 "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-left",
                 "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                 isCurrent && "bg-sidebar-accent text-sidebar-primary",
                 isComplete && "text-sidebar-foreground",
-                isIncomplete && "text-muted-foreground"
+                isIncomplete && "text-muted-foreground",
               )}
             >
               {/* Step indicator */}
@@ -63,14 +64,10 @@ export function OnboardingStepper({
                   "flex items-center justify-center h-6 w-6 rounded-full text-xs font-semibold shrink-0 transition-colors",
                   isComplete && "bg-primary text-primary-foreground",
                   isCurrent && "bg-primary text-primary-foreground",
-                  isIncomplete && "bg-muted text-muted-foreground border border-border"
+                  isIncomplete && "bg-muted text-muted-foreground border border-border",
                 )}
               >
-                {isComplete ? (
-                  <Check className="h-3.5 w-3.5" />
-                ) : (
-                  step.id
-                )}
+                {isComplete ? <Check className="h-3.5 w-3.5" /> : step.id}
               </div>
 
               {/* Step title and warning */}
