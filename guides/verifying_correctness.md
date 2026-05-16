@@ -12,35 +12,39 @@ AtomicFi makes 67 specific compliance claims, one per row in [`guides/use-cases.
 
 Real customer data can't be used to test these flows: privacy, retention, jurisdictional restrictions, and the simple problem that real data doesn't reliably contain the edge cases regulators ask about. Hand-crafted fixtures don't scale past a dozen rows and never round-trip against the screening oracle — they let bugs slip through the gap between the fixture and the matcher. Existing open synthetic-payments datasets — PaySim [1], IBM AMLSim [2], AMLWorld [3], SAML-D [4], AMLGentex [5] — emphasise transaction-graph fraud labels for ML training, not regulatory verification, and don't co-emit identity, KYC state, beneficial ownership, or sanctions-match fixtures. The closest commercial peer is Change Financial's PaySim [16], a payments-testing platform aimed at processor reliability ("60,000 transaction-type variations, 10,000 TPS") rather than the compliance-claim provenance we need.
 
-This generator does, for every claim:
+Two complementary classes of sources solve this:
 
-- exactly the `AccountHolder` / `Counterparty` / `PaymentAccount` / `Transaction` rows that match the scenario's preconditions,
-- the matching moov/watchman [9] screening-list entry — paired by a deterministic `ent_num` — so the platform's screening pipeline sees the confidence band the catalog promises,
-- the expected verdict (`PASS` / `REVIEW` / `BLOCK` / `FREEZE`) carried inline on every row, so a test asserts it without re-deriving the rule.
+1. **Peer-reviewed synthetic AML datasets** that already exist — SAML-D [4], StableAML [10], AMLGentex [5]. Bank-backed, published, with labels we can trust. Pin a few of these as upstreams; sample, map, and emit our shape.
+2. **The ZenRule JDM rules themselves** — every rule under `priv/zenrule/` IS a source of truth. An LLM drafts payloads against the rule, the live rule engine verifies them, drift triggers another iteration. No external dataset needed.
 
-Same `(seed, shards, pass-rate)` → byte-identical output, every run.
+Same `(seed, source, ratios)` → byte-identical output, every run. This satisfies the outcomes-analysis loop SR 11-7 requires of any BSA/AML model: input → expected → actual → commit on match [17].
 
 ## What
 
-Four NDJSON streams per shard:
+The deliverable per scenario is a **fixture triple** plus bulk ndjson:
 
-| File | Rows | Embedded |
-|---|---|---|
-| `ah.ndjson` | one per `AccountHolder` | `legal_entity`, `beneficial_owners[]` (business AHs) |
-| `pa.ndjson` | one per `PaymentAccount` | — |
-| `cp.ndjson` | one per `Counterparty` | `legal_entity` |
-| `txn.ndjson` | one per `Transaction` (paired ledger entries) | — |
+```
+test/support/upstream/<src>/fixtures/<scenario>/
+  payload.json     ← the AccountHolder/Counterparty/PaymentAccount/Txn rows
+  request.json     ← the POST /api/... body
+  expected.json    ← rule-engine verdict + ledger deltas
+  _label.json      ← { synthetic: true, source, regime, cite, verdict }
 
-`LegalEntity` and `BeneficialOwner` ride embedded inside their parent — same pattern as the platform's REST surface. Every row carries `_meta.target_scenario` and `_meta.expected_verdict`.
+tmp/corpus/<seed>/<src>/                           (gitignored, regenerable)
+  ah.ndjson  cp.ndjson  pa.ndjson  txn.ndjson      (FK-ordered)
+  screening/sdn.csv  alt.csv  add.csv  dca.csv     (moov/watchman pair-bonded)
+```
 
-Plus a parallel set of moov/watchman-format screening CSVs for sanctions-flavoured rows:
+Fixture triples are kB-scale, committed, regulator-readable. Bulk ndjson is regenerable from `(seed, source)` and stays gitignored.
 
-| File | Content |
-|---|---|
-| `screening/sdn.csv` | OFAC SDN entries paired to corpus AH/CP rows |
-| `screening/alt.csv` | Alternate-identity rows |
-| `screening/add.csv` | Address rows |
-| `screening/dca.csv` | Digital-currency address rows (stablecoin scenarios) |
+Every emitted row carries an embedded `_label` block — pattern slug, regime, regulatory cite, expected verdict — so `jq | sort | uniq -c` over the corpus is an SR 11-7 outcomes-analysis report by hand:
+
+```
+                                                by regime    aml-cip 200   ofac 158   …
+  jq '._label | "\(.regime)\t\(.verdict)"'     by verdict   PASS 9600   REVIEW 240   BLOCK 158
+                                                by cite      31 CFR §1020.220 ×42   …
+                                                coverage     12/67 catalog rows hit
+```
 
 Watchman `ent_num` is derived from `(seed, ah_or_cp_id)`, so two runs on the same seed pair the same corpus row to the same Watchman entry and the same confidence band per OFAC's *Framework for Compliance Commitments* (May 2019) [12].
 
@@ -48,139 +52,138 @@ What this is *not*: a distribution-fitter (those copy real data's statistics —
 
 ## How
 
-The pipeline splits at the canonical-JSON boundary. AI handles unstructured-to-structured work (PDF → JSON, slow, manual). Mix handles structured-to-runtime work (JSON → NDJSON, deterministic, fast). Each does the work it's good at.
-
 ```
-        AUTHORING  (manual, when a regulator publishes)
-        ──────────────────────────────────────────────
-   FATF MER PDF ──┐
-   FinCEN PDF ────┼─► Claude skill: pdf-to-typology ──► one JSON file
-   OFAC actions ──┤            one file per input directive
-   Treasury PDFs ─┘                                      │
-                                                         ▼
-                                  compliance-list/extracted/<source>/...
-                                                         │   PR review
-                                                         ▼
-                                          compliance-list/  (merged)
-                                                         ▲
-   peer-reviewed source corpus ──────────────────────────┤
-   (OpenSanctions exports, ISO 3166 / 4217,              │
-    FATF country lists, NACHA return codes [13],         │
-    Stripe test PANs [14])                               │
-        ──────────────────────────────────────────────
-                                                         │
-        SYNTHESIS  (deterministic, every test run)       │
-        ──────────────────────────────────────────────│
-                                                         ▼
-                                  mix alvera.gen.compliance_corpus
-                                  (reads compliance-list/ JSON +
-                                   compliance-patterns/ JSON)
-                                                         ↓
-                          tmp/corpus/<seed>-<pass-rate>/shard_0001/
-                              ah.ndjson  pa.ndjson  cp.ndjson  txn.ndjson
-                              screening/sdn.csv  alt.csv  add.csv  dca.csv
-                                                         ↓
-                                          mix bench.seed
-                                                         ↓
-                                  test / benchmark / k6 consumers
-```
+   RAW UPSTREAMS  (outside the repo, $ATOMIC_FI_CORPUS_ROOT, GB-scale)
+   ───────────────────────────────────────────────────────────────────
+   stableaml/StableAML.csv          ← FINOS Labs DTCC Hackathon 2025 (1 MB)
+   saml-d/SAML-D.csv                ← Kaggle (12 MB)
+   amlgentex/transactions.parquet   ← maintainer-generated snapshot
 
-### Authoring — AI
+                       │
+                       ▼ (reseed-<src> skill, one-time, manifest sha-pinned)
 
-The `pdf-to-typology` Claude skill reads one authoritative PDF (FATF typology report, FinCEN advisory, OFAC enforcement release, US Treasury risk assessment) and writes **one canonical JSON file per input directive** into `compliance-list/extracted/<source>/<bucket>/`. Each invocation produces a manifest summarising what was extracted, what was skipped, and what was ambiguous — the artefact a human reviews. PR-gated. AI handles PDF segmentation because it's the work hardest to automate well and least likely to need to re-run on the same input.
+   PER-SOURCE GENERATE  (read raw → sample → map → emit, one pass)
+   ───────────────────────────────────────────────────────────────
+   mix corpus.generate.stableaml    --wallets N  --cybercrime P  --seed S
+   mix corpus.generate.saml_d       --rows N     --suspicious P  --seed S
+   mix corpus.generate.amlgentex    --rows N     --alerts P      --seed S
 
-### Authoring — peer-reviewed sources
+                       │  (parallel path, no external dataset)
+                       ▼
 
-Some sources arrive already structured: OpenSanctions consolidated dumps [10], ISO 3166-1 and 4217, FATF country lists [11], NACHA return codes [13], Stripe test PANs [14]. These don't need AI — they need PR-review curation. They land in `compliance-list/curated/<source>/...` with the same canonical JSON shape as the AI-extracted side. The `_provenance.method` field is `"ai-extracted"` vs `"peer-reviewed"`. Both feed the same compile step.
+   RULE-AS-SOURCE  (LLM-iterate against rule engine)
+   ──────────────────────────────────────────────────
+   skill: corpus-from-rule
+     read priv/zenrule/<rule>.json
+     LLM drafts payloads matching declared verdict bands
+     mix corpus.validate runs payloads against rule-engine docker
+     if actual ratio drifts > tolerance, iterate (--iter cap)
+     commit fixtures under test/support/upstream/<rule_id>/fixtures/
 
-### Canonical record shape
+                       │
+                       ▼
 
-```json
-{
-  "id": "fatf-typology-trade-based-ml-2024",
-  "source": "FATF",
-  "bucket": "typology",
-  "title": "Trade-Based Money Laundering Update",
-  "publication_date": "2024-03-12",
-  "regulation_cites": ["FATF Recommendation 16", "BSA §1020.320"],
-  "typologies": [
-    {
-      "id": "tbml-over-invoicing",
-      "name": "Over-invoicing",
-      "page_refs": ["pp. 23-27"],
-      "indicators": ["Invoice value ≥200% market rate"],
-      "expected_verdict": "REVIEW"
-    }
-  ],
-  "country_tags": [{"iso": "RU", "tier": "high_risk"}],
-  "_provenance": {
-    "method": "ai-extracted",
-    "source_url": "https://www.fatf-gafi.org/...",
-    "sha256_of_source": "..."
-  }
-}
+   FIXTURES + BULK NDJSON
+   ──────────────────────
+   test/support/upstream/<src>/fixtures/<scenario>/...   (committed)
+   tmp/corpus/<seed>/<src>/*.ndjson                       (gitignored)
+
+                       │
+                       ▼
+
+   VERIFICATION  (shared, dataset-agnostic)
+   ────────────────────────────────────────
+   mix corpus.validate "<regex>"
+     walks fixtures matching regex
+     POSTs payload to rule-engine docker
+     diffs actual against expected.json
+     emits markdown drift report
+
+   mix bench.seed
+     reads tmp/corpus/<seed>/*.ndjson
+     bulk-inserts via AccountHolderContext / CounterpartyContext /
+     PaymentAccountContext / TransactionContext (RLS-scoped via Session)
 ```
 
-The per-source folder layout is borrowed from Aqua Security's Trivy DB [15] — canonical, diffable JSON per source. We don't borrow Trivy's build step: there's no compiled index, no scheduled refresh, no third-party distribution. The catalogue lives in this repo, refreshes when a maintainer runs the skill, and the corpus generator reads JSON directly.
+### Raw lives outside the repo
 
-### Synthesis — Mix
-
-| Task | Reads | Writes |
-|---|---|---|
-| `mix alvera.gen.compliance_corpus --shards N --pass-rate P --seed S` | `compliance-list/` (extracted + curated) + `compliance-patterns/` | `tmp/corpus/<seed>-<pass-rate>/shard_*/` NDJSON + screening CSVs |
-| `mix bench.seed` | NDJSON shards | bulk-inserts via `AccountHolderContext` / `CounterpartyContext` / `PaymentAccountContext` / `TransactionContext` (RLS-scoped via `Session`) |
-
-Both tasks are pure functions of their inputs. The corpus generator reads JSON directly — no compiled index, no build step. Shard *k*'s sub-RNG is `:crypto.hash(:sha256, S ++ <<k::32>>)`.
-
-### Pattern catalogue
-
-Patterns sit under `compliance-patterns/` organised by regulatory regime, mirroring the catalog's section structure:
-
-```
-compliance-patterns/
-  01-aml-cip/
-    06-kyc-in-progress.json
-    07-kyc-rejected.json
-    10-prohibited-holder-freeze.json
-  02-ofac-sanctions/
-    11-recipient-sdn.json
-    11b-sdn-probable-match.json
-    12-recipient-iran.json
-  03-edd-geo/
-    17-geo-residency-mismatch.json
-  04-structuring/
-    19-sub-ctr-window.json
-  …
+```elixir
+config :atomic_fi, :corpus_root,
+  System.get_env("ATOMIC_FI_CORPUS_ROOT") ||
+    Path.join(System.user_home!(), ".local/share/atomic-fi/corpus")
 ```
 
-One pattern file per catalog row. Each declares prevalence weight, agent gates, generator function, expected verdict, and a `_compliance_refs[]` array linking back to the `compliance-list` records that justify it.
+Datasets vary from 1 MB (StableAML) to GB-scale (AMLGentex parquet, AMLWorld). Pinning by sha256 in a small committed `manifest.json` per source is enough; the bytes don't belong in our git history. Each `reseed-<src>` skill is idempotent — checks the manifest, skips if the sha matches.
+
+### Per-source ownership
+
+Each upstream owns three artefacts that travel together. Adding a new upstream = one skill + one mix task + one raw folder. Shared `corpus.validate` stays untouched.
+
+| Upstream      | Reseed skill        | Generate task                    | Raw location                                       |
+|---------------|---------------------|----------------------------------|----------------------------------------------------|
+| rule files    | `corpus-from-rule`  | (rule-as-source path)            | `priv/zenrule/<rule>.json`                         |
+| StableAML [10]| `reseed-stableaml`  | `mix corpus.generate.stableaml`  | `$CORPUS_ROOT/stableaml/StableAML.csv`             |
+| SAML-D [4]    | `reseed-saml-d`     | `mix corpus.generate.saml_d`     | `$CORPUS_ROOT/saml-d/SAML-D.csv`                   |
+| AMLGentex [5] | `reseed-amlgentex`  | `mix corpus.generate.amlgentex`  | `$CORPUS_ROOT/amlgentex/transactions.parquet`      |
+
+AMLWorld [3] is deferred — its 180M-txn LI-Large would force Kaggle-CLI integration and Parquet handling, neither of which pays off until SAML-D's typologies and AMLGentex's configurable graphs are exhausted.
+
+### Per-source generate flow
+
+Each `corpus.generate.<src>` task does three things in one pass:
+
+1. **Sample** — RNG-seeded selection of N rows from the raw upstream respecting per-source ratio knobs (`--suspicious` for SAML-D, `--cybercrime` for StableAML, `--alerts` for AMLGentex).
+2. **Map** — translate the upstream's column shape into atomic-fi's `AccountHolder` / `Counterparty` / `PaymentAccount` / `Transaction` schema.
+3. **Emit** — write ndjson streams in FK order (AH → CP → PA → Txn), plus a fixture triple per labelled scenario in the sample.
+
+Ratio knobs are deliberately dataset-specific. SAML-D's "suspicious" label is not StableAML's "cybercrime" classification. Forcing a shared abstraction loses signal we want auditable.
+
+### Rule-as-source
+
+A JDM rule under `priv/zenrule/transaction-screening/<rule_id>.json` is an upstream in the same sense as SAML-D. The `corpus-from-rule` skill:
+
+1. Reads the rule, derives expected verdict bands from its nodes.
+2. LLM drafts N payloads matching the declared pass-rate.
+3. Invokes `mix corpus.validate` — payloads POST to the rule-engine docker.
+4. If the actual `{PASS,REVIEW,BLOCK,FREEZE}` ratio drifts from expected by more than tolerance, the diff feeds back into the LLM and step 2 repeats up to a `--iter` cap.
+5. On convergence, fixtures land at `test/support/upstream/<rule_id>/fixtures/`.
+
+This closes the SR 11-7 outcomes-analysis loop with no external dataset — the rule IS the test oracle [17].
 
 ### Watchman pair-bonding
 
-For every AH or CP whose pattern requires a sanctions match (catalog scenarios 11, 11a–e, 12–16, 29), the generator emits a moov/watchman-ingestable record [9]. `ent_num` is deterministic from `(seed, ah_or_cp_id)`. OpenSanctions Yente's `logic-v2` [10] is consulted at generation time as the band reference: each name is placed in ≥95 / 85–94 / 70–84 / 50–69 / <50 per OFAC's *Framework for Compliance Commitments* [12]. The assertion "AH should be BLOCKED, OFAC report due" reads `_meta.expected_verdict` and needs no live oracle call.
+For every AH or CP whose pattern requires a sanctions match (catalog scenarios 11, 11a–e, 12–16, 29), the generator emits a moov/watchman-ingestable record [9]. `ent_num` is deterministic from `(seed, ah_or_cp_id)`. OpenSanctions Yente's `logic-v2` [11] is consulted at generation time as the band reference: each name is placed in ≥95 / 85–94 / 70–84 / 50–69 / <50 per OFAC's *Framework for Compliance Commitments* [12]. The assertion "AH should be BLOCKED, OFAC report due" reads `_label.verdict` and needs no live oracle call.
 
 ### Folder layout
 
 ```
-compliance-list/                  ← canonical, source of truth
-  extracted/                        AI-written (one file per directive)
-    fatf/typology/trade-based-ml-2024.json
-    fincen/advisory/fin-2024-a001.json
-  curated/                          peer-reviewed (already structured)
-    opensanctions/sdn-subset.json
-    iso/3166-1.json
-    nacha/return-codes.json
+$ATOMIC_FI_CORPUS_ROOT/             ← outside repo, GB-scale
+  stableaml/StableAML.csv
+  saml-d/SAML-D.csv
+  amlgentex/transactions.parquet
 
-compliance-patterns/              ← one file per catalog row
-  <regime>/<NN>-<slug>.json
+test/support/upstream/              ← committed
+  stableaml/manifest.json
+  stableaml/fixtures/<scenario>/{payload,request,expected,_label}.json
+  saml-d/manifest.json
+  saml-d/fixtures/<scenario>/...
+  amlgentex/manifest.json
+  amlgentex/fixtures/<scenario>/...
+  <rule_id>/fixtures/<scenario>/...
 
-tmp/corpus/                       ← gitignored generator output
-  <seed>-<pass-rate>/shard_0001/
-    ah.ndjson  pa.ndjson  cp.ndjson  txn.ndjson
-    screening/sdn.csv  alt.csv  add.csv  dca.csv
+tmp/corpus/<seed>/<src>/            ← gitignored, regenerable
+  ah.ndjson  cp.ndjson  pa.ndjson  txn.ndjson
+  screening/sdn.csv  alt.csv  add.csv  dca.csv
 ```
 
-Nothing lives under `priv/`. The corpus is application test data, not Phoenix-runtime data.
+Nothing new lives under `priv/`. The corpus is application test data, not Phoenix-runtime data.
+
+### Implementation order
+
+1. `corpus-from-rule` skill + `mix corpus.validate` — proves the verdict-verified loop end-to-end with no external dataset.
+2. `reseed-stableaml` + `mix corpus.generate.stableaml` — smallest upstream (1 MB), FINOS-hosted, no Kaggle auth.
+3. `reseed-saml-d` + `mix corpus.generate.saml_d` — Kaggle CLI auth, 12 MB, 17 suspicious typologies.
+4. `reseed-amlgentex` + `mix corpus.generate.amlgentex` — Python sim run, snapshot committed; defer until the prior three leave gaps.
 
 ---
 
@@ -194,7 +197,7 @@ Nothing lives under `priv/`. The corpus is application test data, not Phoenix-ru
 
 [4] Oztas, B. et al. (2023). *Enhancing Anti-Money Laundering: Development of a Synthetic Transaction Monitoring Dataset*. IEEE ICEBE 2023. github.com/BOztasUK/Anti_Money_Laundering_Transaction_Data_SAML-D
 
-[5] AI Sweden, Handelsbanken & Swedbank (2024–25). *AMLGentex*. github.com/aidotse/AMLGentex; arXiv:2503.24259.
+[5] AI Sweden, Handelsbanken & Swedbank (2024–25). *AMLGentex*. github.com/aidotse/AMLGentex; arXiv:2506.13989.
 
 [6] Tiwald, P. et al. (2025). *TabularARGN*. arXiv:2508.00718. github.com/mostly-ai/mostlyai
 
@@ -204,9 +207,9 @@ Nothing lives under `priv/`. The corpus is application test data, not Phoenix-ru
 
 [9] Moov. *Watchman*. github.com/moov-io/watchman
 
-[10] OpenSanctions Foundation. *Yente v5* (2024). github.com/opensanctions/yente
+[10] FINOS Labs (2025). *StableAML*, in the *OpenAML* DTCC Hackathon submission. github.com/finos-labs/dtcch-2025-OpenAML; arXiv:2602.17842.
 
-[11] FATF. *High-Risk Jurisdictions list*; *Recommendation 16: Wire Transfers*.
+[11] OpenSanctions Foundation. *Yente v5* (2024). github.com/opensanctions/yente
 
 [12] U.S. Treasury OFAC (2019). *Framework for OFAC Compliance Commitments*. ofac.treasury.gov/media/16331/download
 
@@ -218,8 +221,10 @@ Nothing lives under `priv/`. The corpus is application test data, not Phoenix-ru
 
 [16] Change Financial. *PaySim — payment simulation, testing and certification*. changefinancial.com/paysim
 
-[17] 31 USC §5324; 31 CFR §1020.320 (BSA structuring + SAR).
+[17] Federal Reserve & OCC (2011). *SR 11-7: Supervisory Guidance on Model Risk Management*. federalreserve.gov/supervisionreg/srletters/sr1107.htm
 
-[18] ISO 3166-1; ISO 4217; ISO 20022.
+[18] 31 USC §5324; 31 CFR §1020.320 (BSA structuring + SAR).
 
-[19] Voutila, D. *PaySim 2.x*. github.com/voutilad/PaySim
+[19] ISO 3166-1; ISO 4217; ISO 20022.
+
+[20] Voutila, D. *PaySim 2.x*. github.com/voutilad/PaySim
