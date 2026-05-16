@@ -24,11 +24,11 @@ export default defineConfig({
       },
       // atomic-fi Phoenix REST (x-api-key required, attached by axios client).
       '/api/rules': {
-        target: 'http://localhost:4000',
+        target: 'http://localhost:4100',
         changeOrigin: true,
       },
       '/api/compliance-screenings': {
-        target: 'http://localhost:4000',
+        target: 'http://localhost:4100',
         changeOrigin: true,
       },
     },
