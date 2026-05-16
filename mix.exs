@@ -16,8 +16,14 @@ defmodule AtomicFi.MixProject do
       source_url: "https://github.com/alvera-ai/atomic-fi",
       homepage_url: "https://github.com/alvera-ai/atomic-fi",
       listeners: [Phoenix.CodeReloader],
-      test_coverage: [tool: ExCoveralls],
-      preferred_cli_env: [
+      test_coverage: [tool: ExCoveralls]
+    ]
+  end
+
+  # Mix 1.19 moved preferred CLI envs out of project/0.
+  def cli do
+    [
+      preferred_envs: [
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
@@ -70,12 +76,7 @@ defmodule AtomicFi.MixProject do
       {:phoenix_html, "~> 4.1", override: true},
       {:phoenix_live_reload, "~> 1.5", only: :dev},
       {:phoenix_live_view, "~> 1.0.1", override: true},
-      {:heroicons,
-       github: "tailwindlabs/heroicons",
-       tag: "v2.2.0",
-       app: false,
-       compile: false,
-       sparse: "optimized"},
+      {:heroicons, "~> 0.5"},
       {:floki, ">= 0.34.3"},
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
