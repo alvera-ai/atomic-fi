@@ -40,9 +40,12 @@ defmodule AtomicFi.DataCase do
     AtomicFi.DataCase.setup_sandbox(tags)
     AtomicFi.DataCase.setup_screening_engine_mock(tags)
     AtomicFi.DataCase.setup_rule_engine_mock(tags)
-    # BlocklistCache for the platform tenant is initialised once in
-    # test/test_helper.exs — in-memory state outlives sandbox rollback.
-    {:ok, tenant: system_tenant(), session: system_session()}
+    tenant = system_tenant()
+    # Re-init BlocklistCache for the system tenant on every test — cheap (single
+    # ETS insert + a Repo.all of usually-empty blocklist entries) and immune to
+    # test-order pollution from other tests that overwrite ETS state.
+    AtomicFi.BlocklistContext.BlocklistCache.refresh_tenant_cache(tenant.id)
+    {:ok, tenant: tenant, session: system_session()}
   end
 
   @doc """

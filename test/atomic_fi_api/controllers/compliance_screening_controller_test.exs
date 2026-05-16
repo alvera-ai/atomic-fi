@@ -8,31 +8,36 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
   setup :setup_platform_admin_api
 
-  setup %{platform_tenant: platform_tenant} do
-    # Default account_holder with a clean-named individual LegalEntity for CRUD tests
-    legal_entity =
-      insert(:legal_entity,
-        tenant_id: platform_tenant.id,
-        first_name: "Alice",
-        last_name: "Smith"
-      )
+  setup %{platform_tenant: platform_tenant, session: session} do
+    account_holder = insert(:account_holder, tenant_id: platform_tenant.id)
 
-    account_holder =
-      insert(:account_holder, tenant_id: platform_tenant.id)
-
-    # Default counterparty with a clean-named individual LegalEntity
-    cp_legal_entity =
-      insert(:legal_entity,
-        tenant_id: platform_tenant.id,
-        first_name: "Maria",
-        last_name: "Garcia"
-      )
+    insert(:legal_entity,
+      account_holder_id: account_holder.id,
+      subject_type: :account_holder,
+      tenant_id: platform_tenant.id,
+      first_name: "Alice",
+      last_name: "Smith"
+    )
 
     counterparty =
       insert(:counterparty,
         tenant_id: platform_tenant.id,
         account_holder_id: account_holder.id
       )
+
+    insert(:legal_entity,
+      counterparty_id: counterparty.id,
+      subject_type: :counterparty,
+      account_holder_id: account_holder.id,
+      tenant_id: platform_tenant.id,
+      first_name: "Maria",
+      last_name: "Garcia"
+    )
+
+    # Re-fetch via context getters so @preloads hydrates the legal_entity assoc
+    # — tests rely on `ah.legal_entity` / `cp.legal_entity` being populated.
+    account_holder = AtomicFi.AccountHolderContext.get_account_holder!(session, account_holder.id)
+    counterparty = AtomicFi.CounterpartyContext.get_counterparty!(session, counterparty.id)
 
     %{account_holder: account_holder, counterparty: counterparty}
   end
@@ -58,35 +63,29 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
     |> Repo.insert!(skip_multi_tenancy_check: true)
   end
 
-  defp account_holder_screen_body(account_holder) do
-    ah = AtomicFi.Repo.preload(account_holder, :legal_entity, skip_multi_tenancy_check: true)
-
+  defp account_holder_screen_body(%{legal_entity: %{} = le} = ah) do
     %{
       tenant_id: ah.tenant_id,
       account_holder_type: to_string(ah.account_holder_type || :individual),
-      legal_entity: legal_entity_body(ah.legal_entity, ah.tenant_id)
+      legal_entity: legal_entity_body(le, ah.tenant_id)
     }
   end
 
-  defp beneficial_owner_screen_body(account_holder, beneficial_owner) do
-    bo = AtomicFi.Repo.preload(beneficial_owner, :legal_entity, skip_multi_tenancy_check: true)
-
+  defp beneficial_owner_screen_body(account_holder, %{legal_entity: %{} = le} = bo) do
     %{
       tenant_id: bo.tenant_id,
       account_holder_id: account_holder.id,
       control_type: "shareholder",
-      legal_entity: legal_entity_body(bo.legal_entity, bo.tenant_id)
+      legal_entity: legal_entity_body(le, bo.tenant_id)
     }
   end
 
-  defp counterparty_screen_body(account_holder, counterparty) do
-    cp = AtomicFi.Repo.preload(counterparty, :legal_entity, skip_multi_tenancy_check: true)
-
+  defp counterparty_screen_body(account_holder, %{legal_entity: %{} = le} = cp) do
     %{
       tenant_id: cp.tenant_id,
       account_holder_id: account_holder.id,
       status: to_string(cp.status || :active),
-      legal_entity: legal_entity_body(cp.legal_entity, cp.tenant_id)
+      legal_entity: legal_entity_body(le, cp.tenant_id)
     }
   end
 
@@ -97,6 +96,76 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       first_name: le.first_name,
       last_name: le.last_name
     }
+  end
+
+  defp ah_with_le(session, tenant_id, le_attrs) do
+    ah = insert(:account_holder, tenant_id: tenant_id)
+
+    insert(:legal_entity,
+      Keyword.merge(
+        [account_holder_id: ah.id, subject_type: :account_holder, tenant_id: tenant_id],
+        le_attrs
+      )
+    )
+
+    AtomicFi.AccountHolderContext.get_account_holder!(session, ah.id)
+  end
+
+  defp ah_with_business_le(session, tenant_id, le_attrs) do
+    ah = insert(:account_holder, tenant_id: tenant_id)
+
+    insert(:business_legal_entity,
+      Keyword.merge(
+        [account_holder_id: ah.id, subject_type: :account_holder, tenant_id: tenant_id],
+        le_attrs
+      )
+    )
+
+    AtomicFi.AccountHolderContext.get_account_holder!(session, ah.id)
+  end
+
+  defp bo_with_le(session, tenant_id, account_holder_id, le_attrs) do
+    bo =
+      insert(:beneficial_owner,
+        tenant_id: tenant_id,
+        account_holder_id: account_holder_id
+      )
+
+    insert(:legal_entity,
+      Keyword.merge(
+        [
+          beneficial_owner_id: bo.id,
+          subject_type: :beneficial_owner,
+          account_holder_id: account_holder_id,
+          tenant_id: tenant_id
+        ],
+        le_attrs
+      )
+    )
+
+    AtomicFi.BeneficialOwnerContext.get_beneficial_owner!(session, bo.id)
+  end
+
+  defp cp_with_business_le(session, tenant_id, account_holder_id, le_attrs) do
+    cp =
+      insert(:counterparty,
+        tenant_id: tenant_id,
+        account_holder_id: account_holder_id
+      )
+
+    insert(:business_legal_entity,
+      Keyword.merge(
+        [
+          counterparty_id: cp.id,
+          subject_type: :counterparty,
+          account_holder_id: account_holder_id,
+          tenant_id: tenant_id
+        ],
+        le_attrs
+      )
+    )
+
+    AtomicFi.CounterpartyContext.get_counterparty!(session, cp.id)
   end
 
   defp legal_entity_body(%{legal_entity_type: :business} = le, tenant_id) do
@@ -379,15 +448,13 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
     test "screens blocklisted individual and returns blocked", %{
       conn: conn,
+      session: session,
       platform_tenant: platform_tenant
     } do
       seed_blocklist_for_platform_tenant()
 
-      legal_entity =
-        insert(:legal_entity, tenant_id: platform_tenant.id, first_name: "John", last_name: "Doe")
-
       account_holder =
-        insert(:account_holder, tenant_id: platform_tenant.id)
+        ah_with_le(session, platform_tenant.id, first_name: "John", last_name: "Doe")
 
       body = account_holder_screen_body(account_holder)
 
@@ -401,15 +468,12 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
     test "screens blocklisted business and returns blocked", %{
       conn: conn,
+      session: session,
       platform_tenant: platform_tenant
     } do
       seed_blocklist_for_platform_tenant()
 
-      legal_entity =
-        insert(:business_legal_entity, tenant_id: platform_tenant.id, business_name: "Acme")
-
-      account_holder =
-        insert(:account_holder, tenant_id: platform_tenant.id)
+      account_holder = ah_with_business_le(session, platform_tenant.id, business_name: "Acme")
 
       body = account_holder_screen_body(account_holder)
 
@@ -424,17 +488,11 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
     test "screens known sanctioned individual and returns match", %{
       conn: conn,
+      session: session,
       platform_tenant: platform_tenant
     } do
-      legal_entity =
-        insert(:legal_entity,
-          tenant_id: platform_tenant.id,
-          first_name: "Vladimir",
-          last_name: "Putin"
-        )
-
       account_holder =
-        insert(:account_holder, tenant_id: platform_tenant.id)
+        ah_with_le(session, platform_tenant.id, first_name: "Vladimir", last_name: "Putin")
 
       body = account_holder_screen_body(account_holder)
 
@@ -472,20 +530,14 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
     test "screens beneficial owner's linked LegalEntity and returns pass or potential_match", %{
       conn: conn,
+      session: session,
       account_holder: account_holder,
       platform_tenant: platform_tenant
     } do
-      legal_entity =
-        insert(:legal_entity,
-          tenant_id: platform_tenant.id,
+      beneficial_owner =
+        bo_with_le(session, platform_tenant.id, account_holder.id,
           first_name: "Clara",
           last_name: "Bennet"
-        )
-
-      beneficial_owner =
-        insert(:beneficial_owner,
-          tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id
         )
 
       body = beneficial_owner_screen_body(account_holder, beneficial_owner)
@@ -502,18 +554,16 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
     test "screens blocklisted beneficial owner and returns blocked", %{
       conn: conn,
+      session: session,
       account_holder: account_holder,
       platform_tenant: platform_tenant
     } do
       seed_blocklist_for_platform_tenant()
 
-      legal_entity =
-        insert(:legal_entity, tenant_id: platform_tenant.id, first_name: "John", last_name: "Doe")
-
       beneficial_owner =
-        insert(:beneficial_owner,
-          tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id
+        bo_with_le(session, platform_tenant.id, account_holder.id,
+          first_name: "John",
+          last_name: "Doe"
         )
 
       body = beneficial_owner_screen_body(account_holder, beneficial_owner)
@@ -527,16 +577,11 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
     end
 
     test "returns 401 without API key", %{
+      session: session,
       account_holder: account_holder,
       platform_tenant: platform_tenant
     } do
-      legal_entity = insert(:legal_entity, tenant_id: platform_tenant.id)
-
-      beneficial_owner =
-        insert(:beneficial_owner,
-          tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id
-        )
+      beneficial_owner = bo_with_le(session, platform_tenant.id, account_holder.id, [])
 
       conn =
         build_conn()
@@ -578,19 +623,14 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
     test "screens blocklisted counterparty business and returns blocked", %{
       conn: conn,
+      session: session,
       account_holder: account_holder,
       platform_tenant: platform_tenant
     } do
       seed_blocklist_for_platform_tenant()
 
-      legal_entity =
-        insert(:business_legal_entity, tenant_id: platform_tenant.id, business_name: "Acme")
-
       counterparty =
-        insert(:counterparty,
-          tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id
-        )
+        cp_with_business_le(session, platform_tenant.id, account_holder.id, business_name: "Acme")
 
       body = counterparty_screen_body(account_holder, counterparty)
 
@@ -785,16 +825,14 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
     test "screen_beneficial_owner returns 503 when screening fails", %{
       conn: conn,
+      session: session,
       platform_tenant: platform_tenant,
       account_holder: account_holder
     } do
-      bo_legal_entity =
-        insert(:legal_entity, tenant_id: platform_tenant.id, first_name: "BO", last_name: "Owner")
-
       bo =
-        insert(:beneficial_owner,
-          tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id
+        bo_with_le(session, platform_tenant.id, account_holder.id,
+          first_name: "BO",
+          last_name: "Owner"
         )
 
       expect(AtomicFi.ScreeningEngineMock, :screen_beneficial_owner, fn _, _, _ ->
@@ -872,16 +910,14 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
     test "screen_beneficial_owner returns 503 when listinfo fails", %{
       conn: conn,
+      session: session,
       platform_tenant: platform_tenant,
       account_holder: account_holder
     } do
-      bo_legal_entity =
-        insert(:legal_entity, tenant_id: platform_tenant.id, first_name: "BO2", last_name: "L")
-
       bo =
-        insert(:beneficial_owner,
-          tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id
+        bo_with_le(session, platform_tenant.id, account_holder.id,
+          first_name: "BO2",
+          last_name: "L"
         )
 
       expect(AtomicFi.ScreeningEngineMock, :get_watchman_list_info, fn ->
