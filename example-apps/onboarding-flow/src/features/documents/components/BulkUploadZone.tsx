@@ -20,6 +20,7 @@ import type {
   Application,
   Document,
   DocumentType,
+  FieldProvenance,
   VerificationResult,
 } from "@/features/onboarding/types";
 import { cn } from "@/lib/utils";
@@ -66,7 +67,7 @@ function pendingToDocument(entry: PendingFile, status?: "EXTRACTED" | "NEEDS_ATT
 function processSampleEntries(entries: PendingFile[], app: Application) {
   const docs: Document[] = [];
   let prefill: Partial<Application> = {};
-  let provenance: Record<string, unknown> = {};
+  let provenance: Record<string, FieldProvenance> = {};
 
   for (const entry of entries) {
     const sample = SAMPLE_DOCUMENTS[entry.detectedType];
