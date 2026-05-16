@@ -20,43 +20,48 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
 
   @invalid_attrs %{control_type: nil}
 
-  defp create_attrs(tenant_id, account_holder_id, legal_entity_id) do
+  defp nested_le(tenant_id) do
+    %{
+      legal_entity_type: "individual",
+      first_name: "BO",
+      last_name: "Holder",
+      citizenship_country: "US",
+      politically_exposed_person: false,
+      tenant_id: tenant_id
+    }
+  end
+
+  defp create_attrs(tenant_id, account_holder_id) do
     @individual_attrs
     |> Map.put(:tenant_id, tenant_id)
     |> Map.put(:account_holder_id, account_holder_id)
-    |> Map.put(:legal_entity_id, legal_entity_id)
+    |> Map.put(:legal_entity, nested_le(tenant_id))
   end
 
-  defp update_attrs(tenant_id, account_holder_id, legal_entity_id) do
+  defp update_attrs(tenant_id, account_holder_id) do
     @update_fields
     |> Map.put(:tenant_id, tenant_id)
     |> Map.put(:account_holder_id, account_holder_id)
-    |> Map.put(:legal_entity_id, legal_entity_id)
   end
 
   setup :setup_platform_admin_api
 
   setup %{platform_tenant: platform_tenant} do
     account_holder = insert(:account_holder, tenant_id: platform_tenant.id)
-    legal_entity = insert(:legal_entity, tenant_id: platform_tenant.id)
-    %{account_holder: account_holder, legal_entity: legal_entity}
+    %{account_holder: account_holder}
   end
 
   describe "index (GET /api/beneficial-owners)" do
     test "lists beneficial owners for tenant", %{
       conn: conn,
       platform_tenant: platform_tenant,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       _bo1 =
         insert(:beneficial_owner,
           tenant_id: platform_tenant.id,
           account_holder_id: account_holder.id
         )
-
-      # Second with a different legal_entity to avoid unique constraint
-      legal_entity2 = insert(:legal_entity, tenant_id: platform_tenant.id)
 
       _bo2 =
         insert(:beneficial_owner,
@@ -82,8 +87,6 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
       account_holder: account_holder
     } do
       for _ <- 1..12 do
-        le = insert(:legal_entity, tenant_id: platform_tenant.id)
-
         insert(:beneficial_owner,
           tenant_id: platform_tenant.id,
           account_holder_id: account_holder.id
@@ -105,8 +108,7 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
     test "includes own tenant beneficial owners in results", %{
       conn: conn,
       platform_tenant: platform_tenant,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       bo =
         insert(:beneficial_owner,
@@ -177,14 +179,13 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
     test "creates beneficial owner", %{
       conn: conn,
       platform_tenant: platform_tenant,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       conn =
         post(
           conn,
           ~p"/api/beneficial-owners",
-          create_attrs(platform_tenant.id, account_holder.id, legal_entity.id)
+          create_attrs(platform_tenant.id, account_holder.id)
         )
 
       response = json_response(conn, 201)
@@ -197,23 +198,22 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
                "control_type" => "shareholder",
                "verification_status" => "pending",
                "account_holder_id" => account_holder_id,
-               "legal_entity_id" => legal_entity_id
+               "legal_entity" => %{"id" => le_id}
              } = response
 
       assert is_binary(id)
       assert account_holder_id == account_holder.id
-      assert legal_entity_id == legal_entity.id
+      assert is_binary(le_id)
       assert Plug.Conn.get_resp_header(conn, "location") == ["/api/beneficial-owners/#{id}"]
     end
 
     test "creates beneficial owner with optional fields", %{
       conn: conn,
       platform_tenant: platform_tenant,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       attrs =
-        create_attrs(platform_tenant.id, account_holder.id, legal_entity.id)
+        create_attrs(platform_tenant.id, account_holder.id)
         |> Map.merge(%{
           beneficial_owner_number: "BO-001",
           ownership_pct: 51.0
@@ -239,11 +239,10 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
     test "renders errors when control_type is invalid enum", %{
       conn: conn,
       platform_tenant: platform_tenant,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       attrs =
-        create_attrs(platform_tenant.id, account_holder.id, legal_entity.id)
+        create_attrs(platform_tenant.id, account_holder.id)
         |> Map.put(:control_type, "invalid_type")
 
       conn = post(conn, ~p"/api/beneficial-owners", attrs)
@@ -252,7 +251,7 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
 
     test "returns 401 without API key", %{
       account_holder: account_holder,
-      legal_entity: legal_entity
+      platform_tenant: platform_tenant
     } do
       conn =
         build_conn()
@@ -260,9 +259,7 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           ~p"/api/beneficial-owners",
-          @individual_attrs
-          |> Map.put(:account_holder_id, account_holder.id)
-          |> Map.put(:legal_entity_id, legal_entity.id)
+          create_attrs(platform_tenant.id, account_holder.id)
         )
 
       assert json_response(conn, 401)
@@ -276,14 +273,13 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
       conn: conn,
       beneficial_owner: beneficial_owner,
       platform_tenant: platform_tenant,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       conn =
         put(
           conn,
           ~p"/api/beneficial-owners/#{beneficial_owner.id}",
-          update_attrs(platform_tenant.id, account_holder.id, legal_entity.id)
+          update_attrs(platform_tenant.id, account_holder.id)
         )
 
       response = json_response(conn, 200)
@@ -312,8 +308,7 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
     test "renders 404 when beneficial owner does not exist", %{
       conn: conn,
       platform_tenant: platform_tenant,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       non_existent_id = Ecto.UUID.generate()
 
@@ -321,7 +316,7 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
         put(
           conn,
           ~p"/api/beneficial-owners/#{non_existent_id}",
-          update_attrs(platform_tenant.id, account_holder.id, legal_entity.id)
+          update_attrs(platform_tenant.id, account_holder.id)
         )
 
       assert json_response(conn, 404)
@@ -329,8 +324,7 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
 
     test "returns 401 without API key", %{
       beneficial_owner: beneficial_owner,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       conn =
         build_conn()
@@ -340,7 +334,6 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
           ~p"/api/beneficial-owners/#{beneficial_owner.id}",
           @update_fields
           |> Map.put(:account_holder_id, account_holder.id)
-          |> Map.put(:legal_entity_id, legal_entity.id)
         )
 
       assert json_response(conn, 401)
@@ -358,7 +351,6 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
       delete_conn = delete(conn, ~p"/api/beneficial-owners/#{beneficial_owner.id}")
       assert response(delete_conn, 204)
 
-      # Verify deleted via GET
       get_conn =
         build_conn()
         |> put_req_header("accept", "application/json")
@@ -436,14 +428,12 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
                "components" => %{"schemas" => %{"BeneficialOwnerRequest" => request_schema}}
              } = response
 
-      # Server-generated readOnly fields should not appear in Request schema
       refute get_in(request_schema, ["properties", "id"])
       refute get_in(request_schema, ["properties", "inserted_at"])
       refute get_in(request_schema, ["properties", "updated_at"])
 
-      # Writable fields should be present
       assert get_in(request_schema, ["properties", "account_holder_id"])
-      assert get_in(request_schema, ["properties", "legal_entity_id"])
+      assert get_in(request_schema, ["properties", "legal_entity"])
       assert get_in(request_schema, ["properties", "control_type"])
     end
 
@@ -457,7 +447,6 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
 
       assert get_in(response_schema, ["properties", "id"])
       assert get_in(response_schema, ["properties", "account_holder_id"])
-      assert get_in(response_schema, ["properties", "legal_entity_id"])
       assert get_in(response_schema, ["properties", "control_type"])
       assert get_in(response_schema, ["properties", "inserted_at"])
       assert get_in(response_schema, ["properties", "updated_at"])
@@ -466,14 +455,20 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
 
   defp create_beneficial_owner(%{
          platform_tenant: platform_tenant,
-         account_holder: account_holder,
-         legal_entity: legal_entity
+         account_holder: account_holder
        }) do
     beneficial_owner =
       insert(:beneficial_owner,
         tenant_id: platform_tenant.id,
         account_holder_id: account_holder.id
       )
+
+    insert(:legal_entity,
+      beneficial_owner_id: beneficial_owner.id,
+      subject_type: :beneficial_owner,
+      account_holder_id: account_holder.id,
+      tenant_id: platform_tenant.id
+    )
 
     %{beneficial_owner: beneficial_owner}
   end

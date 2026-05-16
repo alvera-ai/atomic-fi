@@ -145,7 +145,10 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
         "POST creates the LegalEntity atomically via the nested `legal_entity` " <>
         "object — the LE link is immutable post-create (LE carries the FK, " <>
         "not AH). To replace LE PII content, use `PUT /api/account-holders/:id/legal-entity`.",
-    required: [:account_holder_type, :legal_entity],
+    # `legal_entity` is required on POST but optional on PUT (cast_assoc is a
+    # no-op on update; the LE link is immutable post-create). Enforcing it at
+    # the Ecto layer keeps schema validation consistent across both verbs.
+    required: [:account_holder_type],
     properties: [
       :id,
       :legal_entity,

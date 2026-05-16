@@ -117,7 +117,9 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
         "All PII lives in the linked LegalEntity, created atomically via the nested " <>
         "`legal_entity` object. The LE link is immutable post-create (LE owns the " <>
         "FK back). To replace LE PII, use `PUT /api/beneficial-owners/:id/legal-entity`.",
-    required: [:account_holder_id, :control_type, :legal_entity],
+    # `legal_entity` is required on POST but optional on PUT (cast_assoc is a
+    # no-op on update; the LE link is immutable post-create).
+    required: [:account_holder_id, :control_type],
     properties: [
       :id,
       :account_holder_id,

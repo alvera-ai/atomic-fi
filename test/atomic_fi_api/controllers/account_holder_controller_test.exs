@@ -26,40 +26,37 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
     account_holder_type: nil
   }
 
-  defp create_attrs(tenant_id, legal_entity_id) do
-    @individual_attrs
-    |> Map.put(:tenant_id, tenant_id)
-    |> Map.put(:legal_entity_id, legal_entity_id)
+  defp nested_le(tenant_id) do
+    %{
+      legal_entity_type: "individual",
+      first_name: "John",
+      last_name: "Doe",
+      citizenship_country: "US",
+      politically_exposed_person: false,
+      tenant_id: tenant_id
+    }
   end
 
-  defp update_attrs(tenant_id, legal_entity_id) do
+  defp create_attrs(tenant_id) do
+    @individual_attrs
+    |> Map.put(:tenant_id, tenant_id)
+    |> Map.put(:legal_entity, nested_le(tenant_id))
+  end
+
+  defp update_attrs(tenant_id) do
     @update_fields
     |> Map.put(:tenant_id, tenant_id)
-    |> Map.put(:legal_entity_id, legal_entity_id)
   end
 
   setup :setup_platform_admin_api
 
-  setup %{platform_tenant: platform_tenant} do
-    legal_entity = insert(:legal_entity, tenant_id: platform_tenant.id)
-    %{legal_entity: legal_entity}
-  end
-
   describe "index (GET /api/account-holders)" do
     test "lists account holders for tenant", %{
       conn: conn,
-      platform_tenant: platform_tenant,
-      legal_entity: legal_entity
+      platform_tenant: platform_tenant
     } do
-      _ah1 =
-        insert(:account_holder,
-          tenant_id: platform_tenant.id
-        )
-
-      _ah2 =
-        insert(:account_holder,
-          tenant_id: platform_tenant.id
-        )
+      _ah1 = insert(:account_holder, tenant_id: platform_tenant.id)
+      _ah2 = insert(:account_holder, tenant_id: platform_tenant.id)
 
       conn = get(conn, ~p"/api/account-holders")
       response = json_response(conn, 200)
@@ -73,16 +70,8 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
       assert meta["total_count"] >= 2
     end
 
-    test "supports pagination", %{
-      conn: conn,
-      platform_tenant: platform_tenant,
-      legal_entity: legal_entity
-    } do
-      for _ <- 1..12 do
-        insert(:account_holder,
-          tenant_id: platform_tenant.id
-        )
-      end
+    test "supports pagination", %{conn: conn, platform_tenant: platform_tenant} do
+      for _ <- 1..12, do: insert(:account_holder, tenant_id: platform_tenant.id)
 
       conn = get(conn, ~p"/api/account-holders", %{"page" => 1, "page_size" => 5})
       response = json_response(conn, 200)
@@ -98,18 +87,10 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
 
     test "supports sorting by inserted_at descending", %{
       conn: conn,
-      platform_tenant: platform_tenant,
-      legal_entity: legal_entity
+      platform_tenant: platform_tenant
     } do
-      _older =
-        insert(:account_holder,
-          tenant_id: platform_tenant.id
-        )
-
-      _newer =
-        insert(:account_holder,
-          tenant_id: platform_tenant.id
-        )
+      _older = insert(:account_holder, tenant_id: platform_tenant.id)
+      _newer = insert(:account_holder, tenant_id: platform_tenant.id)
 
       conn =
         get(conn, ~p"/api/account-holders", %{
@@ -127,13 +108,9 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
 
     test "includes own tenant account holders in results", %{
       conn: conn,
-      platform_tenant: platform_tenant,
-      legal_entity: legal_entity
+      platform_tenant: platform_tenant
     } do
-      ah =
-        insert(:account_holder,
-          tenant_id: platform_tenant.id
-        )
+      ah = insert(:account_holder, tenant_id: platform_tenant.id)
 
       conn = get(conn, ~p"/api/account-holders")
       response = json_response(conn, 200)
@@ -208,11 +185,9 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
   describe "create (POST /api/account-holders)" do
     test "creates individual account holder", %{
       conn: conn,
-      platform_tenant: platform_tenant,
-      legal_entity: legal_entity
+      platform_tenant: platform_tenant
     } do
-      conn =
-        post(conn, ~p"/api/account-holders", create_attrs(platform_tenant.id, legal_entity.id))
+      conn = post(conn, ~p"/api/account-holders", create_attrs(platform_tenant.id))
 
       response = json_response(conn, 201)
       api_spec = ApiSpec.spec()
@@ -224,21 +199,20 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
                "account_holder_type" => "individual",
                "status" => "pending",
                "kyc_status" => "not_started",
-               "legal_entity_id" => legal_entity_id
+               "legal_entity" => %{"id" => le_id}
              } = response
 
       assert is_binary(id)
-      assert legal_entity_id == legal_entity.id
+      assert is_binary(le_id)
       assert Plug.Conn.get_resp_header(conn, "location") == ["/api/account-holders/#{id}"]
     end
 
     test "creates account holder with optional fields", %{
       conn: conn,
-      platform_tenant: platform_tenant,
-      legal_entity: legal_entity
+      platform_tenant: platform_tenant
     } do
       attrs =
-        create_attrs(platform_tenant.id, legal_entity.id)
+        create_attrs(platform_tenant.id)
         |> Map.merge(%{
           account_holder_number: "AH-001",
           external_id: "ext-123",
@@ -286,15 +260,15 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
       assert %{
                "id" => id,
                "account_holder_type" => "individual",
-               "legal_entity_id" => legal_entity_id,
                "legal_entity" => %{
+                 "id" => le_id,
                  "first_name" => "Jane",
                  "last_name" => "Doe"
                }
              } = response
 
       assert is_binary(id)
-      assert is_binary(legal_entity_id)
+      assert is_binary(le_id)
       assert Plug.Conn.get_resp_header(conn, "location") == ["/api/account-holders/#{id}"]
     end
 
@@ -308,26 +282,22 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
 
     test "renders errors when account_holder_type is invalid enum", %{
       conn: conn,
-      platform_tenant: platform_tenant,
-      legal_entity: legal_entity
+      platform_tenant: platform_tenant
     } do
       attrs =
-        create_attrs(platform_tenant.id, legal_entity.id)
+        create_attrs(platform_tenant.id)
         |> Map.put(:account_holder_type, "invalid_type")
 
       conn = post(conn, ~p"/api/account-holders", attrs)
       assert json_response(conn, 422)
     end
 
-    test "returns 401 without API key", %{legal_entity: legal_entity} do
+    test "returns 401 without API key", %{platform_tenant: platform_tenant} do
       conn =
         build_conn()
         |> put_req_header("accept", "application/json")
         |> put_req_header("content-type", "application/json")
-        |> post(
-          ~p"/api/account-holders",
-          Map.put(@individual_attrs, :legal_entity_id, legal_entity.id)
-        )
+        |> post(~p"/api/account-holders", create_attrs(platform_tenant.id))
 
       assert json_response(conn, 401)
     end
@@ -339,14 +309,13 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
     test "updates account holder with valid data", %{
       conn: conn,
       account_holder: account_holder,
-      platform_tenant: platform_tenant,
-      legal_entity: legal_entity
+      platform_tenant: platform_tenant
     } do
       conn =
         put(
           conn,
           ~p"/api/account-holders/#{account_holder.id}",
-          update_attrs(platform_tenant.id, legal_entity.id)
+          update_attrs(platform_tenant.id)
         )
 
       response = json_response(conn, 200)
@@ -375,8 +344,7 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
 
     test "renders 404 when account holder does not exist", %{
       conn: conn,
-      platform_tenant: platform_tenant,
-      legal_entity: legal_entity
+      platform_tenant: platform_tenant
     } do
       non_existent_id = Ecto.UUID.generate()
 
@@ -384,24 +352,18 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
         put(
           conn,
           ~p"/api/account-holders/#{non_existent_id}",
-          update_attrs(platform_tenant.id, legal_entity.id)
+          update_attrs(platform_tenant.id)
         )
 
       assert json_response(conn, 404)
     end
 
-    test "returns 401 without API key", %{
-      account_holder: account_holder,
-      legal_entity: legal_entity
-    } do
+    test "returns 401 without API key", %{account_holder: account_holder} do
       conn =
         build_conn()
         |> put_req_header("accept", "application/json")
         |> put_req_header("content-type", "application/json")
-        |> put(
-          ~p"/api/account-holders/#{account_holder.id}",
-          Map.put(@update_fields, :legal_entity_id, legal_entity.id)
-        )
+        |> put(~p"/api/account-holders/#{account_holder.id}", @update_fields)
 
       assert json_response(conn, 401)
     end
@@ -418,7 +380,6 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
       delete_conn = delete(conn, ~p"/api/account-holders/#{account_holder.id}")
       assert response(delete_conn, 204)
 
-      # Verify deleted via GET
       get_conn =
         build_conn()
         |> put_req_header("accept", "application/json")
@@ -530,13 +491,11 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
                "components" => %{"schemas" => %{"AccountHolderRequest" => request_schema}}
              } = response
 
-      # Server-generated readOnly fields should not appear in Request schema
       refute get_in(request_schema, ["properties", "id"])
       refute get_in(request_schema, ["properties", "inserted_at"])
       refute get_in(request_schema, ["properties", "updated_at"])
 
-      # Writable fields should be present
-      assert get_in(request_schema, ["properties", "legal_entity_id"])
+      assert get_in(request_schema, ["properties", "legal_entity"])
       assert get_in(request_schema, ["properties", "account_holder_type"])
       assert get_in(request_schema, ["properties", "status"])
       assert get_in(request_schema, ["properties", "tenant_id"])
@@ -551,7 +510,6 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
              } = response
 
       assert get_in(response_schema, ["properties", "id"])
-      assert get_in(response_schema, ["properties", "legal_entity_id"])
       assert get_in(response_schema, ["properties", "account_holder_type"])
       assert get_in(response_schema, ["properties", "status"])
       assert get_in(response_schema, ["properties", "inserted_at"])
@@ -559,11 +517,14 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
     end
   end
 
-  defp create_account_holder(%{platform_tenant: platform_tenant, legal_entity: legal_entity}) do
-    account_holder =
-      insert(:account_holder,
-        tenant_id: platform_tenant.id
-      )
+  defp create_account_holder(%{platform_tenant: platform_tenant}) do
+    account_holder = insert(:account_holder, tenant_id: platform_tenant.id)
+
+    insert(:legal_entity,
+      account_holder_id: account_holder.id,
+      subject_type: :account_holder,
+      tenant_id: platform_tenant.id
+    )
 
     %{account_holder: account_holder}
   end

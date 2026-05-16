@@ -112,7 +112,9 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
         "`legal_entity` object on POST. The LE link is immutable post-create " <>
         "(LE carries the FK back, not CP). To replace LE PII, use " <>
         "`PUT /api/counterparties/:id/legal-entity`.",
-    required: [:account_holder_id, :status, :legal_entity],
+    # `legal_entity` is required on POST but optional on PUT (cast_assoc is a
+    # no-op on update; the LE link is immutable post-create).
+    required: [:account_holder_id, :status],
     properties: [
       :id,
       :account_holder_id,
