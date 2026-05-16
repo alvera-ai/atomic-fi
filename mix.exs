@@ -154,6 +154,7 @@ defmodule AtomicFi.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.18", only: [:dev, :test], runtime: false},
       {:styler, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:rewrite, "~> 1.1", only: [:dev, :test], runtime: false},
 
       # Development tools
       {:tidewave, "~> 0.5.2", only: :dev},

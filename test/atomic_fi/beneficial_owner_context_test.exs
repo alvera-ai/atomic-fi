@@ -32,7 +32,6 @@ defmodule AtomicFi.BeneficialOwnerContextTest do
 
       request = %BeneficialOwnerRequest{
         account_holder_id: account_holder.id,
-        legal_entity_id: legal_entity.id,
         control_type: :shareholder,
         ownership_pct: 30.0,
         verification_status: :pending,
@@ -71,7 +70,6 @@ defmodule AtomicFi.BeneficialOwnerContextTest do
 
       request = %BeneficialOwnerRequest{
         account_holder_id: beneficial_owner.account_holder_id,
-        legal_entity_id: beneficial_owner.legal_entity_id,
         control_type: beneficial_owner.control_type,
         verification_status: :verified,
         ownership_pct: 51.0,

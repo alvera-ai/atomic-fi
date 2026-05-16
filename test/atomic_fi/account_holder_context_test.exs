@@ -52,7 +52,6 @@ defmodule AtomicFi.AccountHolderContextTest do
       legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
 
       request = %AccountHolderRequest{
-        legal_entity_id: legal_entity.id,
         account_holder_type: :individual,
         status: :pending,
         kyc_status: :not_started,
@@ -93,7 +92,6 @@ defmodule AtomicFi.AccountHolderContextTest do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
       request = %AccountHolderRequest{
-        legal_entity_id: account_holder.legal_entity_id,
         account_holder_type: account_holder.account_holder_type,
         status: :active,
         kyc_status: :approved,
@@ -157,7 +155,6 @@ defmodule AtomicFi.AccountHolderContextTest do
 
     defp ah_request(session, legal_entity_id, currencies, regimes) do
       %AccountHolderRequest{
-        legal_entity_id: legal_entity_id,
         account_holder_type: :individual,
         status: :pending,
         kyc_status: :not_started,

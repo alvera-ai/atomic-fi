@@ -42,8 +42,7 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
       _cp1 =
         insert(:counterparty,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: legal_entity.id
+          account_holder_id: account_holder.id
         )
 
       legal_entity2 = insert(:legal_entity, tenant_id: platform_tenant.id)
@@ -51,8 +50,7 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
       _cp2 =
         insert(:counterparty,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: legal_entity2.id
+          account_holder_id: account_holder.id
         )
 
       conn = get(conn, ~p"/api/counterparties")
@@ -77,8 +75,7 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
 
         insert(:counterparty,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: le.id
+          account_holder_id: account_holder.id
         )
       end
 
@@ -567,8 +564,7 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
     counterparty =
       insert(:counterparty,
         tenant_id: platform_tenant.id,
-        account_holder_id: account_holder.id,
-        legal_entity_id: legal_entity.id
+        account_holder_id: account_holder.id
       )
 
     %{counterparty: counterparty}

@@ -48,7 +48,6 @@ defmodule AtomicFi.OnboardingWorkerTest do
 
     {:ok, ah} =
       AccountHolderContext.create_account_holder(session, %AccountHolderRequest{
-        legal_entity_id: legal_entity.id,
         account_holder_type: :individual,
         status: :pending,
         kyc_status: :not_started,

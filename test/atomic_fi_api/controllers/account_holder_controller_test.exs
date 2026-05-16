@@ -53,14 +53,12 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
     } do
       _ah1 =
         insert(:account_holder,
-          tenant_id: platform_tenant.id,
-          legal_entity_id: legal_entity.id
+          tenant_id: platform_tenant.id
         )
 
       _ah2 =
         insert(:account_holder,
-          tenant_id: platform_tenant.id,
-          legal_entity_id: legal_entity.id
+          tenant_id: platform_tenant.id
         )
 
       conn = get(conn, ~p"/api/account-holders")
@@ -82,8 +80,7 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
     } do
       for _ <- 1..12 do
         insert(:account_holder,
-          tenant_id: platform_tenant.id,
-          legal_entity_id: legal_entity.id
+          tenant_id: platform_tenant.id
         )
       end
 
@@ -106,14 +103,12 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
     } do
       _older =
         insert(:account_holder,
-          tenant_id: platform_tenant.id,
-          legal_entity_id: legal_entity.id
+          tenant_id: platform_tenant.id
         )
 
       _newer =
         insert(:account_holder,
-          tenant_id: platform_tenant.id,
-          legal_entity_id: legal_entity.id
+          tenant_id: platform_tenant.id
         )
 
       conn =
@@ -137,8 +132,7 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
     } do
       ah =
         insert(:account_holder,
-          tenant_id: platform_tenant.id,
-          legal_entity_id: legal_entity.id
+          tenant_id: platform_tenant.id
         )
 
       conn = get(conn, ~p"/api/account-holders")
@@ -568,8 +562,7 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
   defp create_account_holder(%{platform_tenant: platform_tenant, legal_entity: legal_entity}) do
     account_holder =
       insert(:account_holder,
-        tenant_id: platform_tenant.id,
-        legal_entity_id: legal_entity.id
+        tenant_id: platform_tenant.id
       )
 
     %{account_holder: account_holder}

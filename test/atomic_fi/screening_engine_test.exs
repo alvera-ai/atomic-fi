@@ -52,7 +52,7 @@ defmodule AtomicFi.ScreeningEngineTest do
           last_name: "Person"
         )
 
-      ah = insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
+      ah = insert(:account_holder, tenant_id: session.tenant_id)
       ah = AccountHolderContext.get_account_holder!(session, ah.id)
 
       assert {:ok, %ComplianceScreening{} = result} =
@@ -82,7 +82,7 @@ defmodule AtomicFi.ScreeningEngineTest do
         insert(:business_legal_entity, tenant_id: session.tenant_id, business_name: "ACME Corp")
 
       cp =
-        insert(:counterparty, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
+        insert(:counterparty, tenant_id: session.tenant_id)
 
       cp = CounterpartyContext.get_counterparty!(session, cp.id)
 
@@ -111,7 +111,7 @@ defmodule AtomicFi.ScreeningEngineTest do
           last_name: "Cleansurname#{System.unique_integer([:positive])}"
         )
 
-      ah = insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
+      ah = insert(:account_holder, tenant_id: session.tenant_id)
       ah = AccountHolderContext.get_account_holder!(session, ah.id)
 
       assert {:ok, %ComplianceScreening{} = result} =
@@ -132,7 +132,7 @@ defmodule AtomicFi.ScreeningEngineTest do
           last_name: "Putin"
         )
 
-      ah = insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
+      ah = insert(:account_holder, tenant_id: session.tenant_id)
       ah = AccountHolderContext.get_account_holder!(session, ah.id)
 
       assert {:ok, %ComplianceScreening{} = result} =
@@ -159,7 +159,7 @@ defmodule AtomicFi.ScreeningEngineTest do
           business_name: "Random Company #{System.unique_integer([:positive])}"
         )
 
-      cp = insert(:counterparty, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
+      cp = insert(:counterparty, tenant_id: session.tenant_id)
       cp = CounterpartyContext.get_counterparty!(session, cp.id)
 
       assert {:ok, %ComplianceScreening{} = result} =
@@ -178,7 +178,7 @@ defmodule AtomicFi.ScreeningEngineTest do
           business_name: "Wagner Group"
         )
 
-      cp = insert(:counterparty, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
+      cp = insert(:counterparty, tenant_id: session.tenant_id)
       cp = CounterpartyContext.get_counterparty!(session, cp.id)
 
       assert {:ok, %ComplianceScreening{} = result} =
@@ -205,8 +205,7 @@ defmodule AtomicFi.ScreeningEngineTest do
 
       bo =
         insert(:beneficial_owner,
-          tenant_id: session.tenant_id,
-          legal_entity_id: bo_legal_entity.id
+          tenant_id: session.tenant_id
         )
 
       bo = BeneficialOwnerContext.get_beneficial_owner!(session, bo.id)

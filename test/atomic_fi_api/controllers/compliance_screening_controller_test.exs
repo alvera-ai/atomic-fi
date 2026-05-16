@@ -18,7 +18,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       )
 
     account_holder =
-      insert(:account_holder, tenant_id: platform_tenant.id, legal_entity_id: legal_entity.id)
+      insert(:account_holder, tenant_id: platform_tenant.id)
 
     # Default counterparty with a clean-named individual LegalEntity
     cp_legal_entity =
@@ -31,8 +31,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
     counterparty =
       insert(:counterparty,
         tenant_id: platform_tenant.id,
-        account_holder_id: account_holder.id,
-        legal_entity_id: cp_legal_entity.id
+        account_holder_id: account_holder.id
       )
 
     %{account_holder: account_holder, counterparty: counterparty}
@@ -388,7 +387,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         insert(:legal_entity, tenant_id: platform_tenant.id, first_name: "John", last_name: "Doe")
 
       account_holder =
-        insert(:account_holder, tenant_id: platform_tenant.id, legal_entity_id: legal_entity.id)
+        insert(:account_holder, tenant_id: platform_tenant.id)
 
       body = account_holder_screen_body(account_holder)
 
@@ -410,7 +409,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         insert(:business_legal_entity, tenant_id: platform_tenant.id, business_name: "Acme")
 
       account_holder =
-        insert(:account_holder, tenant_id: platform_tenant.id, legal_entity_id: legal_entity.id)
+        insert(:account_holder, tenant_id: platform_tenant.id)
 
       body = account_holder_screen_body(account_holder)
 
@@ -435,7 +434,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         )
 
       account_holder =
-        insert(:account_holder, tenant_id: platform_tenant.id, legal_entity_id: legal_entity.id)
+        insert(:account_holder, tenant_id: platform_tenant.id)
 
       body = account_holder_screen_body(account_holder)
 
@@ -486,8 +485,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       beneficial_owner =
         insert(:beneficial_owner,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: legal_entity.id
+          account_holder_id: account_holder.id
         )
 
       body = beneficial_owner_screen_body(account_holder, beneficial_owner)
@@ -515,8 +513,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       beneficial_owner =
         insert(:beneficial_owner,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: legal_entity.id
+          account_holder_id: account_holder.id
         )
 
       body = beneficial_owner_screen_body(account_holder, beneficial_owner)
@@ -538,8 +535,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       beneficial_owner =
         insert(:beneficial_owner,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: legal_entity.id
+          account_holder_id: account_holder.id
         )
 
       conn =
@@ -593,8 +589,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       counterparty =
         insert(:counterparty,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: legal_entity.id
+          account_holder_id: account_holder.id
         )
 
       body = counterparty_screen_body(account_holder, counterparty)
@@ -799,8 +794,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       bo =
         insert(:beneficial_owner,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: bo_legal_entity.id
+          account_holder_id: account_holder.id
         )
 
       expect(AtomicFi.ScreeningEngineMock, :screen_beneficial_owner, fn _, _, _ ->
@@ -887,8 +881,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       bo =
         insert(:beneficial_owner,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: bo_legal_entity.id
+          account_holder_id: account_holder.id
         )
 
       expect(AtomicFi.ScreeningEngineMock, :get_watchman_list_info, fn ->

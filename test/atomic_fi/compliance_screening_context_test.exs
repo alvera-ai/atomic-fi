@@ -756,8 +756,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       counterparty =
         insert(:counterparty,
           tenant_id: session.tenant_id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: counterparty_le.id
+          account_holder_id: account_holder.id
         )
 
       request = %CounterpartyRequest{
@@ -798,8 +797,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       beneficial_owner =
         insert(:beneficial_owner,
           tenant_id: session.tenant_id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: bo_legal_entity.id
+          account_holder_id: account_holder.id
         )
 
       request = %BeneficialOwnerRequest{

@@ -301,7 +301,6 @@ defmodule AtomicFi.PaymentAccountContextTest do
 
       {:ok, ah} =
         AccountHolderContext.create_account_holder(session, %AccountHolderRequest{
-          legal_entity_id: legal_entity.id,
           account_holder_type: :individual,
           status: :pending,
           kyc_status: :not_started,
@@ -321,7 +320,6 @@ defmodule AtomicFi.PaymentAccountContextTest do
       {:ok, cp} =
         CounterpartyContext.create_counterparty(session, %CounterpartyRequest{
           account_holder_id: ah.id,
-          legal_entity_id: cp_le.id,
           status: :active,
           enabled_regimes: regimes,
           tenant_id: session.tenant_id,

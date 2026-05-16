@@ -80,7 +80,6 @@ defmodule AtomicFi.OnboardingContextTest do
           session,
           %AtomicFi.OpenApiSchema.CounterpartyRequest{
             account_holder_id: ah.id,
-            legal_entity_id: cp_le.id,
             status: :active,
             enabled_regimes: ["ach"],
             tenant_id: session.tenant_id,
@@ -167,7 +166,6 @@ defmodule AtomicFi.OnboardingContextTest do
 
     {:ok, ah} =
       AccountHolderContext.create_account_holder(session, %AccountHolderRequest{
-        legal_entity_id: legal_entity.id,
         account_holder_type: :individual,
         status: :pending,
         kyc_status: :not_started,

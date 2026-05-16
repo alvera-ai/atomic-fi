@@ -52,8 +52,7 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
       _bo1 =
         insert(:beneficial_owner,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: legal_entity.id
+          account_holder_id: account_holder.id
         )
 
       # Second with a different legal_entity to avoid unique constraint
@@ -62,8 +61,7 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
       _bo2 =
         insert(:beneficial_owner,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: legal_entity2.id
+          account_holder_id: account_holder.id
         )
 
       conn = get(conn, ~p"/api/beneficial-owners")
@@ -88,8 +86,7 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
 
         insert(:beneficial_owner,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: le.id
+          account_holder_id: account_holder.id
         )
       end
 
@@ -114,8 +111,7 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
       bo =
         insert(:beneficial_owner,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: legal_entity.id
+          account_holder_id: account_holder.id
         )
 
       conn = get(conn, ~p"/api/beneficial-owners")
@@ -476,8 +472,7 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
     beneficial_owner =
       insert(:beneficial_owner,
         tenant_id: platform_tenant.id,
-        account_holder_id: account_holder.id,
-        legal_entity_id: legal_entity.id
+        account_holder_id: account_holder.id
       )
 
     %{beneficial_owner: beneficial_owner}

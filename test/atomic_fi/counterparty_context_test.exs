@@ -53,7 +53,6 @@ defmodule AtomicFi.CounterpartyContextTest do
 
       request = %CounterpartyRequest{
         account_holder_id: account_holder.id,
-        legal_entity_id: legal_entity.id,
         status: :active,
         tenant_id: session.tenant_id,
         chain_screening: false
@@ -74,7 +73,6 @@ defmodule AtomicFi.CounterpartyContextTest do
 
       request = %CounterpartyRequest{
         account_holder_id: account_holder.id,
-        legal_entity_id: legal_entity.id,
         status: :active,
         external_id: "CP-001",
         tenant_id: session.tenant_id,
@@ -104,7 +102,6 @@ defmodule AtomicFi.CounterpartyContextTest do
 
       request = %CounterpartyRequest{
         account_holder_id: account_holder.id,
-        legal_entity_id: legal_entity.id,
         status: :active,
         tenant_id: session.tenant_id,
         chain_screening: false
@@ -123,7 +120,6 @@ defmodule AtomicFi.CounterpartyContextTest do
 
       request = %CounterpartyRequest{
         account_holder_id: account_holder.id,
-        legal_entity_id: legal_entity.id,
         external_id: "EXT-CP-42",
         status: :active,
         tenant_id: session.tenant_id,
@@ -140,7 +136,6 @@ defmodule AtomicFi.CounterpartyContextTest do
 
       request2 = %CounterpartyRequest{
         account_holder_id: account_holder.id,
-        legal_entity_id: other_le.id,
         external_id: "EXT-CP-42",
         status: :suspended,
         tenant_id: session.tenant_id,
@@ -210,7 +205,6 @@ defmodule AtomicFi.CounterpartyContextTest do
 
       request = %CounterpartyRequest{
         account_holder_id: counterparty.account_holder_id,
-        legal_entity_id: counterparty.legal_entity_id,
         status: :suspended,
         tenant_id: session.tenant_id,
         chain_screening: false
@@ -228,7 +222,6 @@ defmodule AtomicFi.CounterpartyContextTest do
       # Non-existent legal_entity_id trips foreign_key_constraint — nil values are
       # stripped by ExOpenApiUtils.Mapper and don't propagate, so use a live bad value.
       request = %CounterpartyRequest{
-        legal_entity_id: Ecto.UUID.generate(),
         status: :suspended,
         chain_screening: false
       }
@@ -270,7 +263,6 @@ defmodule AtomicFi.CounterpartyContextTest do
 
       {:ok, ah} =
         AccountHolderContext.create_account_holder(session, %AccountHolderRequest{
-          legal_entity_id: legal_entity.id,
           account_holder_type: :individual,
           status: :pending,
           kyc_status: :not_started,
@@ -292,7 +284,6 @@ defmodule AtomicFi.CounterpartyContextTest do
       {:ok, cp} =
         CounterpartyContext.create_counterparty(session, %CounterpartyRequest{
           account_holder_id: ah.id,
-          legal_entity_id: cp_le.id,
           status: :active,
           enabled_regimes: ["ach", "wire"],
           tenant_id: session.tenant_id,
@@ -318,7 +309,6 @@ defmodule AtomicFi.CounterpartyContextTest do
       {:ok, _cp} =
         CounterpartyContext.create_counterparty(session, %CounterpartyRequest{
           account_holder_id: ah.id,
-          legal_entity_id: cp_le.id,
           status: :active,
           enabled_regimes: ["ach"],
           tenant_id: session.tenant_id,
@@ -336,7 +326,6 @@ defmodule AtomicFi.CounterpartyContextTest do
       {:ok, cp} =
         CounterpartyContext.create_counterparty(session, %CounterpartyRequest{
           account_holder_id: ah.id,
-          legal_entity_id: cp_le.id,
           status: :active,
           enabled_regimes: ["ach"],
           tenant_id: session.tenant_id,
@@ -348,7 +337,6 @@ defmodule AtomicFi.CounterpartyContextTest do
       {:ok, updated} =
         CounterpartyContext.update_counterparty(session, cp, %CounterpartyRequest{
           account_holder_id: cp.account_holder_id,
-          legal_entity_id: cp.legal_entity_id,
           status: cp.status,
           enabled_regimes: ["ach", "wire"],
           tenant_id: session.tenant_id,
@@ -369,7 +357,6 @@ defmodule AtomicFi.CounterpartyContextTest do
       {:ok, cp} =
         CounterpartyContext.create_counterparty(session, %CounterpartyRequest{
           account_holder_id: ah.id,
-          legal_entity_id: cp_le.id,
           status: :active,
           enabled_regimes: ["ach"],
           tenant_id: session.tenant_id,
@@ -381,7 +368,6 @@ defmodule AtomicFi.CounterpartyContextTest do
       {:ok, updated} =
         CounterpartyContext.update_counterparty(session, cp, %CounterpartyRequest{
           account_holder_id: cp.account_holder_id,
-          legal_entity_id: cp.legal_entity_id,
           status: :suspended,
           enabled_regimes: ["ach"],
           tenant_id: session.tenant_id,
@@ -399,7 +385,6 @@ defmodule AtomicFi.CounterpartyContextTest do
       {:ok, cp} =
         CounterpartyContext.create_counterparty(session, %CounterpartyRequest{
           account_holder_id: ah.id,
-          legal_entity_id: cp_le.id,
           status: :active,
           enabled_regimes: ["ach"],
           tenant_id: session.tenant_id,
