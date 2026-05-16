@@ -1,15 +1,32 @@
-body {
-    margin: 0;
+@import "tailwindcss";
+
+@theme {
+  --color-paper: oklch(0.985 0.003 70);
+  --color-paper-sub: oklch(0.965 0.004 70);
+  --color-ink: oklch(0.20 0.005 70);
+  --color-ink-muted: oklch(0.50 0.005 70);
+  --color-rule: oklch(0.90 0.004 70);
+  --color-accent: oklch(0.55 0.13 50);
+  --color-accent-soft: oklch(0.95 0.04 50);
+
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-body: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-.grl-dn__header__icon {
-    box-sizing: content-box;
+body {
+  margin: 0;
+  font-family: var(--font-body);
 }
 
 body[data-theme="dark"] {
-    background: black;
+  background: oklch(0.18 0.006 70);
 }
 
 body[data-theme="light"] {
-    background: white;
+  background: var(--color-paper);
+}
+
+.grl-dn__header__icon {
+  box-sizing: content-box;
 }
