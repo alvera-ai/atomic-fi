@@ -1,6 +1,12 @@
 defmodule AtomicFi.Factory.AccountHolderFactory do
   @moduledoc """
   Factory for AccountHolder context schemas.
+
+  AccountHolder owns no FK to LegalEntity — LE carries the FK back via
+  `legal_entities.account_holder_id` (subject_type = :account_holder). So
+  this factory only inserts the AH. For tests that need the paired identity
+  LE, use `insert_account_holder_with_legal_entity/1` (defined in
+  `AtomicFi.Factory`).
   """
 
   defmacro __using__(_opts) do
@@ -13,13 +19,7 @@ defmodule AtomicFi.Factory.AccountHolderFactory do
             insert(:tenant).id
           end)
 
-        legal_entity_id =
-          Map.get_lazy(attrs, :legal_entity_id, fn ->
-            insert(:legal_entity, tenant_id: tenant_id).id
-          end)
-
         %AccountHolder{
-          legal_entity_id: legal_entity_id,
           account_holder_type: :individual,
           status: :pending,
           kyc_status: :not_started,

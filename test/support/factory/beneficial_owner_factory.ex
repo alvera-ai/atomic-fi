@@ -1,6 +1,11 @@
 defmodule AtomicFi.Factory.BeneficialOwnerFactory do
   @moduledoc """
   Factory for BeneficialOwner context schemas.
+
+  BeneficialOwner owns no FK to LegalEntity — LE carries the FK back via
+  `legal_entities.beneficial_owner_id` (subject_type = :beneficial_owner).
+  This factory only inserts the BO; tests that need the paired LE use
+  `insert_beneficial_owner_with_legal_entity/1` (in `AtomicFi.Factory`).
   """
 
   defmacro __using__(_opts) do
@@ -18,14 +23,8 @@ defmodule AtomicFi.Factory.BeneficialOwnerFactory do
             insert(:account_holder, tenant_id: tenant_id).id
           end)
 
-        legal_entity_id =
-          Map.get_lazy(attrs, :legal_entity_id, fn ->
-            insert(:legal_entity, tenant_id: tenant_id).id
-          end)
-
         %BeneficialOwner{
           account_holder_id: account_holder_id,
-          legal_entity_id: legal_entity_id,
           ownership_pct: 25.0,
           control_type: :shareholder,
           verification_status: :pending,

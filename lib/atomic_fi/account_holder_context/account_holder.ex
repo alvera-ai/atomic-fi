@@ -7,12 +7,14 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
   @typedoc """
   Account holder — the MDM subject that controls an account (ISO 20022 acmt:007, acmt:019).
 
-  Operational state lives here. All PII lives in the linked LegalEntity.
+  Operational state lives here. All PII lives in the linked LegalEntity, which
+  is reached via `has_one :legal_entity` (LE carries the FK back: `legal_entities.account_holder_id`).
 
   ## Attributes
 
   * `id` - UUID primary key
-  * `legal_entity_id` - FK to LegalEntity (all PII / identity)
+  * `legal_entity` - one-to-one identity record (LE owns the FK back; no
+    `legal_entity_id` column on AccountHolder)
   * `external_id` - Upstream ID (Stripe/JPMC/Moov), unique per tenant
   * `account_holder_type` - `individual` | `business` | `trust` | `nonprofit`
   * `status` - `pending` | `active` | `suspended` | `closed`
@@ -40,11 +42,6 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
 
   # OpenAPI annotations
   open_api_property(schema: %Schema{type: :string, format: :uuid, readOnly: true}, key: :id)
-
-  open_api_property(
-    schema: %Schema{type: :string, format: :uuid, nullable: true},
-    key: :legal_entity_id
-  )
 
   open_api_property(
     schema: %OpenApiSpex.Reference{"$ref": "#/components/schemas/LegalEntityRequest"},
@@ -145,11 +142,12 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
     description:
       "Account holder — the MDM subject controlling an account. " <>
         "All PII lives in the linked LegalEntity (ISO 20022 acmt:007 / acmt:019). " <>
-        "Pass either `legal_entity_id` (FK to an existing LegalEntity) or a nested `legal_entity` object to create one atomically.",
-    required: [:account_holder_type],
+        "POST creates the LegalEntity atomically via the nested `legal_entity` " <>
+        "object — the LE link is immutable post-create (LE carries the FK, " <>
+        "not AH). To replace LE PII content, use `PUT /api/account-holders/:id/legal-entity`.",
+    required: [:account_holder_type, :legal_entity],
     properties: [
       :id,
-      :legal_entity_id,
       :legal_entity,
       :external_id,
       :account_holder_type,
@@ -169,7 +167,12 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
   )
 
   typed_schema "account_holders" do
-    belongs_to :legal_entity, LegalEntity
+    # 1:1 identity record. LE carries the FK back via `legal_entities.account_holder_id`
+    # (filtered by subject_type=:account_holder so this assoc doesn't include
+    # CP-owned or BO-owned LEs that roll up to the same AH for compliance).
+    has_one :legal_entity, LegalEntity,
+      foreign_key: :account_holder_id,
+      where: [subject_type: :account_holder]
 
     field :external_id, :string
 
@@ -212,7 +215,6 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
   def changeset(account_holder, attrs) do
     account_holder
     |> cast(attrs, [
-      :legal_entity_id,
       :external_id,
       :account_holder_type,
       :status,
@@ -227,10 +229,8 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
     ])
     |> maybe_cast_assoc_legal_entity(attrs)
     |> validate_required([:account_holder_type, :tenant_id])
-    |> validate_legal_entity_present()
     |> cast_and_validate_enabled_regimes()
     |> AtomicFi.Identifier.put_default(:account_holder_number, :ah)
-    |> foreign_key_constraint(:legal_entity_id)
     |> foreign_key_constraint(:tenant_id)
   end
 
@@ -256,30 +256,30 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
     regimes
   end
 
-  # Cast nested legal_entity only when the key is present in attrs (not a nil default).
-  defp maybe_cast_assoc_legal_entity(changeset, attrs) do
+  # cast_assoc nested legal_entity only when the key is present in attrs (not a
+  # nil default). The per-parent `account_holder_changeset/2` on LE puts
+  # `subject_type` via put_change — Ecto's has_one foreign_key auto-sets
+  # `legal_entity.account_holder_id` from the inserted AH's id.
+  #
+  # Required on INSERT (every AH must have its identity LE), optional on
+  # UPDATE (existing LE stays put — replacing LE PII goes through the
+  # nested `PUT /api/account-holders/:id/legal-entity` route).
+  defp maybe_cast_assoc_legal_entity(%Ecto.Changeset{data: %{id: nil}} = changeset, attrs) do
     case Map.fetch(attrs, :legal_entity) do
       {:ok, value} when not is_nil(value) ->
-        cast_assoc(changeset, :legal_entity, required: true)
+        cast_assoc(changeset, :legal_entity,
+          required: true,
+          with: &LegalEntity.account_holder_changeset/2
+        )
 
       _ ->
-        changeset
+        add_error(
+          changeset,
+          :legal_entity,
+          "is required on create — provide a nested legal_entity object"
+        )
     end
   end
 
-  # Require either legal_entity_id (FK) or a nested legal_entity change in this changeset.
-  defp validate_legal_entity_present(changeset) do
-    legal_entity_id = get_field(changeset, :legal_entity_id)
-    has_nested = Map.has_key?(changeset.changes, :legal_entity)
-
-    if is_nil(legal_entity_id) and not has_nested do
-      add_error(
-        changeset,
-        :legal_entity_id,
-        "must provide either legal_entity_id or a nested legal_entity"
-      )
-    else
-      changeset
-    end
-  end
+  defp maybe_cast_assoc_legal_entity(%Ecto.Changeset{} = changeset, _attrs), do: changeset
 end

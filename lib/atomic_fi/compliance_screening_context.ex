@@ -367,7 +367,6 @@ defmodule AtomicFi.ComplianceScreeningContext do
   defp account_holder_from_request(%AccountHolderRequest{} = req, tenant_id) do
     %AccountHolder{
       tenant_id: tenant_id,
-      legal_entity_id: req.legal_entity_id,
       legal_entity: legal_entity_from_request(req.legal_entity, tenant_id)
     }
   end
@@ -376,7 +375,6 @@ defmodule AtomicFi.ComplianceScreeningContext do
     %BeneficialOwner{
       tenant_id: tenant_id,
       account_holder_id: req.account_holder_id,
-      legal_entity_id: req.legal_entity_id,
       legal_entity: legal_entity_from_request(req.legal_entity, tenant_id)
     }
   end
@@ -385,7 +383,6 @@ defmodule AtomicFi.ComplianceScreeningContext do
     %Counterparty{
       tenant_id: tenant_id,
       account_holder_id: req.account_holder_id,
-      legal_entity_id: req.legal_entity_id,
       legal_entity: legal_entity_from_request(req.legal_entity, tenant_id)
     }
   end

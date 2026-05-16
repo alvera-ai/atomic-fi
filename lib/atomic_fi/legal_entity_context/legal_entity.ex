@@ -1,6 +1,9 @@
 defmodule AtomicFi.LegalEntityContext.LegalEntity do
   use AtomicFi.Schema
 
+  alias AtomicFi.AccountHolderContext.AccountHolder
+  alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
+  alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.LegalEntityContext.LegalEntityAddress
   alias AtomicFi.LegalEntityContext.LegalEntityIdentification
   alias AtomicFi.LegalEntityContext.LegalEntityPhoneNumber
@@ -94,7 +97,12 @@ defmodule AtomicFi.LegalEntityContext.LegalEntity do
   )
 
   open_api_property(
-    schema: %Schema{type: :string, nullable: true, enum: ["account_holder", "beneficial_owner"]},
+    schema: %Schema{
+      type: :string,
+      nullable: true,
+      readOnly: true,
+      enum: ["account_holder", "counterparty", "beneficial_owner"]
+    },
     key: :subject_type
   )
 
@@ -238,8 +246,10 @@ defmodule AtomicFi.LegalEntityContext.LegalEntity do
         :government
       ]
 
-    # Industry-specific MDM subject role (payment_risk only)
-    field :subject_type, Ecto.Enum, values: [:account_holder, :beneficial_owner]
+    # MDM subject role discriminator. Set by the per-parent named changeset
+    # (account_holder_changeset / counterparty_changeset / beneficial_owner_changeset)
+    # via put_change — never cast from caller attrs.
+    field :subject_type, Ecto.Enum, values: [:account_holder, :counterparty, :beneficial_owner]
 
     # Business identity fields
     field :business_name, :string
@@ -264,6 +274,14 @@ defmodule AtomicFi.LegalEntityContext.LegalEntity do
     has_many :phone_numbers, LegalEntityPhoneNumber, on_replace: :delete
     has_many :identifications, LegalEntityIdentification, on_replace: :delete
 
+    # Parent FKs — at most one of `counterparty_id` / `beneficial_owner_id` is
+    # set per row (selected by `subject_type`). `account_holder_id` is NOT NULL
+    # on every row: for AH-owned LEs it's the AH itself; for CP-owned and
+    # BO-owned LEs it's the host AH (AH-uniform compliance rollup).
+    belongs_to :account_holder, AccountHolder
+    belongs_to :counterparty, Counterparty
+    belongs_to :beneficial_owner, BeneficialOwner
+
     # Multi-tenancy: tenant_id references tenants for RLS
     belongs_to :tenant, Tenant
 
@@ -287,14 +305,81 @@ defmodule AtomicFi.LegalEntityContext.LegalEntity do
   defp to_plain_map(attrs) when is_struct(attrs), do: Map.from_struct(attrs)
   defp to_plain_map(attrs) when is_map(attrs), do: attrs
 
-  @doc false
+  @doc """
+  Default changeset for standalone LegalEntity update where the caller already
+  has every field in `attrs` (including identity / parent FKs). Used by
+  `LegalEntityChangeEventContext` recovery paths and direct LE update via the
+  nested PUT routes on the parent's controller.
+
+  For cast_assoc paths from AccountHolder / Counterparty / BeneficialOwner,
+  use the per-parent named changesets below — they put_change `subject_type`
+  and (for CP/BO) `account_holder_id` so the parent context controls
+  attribution and the caller cannot override it via attrs.
+  """
   def changeset(legal_entity, attrs) do
+    legal_entity
+    |> base_changeset(attrs)
+    |> cast(attrs, [:subject_type, :account_holder_id, :counterparty_id, :beneficial_owner_id])
+  end
+
+  @doc """
+  Changeset for an AccountHolder-owned LegalEntity, used via
+  `cast_assoc(:legal_entity, with: &LegalEntity.account_holder_changeset/2)`
+  from `AccountHolder.changeset/2`.
+
+  Ecto's `has_one :legal_entity, foreign_key: :account_holder_id` on AccountHolder
+  injects `account_holder_id` after the parent AH is inserted. This changeset
+  only forces `subject_type` via `put_change`.
+  """
+  def account_holder_changeset(legal_entity, attrs) do
+    legal_entity
+    |> base_changeset(attrs)
+    |> put_change(:subject_type, :account_holder)
+  end
+
+  @doc """
+  Changeset for a Counterparty-owned LegalEntity, used via
+  `cast_assoc(:legal_entity, with: ...)` from `Counterparty.changeset/2`.
+
+  `account_holder_id` is explicit because the host AH is known at write time
+  (Counterparty carries its own `account_holder_id` column). Ecto's
+  `has_one :legal_entity, foreign_key: :counterparty_id` on Counterparty
+  injects `counterparty_id` after the parent CP is inserted.
+  """
+  def counterparty_changeset(legal_entity, attrs, account_holder_id)
+      when is_binary(account_holder_id) do
+    legal_entity
+    |> base_changeset(attrs)
+    |> put_change(:subject_type, :counterparty)
+    |> put_change(:account_holder_id, account_holder_id)
+  end
+
+  @doc """
+  Changeset for a BeneficialOwner-owned LegalEntity, used via
+  `cast_assoc(:legal_entity, with: ...)` from `BeneficialOwner.changeset/2`.
+
+  `account_holder_id` is explicit because BeneficialOwner carries the
+  denormalised `account_holder_id`. Ecto's
+  `has_one :legal_entity, foreign_key: :beneficial_owner_id` on BeneficialOwner
+  injects `beneficial_owner_id` after the parent BO is inserted.
+  """
+  def beneficial_owner_changeset(legal_entity, attrs, account_holder_id)
+      when is_binary(account_holder_id) do
+    legal_entity
+    |> base_changeset(attrs)
+    |> put_change(:subject_type, :beneficial_owner)
+    |> put_change(:account_holder_id, account_holder_id)
+  end
+
+  # Shared body — identity field cast + validations + nested addresses /
+  # phone numbers / identifications. `subject_type` and the three parent FKs
+  # are NOT touched here; the per-parent public changesets above own them.
+  defp base_changeset(legal_entity, attrs) do
     changeset =
       legal_entity
       |> cast(attrs, [
         :legal_entity_type,
         :legal_structure,
-        :subject_type,
         :business_name,
         :doing_business_as_names,
         :date_formed,
