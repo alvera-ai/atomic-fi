@@ -148,7 +148,7 @@ export async function submitOnboarding(app: Application): Promise<OnboardingResu
         document_type: DOCUMENT_TYPE_MAP[doc.doc_type],
         name: doc.doc_type.toLowerCase(),
         file_name: doc.filename,
-        primary: documentIds.length === 0,
+        primary: true,
         status: "submitted",
         tenant_id: TENANT_ID,
       },

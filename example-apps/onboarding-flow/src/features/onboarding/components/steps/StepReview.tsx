@@ -23,7 +23,6 @@ import { submitOnboarding } from "@/features/onboarding/api";
 import { ONBOARDING_STEPS } from "@/features/onboarding/constants";
 import { saveApplication } from "@/features/onboarding/store";
 import type { Application } from "@/features/onboarding/types";
-import { useApplication } from "@/features/onboarding/useApplication";
 import { cn } from "@/lib/utils";
 
 interface OnboardingContext {
@@ -45,9 +44,8 @@ const STEP_ICONS: Record<number, typeof FileText> = {
 };
 
 export function StepReview() {
-  const { application, applicationId } = useOutletContext<OnboardingContext>();
+  const { application, applicationId, updateApplication } = useOutletContext<OnboardingContext>();
   const navigate = useNavigate();
-  const { updateApplication } = useApplication(applicationId);
   const [submitting, setSubmitting] = useState(false);
 
   const incompleteSteps = ONBOARDING_STEPS.filter(

@@ -49,7 +49,7 @@ async function safeDelete(path: string, bearer: string) {
   await fetch(`${API_BASE}${path}`, {
     method: "DELETE",
     headers: authHeaders(bearer),
-  }).catch(() => {});
+  }).catch(() => undefined);
 }
 
 test.describe("M1 Onboarding — AccountHolder end-to-end", () => {
@@ -114,9 +114,7 @@ test.describe("M1 Onboarding — AccountHolder end-to-end", () => {
         const key = "fintech_applications";
         const stored = localStorage.getItem(key);
         const apps = stored ? JSON.parse(stored) : [];
-        const idx = apps.findIndex(
-          (a: { application_id: string }) => a.application_id === appId,
-        );
+        const idx = apps.findIndex((a: { application_id: string }) => a.application_id === appId);
         if (idx < 0) return;
 
         apps[idx] = {

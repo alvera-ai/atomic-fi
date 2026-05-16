@@ -8,10 +8,7 @@ const MOA_PATH = resolve(
   here,
   "../../../../document-processing/Memorandum_Association-compressed.pdf",
 );
-const BANK_PATH = resolve(
-  here,
-  "../../../../document-processing/UAE_Bank_Statement_Feb2025.pdf",
-);
+const BANK_PATH = resolve(here, "../../../../document-processing/UAE_Bank_Statement_Feb2025.pdf");
 
 const HAS_DOCS = existsSync(MOA_PATH) && existsSync(BANK_PATH);
 
@@ -39,7 +36,9 @@ test.describe("AI Document Extraction", () => {
 
     // Business identity prefilled from MOA
     await page.goto(`/onboarding/${applicationId}/identity`);
-    await expect(page.locator("#legal_name")).toHaveValue(/GULF PHARMACEUTICAL/i, { timeout: 5_000 });
+    await expect(page.locator("#legal_name")).toHaveValue(/GULF PHARMACEUTICAL/i, {
+      timeout: 5_000,
+    });
 
     // Directors prefilled from MOA
     await page.goto(`/onboarding/${applicationId}/directors`);
