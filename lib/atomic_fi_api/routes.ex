@@ -84,12 +84,9 @@ defmodule AtomicFiApi.Routes do
              ComplianceScreeningController,
              :screen_payment_account
 
-        # Legal entity CRUD endpoints (PUT only for full replacement semantics)
-        get "/legal-entities", LegalEntityController, :index
-        get "/legal-entities/:id", LegalEntityController, :show
-        post "/legal-entities", LegalEntityController, :create
-        put "/legal-entities/:id", LegalEntityController, :update
-        delete "/legal-entities/:id", LegalEntityController, :delete
+        # Legal entities have no standalone REST surface — they are managed
+        # via cast_assoc on parent POSTs and nested PUT routes on the parent
+        # controller (AH / CP / BO). See architecture notes.
 
         # Account holder CRUD endpoints (PUT only for full replacement semantics)
         get "/account-holders", AccountHolderController, :index
