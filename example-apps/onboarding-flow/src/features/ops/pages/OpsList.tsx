@@ -18,9 +18,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useApplicationsList } from "@/hooks/useApplication";
+import type { ApplicationStatus } from "@/features/onboarding/types";
+import { useApplicationsList } from "@/features/onboarding/useApplication";
 import { cn } from "@/lib/utils";
-import type { ApplicationStatus } from "@/types/onboarding";
 
 const STATUS_STYLES: Record<ApplicationStatus, { label: string; className: string }> = {
   DRAFT: { label: "Draft", className: "bg-muted text-muted-foreground" },

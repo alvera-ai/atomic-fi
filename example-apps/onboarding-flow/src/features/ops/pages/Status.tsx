@@ -5,9 +5,9 @@ import { UserMenu } from "@/components/layout/UserMenu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getApplicationById } from "@/hooks/useApplication";
+import { getApplicationById } from "@/features/onboarding/store";
+import type { ApplicationStatus } from "@/features/onboarding/types";
 import { cn } from "@/lib/utils";
-import type { ApplicationStatus } from "@/types/onboarding";
 
 const STATUS_CONFIG: Record<
   ApplicationStatus,

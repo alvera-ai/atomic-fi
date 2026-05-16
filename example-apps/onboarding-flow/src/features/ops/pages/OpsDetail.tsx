@@ -30,9 +30,10 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { useApplication } from "@/hooks/useApplication";
+import { ONBOARDING_STEPS } from "@/features/onboarding/constants";
+import type { ApplicationStatus, OpsNote } from "@/features/onboarding/types";
+import { useApplication } from "@/features/onboarding/useApplication";
 import { cn } from "@/lib/utils";
-import { type ApplicationStatus, ONBOARDING_STEPS, type OpsNote } from "@/types/onboarding";
 
 const STATUS_OPTIONS: { value: ApplicationStatus; label: string; icon: typeof CheckCircle }[] = [
   { value: "DRAFT", label: "Draft", icon: FileText },
