@@ -9,15 +9,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Application } from "@/features/onboarding/types";
+import type { Application, BusinessProfile } from "@/features/onboarding/types";
 
 interface OnboardingContext {
   application: Application;
   applicationId: string;
+  updateApplication: (updates: Partial<Application>) => void;
 }
 
 export function StepIdentity() {
-  const { application } = useOutletContext<OnboardingContext>();
+  const { application, updateApplication } = useOutletContext<OnboardingContext>();
+
+  const updateProfile = (field: keyof BusinessProfile, value: string) => {
+    updateApplication({
+      business_profile: { ...application.business_profile, [field]: value },
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -38,7 +45,8 @@ export function StepIdentity() {
               <Input
                 id="legal_name"
                 placeholder="Enter legal business name"
-                defaultValue={application.business_profile.legal_name}
+                value={application.business_profile.legal_name ?? ""}
+                onChange={(e) => updateProfile("legal_name", e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -46,7 +54,8 @@ export function StepIdentity() {
               <Input
                 id="trade_name"
                 placeholder="Enter trade name (if different)"
-                defaultValue={application.business_profile.trade_name}
+                value={application.business_profile.trade_name ?? ""}
+                onChange={(e) => updateProfile("trade_name", e.target.value)}
               />
             </div>
           </div>
@@ -57,7 +66,8 @@ export function StepIdentity() {
               <Input
                 id="license_number"
                 placeholder="Enter license number"
-                defaultValue={application.business_profile.license_number}
+                value={application.business_profile.license_number ?? ""}
+                onChange={(e) => updateProfile("license_number", e.target.value)}
               />
             </div>
             <div className="space-y-2">
@@ -65,7 +75,8 @@ export function StepIdentity() {
               <Input
                 id="license_expiry"
                 type="date"
-                defaultValue={application.business_profile.license_expiry}
+                value={application.business_profile.license_expiry ?? ""}
+                onChange={(e) => updateProfile("license_expiry", e.target.value)}
               />
             </div>
           </div>
@@ -73,7 +84,10 @@ export function StepIdentity() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="jurisdiction">Jurisdiction</Label>
-              <Select defaultValue={application.business_profile.jurisdiction}>
+              <Select
+                value={application.business_profile.jurisdiction ?? ""}
+                onValueChange={(v) => updateProfile("jurisdiction", v)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select jurisdiction" />
                 </SelectTrigger>
@@ -89,7 +103,10 @@ export function StepIdentity() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="entity_type">Entity type</Label>
-              <Select defaultValue={application.business_profile.entity_type}>
+              <Select
+                value={application.business_profile.entity_type ?? ""}
+                onValueChange={(v) => updateProfile("entity_type", v)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select entity type" />
                 </SelectTrigger>
@@ -110,7 +127,8 @@ export function StepIdentity() {
               id="incorporation_date"
               type="date"
               className="w-1/2"
-              defaultValue={application.business_profile.incorporation_date}
+              value={application.business_profile.incorporation_date ?? ""}
+              onChange={(e) => updateProfile("incorporation_date", e.target.value)}
             />
           </div>
         </CardContent>

@@ -5,11 +5,13 @@ import {
   Building,
   CheckCircle,
   FileText,
+  Loader2,
   MapPin,
   Network,
   UserCheck,
   Users,
 } from "lucide-react";
+import { useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { submitOnboarding } from "@/features/onboarding/api";
 import { ONBOARDING_STEPS } from "@/features/onboarding/constants";
 import { saveApplication } from "@/features/onboarding/store";
 import type { Application } from "@/features/onboarding/types";
@@ -45,12 +48,25 @@ export function StepReview() {
   const { application, applicationId } = useOutletContext<OnboardingContext>();
   const navigate = useNavigate();
   const { updateApplication } = useApplication(applicationId);
+  const [submitting, setSubmitting] = useState(false);
 
   const incompleteSteps = ONBOARDING_STEPS.filter(
     (step) => !application.completed_steps.includes(step.id) && step.id !== 10,
   );
 
-  const handleSubmit = () => {
+  const apiConfigured = !!(import.meta.env.VITE_API_KEY && import.meta.env.VITE_TENANT_ID);
+
+  const markSubmitted = () => {
+    const updatedApp = {
+      ...application,
+      status: "SUBMITTED" as const,
+      updated_at: new Date().toISOString(),
+    };
+    saveApplication(updatedApp);
+    return updatedApp;
+  };
+
+  const handleSubmit = async () => {
     if (incompleteSteps.length > 0) {
       toast.error("Please complete all steps before submitting");
       return;
@@ -64,16 +80,29 @@ export function StepReview() {
       return;
     }
 
-    // Update status to submitted
-    const updatedApp = {
-      ...application,
-      status: "SUBMITTED" as const,
-      updated_at: new Date().toISOString(),
-    };
-    saveApplication(updatedApp);
+    setSubmitting(true);
 
-    toast.success("Application submitted successfully!");
-    navigate(`/status/${applicationId}`);
+    if (!apiConfigured) {
+      markSubmitted();
+      toast.success("Application submitted (localStorage only — API not configured)");
+      navigate(`/status/${applicationId}`);
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      const result = await submitOnboarding(application);
+      markSubmitted();
+      toast.success("Application submitted successfully!", {
+        description: `AccountHolder: ${result.accountHolderId}`,
+      });
+      navigate(`/status/${applicationId}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      toast.error("Submission failed", { description: message });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -82,6 +111,18 @@ export function StepReview() {
         <h1 className="text-2xl font-bold text-foreground">Review & submit</h1>
         <p className="text-muted-foreground mt-1">Review your application before submitting.</p>
       </div>
+
+      {!apiConfigured && (
+        <Card className="border-amber-500/50 bg-amber-500/5">
+          <CardContent className="pt-4">
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              API not configured. Set <code className="font-mono text-xs">VITE_API_KEY</code> and{" "}
+              <code className="font-mono text-xs">VITE_TENANT_ID</code> in{" "}
+              <code className="font-mono text-xs">.env.local</code> to submit to the backend.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Steps completion status */}
       <Card>
@@ -183,11 +224,15 @@ export function StepReview() {
         <Button
           size="lg"
           onClick={handleSubmit}
-          disabled={incompleteSteps.length > 0}
+          disabled={incompleteSteps.length > 0 || submitting}
           className="gap-2"
         >
-          <CheckCircle className="h-4 w-4" />
-          Submit Application
+          {submitting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <CheckCircle className="h-4 w-4" />
+          )}
+          {submitting ? "Submitting..." : "Submit Application"}
         </Button>
       </div>
     </div>

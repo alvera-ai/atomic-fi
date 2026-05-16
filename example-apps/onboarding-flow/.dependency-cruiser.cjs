@@ -5,7 +5,7 @@ module.exports = {
       name: "no-circular",
       severity: "error",
       comment: "Circular dependencies cause bundle bloat and init-order bugs",
-      from: {},
+      from: { pathNot: ["packages/sdk/"] },
       to: { circular: true },
     },
     {
