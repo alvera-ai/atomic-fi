@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Button, Dropdown, Input, message, Popconfirm } from 'antd';
-import { BulbOutlined, CheckOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import { Button, Dropdown, Empty, Input, message, Popconfirm, Tabs, theme as antTheme } from 'antd';
+import { BulbOutlined, CheckOutlined, DeleteOutlined, FileTextOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
 import { deleteRule, listRules, RULE_TYPES, RULE_TYPE_LABELS, type RuleType } from '../helpers/rules-api';
 import { errorMessage } from '../helpers/error-message';
 import { ThemePreference, useTheme } from '../context/theme.provider';
@@ -13,6 +13,7 @@ export const RulesIndexPage: React.FC = () => {
   const navigate = useNavigate();
   const { ruleType: ruleTypeParam } = useParams<{ ruleType: string }>();
   const ruleType: RuleType = isRuleType(ruleTypeParam) ? ruleTypeParam : 'onboarding';
+  const { token } = antTheme.useToken();
 
   const { themePreference, setThemePreference } = useTheme();
 
@@ -68,11 +69,28 @@ export const RulesIndexPage: React.FC = () => {
     }
   };
 
+  const total = rulesByType[ruleType]?.length;
+  const countLabel = loading
+    ? 'loading…'
+    : typeof total === 'number'
+      ? `${visibleRules.length} of ${total}`
+      : '—';
+
   return (
-    <div className="min-h-screen bg-surface text-ink">
-      <header className="flex items-center justify-between px-8 py-5 border-b border-rule">
-        <h1 className="font-display text-2xl tracking-tight">Rules</h1>
-        <div className="flex items-center gap-2">
+    <div className="flex flex-col h-screen bg-surface text-ink">
+      <header
+        className="flex items-center justify-between px-6 py-3 border-b border-rule shrink-0"
+        style={{ background: token.colorBgLayout }}
+      >
+        <div className="flex items-baseline gap-3 min-w-0">
+          <span className="font-display italic text-ink-muted text-sm">atomic-fi</span>
+          <span className="text-ink-muted text-sm">/</span>
+          <h1 className="font-display text-lg tracking-tight m-0">Rules</h1>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleNewRule}>
+            New rule
+          </Button>
           <Dropdown
             menu={{
               onClick: ({ key }) => setThemePreference(key as ThemePreference),
@@ -85,81 +103,118 @@ export const RulesIndexPage: React.FC = () => {
           >
             <Button type="text" icon={<BulbOutlined />} />
           </Dropdown>
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleNewRule}>
-            New rule
-          </Button>
         </div>
       </header>
 
-      <nav className="flex gap-6 px-8 border-b border-rule">
-        {RULE_TYPES.map((t) => {
-          const count = rulesByType[t]?.length;
-          const active = t === ruleType;
-          return (
-            <Link
-              key={t}
-              to={`/rules/${t}`}
-              className={[
-                'py-3 text-sm transition-colors',
-                active ? 'text-ink border-b-2 border-accent -mb-px' : 'text-ink-muted hover:text-ink border-b-2 border-transparent -mb-px',
-              ].join(' ')}
+      <div className="px-6 border-b border-rule shrink-0" style={{ background: token.colorBgLayout }}>
+        <Tabs
+          activeKey={ruleType}
+          onChange={(key) => navigate(`/rules/${key}`)}
+          size="small"
+          tabBarStyle={{ margin: 0 }}
+          items={RULE_TYPES.map((t) => ({
+            key: t,
+            label: (
+              <span className="inline-flex items-center gap-2">
+                <span>{RULE_TYPE_LABELS[t]}</span>
+                <span
+                  className="inline-flex items-center justify-center min-w-[1.25rem] h-[1.25rem] px-1.5 rounded-full text-[11px] tabular-nums"
+                  style={{
+                    background: t === ruleType ? token.colorPrimaryBg : token.colorFillTertiary,
+                    color: t === ruleType ? token.colorPrimary : token.colorTextSecondary,
+                  }}
+                >
+                  {rulesByType[t]?.length ?? '·'}
+                </span>
+              </span>
+            ),
+          }))}
+        />
+      </div>
+
+      <main className="flex-1 overflow-auto">
+        <section className="mx-auto max-w-3xl px-6 py-8">
+          <div className="flex items-center justify-between gap-4 mb-3">
+            <Input
+              placeholder="Filter rules"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              allowClear
+              prefix={<SearchOutlined style={{ color: token.colorTextTertiary }} />}
+              className="max-w-sm"
+            />
+            <div className="flex items-center gap-3 text-xs text-ink-muted tabular-nums">
+              <span>{countLabel}</span>
+              <Button
+                type="text"
+                size="small"
+                icon={<ReloadOutlined />}
+                onClick={refresh}
+                loading={loading}
+                aria-label="Refresh"
+              />
+            </div>
+          </div>
+
+          {error ? (
+            <ErrorBlock message={error} onRetry={refresh} />
+          ) : !loading && visibleRules.length === 0 ? (
+            <EmptyBlock ruleType={ruleType} hasFilter={filter.trim().length > 0} onNew={handleNewRule} />
+          ) : (
+            <ul
+              className="rounded-md overflow-hidden divide-y"
+              style={{
+                background: token.colorBgContainer,
+                borderColor: token.colorBorderSecondary,
+                borderWidth: 1,
+                borderStyle: 'solid',
+              }}
             >
-              {RULE_TYPE_LABELS[t]}
-              {typeof count === 'number' && <span className="ml-2 text-ink-muted tabular-nums">{count}</span>}
-            </Link>
-          );
-        })}
-      </nav>
-
-      <section className="px-8 py-6 max-w-5xl">
-        <div className="flex items-center justify-between mb-4">
-          <Input
-            placeholder="filter rules"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            allowClear
-            className="max-w-xs"
-          />
-          <span className="text-sm text-ink-muted tabular-nums">
-            {loading ? 'loading…' : `${visibleRules.length} ${visibleRules.length === 1 ? 'rule' : 'rules'}`}
-          </span>
-        </div>
-
-        {error ? (
-          <ErrorBlock message={error} onRetry={refresh} />
-        ) : !loading && visibleRules.length === 0 ? (
-          <EmptyBlock ruleType={ruleType} hasFilter={filter.trim().length > 0} onNew={handleNewRule} />
-        ) : (
-          <ul className="divide-y divide-rule border-y border-rule">
-            {visibleRules.map((name) => (
-              <li key={name} className="group flex items-center justify-between py-2.5">
-                <Link
-                  to={`/rules/${ruleType}/${encodeURIComponent(name)}`}
-                  className="flex-1 font-mono text-sm text-ink hover:text-accent hover:underline underline-offset-4 decoration-1"
-                >
-                  {name}
-                </Link>
-                <Popconfirm
-                  title="Delete rule?"
-                  description={`This will remove ${name} from the rules directory.`}
-                  okText="Delete"
-                  okButtonProps={{ danger: true }}
-                  cancelText="Cancel"
-                  onConfirm={() => handleDelete(name)}
-                >
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<DeleteOutlined />}
-                    className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-                  />
-                </Popconfirm>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+              {visibleRules.map((name) => (
+                <RuleRow
+                  key={name}
+                  name={name}
+                  href={`/rules/${ruleType}/${encodeURIComponent(name)}`}
+                  onDelete={() => handleDelete(name)}
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+      </main>
     </div>
+  );
+};
+
+const RuleRow: React.FC<{ name: string; href: string; onDelete: () => void }> = ({ name, href, onDelete }) => {
+  const { token } = antTheme.useToken();
+  return (
+    <li
+      className="group flex items-center justify-between gap-3 px-4 py-2.5 transition-colors"
+      onMouseEnter={(e) => (e.currentTarget.style.background = token.colorFillQuaternary)}
+      onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+    >
+      <Link to={href} className="flex items-center gap-3 flex-1 min-w-0 no-underline">
+        <FileTextOutlined style={{ color: token.colorTextTertiary, fontSize: 14 }} />
+        <span className="font-mono text-[13px] text-ink truncate">{name}</span>
+      </Link>
+      <Popconfirm
+        title="Delete rule?"
+        description={`This will remove ${name} from the rules directory.`}
+        okText="Delete"
+        okButtonProps={{ danger: true }}
+        cancelText="Cancel"
+        onConfirm={onDelete}
+      >
+        <Button
+          type="text"
+          size="small"
+          icon={<DeleteOutlined />}
+          aria-label={`Delete ${name}`}
+          className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
+        />
+      </Popconfirm>
+    </li>
   );
 };
 
@@ -172,24 +227,30 @@ const EmptyBlock: React.FC<{ ruleType: RuleType; hasFilter: boolean; onNew: () =
   hasFilter,
   onNew,
 }) => (
-  <div className="py-12 text-center">
-    <p className="text-sm text-ink-muted">
-      {hasFilter
-        ? 'No rules match this filter.'
-        : `No ${RULE_TYPE_LABELS[ruleType].toLowerCase()} rules yet.`}
-    </p>
-    {!hasFilter && (
-      <Button type="link" onClick={onNew} className="mt-2">
-        Create the first one
-      </Button>
-    )}
+  <div className="py-16">
+    <Empty
+      image={Empty.PRESENTED_IMAGE_SIMPLE}
+      description={
+        <span className="text-sm text-ink-muted">
+          {hasFilter
+            ? 'No rules match this filter.'
+            : `No ${RULE_TYPE_LABELS[ruleType].toLowerCase()} rules yet.`}
+        </span>
+      }
+    >
+      {!hasFilter && (
+        <Button type="primary" size="small" icon={<PlusOutlined />} onClick={onNew}>
+          Create your first rule
+        </Button>
+      )}
+    </Empty>
   </div>
 );
 
 const ErrorBlock: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => (
-  <div className="py-12 text-center">
-    <p className="text-sm text-ink-muted">Could not load rules. {message}</p>
-    <Button type="link" onClick={onRetry} className="mt-2">
+  <div className="py-16 text-center">
+    <p className="text-sm text-ink-muted m-0">Could not load rules. {message}</p>
+    <Button type="link" size="small" onClick={onRetry} className="mt-1">
       Retry
     </Button>
   </div>
