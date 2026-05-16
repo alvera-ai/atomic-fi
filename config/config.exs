@@ -106,7 +106,7 @@ config :atomic_fi, AtomicFi.Watchman.Client, base_url: "http://localhost:8084"
 # Transaction/AccountHolder/Counterparty is created or updated. Mirrors the
 # ScreeningEngine seam — the caller picks the impl via
 # `Application.compile_env` (RuleEngine in prod; RuleEngineMock in test).
-config :atomic_fi, :rule_engine, AtomicFi.RuleEngine
+config :atomic_fi, :rule_engine, AtomicFi.RuleEngine.Default
 config :atomic_fi, AtomicFi.RuleEngine, base_url: "http://localhost:8090"
 
 # RulesContext rule-type → ZenRule project name (which is also the on-disk

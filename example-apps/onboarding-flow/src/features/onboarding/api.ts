@@ -70,25 +70,20 @@ function mapAddresses(app: Application): LegalEntityAddressRequest[] {
 }
 
 function mapIdentifications(app: Application): LegalEntityIdentificationRequest[] {
+  const seen = new Set<string>();
   const ids: LegalEntityIdentificationRequest[] = [];
-  for (const dir of app.directors) {
-    if (dir.passport_number) {
+
+  for (const person of [...app.directors, ...app.ubos]) {
+    if (person.passport_number && !seen.has("passport")) {
+      seen.add("passport");
       ids.push({
         id_type: "passport",
-        id_number: dir.passport_number,
-        issuing_country: dir.nationality || undefined,
+        id_number: person.passport_number,
+        issuing_country: person.nationality || undefined,
       });
     }
   }
-  for (const ubo of app.ubos) {
-    if (ubo.passport_number) {
-      ids.push({
-        id_type: "passport",
-        id_number: ubo.passport_number,
-        issuing_country: ubo.nationality || undefined,
-      });
-    }
-  }
+
   return ids;
 }
 
@@ -109,7 +104,7 @@ export async function submitOnboarding(app: Application): Promise<OnboardingResu
       kyc_status: "not_started",
       risk_level: "low",
       enabled_currencies: ["USD"],
-      chain_screening: true,
+      chain_screening: false,
       tenant_id: TENANT_ID,
       legal_entity: {
         legal_entity_type: isIndividual ? "individual" : "business",

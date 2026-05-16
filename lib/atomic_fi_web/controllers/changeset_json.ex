@@ -34,14 +34,21 @@ defmodule AtomicFiWeb.ChangesetJSON do
           opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
         end)
       end)
-      |> Enum.map(fn {field, messages} ->
-        %{
-          detail: Enum.join(messages, ", "),
-          source: %{pointer: "/#{field}"},
-          title: "Invalid value"
-        }
-      end)
+      |> Enum.flat_map(&flatten_errors/1)
 
     %{errors: errors}
+  end
+
+  defp flatten_errors({field, messages}, prefix \\ "") do
+    pointer = "#{prefix}/#{field}"
+
+    Enum.with_index(messages)
+    |> Enum.flat_map(fn
+      {msg, _idx} when is_binary(msg) ->
+        [%{detail: msg, source: %{pointer: pointer}, title: "Invalid value"}]
+
+      {nested, idx} when is_map(nested) ->
+        Enum.flat_map(nested, &flatten_errors(&1, "#{pointer}/#{idx}"))
+    end)
   end
 end
