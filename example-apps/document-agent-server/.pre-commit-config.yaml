@@ -1,0 +1,40 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types: [python]
+
+      - id: ruff-lint
+        name: ruff lint
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+
+      - id: pyright
+        name: pyright
+        entry: uv run pyright
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: vulture
+        name: vulture (dead code)
+        entry: uv run vulture app/ vulture_whitelist.py --min-confidence 80
+        language: system
+        pass_filenames: false
+
+      - id: import-linter
+        name: import-linter (boundaries)
+        entry: uv run lint-imports
+        language: system
+        pass_filenames: false
+
+      - id: pip-audit
+        name: pip-audit (dependency vulnerabilities)
+        entry: uv run pip-audit
+        language: system
+        pass_filenames: false
+        stages: [pre-push]

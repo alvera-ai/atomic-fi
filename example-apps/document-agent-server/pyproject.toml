@@ -1,0 +1,135 @@
+[project]
+name = "document-agent"
+version = "0.1.0"
+description = "Document processing API — extract structured data from documents using Gemini"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.34.0",
+    "python-multipart>=0.0.20",
+    "google-genai>=1.62.0",
+    "python-dotenv>=1.2.1",
+    "pydantic>=2.12.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.11.0",
+    "pyright>=1.1.400",
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "pytest-asyncio>=0.25",
+    "httpx>=0.28.0",
+    "vulture>=2.14",
+    "import-linter>=2.1",
+    "pip-audit>=2.7",
+    "pre-commit>=4.0",
+]
+
+# =============================================================================
+# Ruff — replaces flake8, black, isort, bandit, pylint, pyupgrade
+# =============================================================================
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = [
+    "E",     # pycodestyle errors
+    "W",     # pycodestyle warnings
+    "F",     # pyflakes
+    "I",     # isort
+    "N",     # pep8-naming
+    "UP",    # pyupgrade
+    "B",     # flake8-bugbear
+    "A",     # flake8-builtins
+    "C4",    # flake8-comprehensions
+    "DTZ",   # flake8-datetimez
+    "T10",   # flake8-debugger
+    "ISC",   # flake8-implicit-str-concat
+    "PIE",   # flake8-pie
+    "PT",    # flake8-pytest-style
+    "Q",     # flake8-quotes
+    "RET",   # flake8-return
+    "SIM",   # flake8-simplify
+    "TID",   # flake8-tidy-imports
+    "TCH",   # flake8-type-checking
+    "ARG",   # flake8-unused-arguments
+    "ERA",   # eradicate (dead code in comments)
+    "PL",    # pylint
+    "RUF",   # ruff-specific
+    "S",     # bandit (security)
+    "C90",   # mccabe complexity
+    "PERF",  # perflint
+    "FURB",  # refurb
+]
+ignore = [
+    "S101",  # assert usage OK in tests
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "ARG", "PLR2004"]
+
+# =============================================================================
+# Pyright — strict type checking
+# =============================================================================
+[tool.pyright]
+include = ["app", "tests"]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+reportMissingTypeStubs = false
+reportUnknownParameterType = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+
+# =============================================================================
+# Pytest + Coverage
+# =============================================================================
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["app"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+]
+
+# =============================================================================
+# Import Linter — enforce architectural boundaries
+# =============================================================================
+[tool.importlinter]
+root_packages = ["app"]
+
+[[tool.importlinter.contracts]]
+name = "Schemas are pure data — no app imports"
+type = "forbidden"
+source_modules = ["app.schemas"]
+forbidden_modules = ["app.main", "app.extractor", "app.prompts", "app.config"]
+
+[[tool.importlinter.contracts]]
+name = "Config is a leaf — no app imports"
+type = "forbidden"
+source_modules = ["app.config"]
+forbidden_modules = ["app.main", "app.extractor", "app.prompts", "app.schemas"]
+
+[[tool.importlinter.contracts]]
+name = "Prompts only depend on schemas"
+type = "forbidden"
+source_modules = ["app.prompts"]
+forbidden_modules = ["app.main", "app.extractor", "app.config"]
+
+[[tool.importlinter.contracts]]
+name = "Extractor does not import main"
+type = "forbidden"
+source_modules = ["app.extractor"]
+forbidden_modules = ["app.main"]

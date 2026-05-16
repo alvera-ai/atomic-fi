@@ -82,7 +82,7 @@ test-playwright:
 	@echo "🎭 Running playwright e2e suite..."
 	@cd playwright-e2e && pnpm test
 
-DOC_AGENT_DIR := ../document-agent
+DOC_AGENT_DIR := example-apps/document-agent-server
 
 ai-doc.install:
 	@echo "Installing document-agent dependencies..."
