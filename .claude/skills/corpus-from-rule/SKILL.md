@@ -29,7 +29,7 @@ corpus/zen_rules/<rule_corpus>/
   account_holders.ndjson      one AccountHolderRequest row per line; `external_id`
                               is the stable handle. `legal_entity` nested.
   counterparties.ndjson       optional. Reference parent AH via
-                              `account_holder_external_id`. The `counterparty_number`
+                              `account_holder_external_id`. The `external_id`
                               field is the stable handle.
   payment_accounts.ndjson     reference parent via `account_holder_external_id`
                               OR `counterparty_external_id`.
@@ -110,7 +110,7 @@ Four ndjson files. One row per AH/CP/PA/txn. Each `external_id` is a stable hand
 `transactions.ndjson` row:
 
 ```jsonl
-{"external_id":"dms-txn-01","transaction_type":"internal_transfer","amount":10000,"currency":"USD","account_holder_external_id":"dms-ah-sender","debtor_payment_account_external_id":"dms-pa-sender","creditor_payment_account_external_id":"dms-pa-creditor-verified","_label":{"regime":"aml-cip","cite":"31 CFR §1020.220","scenario":"recipient verified, small stablecoin"},"_expected":{"status":"accepted","rejected_rule":null}}
+{"external_id":"dms-txn-01","transaction_type":"internal_transfer","amount":10000,"currency":"USD","account_holder_external_id":"dms-ah-sender","debtor_external_id":"dms-pa-sender","creditor_external_id":"dms-pa-creditor-verified","_label":{"regime":"aml-cip","cite":"31 CFR §1020.220","scenario":"recipient verified, small stablecoin"},"_expected":{"status":"accepted","rejected_rule":null}}
 ```
 
 Use unique handle prefixes per corpus (`dms-` for de_minimis_stablecoin) so reruns don't clash with siblings.

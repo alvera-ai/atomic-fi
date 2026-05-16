@@ -95,7 +95,7 @@ platform boundary. From `lib/atomic_fi/counterparty_context/counterparty.ex`.
 |---------------------------------------|---------|---------------------------------------------|
 | `<side>_counterparty.id`              | string  | UUID                                        |
 | `<side>_counterparty.status`          | enum    | `"active"`, `"suspended"`, `"blocked"`     |
-| `<side>_counterparty.counterparty_number` | string |                                          |
+| `<side>_counterparty.external_id` | string |                                          |
 
 For pure internal_transfer payments (both legs on-platform), both
 counterparty branches are `null`. Don't write rules that require them

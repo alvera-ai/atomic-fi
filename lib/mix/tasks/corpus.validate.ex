@@ -57,6 +57,7 @@ defmodule Mix.Tasks.Corpus.Validate do
   alias AtomicFi.SessionContext.Session
   alias AtomicFi.TenantContext.Tenant
   alias AtomicFi.TransactionContext
+  alias AtomicFi.TransactionContext.Transaction
 
   @impl true
   def run(args) do
@@ -109,7 +110,7 @@ defmodule Mix.Tasks.Corpus.Validate do
     corpus_path
     |> read_ndjson("account_holders.ndjson")
     |> Enum.each(fn row ->
-      Mix.shell().info("   AH #{row["external_id"]}")
+      ext_id = row["external_id"]
 
       request =
         row
@@ -117,12 +118,22 @@ defmodule Mix.Tasks.Corpus.Validate do
         |> stamp_tenant(session.tenant_id)
         |> to_request(AccountHolderRequest)
 
-      case AccountHolderContext.create_account_holder(session, request) do
-        {:ok, _ah} ->
-          :ok
+      case Repo.get_by(AccountHolder, [external_id: ext_id], session: session) do
+        nil ->
+          Mix.shell().info("   AH #{ext_id} [create]")
 
-        {:error, reason} ->
-          Mix.raise("AH insert failed for #{row["external_id"]}: #{inspect(reason)}")
+          case AccountHolderContext.create_account_holder(session, request) do
+            {:ok, _ah} -> :ok
+            {:error, reason} -> Mix.raise("AH create failed for #{ext_id}: #{inspect(reason)}")
+          end
+
+        existing ->
+          Mix.shell().info("   AH #{ext_id} [update]")
+
+          case AccountHolderContext.update_account_holder(session, existing, request) do
+            {:ok, _ah} -> :ok
+            {:error, reason} -> Mix.raise("AH update failed for #{ext_id}: #{inspect(reason)}")
+          end
       end
     end)
   end
@@ -131,7 +142,7 @@ defmodule Mix.Tasks.Corpus.Validate do
     corpus_path
     |> read_ndjson("counterparties.ndjson")
     |> Enum.each(fn row ->
-      Mix.shell().info("   CP #{row["counterparty_number"]}")
+      number = row["external_id"]
       ah_ext = Map.fetch!(row, "account_holder_external_id")
       ah = fetch_by_external_id!(session, AccountHolder, ah_ext)
 
@@ -142,12 +153,22 @@ defmodule Mix.Tasks.Corpus.Validate do
         |> stamp_tenant(session.tenant_id)
         |> to_request(CounterpartyRequest)
 
-      case CounterpartyContext.create_counterparty(session, request) do
-        {:ok, _cp} ->
-          :ok
+      case Repo.get_by(Counterparty, [external_id: number], session: session) do
+        nil ->
+          Mix.shell().info("   CP #{number} [create]")
 
-        {:error, reason} ->
-          Mix.raise("CP insert failed for #{row["counterparty_number"]}: #{inspect(reason)}")
+          case CounterpartyContext.create_counterparty(session, request) do
+            {:ok, _cp} -> :ok
+            {:error, reason} -> Mix.raise("CP create failed for #{number}: #{inspect(reason)}")
+          end
+
+        existing ->
+          Mix.shell().info("   CP #{number} [update]")
+
+          case CounterpartyContext.update_counterparty(session, existing, request) do
+            {:ok, _cp} -> :ok
+            {:error, reason} -> Mix.raise("CP update failed for #{number}: #{inspect(reason)}")
+          end
       end
     end)
   end
@@ -156,7 +177,7 @@ defmodule Mix.Tasks.Corpus.Validate do
     corpus_path
     |> read_ndjson("payment_accounts.ndjson")
     |> Enum.each(fn row ->
-      Mix.shell().info("   PA #{row["external_id"]}")
+      ext_id = row["external_id"]
       {parent_field, parent_struct} = resolve_pa_parent(session, row)
 
       request =
@@ -166,12 +187,22 @@ defmodule Mix.Tasks.Corpus.Validate do
         |> stamp_tenant(session.tenant_id)
         |> to_request(PaymentAccountRequest)
 
-      case PaymentAccountContext.create_payment_account(session, request) do
-        {:ok, _pa} ->
-          :ok
+      case Repo.get_by(PaymentAccount, [external_id: ext_id], session: session) do
+        nil ->
+          Mix.shell().info("   PA #{ext_id} [create]")
 
-        {:error, reason} ->
-          Mix.raise("PA insert failed for #{row["external_id"]}: #{inspect(reason)}")
+          case PaymentAccountContext.create_payment_account(session, request) do
+            {:ok, _pa} -> :ok
+            {:error, reason} -> Mix.raise("PA create failed for #{ext_id}: #{inspect(reason)}")
+          end
+
+        existing ->
+          Mix.shell().info("   PA #{ext_id} [update]")
+
+          case PaymentAccountContext.update_payment_account(session, existing, request) do
+            {:ok, _pa} -> :ok
+            {:error, reason} -> Mix.raise("PA update failed for #{ext_id}: #{inspect(reason)}")
+          end
       end
     end)
   end
@@ -183,7 +214,7 @@ defmodule Mix.Tasks.Corpus.Validate do
 
   defp resolve_pa_parent(session, %{"counterparty_external_id" => cp_ext})
        when is_binary(cp_ext) do
-    {"counterparty_id", fetch_by!(session, Counterparty, counterparty_number: cp_ext)}
+    {"counterparty_id", fetch_by!(session, Counterparty, external_id: cp_ext)}
   end
 
   # ───────────────────────────── transactions ─────────────────────────
@@ -192,7 +223,6 @@ defmodule Mix.Tasks.Corpus.Validate do
     corpus_path
     |> read_ndjson("transactions.ndjson")
     |> Enum.map(fn row ->
-      Mix.shell().info("   txn #{row["external_id"]}")
       validate_transaction(session, row)
     end)
   end
@@ -200,9 +230,23 @@ defmodule Mix.Tasks.Corpus.Validate do
   defp validate_transaction(session, row) do
     {label, row} = Map.pop(row, "_label", %{})
     {expected, row} = Map.pop(row, "_expected")
+    ext_id = row["external_id"]
 
-    with {:ok, request} <- build_transaction_request(session, row),
-         {:ok, txn} <- TransactionContext.create_transaction(session, request) do
+    result =
+      case Repo.get_by(Transaction, [external_id: ext_id], session: session) do
+        nil ->
+          Mix.shell().info("   txn #{ext_id} [create]")
+
+          with {:ok, request} <- build_transaction_request(session, row) do
+            TransactionContext.create_transaction(session, request)
+          end
+
+        existing ->
+          Mix.shell().info("   txn #{ext_id} [reuse]")
+          {:ok, existing}
+      end
+
+    with {:ok, txn} <- result do
       actual = transaction_summary(txn)
 
       status =
@@ -213,7 +257,7 @@ defmodule Mix.Tasks.Corpus.Validate do
         end
 
       %{
-        external_id: row["external_id"],
+        external_id: ext_id,
         label: label,
         expected: expected,
         actual: actual,
@@ -269,7 +313,6 @@ defmodule Mix.Tasks.Corpus.Validate do
   # external_id-keyed transaction fields → (target FK column, schema, lookup fn)
   defp transaction_external_id_map do
     by_external = &fetch_by_external_id!/3
-    by_number = fn s, sch, n -> fetch_by!(s, sch, counterparty_number: n) end
 
     %{
       "account_holder_external_id" => {"account_holder_id", AccountHolder, by_external},
@@ -277,8 +320,8 @@ defmodule Mix.Tasks.Corpus.Validate do
         {"debtor_payment_account_id", PaymentAccount, by_external},
       "creditor_payment_account_external_id" =>
         {"creditor_payment_account_id", PaymentAccount, by_external},
-      "debtor_counterparty_external_id" => {"debtor_counterparty_id", Counterparty, by_number},
-      "creditor_counterparty_external_id" => {"creditor_counterparty_id", Counterparty, by_number}
+      "debtor_counterparty_external_id" => {"debtor_counterparty_id", Counterparty, by_external},
+      "creditor_counterparty_external_id" => {"creditor_counterparty_id", Counterparty, by_external}
     }
   end
 
