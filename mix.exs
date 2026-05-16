@@ -137,6 +137,7 @@ defmodule AtomicFi.MixProject do
 
       # Utils
       {:slugify, "~> 1.3"},
+      {:puid, "~> 2.3"},
       {:timex, "~> 3.7", override: true},
       {:rename, "~> 0.1.0", only: :dev},
 

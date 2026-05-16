@@ -57,7 +57,7 @@ describe('account_holders — /api/account-holders', () => {
       method: 'POST',
       headers: bearerHeaders(bearer),
       body: JSON.stringify({
-        holder_type: 'individual',
+        account_holder_type: 'individual',
         status: 'pending',
         kyc_status: 'not_started',
         risk_level: 'low',
@@ -69,7 +69,7 @@ describe('account_holders — /api/account-holders', () => {
     expect(res.status, await res.clone().text()).toBe(201)
     const body = (await res.json()) as AnyJson
     expect(body.id).toMatch(UUID_RE)
-    expect(body.holder_type).toBe('individual')
+    expect(body.account_holder_type).toBe('individual')
     expect(body.kyc_status).toBe('not_started')
     holderId = body.id as string
   })
@@ -97,7 +97,7 @@ describe('account_holders — /api/account-holders', () => {
       method: 'PUT',
       headers: bearerHeaders(bearer),
       body: JSON.stringify({
-        holder_type: 'business',
+        account_holder_type: 'business',
         status: 'active',
         kyc_status: 'approved',
         risk_level: 'medium',
@@ -122,7 +122,7 @@ describe('account_holders — /api/account-holders', () => {
     expect(body.meta.page_size).toBe(5)
   })
 
-  it('POST /api/account-holders → 422 on missing holder_type', async () => {
+  it('POST /api/account-holders → 422 on missing account_holder_type', async () => {
     const res = await fetch(`${config.baseUrl}/api/account-holders`, {
       method: 'POST',
       headers: bearerHeaders(bearer),

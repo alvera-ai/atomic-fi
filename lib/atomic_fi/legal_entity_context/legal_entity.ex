@@ -162,6 +162,11 @@ defmodule AtomicFi.LegalEntityContext.LegalEntity do
   )
 
   open_api_property(
+    schema: %Schema{type: :string, readOnly: true},
+    key: :legal_entity_number
+  )
+
+  open_api_property(
     schema: %Schema{
       type: :string,
       format: :uuid,
@@ -211,6 +216,7 @@ defmodule AtomicFi.LegalEntityContext.LegalEntity do
       :phone_numbers,
       :identifications,
       :tenant_id,
+      :legal_entity_number,
       :latest_change_event_id,
       :inserted_at,
       :updated_at
@@ -261,6 +267,8 @@ defmodule AtomicFi.LegalEntityContext.LegalEntity do
     # Multi-tenancy: tenant_id references tenants for RLS
     belongs_to :tenant, Tenant
 
+    field :legal_entity_number, :string
+
     # Trigger-maintained FK to the most recent LegalEntityChangeEvent — never written directly
     field :latest_change_event_id, :binary_id
 
@@ -300,9 +308,11 @@ defmodule AtomicFi.LegalEntityContext.LegalEntity do
         :date_of_birth,
         :citizenship_country,
         :politically_exposed_person,
+        :legal_entity_number,
         :tenant_id
       ])
       |> validate_required([:legal_entity_type, :tenant_id])
+      |> AtomicFi.Identifier.put_default(:legal_entity_number, :le)
       |> foreign_key_constraint(:tenant_id)
 
     tenant_id = get_field(changeset, :tenant_id)

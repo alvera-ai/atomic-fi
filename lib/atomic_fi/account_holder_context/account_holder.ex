@@ -14,7 +14,7 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
   * `id` - UUID primary key
   * `legal_entity_id` - FK to LegalEntity (all PII / identity)
   * `external_id` - Upstream ID (Stripe/JPMC/Moov), unique per tenant
-  * `holder_type` - `individual` | `business` | `trust` | `nonprofit`
+  * `account_holder_type` - `individual` | `business` | `trust` | `nonprofit`
   * `status` - `pending` | `active` | `suspended` | `closed`
   * `kyc_status` - `not_started` | `in_progress` | `approved` | `rejected` | `expired`
   * `risk_level` - `low` | `medium` | `high` | `very_high` | `prohibited`
@@ -32,8 +32,8 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
 
   @derive {
     Flop.Schema,
-    filterable: [:id, :tenant_id, :holder_type, :status, :kyc_status, :risk_level],
-    sortable: [:id, :inserted_at, :updated_at, :holder_type, :status, :onboarded_at],
+    filterable: [:id, :tenant_id, :account_holder_type, :status, :kyc_status, :risk_level],
+    sortable: [:id, :inserted_at, :updated_at, :account_holder_type, :status, :onboarded_at],
     default_limit: 20,
     max_limit: 100
   }
@@ -62,7 +62,7 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
 
   open_api_property(
     schema: %Schema{type: :string, enum: ["individual", "business", "trust", "nonprofit"]},
-    key: :holder_type
+    key: :account_holder_type
   )
 
   open_api_property(
@@ -146,13 +146,13 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
       "Account holder — the MDM subject controlling an account. " <>
         "All PII lives in the linked LegalEntity (ISO 20022 acmt:007 / acmt:019). " <>
         "Pass either `legal_entity_id` (FK to an existing LegalEntity) or a nested `legal_entity` object to create one atomically.",
-    required: [:holder_type],
+    required: [:account_holder_type],
     properties: [
       :id,
       :legal_entity_id,
       :legal_entity,
       :external_id,
-      :holder_type,
+      :account_holder_type,
       :status,
       :kyc_status,
       :risk_level,
@@ -173,7 +173,7 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
 
     field :external_id, :string
 
-    field :holder_type, Ecto.Enum, values: [:individual, :business, :trust, :nonprofit]
+    field :account_holder_type, Ecto.Enum, values: [:individual, :business, :trust, :nonprofit]
 
     field :status, Ecto.Enum,
       values: [:pending, :active, :suspended, :closed, :flagged],
@@ -214,7 +214,7 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
     |> cast(attrs, [
       :legal_entity_id,
       :external_id,
-      :holder_type,
+      :account_holder_type,
       :status,
       :kyc_status,
       :risk_level,
@@ -226,9 +226,10 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
       :tenant_id
     ])
     |> maybe_cast_assoc_legal_entity(attrs)
-    |> validate_required([:holder_type, :tenant_id])
+    |> validate_required([:account_holder_type, :tenant_id])
     |> validate_legal_entity_present()
     |> cast_and_validate_enabled_regimes()
+    |> AtomicFi.Identifier.put_default(:account_holder_number, :ah)
     |> foreign_key_constraint(:legal_entity_id)
     |> foreign_key_constraint(:tenant_id)
   end

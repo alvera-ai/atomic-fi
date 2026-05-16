@@ -53,7 +53,7 @@ defmodule AtomicFi.AccountHolderContextTest do
 
       request = %AccountHolderRequest{
         legal_entity_id: legal_entity.id,
-        holder_type: :individual,
+        account_holder_type: :individual,
         status: :pending,
         kyc_status: :not_started,
         risk_level: :low,
@@ -66,7 +66,7 @@ defmodule AtomicFi.AccountHolderContextTest do
                AccountHolderContext.create_account_holder(session, request)
 
       assert account_holder.legal_entity_id == legal_entity.id
-      assert account_holder.holder_type == :individual
+      assert account_holder.account_holder_type == :individual
       assert account_holder.status == :pending
       assert account_holder.kyc_status == :not_started
       assert account_holder.risk_level == :low
@@ -75,7 +75,7 @@ defmodule AtomicFi.AccountHolderContextTest do
 
     test "create_account_holder/2 with invalid data returns error changeset", %{session: session} do
       request = %AccountHolderRequest{
-        holder_type: nil,
+        account_holder_type: nil,
         status: :pending,
         kyc_status: :not_started,
         risk_level: :low,
@@ -94,7 +94,7 @@ defmodule AtomicFi.AccountHolderContextTest do
 
       request = %AccountHolderRequest{
         legal_entity_id: account_holder.legal_entity_id,
-        holder_type: account_holder.holder_type,
+        account_holder_type: account_holder.account_holder_type,
         status: :active,
         kyc_status: :approved,
         risk_level: :medium,
@@ -115,7 +115,7 @@ defmodule AtomicFi.AccountHolderContextTest do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
       request = %AccountHolderRequest{
-        holder_type: nil,
+        account_holder_type: nil,
         status: :pending,
         kyc_status: :not_started,
         risk_level: :low,
@@ -158,7 +158,7 @@ defmodule AtomicFi.AccountHolderContextTest do
     defp ah_request(session, legal_entity_id, currencies, regimes) do
       %AccountHolderRequest{
         legal_entity_id: legal_entity_id,
-        holder_type: :individual,
+        account_holder_type: :individual,
         status: :pending,
         kyc_status: :not_started,
         risk_level: :low,

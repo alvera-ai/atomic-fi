@@ -339,6 +339,7 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
     |> validate_required([:account_type, :account_holder_id, :currency, :tenant_id])
     |> validate_length(:currency, is: 3)
     |> cast_and_validate_enabled_regimes()
+    |> AtomicFi.Identifier.put_default(:payment_account_number, :pa)
     |> foreign_key_constraint(:account_holder_id)
     |> foreign_key_constraint(:legal_entity_id)
     |> foreign_key_constraint(:counterparty_id)

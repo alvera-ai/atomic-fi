@@ -212,6 +212,15 @@ defmodule AtomicFi.TransactionContext.Transaction do
     key: :external_id
   )
 
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      readOnly: true,
+      description: "atomic-fi-generated internal handle"
+    },
+    key: :transaction_number
+  )
+
   # Rejection metadata, denormalised from the offending ledger entry — populated when
   # the transaction is :rejected because a rule engine control limit was hit. NULL otherwise.
   open_api_property(
@@ -355,6 +364,7 @@ defmodule AtomicFi.TransactionContext.Transaction do
       :requested_execution_date,
       :settlement_date,
       :external_id,
+      :transaction_number,
       :rejected_ledger_account_id,
       :rejected_period,
       :rejected_direction,
@@ -403,6 +413,7 @@ defmodule AtomicFi.TransactionContext.Transaction do
 
     # Identifiers
     field :external_id, :string
+    field :transaction_number, :string
 
     # Rejection metadata, denormalised from the offending ledger entry. Set by the
     # orchestration layer when the transaction is :rejected for a control limit.
@@ -450,6 +461,7 @@ defmodule AtomicFi.TransactionContext.Transaction do
       :requested_execution_date,
       :settlement_date,
       :external_id,
+      :transaction_number,
       :rejected_ledger_account_id,
       :rejected_period,
       :rejected_direction,
@@ -467,6 +479,7 @@ defmodule AtomicFi.TransactionContext.Transaction do
     |> maybe_cast_status(attrs)
     |> validate_required([:transaction_type, :amount, :currency, :account_holder_id, :tenant_id])
     |> validate_number(:amount, greater_than: 0)
+    |> AtomicFi.Identifier.put_default(:transaction_number, :txn)
     |> foreign_key_constraint(:rejected_ledger_account_id)
     |> foreign_key_constraint(:account_holder_id)
     |> foreign_key_constraint(:debtor_payment_account_id)

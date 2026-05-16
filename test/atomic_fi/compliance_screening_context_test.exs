@@ -514,7 +514,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
 
       request = %AccountHolderRequest{
         tenant_id: session.tenant_id,
-        holder_type: :individual,
+        account_holder_type: :individual,
         legal_entity: %{
           first_name: "Alice",
           last_name: "Smith",
@@ -542,7 +542,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
 
       request = %AccountHolderRequest{
         tenant_id: session.tenant_id,
-        holder_type: :individual,
+        account_holder_type: :individual,
         legal_entity: %{
           first_name: "John",
           last_name: "Doe",
@@ -565,7 +565,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
 
       request = %AccountHolderRequest{
         tenant_id: session.tenant_id,
-        holder_type: :business,
+        account_holder_type: :business,
         legal_entity: %{
           business_name: "Acme",
           legal_entity_type: :business
@@ -585,7 +585,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
 
       request = %AccountHolderRequest{
         tenant_id: session.tenant_id,
-        holder_type: :individual,
+        account_holder_type: :individual,
         legal_entity: %{
           first_name: "Vladimir",
           last_name: "Putin",
@@ -719,7 +719,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
 
       request = %AccountHolderRequest{
         tenant_id: session.tenant_id,
-        holder_type: :individual,
+        account_holder_type: :individual,
         legal_entity: %{
           first_name: "Alice",
           last_name: "Smith",

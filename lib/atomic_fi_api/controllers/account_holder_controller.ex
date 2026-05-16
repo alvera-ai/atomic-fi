@@ -28,7 +28,7 @@ defmodule AtomicFiApi.AccountHolderController do
     - `page_size` - Items per page (default: 20, max: 100)
     - `order_by` - Field to sort by
     - `order_directions` - Sort direction (asc or desc)
-    - `filters` - Flop filters (holder_type, status, kyc_status, risk_level)
+    - `filters` - Flop filters (account_holder_type, status, kyc_status, risk_level)
     """,
     parameters: [
       page: [in: :query, type: :integer, description: "Page number (1-indexed)", example: 1],

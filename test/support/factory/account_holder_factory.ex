@@ -20,7 +20,7 @@ defmodule AtomicFi.Factory.AccountHolderFactory do
 
         %AccountHolder{
           legal_entity_id: legal_entity_id,
-          holder_type: :individual,
+          account_holder_type: :individual,
           status: :pending,
           kyc_status: :not_started,
           risk_level: :low,

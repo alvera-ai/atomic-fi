@@ -7,7 +7,7 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
   alias AtomicFiApi.ApiSpec
 
   @individual_attrs %{
-    holder_type: "individual",
+    account_holder_type: "individual",
     status: "pending",
     kyc_status: "not_started",
     risk_level: "low",
@@ -15,7 +15,7 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
   }
 
   @update_fields %{
-    holder_type: "business",
+    account_holder_type: "business",
     status: "active",
     kyc_status: "approved",
     risk_level: "medium",
@@ -23,7 +23,7 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
   }
 
   @invalid_attrs %{
-    holder_type: nil
+    account_holder_type: nil
   }
 
   defp create_attrs(tenant_id, legal_entity_id) do
@@ -181,7 +181,7 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
 
       assert %{
                "id" => id,
-               "holder_type" => "individual",
+               "account_holder_type" => "individual",
                "status" => "pending",
                "kyc_status" => "not_started",
                "risk_level" => "low"
@@ -227,7 +227,7 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
 
       assert %{
                "id" => id,
-               "holder_type" => "individual",
+               "account_holder_type" => "individual",
                "status" => "pending",
                "kyc_status" => "not_started",
                "legal_entity_id" => legal_entity_id
@@ -266,7 +266,7 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
       platform_tenant: platform_tenant
     } do
       attrs = %{
-        holder_type: "individual",
+        account_holder_type: "individual",
         status: "pending",
         kyc_status: "not_started",
         risk_level: "low",
@@ -291,7 +291,7 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
 
       assert %{
                "id" => id,
-               "holder_type" => "individual",
+               "account_holder_type" => "individual",
                "legal_entity_id" => legal_entity_id,
                "legal_entity" => %{
                  "first_name" => "Jane",
@@ -304,7 +304,7 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
       assert Plug.Conn.get_resp_header(conn, "location") == ["/api/account-holders/#{id}"]
     end
 
-    test "renders errors when holder_type is missing", %{conn: conn} do
+    test "renders errors when account_holder_type is missing", %{conn: conn} do
       conn = post(conn, ~p"/api/account-holders", @invalid_attrs)
       response = json_response(conn, 422)
       assert %{"errors" => errors} = response
@@ -312,14 +312,14 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
       assert errors != []
     end
 
-    test "renders errors when holder_type is invalid enum", %{
+    test "renders errors when account_holder_type is invalid enum", %{
       conn: conn,
       platform_tenant: platform_tenant,
       legal_entity: legal_entity
     } do
       attrs =
         create_attrs(platform_tenant.id, legal_entity.id)
-        |> Map.put(:holder_type, "invalid_type")
+        |> Map.put(:account_holder_type, "invalid_type")
 
       conn = post(conn, ~p"/api/account-holders", attrs)
       assert json_response(conn, 422)
@@ -362,7 +362,7 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
 
       assert %{
                "id" => id,
-               "holder_type" => "business",
+               "account_holder_type" => "business",
                "status" => "active",
                "kyc_status" => "approved",
                "risk_level" => "medium"
@@ -543,7 +543,7 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
 
       # Writable fields should be present
       assert get_in(request_schema, ["properties", "legal_entity_id"])
-      assert get_in(request_schema, ["properties", "holder_type"])
+      assert get_in(request_schema, ["properties", "account_holder_type"])
       assert get_in(request_schema, ["properties", "status"])
       assert get_in(request_schema, ["properties", "tenant_id"])
     end
@@ -558,7 +558,7 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
 
       assert get_in(response_schema, ["properties", "id"])
       assert get_in(response_schema, ["properties", "legal_entity_id"])
-      assert get_in(response_schema, ["properties", "holder_type"])
+      assert get_in(response_schema, ["properties", "account_holder_type"])
       assert get_in(response_schema, ["properties", "status"])
       assert get_in(response_schema, ["properties", "inserted_at"])
       assert get_in(response_schema, ["properties", "updated_at"])

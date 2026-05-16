@@ -74,6 +74,11 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
   )
 
   open_api_property(
+    schema: %Schema{type: :string, readOnly: true},
+    key: :counterparty_number
+  )
+
+  open_api_property(
     schema: %Schema{type: :array, nullable: true, items: %Schema{type: :string}},
     key: :enabled_regimes
   )
@@ -118,6 +123,7 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
       :legal_entity,
       :status,
       :external_id,
+      :counterparty_number,
       :enabled_regimes,
       :tenant_id,
       :inserted_at,
@@ -133,6 +139,7 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
     field :status, Ecto.Enum, values: [:active, :suspended, :blocked], default: :active
 
     field :external_id, :string
+    field :counterparty_number, :string
     field :enabled_regimes, {:array, :string}, default: []
 
     # Virtual: controls whether a compliance screening job is enqueued on create
@@ -155,6 +162,7 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
       :legal_entity_id,
       :status,
       :external_id,
+      :counterparty_number,
       :enabled_regimes,
       :tenant_id
     ])
@@ -162,6 +170,7 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
     |> validate_required([:account_holder_id, :status, :tenant_id])
     |> validate_legal_entity_present()
     |> cast_and_validate_enabled_regimes()
+    |> AtomicFi.Identifier.put_default(:counterparty_number, :cp)
     |> foreign_key_constraint(:account_holder_id)
     |> foreign_key_constraint(:legal_entity_id)
     |> foreign_key_constraint(:tenant_id)

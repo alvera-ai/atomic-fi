@@ -64,7 +64,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
     %{
       tenant_id: ah.tenant_id,
-      holder_type: to_string(ah.holder_type || :individual),
+      account_holder_type: to_string(ah.account_holder_type || :individual),
       legal_entity: legal_entity_body(ah.legal_entity, ah.tenant_id)
     }
   end

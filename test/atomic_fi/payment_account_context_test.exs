@@ -302,7 +302,7 @@ defmodule AtomicFi.PaymentAccountContextTest do
       {:ok, ah} =
         AccountHolderContext.create_account_holder(session, %AccountHolderRequest{
           legal_entity_id: legal_entity.id,
-          holder_type: :individual,
+          account_holder_type: :individual,
           status: :pending,
           kyc_status: :not_started,
           risk_level: :low,

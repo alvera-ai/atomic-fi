@@ -180,6 +180,7 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
     |> validate_required([:account_holder_id, :control_type, :tenant_id])
     |> validate_legal_entity_present()
     |> validate_number(:ownership_pct, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
+    |> AtomicFi.Identifier.put_default(:beneficial_owner_number, :bo)
     |> foreign_key_constraint(:account_holder_id)
     |> foreign_key_constraint(:legal_entity_id)
     |> foreign_key_constraint(:tenant_id)

@@ -1643,7 +1643,7 @@ components:
         enabled_currencies:
           - ""
         external_id: ''
-        holder_type: individual
+        account_holder_type: individual
         id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
         inserted_at: 2020-04-20T16:20:00Z
         kyc_status: not_started
@@ -1675,7 +1675,7 @@ components:
           type: string
           x-struct:
           x-validate:
-        holder_type:
+        account_holder_type:
           enum:
             - individual
             - business
@@ -1761,7 +1761,7 @@ components:
           x-validate:
       readOnly: true
       required:
-        - holder_type
+        - account_holder_type
       title: AccountHolderResponse
       type: object
       x-order:
@@ -1769,7 +1769,7 @@ components:
         - legal_entity_id
         - legal_entity
         - external_id
-        - holder_type
+        - account_holder_type
         - status
         - kyc_status
         - risk_level
@@ -1887,7 +1887,7 @@ components:
         enabled_currencies:
           - ""
         external_id: ''
-        holder_type: individual
+        account_holder_type: individual
         kyc_status: not_started
         last_reviewed_at: 2020-04-20T16:20:00Z
         legal_entity:
@@ -1923,7 +1923,7 @@ components:
           type: string
           x-struct:
           x-validate:
-        holder_type:
+        account_holder_type:
           enum:
             - individual
             - business
@@ -1990,7 +1990,7 @@ components:
           x-struct:
           x-validate:
       required:
-        - holder_type
+        - account_holder_type
       title: AccountHolderRequest
       type: object
       writeOnly: true
@@ -1998,7 +1998,7 @@ components:
         - legal_entity_id
         - legal_entity
         - external_id
-        - holder_type
+        - account_holder_type
         - status
         - kyc_status
         - risk_level
@@ -11928,7 +11928,7 @@ paths:
         - `page_size` - Items per page (default: 20, max: 100)
         - `order_by` - Field to sort by
         - `order_directions` - Sort direction (asc or desc)
-        - `filters` - Flop filters (holder_type, status, kyc_status, risk_level)
+        - `filters` - Flop filters (account_holder_type, status, kyc_status, risk_level)
       operationId: AtomicFiApi.AccountHolderController.index
       parameters:
         - description: Page number (1-indexed)
@@ -11996,7 +11996,7 @@ paths:
                 enabled_currencies:
                   - ""
                 external_id: ''
-                holder_type: individual
+                account_holder_type: individual
                 kyc_status: not_started
                 last_reviewed_at: 2020-04-20T16:20:00Z
                 legal_entity:
@@ -12032,7 +12032,7 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                holder_type:
+                account_holder_type:
                   enum:
                     - individual
                     - business
@@ -12099,7 +12099,7 @@ paths:
                   x-struct:
                   x-validate:
               required:
-                - holder_type
+                - account_holder_type
               title: AccountHolderRequest
               type: object
               writeOnly: true
@@ -12107,7 +12107,7 @@ paths:
                 - legal_entity_id
                 - legal_entity
                 - external_id
-                - holder_type
+                - account_holder_type
                 - status
                 - kyc_status
                 - risk_level
@@ -15316,7 +15316,7 @@ paths:
                 enabled_currencies:
                   - ""
                 external_id: ''
-                holder_type: individual
+                account_holder_type: individual
                 kyc_status: not_started
                 last_reviewed_at: 2020-04-20T16:20:00Z
                 legal_entity:
@@ -15352,7 +15352,7 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                holder_type:
+                account_holder_type:
                   enum:
                     - individual
                     - business
@@ -15419,7 +15419,7 @@ paths:
                   x-struct:
                   x-validate:
               required:
-                - holder_type
+                - account_holder_type
               title: AccountHolderRequest
               type: object
               writeOnly: true
@@ -15427,7 +15427,7 @@ paths:
                 - legal_entity_id
                 - legal_entity
                 - external_id
-                - holder_type
+                - account_holder_type
                 - status
                 - kyc_status
                 - risk_level
