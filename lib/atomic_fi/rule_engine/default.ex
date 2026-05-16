@@ -44,8 +44,12 @@ defmodule AtomicFi.RuleEngine.Default do
           | {:error, term()}
   def_with_rls_and_logging get_controls(session, rule_type, entity),
     log_fields: [:rule_type] do
+    Logger.info("[rule_engine] get_controls rule_type=#{inspect(rule_type)} entity=#{inspect(entity.__struct__)}")
+
     with {:ok, names} <- RulesContext.list_rules(session, rule_type),
+         _ = Logger.info("[rule_engine] rules listed: #{inspect(names)}"),
          {:ok, %{controls: controls} = merged} <- evaluate_and_merge(rule_type, entity, names) do
+      Logger.info("[rule_engine] evaluate_and_merge done controls=#{map_size(controls)}")
       if map_size(controls) == 0, do: {:ok, :no_limits}, else: {:ok, merged}
     end
   end
@@ -65,8 +69,17 @@ defmodule AtomicFi.RuleEngine.Default do
   end
 
   defp evaluate_one(base_url, project, decision, context) do
-    with {:ok, result} <- Client.evaluate(base_url, project, decision, context) do
-      decode_rule_result(result)
+    Logger.info("[rule_engine] POST #{base_url} project=#{project} decision=#{decision}")
+    t0 = System.monotonic_time(:millisecond)
+
+    case Client.evaluate(base_url, project, decision, context) do
+      {:ok, result} ->
+        Logger.info("[rule_engine] evaluate #{decision} OK in #{System.monotonic_time(:millisecond) - t0}ms")
+        decode_rule_result(result)
+
+      {:error, reason} = err ->
+        Logger.error("[rule_engine] evaluate #{decision} ERROR in #{System.monotonic_time(:millisecond) - t0}ms reason=#{inspect(reason)}")
+        err
     end
   end
 

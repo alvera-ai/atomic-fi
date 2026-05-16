@@ -81,18 +81,31 @@ defmodule AtomicFi.OnboardingContext do
   """
   @spec onboard(Session.t(), entity()) :: {:ok, entity()} | {:error, term()}
   def_with_rls_and_logging onboard(session, entity), log_fields: [] do
+    require Logger
+    Logger.info("[onboard] entry entity=#{inspect(entity.__struct__)} id=#{entity.id}")
     engine_entity = resolve_engine_entity(session, entity)
+    Logger.info("[onboard] engine_entity resolved")
 
-    with {:ok, _screenings} <- screen(session, entity),
+    with :ok <- log_step("screen.start"),
+         {:ok, _screenings} <- screen(session, entity),
+         :ok <- log_step("screen.done → engine_result.start"),
          {:ok, result} <- engine_result(session, engine_entity),
+         :ok <- log_step("engine_result.done controls=#{map_size(result.controls)} → process_controls.start"),
          {:ok, entity} <-
            ControlProtocol.process_controls(
              entity,
              session,
              Map.put(result, :engine_entity, engine_entity)
-           ) do
+           ),
+         :ok <- log_step("process_controls.done") do
       {:ok, entity}
     end
+  end
+
+  defp log_step(msg) do
+    require Logger
+    Logger.info("[onboard] #{msg}")
+    :ok
   end
 
   # The entity the RuleEngine actually runs against. AH/CP/PA run against
@@ -268,10 +281,22 @@ defmodule AtomicFi.OnboardingContext do
   # normalised to an empty envelope so the protocol dispatch still
   # links / enqueues consistently.
   defp engine_result(session, entity) do
+    require Logger
+    Logger.info("[engine_result] calling RuleEngine.get_controls/3")
+    t0 = System.monotonic_time(:millisecond)
+
     case RuleEngine.get_controls(session, :onboarding, entity) do
-      {:ok, :no_limits} -> {:ok, %{controls: %{}, next_screening_at: nil}}
-      {:ok, %{controls: _, next_screening_at: _} = result} -> {:ok, result}
-      {:error, _} = err -> err
+      {:ok, :no_limits} ->
+        Logger.info("[engine_result] :no_limits in #{System.monotonic_time(:millisecond) - t0}ms")
+        {:ok, %{controls: %{}, next_screening_at: nil}}
+
+      {:ok, %{controls: _, next_screening_at: _} = result} ->
+        Logger.info("[engine_result] :ok in #{System.monotonic_time(:millisecond) - t0}ms")
+        {:ok, result}
+
+      {:error, _} = err ->
+        Logger.error("[engine_result] error: #{inspect(err)}")
+        err
     end
   end
 end
