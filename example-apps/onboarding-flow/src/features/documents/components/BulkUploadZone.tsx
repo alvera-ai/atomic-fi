@@ -1,4 +1,4 @@
-import { FileText, Info, Sparkles, Trash2, Upload } from "lucide-react";
+import { FileText, Info, Loader2, Sparkles, Trash2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { classifyFilename } from "@/features/documents/classifier";
+import { extractDocuments, mapExtractionToApplication } from "@/features/documents/extraction";
 import { buildSampleDocument, SAMPLE_DOCUMENTS } from "@/features/documents/samples";
 import { verifyDocument } from "@/features/documents/verification";
 import { DOCUMENT_TYPE_LABELS } from "@/features/onboarding/constants";
@@ -51,9 +52,55 @@ const DOC_TYPE_OPTIONS: DocumentType[] = [
   "OTHER",
 ];
 
+function pendingToDocument(entry: PendingFile, status?: "EXTRACTED" | "NEEDS_ATTENTION"): Document {
+  return {
+    file_id: `file-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+    doc_type: entry.detectedType,
+    filename: entry.filename,
+    status: status ?? (entry.verification?.status === "WARN" ? "NEEDS_ATTENTION" : "EXTRACTED"),
+    uploaded_at: new Date().toISOString(),
+    verification: entry.verification,
+  };
+}
+
+function processSampleEntries(entries: PendingFile[], app: Application) {
+  const docs: Document[] = [];
+  let prefill: Partial<Application> = {};
+  let provenance: Record<string, unknown> = {};
+
+  for (const entry of entries) {
+    const sample = SAMPLE_DOCUMENTS[entry.detectedType];
+    if (!sample) continue;
+    docs.push(buildSampleDocument(sample));
+    const partial = sample.applyPrefill({ ...app, ...prefill } as Application);
+    prefill = { ...prefill, ...partial };
+    provenance = { ...provenance, ...sample.provenance };
+  }
+
+  return { docs, prefill, provenance };
+}
+
+async function processRealEntries(
+  entries: PendingFile[],
+  app: Application,
+): Promise<{ docs: Document[]; prefill: Partial<Application>; hadFailures: boolean }> {
+  const files = entries
+    .filter((e): e is PendingFile & { file: File } => !!e.file)
+    .map((e) => e.file);
+  const docTypes = entries.map((e) => e.detectedType);
+
+  const response = await extractDocuments(files, docTypes);
+  const prefill = mapExtractionToApplication(response.results, docTypes, app);
+  const docs = entries.map((e) => pendingToDocument(e, "EXTRACTED"));
+  const hadFailures = response.results.some((r) => !r.success);
+
+  return { docs, prefill, hadFailures };
+}
+
 export function BulkUploadZone({ application, updateApplication }: Props) {
   const [pending, setPending] = useState<PendingFile[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const addFiles = async (files: File[]) => {
@@ -133,50 +180,54 @@ export function BulkUploadZone({ application, updateApplication }: Props) {
     toast.success(`${entries.length} sample documents loaded`);
   };
 
-  const processFiles = () => {
-    if (pending.some((p) => p.verifying)) {
-      toast.error("Verification still running…");
-      return;
-    }
-    const blocking = pending.filter((p) => p.verification?.status === "FAIL");
-    if (blocking.length > 0) {
-      toast.error(`${blocking.length} file(s) failed verification — remove or replace them first`);
-      return;
-    }
+  const processFiles = async () => {
+    if (pending.some((p) => p.verifying)) return toast.error("Verification still running…");
+    if (pending.some((p) => p.verification?.status === "FAIL"))
+      return toast.error("Remove or replace failed files before processing");
 
-    const newDocs: Document[] = [];
-    let prefillUpdates: Partial<Application> = {};
-    let provenance = { ...application.field_provenance };
-
-    for (const entry of pending) {
-      const sample = SAMPLE_DOCUMENTS[entry.detectedType];
-      if (entry.trusted && sample) {
-        newDocs.push(buildSampleDocument(sample));
-        const partial = sample.applyPrefill({ ...application, ...prefillUpdates } as Application);
-        prefillUpdates = { ...prefillUpdates, ...partial };
-        provenance = { ...provenance, ...sample.provenance };
-      } else {
-        newDocs.push({
-          file_id: `file-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-          doc_type: entry.detectedType,
-          filename: entry.filename,
-          status: entry.verification?.status === "WARN" ? "NEEDS_ATTENTION" : "EXTRACTED",
-          uploaded_at: new Date().toISOString(),
-          verification: entry.verification,
-        });
-      }
-    }
+    const realEntries = pending.filter((p) => p.file && !p.trusted);
+    const sampleEntries = pending.filter((p) => p.trusted && SAMPLE_DOCUMENTS[p.detectedType]);
+    const samples = processSampleEntries(sampleEntries, application);
+    const provenance = { ...application.field_provenance, ...samples.provenance };
+    const real = await extractRealFiles(realEntries, {
+      ...application,
+      ...samples.prefill,
+    } as Application);
 
     updateApplication({
-      ...prefillUpdates,
-      documents: [...application.documents, ...newDocs],
+      ...samples.prefill,
+      ...real.prefill,
+      documents: [...application.documents, ...samples.docs, ...real.docs],
       field_provenance: provenance,
     });
-
     setPending([]);
-    toast.success(`${newDocs.length} document(s) processed`, {
-      description: "Categorized and prefilled where possible",
+    toast.success(`${samples.docs.length + real.docs.length} document(s) processed`, {
+      description:
+        realEntries.length > 0
+          ? "AI extracted and prefilled fields from uploaded documents"
+          : "Categorized and prefilled where possible",
     });
+  };
+
+  const extractRealFiles = async (entries: PendingFile[], app: Application) => {
+    if (entries.length === 0)
+      return { docs: [] as Document[], prefill: {} as Partial<Application> };
+    setExtracting(true);
+    try {
+      const result = await processRealEntries(entries, app);
+      if (result.hadFailures) toast.warning("Some documents couldn't be processed by AI");
+      return result;
+    } catch (err) {
+      toast.error("AI extraction failed", {
+        description: err instanceof Error ? err.message : "Unknown error",
+      });
+      return {
+        docs: entries.map((e) => pendingToDocument(e)),
+        prefill: {} as Partial<Application>,
+      };
+    } finally {
+      setExtracting(false);
+    }
   };
 
   const counts = pending.reduce(
@@ -274,8 +325,15 @@ export function BulkUploadZone({ application, updateApplication }: Props) {
                 <Button variant="ghost" size="sm" onClick={() => setPending([])}>
                   Clear
                 </Button>
-                <Button variant="secondary" size="sm" onClick={processFiles}>
-                  Process files
+                <Button variant="secondary" size="sm" onClick={processFiles} disabled={extracting}>
+                  {extracting ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                      Extracting…
+                    </>
+                  ) : (
+                    "Process files"
+                  )}
                 </Button>
               </div>
             </div>

@@ -36,7 +36,7 @@ export async function verifyDocument(
   }
 
   // Illegible: too small
-  if (file.size < 30 * 1024) {
+  if (file.size < 1024) {
     flags.push("ILLEGIBLE");
   }
 
