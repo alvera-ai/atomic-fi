@@ -94,6 +94,7 @@ defmodule AtomicFiApi.Routes do
         post "/account-holders", AccountHolderController, :create
         post "/account-holders/:id/refresh", AccountHolderController, :refresh
         put "/account-holders/:id", AccountHolderController, :update
+        put "/account-holders/:id/legal-entity", AccountHolderController, :update_legal_entity
         delete "/account-holders/:id", AccountHolderController, :delete
 
         # Beneficial owner CRUD endpoints (PUT only for full replacement semantics)
@@ -101,6 +102,7 @@ defmodule AtomicFiApi.Routes do
         get "/beneficial-owners/:id", BeneficialOwnerController, :show
         post "/beneficial-owners", BeneficialOwnerController, :create
         put "/beneficial-owners/:id", BeneficialOwnerController, :update
+        put "/beneficial-owners/:id/legal-entity", BeneficialOwnerController, :update_legal_entity
         delete "/beneficial-owners/:id", BeneficialOwnerController, :delete
 
         # Counterparty CRUD endpoints (PUT only for full replacement semantics)
@@ -109,6 +111,7 @@ defmodule AtomicFiApi.Routes do
         post "/counterparties", CounterpartyController, :create
         post "/counterparties/:id/refresh", CounterpartyController, :refresh
         put "/counterparties/:id", CounterpartyController, :update
+        put "/counterparties/:id/legal-entity", CounterpartyController, :update_legal_entity
         delete "/counterparties/:id", CounterpartyController, :delete
 
         # Rule (JDM) file CRUD — thin REST shim over RulesContext / shared

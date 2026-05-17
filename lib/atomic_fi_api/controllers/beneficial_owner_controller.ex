@@ -3,10 +3,13 @@ defmodule AtomicFiApi.BeneficialOwnerController do
   use OpenApiSpex.ControllerSpecs
 
   alias AtomicFi.BeneficialOwnerContext
+  alias AtomicFi.LegalEntityContext
   alias AtomicFi.OpenApiSchema
   alias AtomicFi.OpenApiSchema.BeneficialOwnerListResponse
   alias AtomicFi.OpenApiSchema.BeneficialOwnerRequest
   alias AtomicFi.OpenApiSchema.BeneficialOwnerResponse
+  alias AtomicFi.OpenApiSchema.LegalEntityRequest
+  alias AtomicFi.OpenApiSchema.LegalEntityResponse
   alias AtomicFiApi.Helpers.ApiHelpers
   alias OpenApiSpex.Reference
   alias OpenApiSpex.Schema
@@ -192,6 +195,43 @@ defmodule AtomicFiApi.BeneficialOwnerController do
 
       {:error, changeset} ->
         {:error, changeset}
+    end
+  end
+
+  operation(:update_legal_entity,
+    summary: "Replace the linked LegalEntity (PII) for a beneficial owner",
+    description: """
+    Updates the BeneficialOwner-owned LegalEntity using PUT semantics
+    (full replacement of PII). The BO-LE link is immutable post-create.
+    """,
+    parameters: [
+      id: [
+        in: :path,
+        description: "Beneficial owner ID",
+        schema: %Schema{type: :string, format: :uuid},
+        example: "123e4567-e89b-12d3-a456-426614174000"
+      ]
+    ],
+    request_body:
+      {"Legal entity params", "application/json", LegalEntityRequest.schema(), required: true},
+    responses: [
+      ok: {"Legal entity replaced", "application/json", LegalEntityResponse},
+      not_found: {"Not found", "application/json", OpenApiSchema.ErrorResponse},
+      unprocessable_entity:
+        {"Validation errors", "application/json", OpenApiSchema.ChangesetErrors}
+    ]
+  )
+
+  def update_legal_entity(
+        %{body_params: %LegalEntityRequest{} = legal_entity_request} = conn,
+        %{id: id}
+      ) do
+    session = conn.assigns.api_session
+    %{legal_entity: legal_entity} = BeneficialOwnerContext.get_beneficial_owner!(session, id)
+
+    with {:ok, legal_entity} <-
+           LegalEntityContext.update_legal_entity(session, legal_entity, legal_entity_request) do
+      ApiHelpers.json_response(conn, legal_entity, LegalEntityResponse)
     end
   end
 end

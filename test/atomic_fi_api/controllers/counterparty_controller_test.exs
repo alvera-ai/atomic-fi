@@ -483,6 +483,59 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
     end
   end
 
+  describe "update_legal_entity (PUT /api/counterparties/:id/legal-entity)" do
+    setup [:create_counterparty]
+
+    test "replaces the linked LE PII", %{
+      conn: conn,
+      counterparty: counterparty,
+      platform_tenant: platform_tenant
+    } do
+      body = %{
+        legal_entity_type: "individual",
+        first_name: "Maria",
+        last_name: "Updated",
+        citizenship_country: "MX",
+        tenant_id: platform_tenant.id
+      }
+
+      conn = put(conn, ~p"/api/counterparties/#{counterparty.id}/legal-entity", body)
+      response = json_response(conn, 200)
+
+      assert_schema(response, "LegalEntityResponse", ApiSpec.spec())
+      assert response["first_name"] == "Maria"
+      assert response["citizenship_country"] == "MX"
+    end
+
+    test "renders 404 when counterparty does not exist", %{
+      conn: conn,
+      platform_tenant: platform_tenant
+    } do
+      body = %{legal_entity_type: "individual", first_name: "X", tenant_id: platform_tenant.id}
+
+      conn =
+        put(conn, ~p"/api/counterparties/#{Ecto.UUID.generate()}/legal-entity", body)
+
+      assert json_response(conn, 404)
+    end
+
+    test "returns 401 without API key", %{
+      counterparty: counterparty,
+      platform_tenant: platform_tenant
+    } do
+      conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> put_req_header("content-type", "application/json")
+        |> put(
+          ~p"/api/counterparties/#{counterparty.id}/legal-entity",
+          %{legal_entity_type: "individual", first_name: "X", tenant_id: platform_tenant.id}
+        )
+
+      assert json_response(conn, 401)
+    end
+  end
+
   describe "OpenAPI spec validation" do
     test "OpenAPI spec includes counterparty endpoints", %{conn: conn} do
       conn = get(conn, ~p"/api/openapi")

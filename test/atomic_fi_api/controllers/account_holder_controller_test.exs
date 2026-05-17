@@ -456,6 +456,65 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
     end
   end
 
+  describe "update_legal_entity (PUT /api/account-holders/:id/legal-entity)" do
+    setup [:create_account_holder]
+
+    test "replaces the linked LE PII", %{
+      conn: conn,
+      account_holder: account_holder,
+      platform_tenant: platform_tenant
+    } do
+      body = %{
+        legal_entity_type: "individual",
+        first_name: "Jane",
+        last_name: "Updated",
+        citizenship_country: "CA",
+        politically_exposed_person: true,
+        tenant_id: platform_tenant.id
+      }
+
+      conn = put(conn, ~p"/api/account-holders/#{account_holder.id}/legal-entity", body)
+      response = json_response(conn, 200)
+
+      assert_schema(response, "LegalEntityResponse", ApiSpec.spec())
+      assert response["first_name"] == "Jane"
+      assert response["last_name"] == "Updated"
+      assert response["citizenship_country"] == "CA"
+    end
+
+    test "renders 404 when account holder does not exist", %{
+      conn: conn,
+      platform_tenant: platform_tenant
+    } do
+      body = %{
+        legal_entity_type: "individual",
+        first_name: "X",
+        tenant_id: platform_tenant.id
+      }
+
+      conn =
+        put(conn, ~p"/api/account-holders/#{Ecto.UUID.generate()}/legal-entity", body)
+
+      assert json_response(conn, 404)
+    end
+
+    test "returns 401 without API key", %{
+      account_holder: account_holder,
+      platform_tenant: platform_tenant
+    } do
+      conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> put_req_header("content-type", "application/json")
+        |> put(
+          ~p"/api/account-holders/#{account_holder.id}/legal-entity",
+          %{legal_entity_type: "individual", first_name: "X", tenant_id: platform_tenant.id}
+        )
+
+      assert json_response(conn, 401)
+    end
+  end
+
   describe "OpenAPI spec validation" do
     test "OpenAPI spec includes account holder endpoints", %{conn: conn} do
       conn = get(conn, ~p"/api/openapi")

@@ -3,11 +3,14 @@ defmodule AtomicFiApi.AccountHolderController do
   use OpenApiSpex.ControllerSpecs
 
   alias AtomicFi.AccountHolderContext
+  alias AtomicFi.LegalEntityContext
   alias AtomicFi.OnboardingContext
   alias AtomicFi.OpenApiSchema
   alias AtomicFi.OpenApiSchema.AccountHolderListResponse
   alias AtomicFi.OpenApiSchema.AccountHolderRequest
   alias AtomicFi.OpenApiSchema.AccountHolderResponse
+  alias AtomicFi.OpenApiSchema.LegalEntityRequest
+  alias AtomicFi.OpenApiSchema.LegalEntityResponse
   alias AtomicFiApi.Helpers.ApiHelpers
   alias OpenApiSpex.Reference
   alias OpenApiSpex.Schema
@@ -236,6 +239,45 @@ defmodule AtomicFiApi.AccountHolderController do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  operation(:update_legal_entity,
+    summary: "Replace the linked LegalEntity (PII) for an account holder",
+    description: """
+    Updates the AccountHolder-owned LegalEntity using PUT semantics
+    (full replacement of PII). The AH-LE link itself is immutable
+    post-create; this endpoint replaces the linked LE's identity fields,
+    nested addresses, phone numbers, and identifications.
+    """,
+    parameters: [
+      id: [
+        in: :path,
+        description: "Account holder ID",
+        schema: %Schema{type: :string, format: :uuid},
+        example: "123e4567-e89b-12d3-a456-426614174000"
+      ]
+    ],
+    request_body:
+      {"Legal entity params", "application/json", LegalEntityRequest.schema(), required: true},
+    responses: [
+      ok: {"Legal entity replaced", "application/json", LegalEntityResponse},
+      not_found: {"Not found", "application/json", OpenApiSchema.ErrorResponse},
+      unprocessable_entity:
+        {"Validation errors", "application/json", OpenApiSchema.ChangesetErrors}
+    ]
+  )
+
+  def update_legal_entity(
+        %{body_params: %LegalEntityRequest{} = legal_entity_request} = conn,
+        %{id: id}
+      ) do
+    session = conn.assigns.api_session
+    %{legal_entity: legal_entity} = AccountHolderContext.get_account_holder!(session, id)
+
+    with {:ok, legal_entity} <-
+           LegalEntityContext.update_legal_entity(session, legal_entity, legal_entity_request) do
+      ApiHelpers.json_response(conn, legal_entity, LegalEntityResponse)
     end
   end
 end

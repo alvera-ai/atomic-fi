@@ -393,6 +393,59 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
     end
   end
 
+  describe "update_legal_entity (PUT /api/beneficial-owners/:id/legal-entity)" do
+    setup [:create_beneficial_owner]
+
+    test "replaces the linked LE PII", %{
+      conn: conn,
+      beneficial_owner: beneficial_owner,
+      platform_tenant: platform_tenant
+    } do
+      body = %{
+        legal_entity_type: "individual",
+        first_name: "BO",
+        last_name: "Updated",
+        citizenship_country: "GB",
+        tenant_id: platform_tenant.id
+      }
+
+      conn = put(conn, ~p"/api/beneficial-owners/#{beneficial_owner.id}/legal-entity", body)
+      response = json_response(conn, 200)
+
+      assert_schema(response, "LegalEntityResponse", ApiSpec.spec())
+      assert response["first_name"] == "BO"
+      assert response["citizenship_country"] == "GB"
+    end
+
+    test "renders 404 when beneficial owner does not exist", %{
+      conn: conn,
+      platform_tenant: platform_tenant
+    } do
+      body = %{legal_entity_type: "individual", first_name: "X", tenant_id: platform_tenant.id}
+
+      conn =
+        put(conn, ~p"/api/beneficial-owners/#{Ecto.UUID.generate()}/legal-entity", body)
+
+      assert json_response(conn, 404)
+    end
+
+    test "returns 401 without API key", %{
+      beneficial_owner: beneficial_owner,
+      platform_tenant: platform_tenant
+    } do
+      conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> put_req_header("content-type", "application/json")
+        |> put(
+          ~p"/api/beneficial-owners/#{beneficial_owner.id}/legal-entity",
+          %{legal_entity_type: "individual", first_name: "X", tenant_id: platform_tenant.id}
+        )
+
+      assert json_response(conn, 401)
+    end
+  end
+
   describe "OpenAPI spec validation" do
     test "OpenAPI spec includes beneficial owner endpoints", %{conn: conn} do
       conn = get(conn, ~p"/api/openapi")
