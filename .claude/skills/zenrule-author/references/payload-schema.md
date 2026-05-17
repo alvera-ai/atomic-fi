@@ -40,15 +40,8 @@ fields and their JDM `field` paths:
 | `transaction.requested_execution_date`  | date     | YYYY-MM-DD                                                                |
 | `transaction.settlement_date`           | date     | YYYY-MM-DD                                                                |
 
-Output-only fields the rule typically writes (via `outputs[].field`):
-`transaction.rule`, `transaction.max_amount`, `transaction.daily_debit_limit`,
-`transaction.weekly_debit_limit`, `transaction.monthly_debit_limit`,
-`transaction.yearly_debit_limit`, `transaction.daily_credit_limit`,
-`transaction.weekly_credit_limit`, `transaction.monthly_credit_limit`,
-`transaction.yearly_credit_limit`. These are convention from the
-existing `de_minimis.json` rule — you can introduce new output names if
-the downstream consumer (`AtomicFi.ZenRule.HttpClient.get_limits/1`)
-agrees.
+The rule **does not** write outputs under `transaction.*`. The
+canonical output shape is described below in **Canonical rule output**.
 
 ## account_holder
 
@@ -76,15 +69,49 @@ Both share the same shape — `lib/atomic_fi/payment_account_context/payment_acc
 | `<side>_payment_account.currency`                           | string  | ISO 4217                                         |
 | `<side>_payment_account.bank_name`                          | string  |                                                  |
 | `<side>_payment_account.iban`                               | string  | sensitive (PCI/PII)                              |
+| `<side>_payment_account.enabled_regimes`                    | string[]| e.g. `["ach_de_minimis","stablecoin_de_minimis"]`|
 | `<side>_payment_account.account_holder.kyc_status`          | enum    | nested — same enum as `account_holder.kyc_status`|
 | `<side>_payment_account.account_holder.holder_type`         | enum    | nested                                           |
 | `<side>_payment_account.account_holder.risk_level`          | enum    | nested                                           |
+| `<side>_payment_account.ledger_accounts`                    | LA[]    | nested list — see below                          |
 
 The nested `.account_holder.*` path is the canonical way to check **the
 counterparty's KYC**, since `account_holder` at the top level refers
 to the initiator. The `de_minimis_genius.json` GENIUS variant uses
 `creditor_payment_account.account_holder.kyc_status` to gate stablecoin
 de-minimis.
+
+### `<side>_payment_account.ledger_accounts` (LA DAG)
+
+Each PaymentAccount carries its child `LedgerAccount` rows — one per
+enabled regime, plus the per-PA root. The rule walks this list to pick
+which LA(s) to constrain.
+
+| Field path                                                                | Type    | Notes                                            |
+|---------------------------------------------------------------------------|---------|--------------------------------------------------|
+| `<side>_payment_account.ledger_accounts[].id`                             | string  | UUID — key the rule output by this               |
+| `<side>_payment_account.ledger_accounts[].la_type`                        | enum    | `"account_holder_payment_account_root"`, `"account_holder_payment_account_regime_root"`, `"counter_party_payment_account_root"`, `"counter_party_payment_account_regime_root"` |
+| `<side>_payment_account.ledger_accounts[].regime`                         | string  | `"root"` for the PA root, otherwise the regime key (`"ach_de_minimis"`, `"stablecoin_de_minimis"`, …) |
+| `<side>_payment_account.ledger_accounts[].currency`                       | string  | ISO 4217                                         |
+| `<side>_payment_account.ledger_accounts[].max_daily_debit`                | integer | current per-LA cap (minor units); nil = unconstrained |
+| `<side>_payment_account.ledger_accounts[].max_daily_credit`               | integer |                                                  |
+| `<side>_payment_account.ledger_accounts[].max_weekly_debit`               | integer |                                                  |
+| `<side>_payment_account.ledger_accounts[].max_weekly_credit`              | integer |                                                  |
+| `<side>_payment_account.ledger_accounts[].max_monthly_debit`              | integer |                                                  |
+| `<side>_payment_account.ledger_accounts[].max_monthly_credit`             | integer |                                                  |
+| `<side>_payment_account.ledger_accounts[].max_yearly_debit`               | integer |                                                  |
+| `<side>_payment_account.ledger_accounts[].max_yearly_credit`              | integer |                                                  |
+| `<side>_payment_account.ledger_accounts[].is_blocked`                     | boolean |                                                  |
+| `<side>_payment_account.ledger_accounts[].block_reason`                   | string  | non-nil when `is_blocked` is `true`              |
+
+Pick a leaf by filtering on `regime`:
+
+```
+filter(creditor_payment_account.ledger_accounts,
+       # .regime == 'stablecoin_de_minimis')[0].id
+```
+
+The rule must not assume a specific list order. Always filter.
 
 ## debtor_counterparty / creditor_counterparty
 
@@ -118,6 +145,85 @@ match `kyc_status == :approved`:
 If you forget the inner quotes the cell becomes a variable reference,
 not a literal, and matching breaks silently. The cheatsheet has more
 examples.
+
+## Canonical rule output
+
+The engine (`AtomicFi.RuleEngine.Default.decode_rule_result/1`) only
+honors **one** top-level shape:
+
+```
+{
+  "ledger_accounts": {
+    "<la_uuid>": {
+      "daily_debit_cap":    integer | null,
+      "daily_credit_cap":   integer | null,
+      "weekly_debit_cap":   integer | null,
+      "weekly_credit_cap":  integer | null,
+      "monthly_debit_cap":  integer | null,
+      "monthly_credit_cap": integer | null,
+      "yearly_debit_cap":   integer | null,
+      "yearly_credit_cap":  integer | null,
+      "is_blocked":         boolean,
+      "block_reason":       string | null,
+      "reason":             string
+    },
+    "<la_uuid>": { ... }
+  },
+  "next_screening_at": "<iso8601>" | null
+}
+```
+
+Anything else (e.g. `transaction.max_amount`, `transaction.rule`) is
+**dropped** — the engine treats the rule as having no controls and the
+transaction stays `:pending`. Don't author rules that emit
+`transaction.*` outputs.
+
+### Per-LA Control attributes
+
+| Field                    | Meaning                                                                     |
+|--------------------------|-----------------------------------------------------------------------------|
+| `daily_*_cap` … `yearly_*_cap` | Per-period × per-direction caps in minor units. `nil` = unconstrained.  |
+| `is_blocked`             | When `true`, the LA itself rejects descendant entries; pair with `block_reason`. |
+| `block_reason`           | Required when `is_blocked` is `true`. Surfaces as `rejected_rule` on the voided entry. |
+| `reason`                 | Audit string — which rule emitted these caps. Surfaces in `rejected_rule` when a cap is breached. |
+
+Caps **and** `is_blocked` flow to the LedgerAccount row via
+`LedgerAccountContext.apply_controls/3`; the trigger then checks every
+ancestor LA when an entry lands on a descendant. The rule may target
+**any** LA in the DAG (leaf, parent, regime-root, AH-root) — the engine
+does not assume "leaf".
+
+### Computed-key output
+
+Decision-table outputs only support static dotted paths. To key
+`ledger_accounts` by an LA UUID resolved from the payload, use an
+`expressionNode` so the key is computed:
+
+```json
+{
+  "id": "out",
+  "type": "expressionNode",
+  "content": {
+    "expressions": [
+      { "key": "ledger_accounts",
+        "value": "{
+          [filter(creditor_payment_account.ledger_accounts,
+                  # .regime == 'stablecoin_de_minimis')[0].id]:
+            creditor_payment_account.account_holder.kyc_status == 'approved'
+              ? { reason: 'stablecoin_de_minimis' }
+              : { is_blocked: true,
+                  block_reason: 'stablecoin_block_unverified',
+                  reason: 'stablecoin_block_unverified' }
+        }"
+      }
+    ]
+  }
+}
+```
+
+A decision table can sit **upstream** of the expression node to fan
+into per-branch logic via `switchNode`, but the final emitter of the
+`ledger_accounts` map is an expression because it needs a computed key.
 
 ## What you can't do (yet)
 

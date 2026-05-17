@@ -78,6 +78,18 @@ Bad questions to avoid: "Tell me everything about your domain." Don't make the u
 
 ## Step 2 — Ground in the schema and prior art
 
+**Lockstep rule.** `references/payload-schema.md` is the contract — the
+rule may only reference paths documented there. Before drafting JDM,
+diff the schema doc against the real source of truth,
+`lib/atomic_fi/rule_engine/payload.ex` (`Payload.from_transaction/1`):
+
+- If a field the rule needs is in `payload.ex` but missing from the
+  schema doc, **update the doc first**, then draft.
+- If a field the rule needs is in neither, **STOP** and extend
+  `payload.ex` (with a failing test in
+  `test/atomic_fi/rule_engine/payload_test.exs`) before touching the
+  rule. The rule cannot move ahead of the payload.
+
 Before writing JDM, load these in this order:
 
 1. **`references/payload-schema.md`** — the shape of the context every rule receives. The rule's `field` expressions (e.g. `transaction.transaction_type`, `creditor_payment_account.account_holder.kyc_status`) must resolve in this tree.
@@ -173,7 +185,8 @@ This matters because the smoke loop calls `evaluate.sh` repeatedly and the user 
    - Field path in `inputs[].field` doesn't resolve in the actual payload (typo, wrong nesting)
    - Expected output was wrong (rare but it happens — re-derive from the rule definition)
    - Rule saved to the wrong rule_type subdir → agent's `<other-project>/evaluate/<file>` 404s with "Loader error". The script's hint will say which entrypoints the agent currently sees.
-6. **Amend, save, loop.**
+6. **Hard-fail guard.** If `traceData.reference_map` shows any referenced path resolving to `null` that the rule was supposed to read non-null (e.g. `creditor_payment_account.account_holder.kyc_status` came back `null` because the AH wasn't preloaded), **STOP and fix the payload** (`Payload.from_transaction/1` + preloads in `TransactionContext`) before amending the rule. Don't paper over the null with a catch-all row — that masks the lockstep violation and the next rule author will fall in the same hole.
+7. **Amend, save, loop.**
 
 **Soft cap: 5 iterations.** If you hit 5 and tests still fail, **stop and bring the user in** — per the systematic-debugging skill's Phase 4.5, three or more failed attempts is an architectural signal, not a code-fix signal. State plainly:
 - Which tests still fail
@@ -206,7 +219,20 @@ Once smoke tests are green:
 
    This is **a subset** of the full smoke matrix from Step 4 — not a different test set. Pick the cases whose outputs are most distinguishable visually in the simulator's result tree, so the user can confirm correctness at a glance.
 
-4. **Don't auto-commit.** Show the user what to commit; they decide the message and split.
+4. **Hand off to `corpus-from-rule` for end-to-end acceptance.** Smoke tests prove the rule is data-correct against the matrix you authored; they do **not** prove it against the live atomic-fi write path. The acceptance signal lives in a separate skill:
+
+   ```
+   $ mix corpus.validate corpus/zen_rules/<rule_corpus> --reset \
+         --out priv/zenrule/<rule_type>/<rule>.proof.md
+       → match=N, mismatch=0
+   ```
+
+   - If a corpus already exists under `corpus/zen_rules/<rule_corpus>/`, run validate now and link the resulting `<rule>.proof.md` as the acceptance artifact.
+   - If no corpus exists, instruct the user to invoke `corpus-from-rule` ("build fixtures for `<rule>`"); the sibling skill drafts ndjson, runs validate, and emits the proof.md alongside.
+
+   The proof.md is **deterministic** (corpus.validate runs in an isolated Postgres schema with `--reset`). It must be committed alongside the rule + corpus so a reviewer can read **rule + corpus + proof** without re-running anything.
+
+5. **Don't auto-commit.** Show the user what to commit; they decide the message and split.
 
 ---
 

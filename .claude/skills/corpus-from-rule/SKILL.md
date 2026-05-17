@@ -73,7 +73,12 @@ priv/zenrule/<rule_type>/<rule_id>.json
 
 Capture: input fields, decision-table rows (each row is a verdict band), `_description` strings (often cite use-case rows).
 
-Read `.claude/skills/zenrule-author/references/payload-schema.md` for the canonical `AtomicFi.RuleEngine.Payload` shape — the rule reads from this tree, and your fixtures must populate it via the production write paths.
+**Read the shared payload schema** —
+`.claude/skills/zenrule-author/references/payload-schema.md` is the
+single source of truth for the `AtomicFi.RuleEngine.Payload` shape.
+Both skills depend on it; corpus-from-rule never edits it (rule edits
+route through `zenrule-author`). Your ndjson must populate every path
+the rule reads, via the production write paths.
 
 ---
 
@@ -152,13 +157,41 @@ Don't edit rules from this skill. Stay on corpus authoring.
 
 ---
 
-## Step 6 — Record
+## Step 6 — Record (the proof artifact)
 
-On full convergence, commit:
+On full convergence, emit a **deterministic, committable proof** of the
+run alongside the corpus and the rule:
+
+```sh
+mix corpus.validate corpus/zen_rules/<rule_corpus> --reset \
+    --out priv/zenrule/<rule_type>/<rule>.proof.md
+```
+
+`--reset` drops and re-migrates the `atomic_fi_corpus` Postgres schema
+before validating, so the run starts from a clean slate and the
+resulting `proof.md` is byte-stable. The proof is **the** acceptance
+artifact: a reviewer reads
+
+```
+   ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+   │  the JDM rule    │  │  the ndjson      │  │  the proof.md    │
+   │  (what it does)  │  │  (what was       │  │  (what happened) │
+   │                  │  │   tested)        │  │                  │
+   └──────────────────┘  └──────────────────┘  └──────────────────┘
+```
+
+side by side without re-running anything.
+
+Commit all three together:
 
 ```sh
 git commit -S -m "feat(corpus): add fixtures for <rule_corpus>"
 ```
+
+(staged paths: the ndjson files, the rule edits if any, and the
+`<rule>.proof.md`.) Re-running the validate command on a fresh clone
+must produce a `git diff <rule>.proof.md` of zero lines — that's what
+"reproducible proof" means.
 
 If the corpus maps to rows in `guides/use-cases.md`, add the corpus folder path to that row's Test column in the same commit.
 
@@ -172,11 +205,6 @@ If the corpus maps to rows in `guides/use-cases.md`, add the corpus folder path 
 - **Engine + backing services real.** Mox stubs are for unit tests; this task talks to the live atomic-fi process tree (Postgres + ZenRule + Watchman).
 
 ---
-
-## Known issues
-
-- `mix corpus.validate` currently stalls partway through AH onboarding when run in `:dev`. Suspected dev-pool deadlock against the in-flight Watchman / ZenRule HTTP calls inside `OnboardingContext.onboard/2`. Diagnose next: try `MIX_ENV=test`, bump dev pool size, or add a `--skip-onboarding` flag that creates AHs via narrow Repo writes.
-- Failed runs leave AH rows behind because `write_ah_with_ledgers_and_las` commits before `onboard/2` runs. Manual cleanup is currently required; a `--reset` flag that purges the corpus's `external_id` prefix before inserting would fix this.
 
 ---
 
