@@ -51,6 +51,7 @@ defmodule Mix.Tasks.Corpus.Validate do
   alias AtomicFi.AccountHolderContext
   alias AtomicFi.AccountHolderContext.AccountHolder
   alias AtomicFi.Config
+  alias Ecto.Adapters.SQL
   alias AtomicFi.CounterpartyContext
   alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.OpenApiSchema.AccountHolderRequest
@@ -170,7 +171,7 @@ defmodule Mix.Tasks.Corpus.Validate do
 
   defp schema_exists? do
     %{rows: [[exists?]]} =
-      Ecto.Adapters.SQL.query!(
+      SQL.query!(
         Repo,
         "SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = $1)",
         [@schema]
@@ -180,11 +181,11 @@ defmodule Mix.Tasks.Corpus.Validate do
   end
 
   defp drop_schema! do
-    Ecto.Adapters.SQL.query!(Repo, "DROP SCHEMA IF EXISTS #{@schema} CASCADE", [])
+    SQL.query!(Repo, "DROP SCHEMA IF EXISTS #{@schema} CASCADE", [])
   end
 
   defp create_schema! do
-    Ecto.Adapters.SQL.query!(Repo, "CREATE SCHEMA #{@schema}", [])
+    SQL.query!(Repo, "CREATE SCHEMA #{@schema}", [])
   end
 
   defp migrate! do
@@ -321,7 +322,7 @@ defmodule Mix.Tasks.Corpus.Validate do
   # without this bootstrap every transaction would be rejected on the
   # LA-painted `is_blocked` flag before the rule engine has a chance to run.
   defp bootstrap_unblock_ledger_accounts do
-    Ecto.Adapters.SQL.query!(
+    SQL.query!(
       Repo,
       "UPDATE ledger_accounts SET is_blocked = false, block_reason = NULL",
       []

@@ -51,6 +51,7 @@ defmodule AtomicFi.OnboardingContext do
   alias AtomicFi.PaymentAccountContext
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.Repo
+  alias AtomicFi.RoleContext.RoleConstants
   alias AtomicFi.RuleEngine
   alias AtomicFi.ScreeningEngine
   alias AtomicFi.SessionContext.Session
@@ -188,7 +189,7 @@ defmodule AtomicFi.OnboardingContext do
     %Session{
       tenant_id: tenant_id,
       tenant: tenant,
-      role: %{name: AtomicFi.RoleContext.RoleConstants.root_role()}
+      role: %{name: RoleConstants.root_role()}
     }
   end
 

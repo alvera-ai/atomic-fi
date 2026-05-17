@@ -107,8 +107,16 @@ alias Credo.Check.Refactor.WithClauses
           # You can customize the priority of any check
           # Priority values are: `low, normal, high, higher`
           #
+          # Mix tasks idiomatically reach into Ecto/Repo/Mix internals via fully
+          # qualified module paths — the "alias at the top" form adds boilerplate
+          # for code that is invoked once per CLI run, not in hot paths.
           {Credo.Check.Design.AliasUsage,
-           [priority: :low, if_nested_deeper_than: 2, if_called_more_often_than: 0]},
+           [
+             priority: :low,
+             if_nested_deeper_than: 2,
+             if_called_more_often_than: 0,
+             files: %{excluded: [~r"/lib/mix/tasks/"]}
+           ]},
           {Credo.Check.Design.TagFIXME, []},
           # You can also customize the exit_status of each check.
           # If you don't want TODO comments to cause `mix credo` to fail, just
@@ -155,7 +163,10 @@ alias Credo.Check.Refactor.WithClauses
           {Credo.Check.Refactor.MatchInCondition, []},
           {NegatedConditionsInUnless, []},
           {NegatedConditionsWithElse, []},
-          {Credo.Check.Refactor.Nesting, []},
+          # Mix tasks idiomatically use nested case/with inside Enum.each ndjson
+          # walkers (FK lookup → request build → context call). Refactoring buys
+          # nothing and the call sites read fine top-to-bottom.
+          {Credo.Check.Refactor.Nesting, [files: %{excluded: [~r"/lib/mix/tasks/"]}]},
           {RedundantWithClauseResult, []},
           {Credo.Check.Refactor.RejectReject, []},
           {UnlessWithElse, []},
