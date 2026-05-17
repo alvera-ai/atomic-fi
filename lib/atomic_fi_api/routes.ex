@@ -200,6 +200,9 @@ defmodule AtomicFiApi.Routes do
         put "/party-activity-snapshots/:id", PartyActivitySnapshotController, :update
         delete "/party-activity-snapshots/:id", PartyActivitySnapshotController, :delete
 
+        # Lotus embed token (exchange Bearer for short-lived iframe token)
+        post "/lotus/embed-token", LotusEmbedController, :create
+
         # Legal entity change event CRUD endpoints (ISO 20022 acmt:006/acmt:002 · AML account takeover)
         get "/legal-entity-change-events", LegalEntityChangeEventController, :index
         get "/legal-entity-change-events/:id", LegalEntityChangeEventController, :show
