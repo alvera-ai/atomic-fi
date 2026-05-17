@@ -1,0 +1,30 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": { "x": 100, "y": 160 }
+    },
+    {
+      "id": "permissive",
+      "type": "functionNode",
+      "name": "Permissive Onboarding",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "source": "/**\n * Permissive onboarding rule. Walks the entity's `las[]` flat list\n * (synthesised by AtomicFi.RuleEngine.Payload.from_onboarding_entity/2)\n * and emits an empty Control per la_id. Empty Control = no caps,\n * is_blocked: false, block_reason: nil — which is exactly the\n * 'unblock everything' fallback the corpus needs.\n */\nexport const handler = async (input) => {\n  const las = input.las || [];\n  const ledger_accounts = {};\n  for (const la of las) {\n    ledger_accounts[la.id] = {};\n  }\n  return { ledger_accounts };\n};\n"
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": { "x": 700, "y": 160 }
+    }
+  ],
+  "edges": [
+    { "id": "edge_request_permissive", "type": "edge", "sourceId": "request", "targetId": "permissive" },
+    { "id": "edge_permissive_response", "type": "edge", "sourceId": "permissive", "targetId": "response" }
+  ]
+}

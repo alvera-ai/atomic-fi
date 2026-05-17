@@ -357,7 +357,7 @@ defmodule AtomicFi.PaymentAccountContextTest do
       assert Enum.count(las, &(&1.la_type == :account_holder_payment_account_root)) == 1
       assert Enum.count(las, &(&1.la_type == :account_holder_payment_account_regime_root)) == 2
       assert Enum.all?(las, &(&1.counterparty_id == nil))
-      assert Enum.all?(las, & &1.is_blocked)
+      assert Enum.all?(las, &(&1.is_blocked == false))
     end
 
     test "create_payment_account/2 (CP-owned) materialises CP-PA root + regime-root LAs",
@@ -381,7 +381,7 @@ defmodule AtomicFi.PaymentAccountContextTest do
       assert Enum.count(las, &(&1.la_type == :counter_party_payment_account_root)) == 1
       assert Enum.count(las, &(&1.la_type == :counter_party_payment_account_regime_root)) == 1
       assert Enum.all?(las, &(&1.counterparty_id == cp.id))
-      assert Enum.all?(las, & &1.is_blocked)
+      assert Enum.all?(las, &(&1.is_blocked == false))
     end
 
     test "create_payment_account/2 leaves the parent AH and CP own-LAs untouched",

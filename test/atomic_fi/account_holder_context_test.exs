@@ -259,7 +259,7 @@ defmodule AtomicFi.AccountHolderContextTest do
       assert LedgerAccountContext.list_for_entity(session, ah) == []
     end
 
-    test "create_account_holder/2 leaves AH LAs block-by-default until onboarding applies controls",
+    test "create_account_holder/2 unblocks AH LAs once the permissive onboarding rule applies controls",
          %{session: session} do
       legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
       request = ah_request(session, legal_entity.id, ["USD"], ["ach"])
@@ -267,8 +267,8 @@ defmodule AtomicFi.AccountHolderContextTest do
       assert {:ok, ah} = AccountHolderContext.create_account_holder(session, request)
 
       las = LedgerAccountContext.list_for_entity(session, ah)
-      assert Enum.all?(las, & &1.is_blocked)
-      assert Enum.all?(las, &(is_binary(&1.block_reason) and &1.block_reason != ""))
+      assert Enum.all?(las, &(&1.is_blocked == false))
+      assert Enum.all?(las, &(&1.block_reason == nil))
     end
 
     test "update_account_holder/3 appends missing AH regime-root LAs when enabled_regimes grows",

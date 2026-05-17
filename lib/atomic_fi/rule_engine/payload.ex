@@ -24,7 +24,9 @@ defmodule AtomicFi.RuleEngine.Payload do
   "leaf" vs "ancestor" or "AH vs CP vs BO".
   """
 
+  alias AtomicFi.AccountHolderContext.AccountHolder
   alias AtomicFi.ComplianceScreeningContext
+  alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.LedgerAccountContext
   alias AtomicFi.LedgerAccountContext.LedgerAccount
   alias AtomicFi.PaymentAccountContext.PaymentAccount
@@ -39,8 +41,27 @@ defmodule AtomicFi.RuleEngine.Payload do
   def from_entity(session, %Transaction{} = transaction),
     do: from_transaction(session, transaction)
 
+  def from_entity(session, %AccountHolder{} = ah), do: from_onboarding_entity(session, ah)
+  def from_entity(session, %Counterparty{} = cp), do: from_onboarding_entity(session, cp)
+  def from_entity(session, %PaymentAccount{} = pa), do: from_onboarding_entity(session, pa)
+
   def from_entity(_session, other) when is_struct(other),
     do: ExOpenApiUtils.Mapper.to_map(other)
+
+  # Onboarding payload — shape mirrors a Transaction payload's per-PA-side:
+  # the entity itself plus a flat `las[]` of every LedgerAccount the rule may
+  # target. The permissive onboarding rule walks `las[]` and emits a Control
+  # per la_id, which `LedgerAccountContext.apply_controls/3` then writes back.
+  defp from_onboarding_entity(session, entity) do
+    las =
+      session
+      |> LedgerAccountContext.list_for_entity(entity)
+      |> Enum.map(&la_to_map/1)
+
+    entity
+    |> ExOpenApiUtils.Mapper.to_map()
+    |> Map.put("las", las)
+  end
 
   @doc """
   Context for a transaction evaluation.

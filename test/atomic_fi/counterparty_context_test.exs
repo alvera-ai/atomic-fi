@@ -282,7 +282,7 @@ defmodule AtomicFi.CounterpartyContextTest do
       assert length(las) == 6
       assert Enum.count(las, &(&1.la_type == :counter_party_root)) == 2
       assert Enum.count(las, &(&1.la_type == :counter_party_regime_root)) == 4
-      assert Enum.all?(las, & &1.is_blocked)
+      assert Enum.all?(las, &(&1.is_blocked == false))
     end
 
     test "create_counterparty/2 leaves the AH's own LAs untouched",
