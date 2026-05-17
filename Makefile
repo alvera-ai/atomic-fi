@@ -1,6 +1,68 @@
-.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install
+.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install reseed-stableaml
 
 COMPOSE_FILE := local-dependencies.yaml
+
+# ─── Synthetic corpus upstreams ─────────────────────────────────────────
+#
+# Raw upstream datasets live OUTSIDE the repo, under CORPUS_ROOT. Each
+# `reseed-<src>` target is idempotent: it curls the upstream file, verifies
+# sha256 against the committed manifest at
+# test/support/upstream/<src>/manifest.json, and decompresses (where
+# applicable) to the layout `mix corpus.generate.<src>` expects. Re-running
+# with the file already present and matching sha is a no-op.
+#
+# CORPUS_ROOT can be set three ways (later wins):
+#
+#   1. default: ~/.local/share/atomic-fi/corpus
+#   2. env:     export ATOMIC_FI_CORPUS_ROOT=/big/disk/aml
+#   3. arg:     make reseed-stableaml CORPUS_ROOT=/big/disk/aml
+#
+# The arg form is the synthea-style per-invocation override — use it when
+# the dataset is too large for the default home-directory partition (some
+# upstreams are tens of GB).
+#
+# These targets are curl + gunzip / unzip — native, no docker. Docker
+# enters the picture only for backing services (Watchman, ZenRule), never
+# for plumbing tasks like this.
+
+CORPUS_ROOT ?= $(or $(ATOMIC_FI_CORPUS_ROOT),$(HOME)/.local/share/atomic-fi/corpus)
+STABLEAML_MANIFEST := $(CURDIR)/test/support/upstream/stableaml/manifest.json
+STABLEAML_DIR := $(CORPUS_ROOT)/stableaml
+STABLEAML_GZ := $(STABLEAML_DIR)/address_sanctioned.csv.gz
+STABLEAML_CSV := $(STABLEAML_DIR)/address_sanctioned.csv
+STABLEAML_GZ_URL := https://raw.githubusercontent.com/finos-labs/dtcch-2025-OpenAML/main/Data/address_sanctioned.csv.gz
+STABLEAML_GZ_SHA256 := de596bc4287d9f09365d20df4c4a73bfcc78526ff3675e68fe25090a02240968
+STABLEAML_CSV_SHA256 := 89cfc6ea2263ce9b1c39c5a4a907c51b7968ac4e2563a42d0d65fa0d5bb3ea09
+
+reseed-stableaml:
+	@set -e; \
+	echo "→ reseed-stableaml: CORPUS_ROOT=$(CORPUS_ROOT)"; \
+	mkdir -p "$(STABLEAML_DIR)"; \
+	if [ -f "$(STABLEAML_CSV)" ] && [ "$$(shasum -a 256 '$(STABLEAML_CSV)' | awk '{print $$1}')" = "$(STABLEAML_CSV_SHA256)" ]; then \
+		echo "✓ $(STABLEAML_CSV) already present, sha256 matches — no-op"; \
+		exit 0; \
+	fi; \
+	echo "→ curling $(STABLEAML_GZ_URL)"; \
+	curl -fsSL "$(STABLEAML_GZ_URL)" -o "$(STABLEAML_GZ)"; \
+	actual=$$(shasum -a 256 "$(STABLEAML_GZ)" | awk '{print $$1}'); \
+	if [ "$$actual" != "$(STABLEAML_GZ_SHA256)" ]; then \
+		echo "✗ sha256 mismatch on .gz" >&2; \
+		echo "  expected: $(STABLEAML_GZ_SHA256)" >&2; \
+		echo "  actual:   $$actual" >&2; \
+		echo "  manifest: $(STABLEAML_MANIFEST)" >&2; \
+		rm -f "$(STABLEAML_GZ)"; \
+		exit 1; \
+	fi; \
+	gunzip -f "$(STABLEAML_GZ)"; \
+	actual=$$(shasum -a 256 "$(STABLEAML_CSV)" | awk '{print $$1}'); \
+	if [ "$$actual" != "$(STABLEAML_CSV_SHA256)" ]; then \
+		echo "✗ sha256 mismatch on .csv" >&2; \
+		echo "  expected: $(STABLEAML_CSV_SHA256)" >&2; \
+		echo "  actual:   $$actual" >&2; \
+		rm -f "$(STABLEAML_CSV)"; \
+		exit 1; \
+	fi; \
+	echo "✓ StableAML ingested to $(STABLEAML_CSV)"
 
 run-backing-services:
 	@echo "Starting local backing services (docker compose: watchman)..."

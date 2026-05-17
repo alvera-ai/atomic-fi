@@ -60,11 +60,11 @@ What this is *not*: a distribution-fitter (those copy real data's statistics —
    amlgentex/transactions.parquet   ← maintainer-generated snapshot
 
                        │
-                       ▼ (reseed-<src> skill, one-time, manifest sha-pinned)
+                       ▼ (make reseed-<src>, idempotent, manifest sha-pinned)
 
    PER-SOURCE GENERATE  (read raw → sample → map → emit, one pass)
    ───────────────────────────────────────────────────────────────
-   mix corpus.generate.stableaml    --wallets N  --cybercrime P  --seed S
+   mix corpus.generate.stableaml    --wallets N  --seed S
    mix corpus.generate.saml_d       --rows N     --suspicious P  --seed S
    mix corpus.generate.amlgentex    --rows N     --alerts P      --seed S
 
@@ -113,18 +113,28 @@ config :atomic_fi, :corpus_root,
     Path.join(System.user_home!(), ".local/share/atomic-fi/corpus")
 ```
 
-Datasets vary from 1 MB (StableAML) to GB-scale (AMLGentex parquet, AMLWorld). Pinning by sha256 in a small committed `manifest.json` per source is enough; the bytes don't belong in our git history. Each `reseed-<src>` skill is idempotent — checks the manifest, skips if the sha matches.
+Datasets vary from 1 MB (StableAML) to GB-scale (AMLGentex parquet, AMLWorld). Pinning by sha256 in a small committed `manifest.json` per source is enough; the bytes don't belong in our git history. Each `reseed-<src>` is a Makefile target — pure curl + sha256 verify + unpack, no LLM judgment, no docker — and is idempotent: a re-run on a file already at the manifest's sha is a no-op.
+
+The destination is a per-invocation argument, synthea-style:
+
+```sh
+make reseed-stableaml                              # default ~/.local/share/atomic-fi/corpus
+make reseed-stableaml CORPUS_ROOT=/big/disk/aml    # override for huge datasets
+ATOMIC_FI_CORPUS_ROOT=/big/disk make reseed-stableaml   # or via env
+```
+
+A reseed becomes a skill only when the upstream requires judgment (auth flow, version selection, multi-file stitching) that a Makefile can't durably encode. So far none of the pinned upstreams hit that bar.
 
 ### Per-source ownership
 
 Each upstream owns three artefacts that travel together. Adding a new upstream = one skill + one mix task + one raw folder. Shared `corpus.validate` stays untouched.
 
-| Upstream      | Reseed skill        | Generate task                    | Raw location                                       |
-|---------------|---------------------|----------------------------------|----------------------------------------------------|
-| rule files    | `corpus-from-rule`  | (rule-as-source path)            | `priv/zenrule/<rule>.json`                         |
-| StableAML [10]| `reseed-stableaml`  | `mix corpus.generate.stableaml`  | `$CORPUS_ROOT/stableaml/StableAML.csv`             |
-| SAML-D [4]    | `reseed-saml-d`     | `mix corpus.generate.saml_d`     | `$CORPUS_ROOT/saml-d/SAML-D.csv`                   |
-| AMLGentex [5] | `reseed-amlgentex`  | `mix corpus.generate.amlgentex`  | `$CORPUS_ROOT/amlgentex/transactions.parquet`      |
+| Upstream      | Reseed                       | Generate task                    | Raw location                                          |
+|---------------|------------------------------|----------------------------------|-------------------------------------------------------|
+| rule files    | (skill: `corpus-from-rule`)  | (rule-as-source path)            | `priv/zenrule/<rule>.json`                            |
+| StableAML [10]| `make reseed-stableaml`      | `mix corpus.generate.stableaml`  | `$CORPUS_ROOT/stableaml/address_sanctioned.csv`       |
+| SAML-D [4]    | `make reseed-saml-d`         | `mix corpus.generate.saml_d`     | `$CORPUS_ROOT/saml-d/SAML-D.csv`                      |
+| AMLGentex [5] | `make reseed-amlgentex`      | `mix corpus.generate.amlgentex`  | `$CORPUS_ROOT/amlgentex/transactions.parquet`         |
 
 AMLWorld [3] is deferred — its 180M-txn LI-Large would force Kaggle-CLI integration and Parquet handling, neither of which pays off until SAML-D's typologies and AMLGentex's configurable graphs are exhausted.
 
@@ -180,10 +190,10 @@ Nothing new lives under `priv/`. The corpus is application test data, not Phoeni
 
 ### Implementation order
 
-1. `corpus-from-rule` skill + `mix corpus.validate` — proves the verdict-verified loop end-to-end with no external dataset.
-2. `reseed-stableaml` + `mix corpus.generate.stableaml` — smallest upstream (1 MB), FINOS-hosted, no Kaggle auth.
-3. `reseed-saml-d` + `mix corpus.generate.saml_d` — Kaggle CLI auth, 12 MB, 17 suspicious typologies.
-4. `reseed-amlgentex` + `mix corpus.generate.amlgentex` — Python sim run, snapshot committed; defer until the prior three leave gaps.
+1. `corpus-from-rule` skill + `mix corpus.validate` — proves the verdict-verified loop end-to-end with no external dataset. Shipped.
+2. `make reseed-stableaml` + `mix corpus.generate.stableaml` — smallest upstream (~20 kB gz / 52 kB csv, the Category-1 sanctioned slice), FINOS-hosted, no Kaggle auth. Shipped.
+3. `make reseed-saml-d` + `mix corpus.generate.saml_d` — Kaggle CLI auth (still a Makefile target — Kaggle CLI is a binary, not a skill), 12 MB, 17 suspicious typologies.
+4. `make reseed-amlgentex` + `mix corpus.generate.amlgentex` — Python sim run; the Make target invokes the sim in a virtualenv (no docker), snapshots the parquet. Defer until the prior three leave gaps.
 
 ---
 

@@ -1,0 +1,26 @@
+{
+  "source": "FINOS Labs — DTCC Hackathon 2025 OpenAML",
+  "repo": "https://github.com/finos-labs/dtcch-2025-OpenAML",
+  "license": "Apache-2.0 (per parent repo LICENSE)",
+  "fetched_ref": "main",
+  "fetched_at": "2026-05-17",
+  "files": {
+    "address_sanctioned.csv.gz": {
+      "url": "https://raw.githubusercontent.com/finos-labs/dtcch-2025-OpenAML/main/Data/address_sanctioned.csv.gz",
+      "sha256": "de596bc4287d9f09365d20df4c4a73bfcc78526ff3675e68fe25090a02240968",
+      "bytes": 20144,
+      "unpacks_to": "address_sanctioned.csv",
+      "unpacked_sha256": "89cfc6ea2263ce9b1c39c5a4a907c51b7968ac4e2563a42d0d65fa0d5bb3ea09",
+      "unpacked_bytes": 53249,
+      "unpacked_rows": 807
+    }
+  },
+  "schema": {
+    "address_sanctioned.csv": {
+      "header": false,
+      "columns": ["blockchain", "wallet_address", "flag"],
+      "category": "Sanctioned & Regulatory Blacklisted (OFAC / SEC / Tether USDT / Circle USDC custodial freezes)"
+    }
+  },
+  "notes": "Category 1 (sanctioned) is the smallest, highest-signal slice — wallets formally blocked through legal/regulatory mechanisms. We pin only this file for now; address_flagged.csv.gz (11 MB) and address_fraud.csv.gz can be added later if the rule surface grows to cover them."
+}
