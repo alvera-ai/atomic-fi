@@ -1,0 +1,3 @@
+{"external_id":"ofac-pa-sender","account_holder_external_id":"ofac-ah-sender","account_type":"wallet","currency":"USD"}
+{"external_id":"ofac-pa-clean-recipient","account_holder_external_id":"ofac-ah-clean-recipient","account_type":"wallet","currency":"USD"}
+{"external_id":"ofac-pa-putin-recipient","account_holder_external_id":"ofac-ah-putin-recipient","account_type":"wallet","currency":"USD"}
