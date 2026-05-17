@@ -51,6 +51,9 @@ node_modules/
 # Per-session runtime lock from Claude's scheduled-task harness — pid + sessionId.
 /.claude/scheduled_tasks.lock
 
+# Dev secrets (API keys) — never commit.
+/config/dev.secret.exs
+
 # macOS Finder metadata.
 **/.DS_Store
 
