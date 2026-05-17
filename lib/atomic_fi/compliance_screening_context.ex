@@ -92,6 +92,32 @@ defmodule AtomicFi.ComplianceScreeningContext do
   end
 
   @doc """
+  All screenings attached to a target. Polymorphic on the target struct:
+
+    - `%LegalEntity{}`    — party screenings (PII subject) where
+                            `legal_entity_id = target.id`.
+    - `%PaymentAccount{}` — instrument screenings (wallet / IBAN) where
+                            `payment_account_id = target.id`.
+
+  Used by the rule-engine payload composer to assemble the flat per-PA-side
+  `compliance_screenings[]` view, calling this multiple times (the PA itself,
+  the AH's identity LE, each BO LE, the CP LE) and concatenating.
+  """
+  @spec get_screenings_for_target(Session.t(), LegalEntity.t() | PaymentAccount.t()) ::
+          [ComplianceScreening.t()]
+  def_with_rls_and_logging get_screenings_for_target(session, %LegalEntity{id: le_id}),
+    log_fields: [] do
+    from(cs in ComplianceScreening, where: cs.legal_entity_id == ^le_id)
+    |> Repo.all(session: session)
+  end
+
+  def_with_rls_and_logging get_screenings_for_target(session, %PaymentAccount{id: pa_id}),
+    log_fields: [] do
+    from(cs in ComplianceScreening, where: cs.payment_account_id == ^pa_id)
+    |> Repo.all(session: session)
+  end
+
+  @doc """
   Creates a compliance screening.
 
   ## Examples
@@ -333,9 +359,10 @@ defmodule AtomicFi.ComplianceScreeningContext do
 
   @doc """
   Persists an unsaved `%ComplianceScreening{}` returned by `ScreeningEngine`.
-  `fks` carries the entity FKs to attach (e.g.
-  `%{account_holder_id: ah.id, counterparty_id: cp.id}`). Tenant id is taken
-  from `session`. Child matches inherit the tenant id automatically.
+  `fks` carries the primary anchor (`legal_entity_id` for party screenings,
+  `payment_account_id` for instrument screenings). Exactly one anchor must be
+  set per DB CHECK. Tenant id is taken from `session`. Child matches inherit
+  the tenant id automatically.
   """
   @spec record_screening(Session.t(), ComplianceScreening.t(), map()) ::
           {:ok, ComplianceScreening.t()} | {:error, Ecto.Changeset.t()}

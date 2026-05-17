@@ -25,23 +25,45 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
     session
   end
 
-  defp compliance_screening_attrs(account_holder_id, tenant_id) do
+  # Resolve the identity LegalEntity for an AccountHolder — inserts one if missing.
+  # Screenings anchor on `legal_entity_id` after the FK collapse.
+  defp legal_entity_for!(%AtomicFi.AccountHolderContext.AccountHolder{} = ah) do
+    AtomicFi.LegalEntityContext.LegalEntity
+    |> AtomicFi.Repo.get_by(
+      [account_holder_id: ah.id, subject_type: :account_holder],
+      skip_multi_tenancy_check: true
+    )
+    |> case do
+      nil ->
+        insert(:legal_entity,
+          tenant_id: ah.tenant_id,
+          account_holder_id: ah.id,
+          subject_type: :account_holder
+        )
+
+      %{} = le ->
+        le
+    end
+  end
+
+  defp compliance_screening_attrs(%AtomicFi.AccountHolderContext.AccountHolder{} = ah, tenant_id) do
     %{
       scope: :account_holder,
       screening_type: :sanctions,
       screening_status: :pass,
       screened_entity_type: :individual,
       screened_entity_name: "Alice Smith",
-      account_holder_id: account_holder_id,
+      legal_entity_id: legal_entity_for!(ah).id,
       tenant_id: tenant_id
     }
   end
 
   # Insert a ComplianceScreening with child SanctionsMatch rows directly
-  defp insert_screening_with_sanctions(session, account_holder_id, sanctions_matches) do
-    alias AtomicFi.ComplianceScreeningContext.ComplianceScreening
-    alias AtomicFi.ComplianceScreeningContext.SanctionsMatch
-
+  defp insert_screening_with_sanctions(
+         session,
+         %AtomicFi.AccountHolderContext.AccountHolder{} = ah,
+         sanctions_matches
+       ) do
     {:ok, cs} =
       ComplianceScreeningContext.create_compliance_screening(session, %{
         scope: :account_holder,
@@ -50,7 +72,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
         screened_entity_type: :individual,
         screened_entity_name: "Test User",
         match_count: length(sanctions_matches),
-        account_holder_id: account_holder_id,
+        legal_entity_id: legal_entity_for!(ah).id,
         tenant_id: session.tenant_id
       })
 
@@ -65,9 +87,11 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
   end
 
   # Insert a ComplianceScreening with child BlocklistMatch rows directly
-  defp insert_screening_with_blocklist(session, account_holder_id, blocklist_matches) do
-    alias AtomicFi.ComplianceScreeningContext.BlocklistMatch
-
+  defp insert_screening_with_blocklist(
+         session,
+         %AtomicFi.AccountHolderContext.AccountHolder{} = ah,
+         blocklist_matches
+       ) do
     {:ok, cs} =
       ComplianceScreeningContext.create_compliance_screening(session, %{
         scope: :account_holder,
@@ -75,7 +99,8 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
         screening_status: :blocked,
         screened_entity_type: :individual,
         screened_entity_name: "John Doe",
-        account_holder_id: account_holder_id,
+        match_count: length(blocklist_matches),
+        legal_entity_id: legal_entity_for!(ah).id,
         tenant_id: session.tenant_id
       })
 
@@ -100,7 +125,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       {:ok, cs} =
         ComplianceScreeningContext.create_compliance_screening(
           session,
-          compliance_screening_attrs(account_holder.id, session.tenant_id)
+          compliance_screening_attrs(account_holder, session.tenant_id)
         )
 
       {:ok, {screenings, _meta}} =
@@ -122,7 +147,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       {:ok, cs} =
         ComplianceScreeningContext.create_compliance_screening(
           session,
-          compliance_screening_attrs(account_holder.id, session.tenant_id)
+          compliance_screening_attrs(account_holder, session.tenant_id)
         )
 
       result = ComplianceScreeningContext.get_compliance_screening!(session, cs.id)
@@ -143,7 +168,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       assert {:ok, %ComplianceScreening{} = cs} =
                ComplianceScreeningContext.create_compliance_screening(
                  session,
-                 compliance_screening_attrs(account_holder.id, session.tenant_id)
+                 compliance_screening_attrs(account_holder, session.tenant_id)
                )
 
       assert cs.scope == :account_holder
@@ -151,7 +176,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       assert cs.screening_status == :pass
       assert cs.screened_entity_type == :individual
       assert cs.screened_entity_name == "Alice Smith"
-      assert cs.account_holder_id == account_holder.id
+      assert cs.legal_entity_id == legal_entity_for!(account_holder).id
       assert cs.tenant_id == session.tenant_id
     end
 
@@ -159,7 +184,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
       attrs =
-        compliance_screening_attrs(account_holder.id, session.tenant_id)
+        compliance_screening_attrs(account_holder, session.tenant_id)
         |> Map.merge(%{
           screening_score: Decimal.new("75.5"),
           match_count: 2,
@@ -177,19 +202,28 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       assert cs.compliance_screening_number == "CS-2024-001"
     end
 
-    test "with counterparty scope sets counterparty_id", %{session: session} do
+    test "with counterparty scope anchors on the counterparty's legal_entity_id",
+         %{session: session} do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
       counterparty = insert(:counterparty, tenant_id: session.tenant_id)
 
+      cp_le =
+        insert(:legal_entity,
+          tenant_id: session.tenant_id,
+          subject_type: :counterparty,
+          account_holder_id: counterparty.account_holder_id,
+          counterparty_id: counterparty.id
+        )
+
       attrs =
-        compliance_screening_attrs(account_holder.id, session.tenant_id)
-        |> Map.merge(%{scope: :counterparty, counterparty_id: counterparty.id})
+        compliance_screening_attrs(account_holder, session.tenant_id)
+        |> Map.merge(%{scope: :counterparty, legal_entity_id: cp_le.id})
 
       assert {:ok, %ComplianceScreening{} = cs} =
                ComplianceScreeningContext.create_compliance_screening(session, attrs)
 
       assert cs.scope == :counterparty
-      assert cs.counterparty_id == counterparty.id
+      assert cs.legal_entity_id == cp_le.id
     end
 
     test "with invalid data (missing required fields) returns error changeset", %{
@@ -205,7 +239,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
       attrs =
-        compliance_screening_attrs(account_holder.id, session.tenant_id)
+        compliance_screening_attrs(account_holder, session.tenant_id)
         |> Map.put(:screening_score, Decimal.new("150.0"))
 
       assert {:error, %Ecto.Changeset{}} =
@@ -216,7 +250,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
       attrs =
-        compliance_screening_attrs(account_holder.id, session.tenant_id)
+        compliance_screening_attrs(account_holder, session.tenant_id)
         |> Map.put(:escalation_level, 10)
 
       assert {:error, %Ecto.Changeset{}} =
@@ -231,7 +265,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       {:ok, cs} =
         ComplianceScreeningContext.create_compliance_screening(
           session,
-          compliance_screening_attrs(account_holder.id, session.tenant_id)
+          compliance_screening_attrs(account_holder, session.tenant_id)
         )
 
       assert {:ok, %ComplianceScreening{} = updated} =
@@ -252,7 +286,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       {:ok, cs} =
         ComplianceScreeningContext.create_compliance_screening(
           session,
-          compliance_screening_attrs(account_holder.id, session.tenant_id)
+          compliance_screening_attrs(account_holder, session.tenant_id)
         )
 
       assert {:error, %Ecto.Changeset{}} =
@@ -269,7 +303,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       {:ok, cs} =
         ComplianceScreeningContext.create_compliance_screening(
           session,
-          compliance_screening_attrs(account_holder.id, session.tenant_id)
+          compliance_screening_attrs(account_holder, session.tenant_id)
         )
 
       assert {:ok, %ComplianceScreening{}} =
@@ -288,7 +322,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       {:ok, cs} =
         ComplianceScreeningContext.create_compliance_screening(
           session,
-          compliance_screening_attrs(account_holder.id, session.tenant_id)
+          compliance_screening_attrs(account_holder, session.tenant_id)
         )
 
       assert %Ecto.Changeset{} = ComplianceScreeningContext.change_compliance_screening(cs)
@@ -300,7 +334,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       {:ok, cs} =
         ComplianceScreeningContext.create_compliance_screening(
           session,
-          compliance_screening_attrs(account_holder.id, session.tenant_id)
+          compliance_screening_attrs(account_holder, session.tenant_id)
         )
 
       changeset =
@@ -322,7 +356,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
       {cs, _} =
-        insert_screening_with_sanctions(session, account_holder.id, [
+        insert_screening_with_sanctions(session, account_holder, [
           %{
             matched_name: "Vladimir Vladimirovich PUTIN",
             match_score: 0.73,
@@ -345,7 +379,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       {:ok, cs} =
         ComplianceScreeningContext.create_compliance_screening(
           session,
-          compliance_screening_attrs(account_holder.id, session.tenant_id)
+          compliance_screening_attrs(account_holder, session.tenant_id)
         )
 
       {:ok, {matches, _meta}} =
@@ -360,7 +394,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
       {cs, [sm]} =
-        insert_screening_with_sanctions(session, account_holder.id, [
+        insert_screening_with_sanctions(session, account_holder, [
           %{
             matched_name: "TEST ENTITY",
             match_score: 0.75,
@@ -387,7 +421,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
       {cs, _} =
-        insert_screening_with_sanctions(session, account_holder.id, [
+        insert_screening_with_sanctions(session, account_holder, [
           %{
             matched_name: "TEST ENTITY",
             match_score: 0.75,
@@ -416,7 +450,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
       {cs, _} =
-        insert_screening_with_blocklist(session, account_holder.id, [
+        insert_screening_with_blocklist(session, account_holder, [
           %{
             matched_term: "john",
             match_type: :exact,
@@ -438,7 +472,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       {:ok, cs} =
         ComplianceScreeningContext.create_compliance_screening(
           session,
-          compliance_screening_attrs(account_holder.id, session.tenant_id)
+          compliance_screening_attrs(account_holder, session.tenant_id)
         )
 
       {:ok, {matches, _meta}} =
@@ -453,7 +487,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
       {cs, [bm]} =
-        insert_screening_with_blocklist(session, account_holder.id, [
+        insert_screening_with_blocklist(session, account_holder, [
           %{
             matched_term: "john",
             match_type: :exact,
@@ -479,7 +513,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
       {cs, _} =
-        insert_screening_with_blocklist(session, account_holder.id, [
+        insert_screening_with_blocklist(session, account_holder, [
           %{
             matched_term: "john",
             match_type: :exact,
@@ -527,7 +561,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
 
       assert is_nil(screening.id)
       assert is_nil(screening.tenant_id)
-      assert is_nil(screening.account_holder_id)
+      assert is_nil(screening.legal_entity_id)
       assert screening.scope == :account_holder
       assert screening.screening_type == :sanctions
       assert screening.screening_status == :pending
@@ -714,7 +748,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
   end
 
   describe "record_screening/3 (onboarding persistence)" do
-    test "AH scope — persists with account_holder_id FK", %{session: session} do
+    test "AH scope — persists with legal_entity_id anchor", %{session: session} do
       _ = init_session_cache(%{session: session})
 
       request = %AccountHolderRequest{
@@ -729,34 +763,38 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
 
       {:ok, unsaved} = ComplianceScreeningContext.screen_account_holder(session, request)
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+      le = legal_entity_for!(account_holder)
 
       assert {:ok, %ComplianceScreening{} = persisted} =
                ComplianceScreeningContext.record_screening(session, unsaved, %{
-                 account_holder_id: account_holder.id
+                 legal_entity_id: le.id
                })
 
       refute is_nil(persisted.id)
       assert persisted.tenant_id == session.tenant_id
-      assert persisted.account_holder_id == account_holder.id
+      assert persisted.legal_entity_id == le.id
       assert persisted.scope == :account_holder
       assert persisted.screened_entity_name == "Alice Smith"
     end
 
-    test "CP scope — persists with counterparty_id + account_holder_id FKs",
+    test "CP scope — persists with the counterparty's legal_entity_id",
          %{session: session} do
       _ = init_session_cache(%{session: session})
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
-
-      counterparty_le =
-        insert(:business_legal_entity,
-          tenant_id: session.tenant_id,
-          business_name: "Acme Corp #{System.unique_integer([:positive])}"
-        )
 
       counterparty =
         insert(:counterparty,
           tenant_id: session.tenant_id,
           account_holder_id: account_holder.id
+        )
+
+      counterparty_le =
+        insert(:business_legal_entity,
+          tenant_id: session.tenant_id,
+          subject_type: :counterparty,
+          account_holder_id: account_holder.id,
+          counterparty_id: counterparty.id,
+          business_name: "Acme Corp #{System.unique_integer([:positive])}"
         )
 
       request = %CounterpartyRequest{
@@ -772,32 +810,33 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
 
       assert {:ok, %ComplianceScreening{} = persisted} =
                ComplianceScreeningContext.record_screening(session, unsaved, %{
-                 account_holder_id: account_holder.id,
-                 counterparty_id: counterparty.id
+                 legal_entity_id: counterparty_le.id
                })
 
       refute is_nil(persisted.id)
       assert persisted.scope == :counterparty
-      assert persisted.account_holder_id == account_holder.id
-      assert persisted.counterparty_id == counterparty.id
+      assert persisted.legal_entity_id == counterparty_le.id
     end
 
-    test "BO scope — persists with beneficial_owner_id + account_holder_id FKs",
+    test "BO scope — persists with the beneficial owner's legal_entity_id",
          %{session: session} do
       _ = init_session_cache(%{session: session})
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
-
-      bo_legal_entity =
-        insert(:legal_entity,
-          tenant_id: session.tenant_id,
-          first_name: "Clara",
-          last_name: "Bennet#{System.unique_integer([:positive])}"
-        )
 
       beneficial_owner =
         insert(:beneficial_owner,
           tenant_id: session.tenant_id,
           account_holder_id: account_holder.id
+        )
+
+      bo_legal_entity =
+        insert(:legal_entity,
+          tenant_id: session.tenant_id,
+          subject_type: :beneficial_owner,
+          account_holder_id: account_holder.id,
+          beneficial_owner_id: beneficial_owner.id,
+          first_name: "Clara",
+          last_name: "Bennet#{System.unique_integer([:positive])}"
         )
 
       request = %BeneficialOwnerRequest{
@@ -815,17 +854,15 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
 
       assert {:ok, %ComplianceScreening{} = persisted} =
                ComplianceScreeningContext.record_screening(session, unsaved, %{
-                 account_holder_id: account_holder.id,
-                 beneficial_owner_id: beneficial_owner.id
+                 legal_entity_id: bo_legal_entity.id
                })
 
       refute is_nil(persisted.id)
       assert persisted.scope == :beneficial_owner
-      assert persisted.account_holder_id == account_holder.id
-      assert persisted.beneficial_owner_id == beneficial_owner.id
+      assert persisted.legal_entity_id == bo_legal_entity.id
     end
 
-    test "PA scope — persists with payment_account_id + account_holder_id FKs",
+    test "PA scope — persists with payment_account_id anchor",
          %{session: session} do
       _ = init_session_cache(%{session: session})
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
@@ -849,13 +886,11 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
 
       assert {:ok, %ComplianceScreening{} = persisted} =
                ComplianceScreeningContext.record_screening(session, unsaved, %{
-                 account_holder_id: account_holder.id,
                  payment_account_id: payment_account.id
                })
 
       refute is_nil(persisted.id)
       assert persisted.scope == :payment_account
-      assert persisted.account_holder_id == account_holder.id
       assert persisted.payment_account_id == payment_account.id
     end
 
@@ -910,7 +945,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
 
       assert {:ok, %ComplianceScreening{} = persisted} =
                ComplianceScreeningContext.record_screening(session, unsaved, %{
-                 account_holder_id: account_holder.id
+                 legal_entity_id: legal_entity_for!(account_holder).id
                })
 
       {:ok, {sanctions, _}} =

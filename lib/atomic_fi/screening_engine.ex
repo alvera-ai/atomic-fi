@@ -37,7 +37,6 @@ defmodule AtomicFi.ScreeningEngine do
   alias AtomicFi.ScreeningEngine.Default
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.SessionContext.Session
-  alias AtomicFi.TransactionContext.Transaction
 
   @screening_engine Application.compile_env(:atomic_fi, :screening_engine, Default)
 
@@ -71,10 +70,4 @@ defmodule AtomicFi.ScreeningEngine do
           {:ok, ComplianceScreening.t()} | {:error, term()}
   def screen_payment_account(session, %PaymentAccount{} = pa, opts \\ []),
     do: @screening_engine.screen_payment_account(session, pa, opts)
-
-  @impl true
-  @spec screen_transaction(Session.t(), Transaction.t(), keyword()) ::
-          {:ok, [ComplianceScreening.t()]} | {:error, term()}
-  def screen_transaction(session, %Transaction{} = txn, opts \\ []),
-    do: @screening_engine.screen_transaction(session, txn, opts)
 end

@@ -57,7 +57,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       screening_status: :pass,
       screened_entity_type: :individual,
       screened_entity_name: "Alice Smith",
-      account_holder_id: account_holder.id,
+      legal_entity_id: account_holder.legal_entity.id,
       tenant_id: platform_tenant.id
     })
     |> Repo.insert!(skip_multi_tenancy_check: true)
@@ -101,7 +101,8 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
   defp ah_with_le(session, tenant_id, le_attrs) do
     ah = insert(:account_holder, tenant_id: tenant_id)
 
-    insert(:legal_entity,
+    insert(
+      :legal_entity,
       Keyword.merge(
         [account_holder_id: ah.id, subject_type: :account_holder, tenant_id: tenant_id],
         le_attrs
@@ -114,7 +115,8 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
   defp ah_with_business_le(session, tenant_id, le_attrs) do
     ah = insert(:account_holder, tenant_id: tenant_id)
 
-    insert(:business_legal_entity,
+    insert(
+      :business_legal_entity,
       Keyword.merge(
         [account_holder_id: ah.id, subject_type: :account_holder, tenant_id: tenant_id],
         le_attrs
@@ -131,7 +133,8 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         account_holder_id: account_holder_id
       )
 
-    insert(:legal_entity,
+    insert(
+      :legal_entity,
       Keyword.merge(
         [
           beneficial_owner_id: bo.id,
@@ -153,7 +156,8 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         account_holder_id: account_holder_id
       )
 
-    insert(:business_legal_entity,
+    insert(
+      :business_legal_entity,
       Keyword.merge(
         [
           counterparty_id: cp.id,
@@ -300,7 +304,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         screening_status: "potential_match",
         screened_entity_type: "individual",
         screened_entity_name: "Alice Smith",
-        account_holder_id: account_holder.id,
+        legal_entity_id: account_holder.legal_entity.id,
         false_positive_qualifier: "manual_override",
         manual_review_required: true,
         review_notes: "Reviewed and confirmed not a match"
@@ -331,7 +335,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
         screening_status: "pass",
         screened_entity_type: "individual",
         screened_entity_name: "Test",
-        account_holder_id: account_holder.id
+        legal_entity_id: account_holder.legal_entity.id
       }
 
       conn =
@@ -789,7 +793,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       assert get_in(response_schema, ["properties", "id"])
       assert get_in(response_schema, ["properties", "scope"])
       assert get_in(response_schema, ["properties", "screening_status"])
-      assert get_in(response_schema, ["properties", "account_holder_id"])
+      assert get_in(response_schema, ["properties", "legal_entity_id"])
       assert get_in(response_schema, ["properties", "tenant_id"])
       assert get_in(response_schema, ["properties", "inserted_at"])
       assert get_in(response_schema, ["properties", "updated_at"])

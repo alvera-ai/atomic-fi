@@ -141,14 +141,21 @@ defmodule AtomicFi.AccountHolderContext do
         next_screening_at: next_screening_at
       }) do
     require Logger
-    Logger.info("[ah.process_controls] start ah=#{account_holder.id} controls=#{map_size(controls)} next=#{inspect(next_screening_at)}")
+
+    Logger.info(
+      "[ah.process_controls] start ah=#{account_holder.id} controls=#{map_size(controls)} next=#{inspect(next_screening_at)}"
+    )
+
     ledger_accounts = LedgerAccountContext.list_for_entity(session, account_holder)
     Logger.info("[ah.process_controls] LAs loaded count=#{length(ledger_accounts)}")
 
     with :ok <- LedgerAccountContext.apply_controls(session, ledger_accounts, controls),
          _ = Logger.info("[ah.process_controls] apply_controls done → enqueue_next"),
          {:ok, job_id} <- OnboardingContext.enqueue_next(account_holder, next_screening_at),
-         _ = Logger.info("[ah.process_controls] enqueue_next done job=#{inspect(job_id)} → update rescreen_job_id"),
+         _ =
+           Logger.info(
+             "[ah.process_controls] enqueue_next done job=#{inspect(job_id)} → update rescreen_job_id"
+           ),
          {:ok, account_holder} <-
            account_holder
            |> Ecto.Changeset.change(%{rescreen_job_id: job_id})

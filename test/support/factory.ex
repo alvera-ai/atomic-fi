@@ -14,6 +14,7 @@ defmodule AtomicFi.Factory do
   use AtomicFi.Factory.SessionFactory
   use AtomicFi.Factory.AccountHolderFactory
   use AtomicFi.Factory.BlocklistEntryFactory
+  use AtomicFi.Factory.ComplianceScreeningFactory
 
   @doc """
   Helper to insert a tenant and initialize its blocklist cache.

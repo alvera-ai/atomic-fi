@@ -31,7 +31,8 @@ defmodule AtomicFi.ScreeningEngineTest do
   defp build_ah_with_le(session, le_attrs) do
     ah = insert(:account_holder, tenant_id: session.tenant_id)
 
-    insert(:legal_entity,
+    insert(
+      :legal_entity,
       Keyword.merge(
         [
           account_holder_id: ah.id,
@@ -48,7 +49,8 @@ defmodule AtomicFi.ScreeningEngineTest do
   defp build_cp_with_business_le(session, le_attrs) do
     cp = insert(:counterparty, tenant_id: session.tenant_id)
 
-    insert(:business_legal_entity,
+    insert(
+      :business_legal_entity,
       Keyword.merge(
         [
           counterparty_id: cp.id,
@@ -66,7 +68,8 @@ defmodule AtomicFi.ScreeningEngineTest do
   defp build_bo_with_le(session, le_attrs) do
     bo = insert(:beneficial_owner, tenant_id: session.tenant_id)
 
-    insert(:legal_entity,
+    insert(
+      :legal_entity,
       Keyword.merge(
         [
           beneficial_owner_id: bo.id,
@@ -265,14 +268,6 @@ defmodule AtomicFi.ScreeningEngineTest do
       assert result.scope == :payment_account
       assert result.screened_entity_type == :crypto_address
       assert result.screening_status == :pending
-    end
-  end
-
-  describe "unimplemented callbacks" do
-    test "screen_transaction/3 raises", %{session: session} do
-      assert_raise RuntimeError, ~r/not implemented yet/, fn ->
-        ScreeningEngine.screen_transaction(session, %AtomicFi.TransactionContext.Transaction{})
-      end
     end
   end
 end

@@ -90,7 +90,10 @@ defmodule AtomicFi.OnboardingContext do
          {:ok, _screenings} <- screen(session, entity),
          :ok <- log_step("screen.done → engine_result.start"),
          {:ok, result} <- engine_result(session, engine_entity),
-         :ok <- log_step("engine_result.done controls=#{map_size(result.controls)} → process_controls.start"),
+         :ok <-
+           log_step(
+             "engine_result.done controls=#{map_size(result.controls)} → process_controls.start"
+           ),
          {:ok, entity} <-
            ControlProtocol.process_controls(
              entity,
@@ -242,22 +245,21 @@ defmodule AtomicFi.OnboardingContext do
     end
   end
 
-  defp screen(session, %AccountHolder{} = account_holder) do
+  defp screen(session, %AccountHolder{legal_entity: %{id: le_id}} = account_holder) do
     with {:ok, screening} <- ScreeningEngine.screen_account_holder(session, account_holder),
          {:ok, persisted} <-
            ComplianceScreeningContext.record_screening(session, screening, %{
-             account_holder_id: account_holder.id
+             legal_entity_id: le_id
            }) do
       {:ok, [persisted]}
     end
   end
 
-  defp screen(session, %Counterparty{} = counterparty) do
+  defp screen(session, %Counterparty{legal_entity: %{id: le_id}} = counterparty) do
     with {:ok, screening} <- ScreeningEngine.screen_counterparty(session, counterparty),
          {:ok, persisted} <-
            ComplianceScreeningContext.record_screening(session, screening, %{
-             account_holder_id: counterparty.account_holder_id,
-             counterparty_id: counterparty.id
+             legal_entity_id: le_id
            }) do
       {:ok, [persisted]}
     end
@@ -265,13 +267,12 @@ defmodule AtomicFi.OnboardingContext do
 
   defp screen(_session, %PaymentAccount{}), do: {:ok, []}
 
-  defp screen(session, %BeneficialOwner{} = beneficial_owner) do
+  defp screen(session, %BeneficialOwner{legal_entity: %{id: le_id}} = beneficial_owner) do
     with {:ok, screening} <-
            ScreeningEngine.screen_beneficial_owner(session, beneficial_owner),
          {:ok, persisted} <-
            ComplianceScreeningContext.record_screening(session, screening, %{
-             account_holder_id: beneficial_owner.account_holder_id,
-             beneficial_owner_id: beneficial_owner.id
+             legal_entity_id: le_id
            }) do
       {:ok, [persisted]}
     end

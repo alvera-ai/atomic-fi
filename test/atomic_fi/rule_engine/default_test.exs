@@ -1,5 +1,5 @@
 defmodule AtomicFi.RuleEngine.DefaultTest do
-  use AtomicFi.DataCase, async: false
+  use AtomicFi.DataCase, async: true
 
   alias AtomicFi.RuleEngine.{Control, Default}
   alias AtomicFi.TransactionContext.Transaction

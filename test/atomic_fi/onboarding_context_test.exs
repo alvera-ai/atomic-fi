@@ -74,6 +74,7 @@ defmodule AtomicFi.OnboardingContextTest do
     test "resolves session + CP entity from Oban args", %{session: session} do
       ah = build_ah(session)
       cp = insert(:counterparty, account_holder_id: ah.id, tenant_id: session.tenant_id)
+
       insert(:legal_entity,
         counterparty_id: cp.id,
         subject_type: :counterparty,

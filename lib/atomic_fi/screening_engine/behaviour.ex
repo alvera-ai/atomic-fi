@@ -19,7 +19,11 @@ defmodule AtomicFi.ScreeningEngine.Behaviour do
   | `BeneficialOwner`   | `:legal_entity` (same nested as above)             |
   | `Counterparty`      | `:legal_entity` (same nested as above)             |
   | `PaymentAccount`    | `:account_holder` → `:legal_entity` (same nested)  |
-  | `Transaction`       | debtor + creditor parties resolved (account_holder + legal_entity for each side) |
+
+  Transaction-level screening is handled by the RuleEngine
+  (`priv/zenrule/transaction-screening/`) reading the party + instrument
+  screenings off the payload — no separate `screen_transaction` callback
+  is needed.
 
   ## Mock seam
 
@@ -37,7 +41,6 @@ defmodule AtomicFi.ScreeningEngine.Behaviour do
   alias AtomicFi.ScreeningEngine
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.SessionContext.Session
-  alias AtomicFi.TransactionContext.Transaction
 
   @type opts :: keyword()
 
@@ -52,9 +55,6 @@ defmodule AtomicFi.ScreeningEngine.Behaviour do
 
   @callback screen_payment_account(Session.t(), PaymentAccount.t(), opts()) ::
               {:ok, ComplianceScreening.t()} | {:error, term()}
-
-  @callback screen_transaction(Session.t(), Transaction.t(), opts()) ::
-              {:ok, [ComplianceScreening.t()]} | {:error, term()}
 
   @callback get_watchman_list_info() ::
               {:ok, ScreeningEngine.list_info()} | {:error, term()}
