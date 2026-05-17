@@ -139,6 +139,18 @@ config :atomic_fi, :migration_paths, %{
   AtomicFi.Repo => ["priv/repo/migrations", "priv/repo/seed_migrations"]
 }
 
+# Lotus — embeddable SQL editor & dashboard
+config :lotus,
+  ecto_repo: AtomicFi.LotusRepo,
+  default_repo: "atomic_fi",
+  data_repos: %{
+    "atomic_fi" => AtomicFi.LotusRepo
+  },
+  cache: %{
+    adapter: Lotus.Cache.ETS,
+    namespace: "atomic_fi_lotus"
+  }
+
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"

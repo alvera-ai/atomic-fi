@@ -15,8 +15,9 @@ defmodule AtomicFi.Application do
       AtomicFiWeb.Telemetry,
       # Start the encryption vault
       AtomicFi.Vault,
-      # Start the Ecto repository
+      # Start the Ecto repositories
       AtomicFi.Repo,
+      AtomicFi.LotusRepo,
       # Start the BackgroundTask supervisor for fire-and-forget side effects
       {Task.Supervisor, name: AtomicFi.BackgroundTask},
       # Start Cachex for API session caching

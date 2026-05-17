@@ -109,13 +109,16 @@ defmodule AtomicFi.MixProject do
 
       # API & OpenAPI
       {:ex_open_api_utils, "~> 0.17.0"},
-      {:cachex, "~> 3.6"},
+      {:cachex, "~> 4.0"},
 
       # Petal components and framework
       {:petal_components, "~> 3.0"},
 
       # HTTP client
       {:req, "~> 0.5"},
+
+      # Lotus — embeddable SQL editor & dashboard (LiveView)
+      {:lotus_web, "~> 0.14.5"},
 
       # Money / currency arithmetic
       {:money, "~> 1.12"},
