@@ -39,10 +39,10 @@ defmodule AtomicFi.TransactionContext do
   # + the account holder) and resolve the leaf ledger accounts in play.
   @rule_engine_preloads [
     :account_holder,
-    :debtor_payment_account,
-    :creditor_payment_account,
     :debtor_counterparty,
-    :creditor_counterparty
+    :creditor_counterparty,
+    debtor_payment_account: :account_holder,
+    creditor_payment_account: :account_holder
   ]
 
   @doc """

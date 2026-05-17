@@ -36,12 +36,16 @@ defmodule AtomicFi.Factory.LedgerAccountFactory do
             insert(:account_holder, tenant_id: tenant_id).id
           end)
 
+        currency = Map.get(attrs, :currency, "USD")
+
+        # Idempotent — Ledgers are unique on (account_holder_id, currency).
+        # Sibling factories (PaymentAccountFactory) may already have inserted
+        # the Ledger for this (AH, currency) pair; reuse it instead of fighting
+        # the unique index.
         ledger_id =
           Map.get_lazy(attrs, :ledger_id, fn ->
-            insert(:ledger, tenant_id: tenant_id, account_holder_id: account_holder_id).id
+            ensure_ledger_id(tenant_id, account_holder_id, currency)
           end)
-
-        currency = Map.get(attrs, :currency, "USD")
 
         base = %{
           tenant_id: tenant_id,
@@ -122,6 +126,29 @@ defmodule AtomicFi.Factory.LedgerAccountFactory do
       end
 
       # ── Helpers ────────────────────────────────────────────────────────────
+
+      defp ensure_ledger_id(tenant_id, account_holder_id, currency) do
+        import Ecto.Query
+
+        case Repo.one(
+               from(l in AtomicFi.LedgerContext.Ledger,
+                 where:
+                   l.account_holder_id == ^account_holder_id and
+                     l.currency == ^currency
+               ),
+               skip_multi_tenancy_check: true
+             ) do
+          %AtomicFi.LedgerContext.Ledger{id: id} ->
+            id
+
+          nil ->
+            insert(:ledger,
+              tenant_id: tenant_id,
+              account_holder_id: account_holder_id,
+              currency: currency
+            ).id
+        end
+      end
 
       defp resolve_counterparty_id(attrs, base) do
         Map.get_lazy(attrs, :counterparty_id, fn ->
