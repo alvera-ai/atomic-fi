@@ -18,9 +18,10 @@ import 'ace-builds/src-noconflict/mode-typescript';
 import 'ace-builds/src-noconflict/snippets/javascript';
 import 'ace-builds/src-noconflict/theme-chrome';
 
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
 import { DecisionSimplePage } from './pages/decision-simple.tsx';
 import { NotFoundPage } from './pages/not-found';
+import { RulesIndexPage } from './pages/rules-index.tsx';
 import { ThemeContextProvider } from './context/theme.provider.tsx';
 
 await zenWasm.default(zenWasmUrl);
@@ -28,6 +29,14 @@ await zenWasm.default(zenWasmUrl);
 const router = createBrowserRouter([
   {
     path: '/',
+    element: <Navigate to="/rules/onboarding" replace />,
+  },
+  {
+    path: '/rules/:ruleType',
+    element: <RulesIndexPage />,
+  },
+  {
+    path: '/rules/:ruleType/:name',
     element: <DecisionSimplePage />,
   },
   {
