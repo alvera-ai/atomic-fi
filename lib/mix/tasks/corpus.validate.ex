@@ -26,6 +26,12 @@ defmodule Mix.Tasks.Corpus.Validate do
 
       $ mix corpus.validate corpus/zen_rules/de_minimis_stablecoin
       $ mix corpus.validate corpus/zen_rules/de_minimis_stablecoin --out tmp/report.md
+      $ mix corpus.validate corpus/zen_rules/de_minimis_stablecoin --reset
+
+  Always runs inside a dedicated Postgres schema (see `@schema`) — the
+  platform's main schema is never touched. The schema is created and
+  migrated on first run. `--reset` drops and re-migrates the schema before
+  validating, giving a clean slate.
 
   The default prints the markdown report to stdout — useful for piping or
   for monitoring progress (per-row progress info is emitted on stderr as
@@ -35,8 +41,9 @@ defmodule Mix.Tasks.Corpus.Validate do
   Postgres, Watchman. The task inserts via `AccountHolderContext.create_account_holder/2`
   etc. so the full onboarding + rule-engine path runs.
 
-  No `Repo.transaction` wrapping: rows persist. Rerun on a clean DB (`mix
-  ecto.reset`) if external_id clashes occur.
+  Rows persist across runs (no `Repo.transaction` wrap). The insert phase
+  is idempotent on `external_id`: existing rows are updated. Use `--reset`
+  to start from a clean slate.
   """
 
   use Mix.Task
@@ -58,18 +65,30 @@ defmodule Mix.Tasks.Corpus.Validate do
   alias AtomicFi.TenantContext.Tenant
   alias AtomicFi.TransactionContext
 
+  # Dedicated Postgres schema for corpus runs. Never touches `public` or
+  # the platform's main schema. Owned end-to-end by this task: created,
+  # migrated, dropped here. Search_path falls back to `public` so the
+  # pgcrypto extension (gen_random_uuid) is reachable.
+  @schema "atomic_fi_corpus"
+  @search_path "#{@schema}, public"
+
   @impl true
   def run(args) do
-    {opts, positional, _} = OptionParser.parse(args, strict: [out: :string])
+    {opts, positional, _} =
+      OptionParser.parse(args, strict: [out: :string, reset: :boolean])
 
     corpus_path =
       List.first(positional) ||
-        Mix.raise("usage: mix corpus.validate <corpus_path> [--out <file>]")
+        Mix.raise("usage: mix corpus.validate <corpus_path> [--out <file>] [--reset]")
 
     unless File.dir?(corpus_path),
       do: Mix.raise("corpus folder not found: #{corpus_path}")
 
+    inject_search_path_after_connect!()
+
     Mix.Task.run("app.start")
+
+    ensure_schema!(opts[:reset])
 
     session = build_system_session()
     AtomicFi.BlocklistContext.BlocklistCache.refresh_tenant_cache(session.tenant_id)
@@ -100,6 +119,80 @@ defmodule Mix.Tasks.Corpus.Validate do
 
     if Enum.any?(rows, &(&1.status in [:mismatch, :engine_error, :setup_error])) do
       System.at_exit(fn _ -> exit({:shutdown, 1}) end)
+    end
+  end
+
+  # ───────────────────────────── schema isolation ─────────────────────
+
+  # Inject an `after_connect` callback into the Repo config BEFORE the
+  # app starts. Every pool checkout will SET search_path so all Repo
+  # queries land in the corpus schema. Idempotent — re-setting the same
+  # key is harmless.
+  defp inject_search_path_after_connect! do
+    repo_cfg = Application.get_env(:atomic_fi, Repo, [])
+
+    Application.put_env(
+      :atomic_fi,
+      Repo,
+      Keyword.put(
+        repo_cfg,
+        :after_connect,
+        {Postgrex, :query!, ["SET search_path TO #{@search_path}", []]}
+      )
+    )
+  end
+
+  # Ensure the corpus schema exists and is fully migrated. On `--reset`
+  # (or when the schema is missing), drop and recreate, then run the
+  # configured migration paths (base migrations + seed_migrations).
+  # Migrations create their objects unqualified, so they land in the
+  # corpus schema (first on the connection's search_path).
+  defp ensure_schema!(reset?) do
+    cond do
+      reset? ->
+        Mix.shell().info("→ --reset: dropping #{@schema} and remigrating")
+        drop_schema!()
+        create_schema!()
+        migrate!()
+
+      schema_exists?() ->
+        :ok
+
+      true ->
+        Mix.shell().info("→ first run: creating #{@schema} and migrating")
+        create_schema!()
+        migrate!()
+    end
+  end
+
+  defp schema_exists? do
+    %{rows: [[exists?]]} =
+      Ecto.Adapters.SQL.query!(
+        Repo,
+        "SELECT EXISTS (SELECT 1 FROM information_schema.schemata WHERE schema_name = $1)",
+        [@schema]
+      )
+
+    exists?
+  end
+
+  defp drop_schema! do
+    Ecto.Adapters.SQL.query!(Repo, "DROP SCHEMA IF EXISTS #{@schema} CASCADE", [])
+  end
+
+  defp create_schema! do
+    Ecto.Adapters.SQL.query!(Repo, "CREATE SCHEMA #{@schema}", [])
+  end
+
+  defp migrate! do
+    paths =
+      :atomic_fi
+      |> Application.fetch_env!(:migration_paths)
+      |> Map.fetch!(Repo)
+
+    for path <- paths do
+      Mix.shell().info("   migrate: #{path}")
+      Ecto.Migrator.run(Repo, path, :up, all: true)
     end
   end
 
@@ -320,7 +413,8 @@ defmodule Mix.Tasks.Corpus.Validate do
       "creditor_payment_account_external_id" =>
         {"creditor_payment_account_id", PaymentAccount, by_external},
       "debtor_counterparty_external_id" => {"debtor_counterparty_id", Counterparty, by_external},
-      "creditor_counterparty_external_id" => {"creditor_counterparty_id", Counterparty, by_external}
+      "creditor_counterparty_external_id" =>
+        {"creditor_counterparty_id", Counterparty, by_external}
     }
   end
 
