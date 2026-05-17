@@ -31,6 +31,7 @@ defmodule AtomicFi.RuleEngine.Payload do
   alias AtomicFi.LedgerAccountContext.LedgerAccount
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.SessionContext.Session
+  alias AtomicFi.TransactionContext
   alias AtomicFi.TransactionContext.Transaction
 
   @typedoc "Plain, JSON-serialisable map handed to the rule engine."
@@ -78,12 +79,30 @@ defmodule AtomicFi.RuleEngine.Payload do
   def from_transaction(session, %Transaction{} = transaction) do
     %{
       transaction: map_entity(transaction),
-      account_holder: map_entity(transaction.account_holder),
+      account_holder: ah_payload(session, transaction.account_holder, transaction.id),
       debtor_payment_account: pa_payload(session, transaction.debtor_payment_account),
       creditor_payment_account: pa_payload(session, transaction.creditor_payment_account),
       debtor_counterparty: map_entity(transaction.debtor_counterparty),
       creditor_counterparty: map_entity(transaction.creditor_counterparty)
     }
+  end
+
+  # Injects `recent_debits_24h[]` onto the originating AccountHolder so
+  # BSA §5324 (anti-structuring / velocity) rules can window over the
+  # holder's recent outflows. Rejected transactions are excluded — they
+  # didn't move money and so don't count toward the aggregate.
+  defp ah_payload(_session, %Ecto.Association.NotLoaded{}, _exclude_id), do: nil
+  defp ah_payload(_session, nil, _exclude_id), do: nil
+
+  defp ah_payload(session, %AccountHolder{id: ah_id} = ah, exclude_id) do
+    debits =
+      session
+      |> TransactionContext.list_recent_debits_for_account_holder(ah_id, exclude_id)
+      |> Enum.map(&map_entity/1)
+
+    ah
+    |> ExOpenApiUtils.Mapper.to_map()
+    |> Map.put("recent_debits_24h", debits)
   end
 
   defp map_entity(%Ecto.Association.NotLoaded{}), do: nil

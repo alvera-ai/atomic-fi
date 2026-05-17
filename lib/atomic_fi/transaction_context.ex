@@ -46,6 +46,46 @@ defmodule AtomicFi.TransactionContext do
   ]
 
   @doc """
+  Returns transactions originated by `account_holder` (i.e. the AH was the
+  payer / debtor side) inserted within the last 24 hours. Excludes
+  rejected transactions — rejected attempts don't move money and so
+  don't count toward structuring/velocity aggregates.
+
+  Used by `AtomicFi.RuleEngine.Payload.from_transaction/2` to surface
+  a recent-debit projection that BSA §5324 (anti-structuring) rules
+  can window over. `exclude_id` skips a specific transaction — the
+  payload builder passes the current transaction's id so the row
+  being evaluated never counts itself as a prior debit.
+  """
+  @spec list_recent_debits_for_account_holder(Session.t(), Ecto.UUID.t(), Ecto.UUID.t() | nil) ::
+          [Transaction.t()]
+  def_with_rls_and_logging list_recent_debits_for_account_holder(
+                             session,
+                             account_holder_id,
+                             exclude_id
+                           ),
+                           log_fields: [] do
+    since = DateTime.add(DateTime.utc_now(), -24 * 60 * 60, :second)
+
+    base =
+      from(t in Transaction,
+        where:
+          t.account_holder_id == ^account_holder_id and
+            t.inserted_at >= ^since and
+            t.status != :rejected,
+        order_by: [desc: t.inserted_at]
+      )
+
+    query =
+      case exclude_id do
+        nil -> base
+        id -> from(t in base, where: t.id != ^id)
+      end
+
+    Repo.all(query, session: session)
+  end
+
+  @doc """
   Returns the list of transactions with pagination and filtering.
 
   Uses Flop for idiomatic filtering, sorting, and pagination.
