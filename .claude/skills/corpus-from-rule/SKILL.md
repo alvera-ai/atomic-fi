@@ -164,12 +164,15 @@ run alongside the corpus and the rule:
 
 ```sh
 mix corpus.validate corpus/zen_rules/<rule_corpus> --reset \
-    --out priv/zenrule/<rule_type>/<rule>.proof.md
+    --out corpus/zen_rules/<rule_corpus>/proof.md
 ```
 
 `--reset` drops and re-migrates the `atomic_fi_corpus` Postgres schema
 before validating, so the run starts from a clean slate and the
-resulting `proof.md` is byte-stable. The proof is **the** acceptance
+resulting `proof.md` is byte-stable. The proof lives **next to the
+corpus that produced it** (not in `priv/zenrule/`, which is reserved
+for production-shipped JDM files — the ZenRule agent watches that
+directory and chokes on non-`.json` siblings). The proof is **the** acceptance
 artifact: a reviewer reads
 
 ```

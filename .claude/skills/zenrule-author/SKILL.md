@@ -223,9 +223,13 @@ Once smoke tests are green:
 
    ```
    $ mix corpus.validate corpus/zen_rules/<rule_corpus> --reset \
-         --out priv/zenrule/<rule_type>/<rule>.proof.md
+         --out corpus/zen_rules/<rule_corpus>/proof.md
        → match=N, mismatch=0
    ```
+
+   (The proof lives next to the corpus, not under `priv/zenrule/` —
+   the ZenRule agent watches that directory and treats every file
+   there as a JDM project; a sibling `.md` breaks the project load.)
 
    - If a corpus already exists under `corpus/zen_rules/<rule_corpus>/`, run validate now and link the resulting `<rule>.proof.md` as the acceptance artifact.
    - If no corpus exists, instruct the user to invoke `corpus-from-rule` ("build fixtures for `<rule>`"); the sibling skill drafts ndjson, runs validate, and emits the proof.md alongside.
