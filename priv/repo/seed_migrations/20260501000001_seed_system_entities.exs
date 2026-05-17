@@ -77,7 +77,12 @@ defmodule AtomicFi.Repo.Migrations.SeedSystemEntities do
   defp do_seed(tenant_name, tenant_slug, admin_email, admin_pass, bot_email, root_api_key_value) do
     tenant =
       Repo.insert!(
-        %Tenant{name: tenant_name, slug: tenant_slug, tenant_type: :platform},
+        %Tenant{
+          name: tenant_name,
+          slug: tenant_slug,
+          tenant_type: :platform,
+          enabled_regimes: AtomicFi.EnabledRegimes.default()
+        },
         skip_multi_tenancy_check: true
       )
 

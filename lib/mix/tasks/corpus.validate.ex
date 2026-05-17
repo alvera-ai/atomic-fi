@@ -102,6 +102,9 @@ defmodule Mix.Tasks.Corpus.Validate do
     Mix.shell().info("→ inserting payment_accounts.ndjson")
     insert_payment_accounts(session, corpus_path)
 
+    Mix.shell().info("→ bootstrap: unblock LedgerAccounts (no onboarding rule corpus)")
+    bootstrap_unblock_ledger_accounts()
+
     Mix.shell().info("→ creating transactions.ndjson")
     rows = process_transactions(session, corpus_path)
 
@@ -309,6 +312,22 @@ defmodule Mix.Tasks.Corpus.Validate do
     {"counterparty_id", fetch_by!(session, Counterparty, external_id: cp_ext)}
   end
 
+  # ───────────────────────────── bootstrap ────────────────────────────
+
+  # Clears the block-by-default state every newly-materialised LedgerAccount
+  # starts with (`is_blocked: true, block_reason: "pending onboarding screening"`).
+  # The corpus exercises *transaction* screening only — there is no onboarding
+  # rule corpus to unblock LAs through the regular `apply_controls` flow, so
+  # without this bootstrap every transaction would be rejected on the
+  # LA-painted `is_blocked` flag before the rule engine has a chance to run.
+  defp bootstrap_unblock_ledger_accounts do
+    Ecto.Adapters.SQL.query!(
+      Repo,
+      "UPDATE ledger_accounts SET is_blocked = false, block_reason = NULL",
+      []
+    )
+  end
+
   # ───────────────────────────── transactions ─────────────────────────
 
   defp process_transactions(session, corpus_path) do
@@ -513,7 +532,6 @@ defmodule Mix.Tasks.Corpus.Validate do
     # corpus.validate report
 
     - corpus: `#{corpus_path}`
-    - ts: #{DateTime.utc_now() |> DateTime.to_iso8601()}
     - transactions: #{length(rows)}
 
     """
