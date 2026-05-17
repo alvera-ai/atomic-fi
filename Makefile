@@ -1,4 +1,4 @@
-.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight
+.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install
 
 COMPOSE_FILE := local-dependencies.yaml
 
@@ -82,6 +82,20 @@ test-playwright:
 	@echo "🎭 Running playwright e2e suite..."
 	@cd playwright-e2e && pnpm test
 
+DOC_AGENT_DIR := example-apps/document-agent-server
+
+ai-doc.install:
+	@echo "Installing document-agent dependencies..."
+	@$(MAKE) -C $(DOC_AGENT_DIR) install
+
+ai-doc.server:
+	@echo "Starting document-agent API server..."
+	@$(MAKE) -C $(DOC_AGENT_DIR) server
+
+ai-doc.check:
+	@echo "Running document-agent quality suite..."
+	@$(MAKE) -C $(DOC_AGENT_DIR) check
+
 help:
 	@echo "Payments Compliance Platform - Available Commands"
 	@echo ""
@@ -98,6 +112,11 @@ help:
 	@echo "Watchman (Sanctions Screening):"
 	@echo "  make run-watchman            - Start Watchman standalone"
 	@echo "  make stop-watchman           - Stop Watchman"
+	@echo ""
+	@echo "Document Agent (AI Doc Processing):"
+	@echo "  make ai-doc.install          - Install document-agent deps"
+	@echo "  make ai-doc.server           - Start document-agent API (port 8100)"
+	@echo "  make ai-doc.check            - Run full quality suite (lint/types/test/audit)"
 	@echo ""
 	@echo "One-shot:"
 	@echo "  make up                      - Backing services + db + seed (then run 'make server' and 'make sight')"

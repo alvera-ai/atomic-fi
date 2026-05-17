@@ -1,0 +1,10 @@
+export { StepActivity } from "./StepActivity";
+export { StepAddresses } from "./StepAddresses";
+export { StepContacts } from "./StepContacts";
+export { StepDirectors } from "./StepDirectors";
+export { StepDocuments } from "./StepDocuments";
+export { StepIdentity } from "./StepIdentity";
+export { StepOwnership } from "./StepOwnership";
+export { StepReview } from "./StepReview";
+export { StepTransfers } from "./StepTransfers";
+export { StepUBOs } from "./StepUBOs";
