@@ -1,0 +1,3 @@
+{"external_id":"pr-pa-prohibited-sender","account_holder_external_id":"pr-ah-prohibited-sender","account_type":"wallet","currency":"USD"}
+{"external_id":"pr-pa-low-sender","account_holder_external_id":"pr-ah-low-sender","account_type":"wallet","currency":"USD"}
+{"external_id":"pr-pa-receiver","account_holder_external_id":"pr-ah-receiver","account_type":"wallet","currency":"USD"}

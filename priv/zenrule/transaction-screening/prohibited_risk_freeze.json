@@ -1,0 +1,30 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": { "x": 100, "y": 160 }
+    },
+    {
+      "id": "prohibited_gate",
+      "type": "functionNode",
+      "name": "Prohibited Risk Freeze",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "source": "/**\n * Prohibited-risk freeze (Internal policy; 31 CFR §1010.230).\n *\n * Scenario #10 of guides/use-cases.md: an AccountHolder whose\n * risk_level is 'prohibited' may not originate any transaction.\n * Distinct from sanctions-driven blocks — this is internal policy /\n * lawful-order driven. The audit trail (what compelled the\n * promotion to :prohibited) lives in the existing\n * RiskClassification.classification_reason string; no separate\n * lawful_order_freezes table in MVP.\n *\n * Reads `debtor_payment_account.account_holder.risk_level`. If the\n * level is 'prohibited', emits a blocked Control per LedgerAccount\n * on the debtor side. The cap=0 + is_blocked=true combination is\n * what the limits-at-entry check converts into status='rejected'\n * with rejected_rule='prohibited_risk_freeze'.\n *\n * Catalog verdict: FREEZE — modelled as BLOCK with\n * rejected_rule='prohibited_risk_freeze' because the platform's\n * Transaction status enum has no :held state today. The rule\n * surface stays correct; the verdict can be relaxed to :held once\n * Transaction gains that state.\n */\nexport const handler = async (input) => {\n  const debtor = input.debtor_payment_account;\n  if (!debtor) return { ledger_accounts: {} };\n\n  const risk = debtor.account_holder && debtor.account_holder.risk_level;\n  if (risk !== 'prohibited') return { ledger_accounts: {} };\n\n  const las = debtor.las || [];\n  const ledger_accounts = {};\n  for (const la of las) {\n    ledger_accounts[la.id] = {\n      daily_debit_cap: 0,\n      daily_credit_cap: 0,\n      reason: 'prohibited_risk_freeze',\n      block_reason: 'prohibited_risk_freeze',\n      is_blocked: true\n    };\n  }\n  return { ledger_accounts };\n};\n"
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": { "x": 700, "y": 160 }
+    }
+  ],
+  "edges": [
+    { "id": "edge_request_prohibited", "type": "edge", "sourceId": "request", "targetId": "prohibited_gate" },
+    { "id": "edge_prohibited_response", "type": "edge", "sourceId": "prohibited_gate", "targetId": "response" }
+  ]
+}

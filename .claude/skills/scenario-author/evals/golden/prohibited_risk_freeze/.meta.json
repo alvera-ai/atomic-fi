@@ -1,0 +1,8 @@
+{
+  "row_number": 10,
+  "rule_type": "transaction-screening",
+  "live_rule_path": "priv/zenrule/transaction-screening/prohibited_risk_freeze.json",
+  "live_corpus_path": "corpus/zen_rules/prohibited_risk_freeze/",
+  "promoted_in": "P5 (skill-authored)",
+  "notes": "Scenario #10 — AH.risk_level :prohibited freezes outbound. Uses RiskClassification.classification_reason for lawful-order provenance (lawful_order_freezes table punted from MVP)."
+}
