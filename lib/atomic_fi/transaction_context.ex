@@ -180,25 +180,43 @@ defmodule AtomicFi.TransactionContext do
            Repo.preload(transaction, @rule_engine_preloads, skip_multi_tenancy_check: true) do
       case RuleEngine.apply_rules(session, :transaction_screening, transaction) do
         {:ok, :no_limits} ->
-          # Engine declined to score this transaction; leave it :pending with no
-          # ledger movement.
-          {:ok, transaction}
+          # No rule emitted controls — the catalog's PASS path. If both PAs
+          # are wired, post un-capped entries; the txn flips to :accepted
+          # (`guides/use-cases.md` result vocabulary: "transaction proceeds;
+          # ledger commits; no compliance event opened"). If the txn is
+          # malformed (missing a PA), keep :pending — engine has nothing
+          # to score against and there are no leaf LAs to post into.
+          if has_payment_accounts?(transaction) do
+            post_entries(session, transaction, %{})
+          else
+            {:ok, transaction}
+          end
 
         {:ok, %{controls: controls}} ->
           # next_screening_at is meaningful only for onboarding; transactions
           # are one-shot, so we ignore it here.
-          with {:ok, entries} <-
-                 LedgerEntryContext.create_entries(session, transaction, controls) do
-            transaction
-            |> Transaction.changeset(transaction_outcome(entries))
-            |> Repo.update(session: session)
-          end
+          post_entries(session, transaction, controls)
 
         {:error, _} = err ->
           err
       end
     end
   end
+
+  defp post_entries(session, %Transaction{} = transaction, controls) do
+    with {:ok, entries} <-
+           LedgerEntryContext.create_entries(session, transaction, controls) do
+      transaction
+      |> Transaction.changeset(transaction_outcome(entries))
+      |> Repo.update(session: session)
+    end
+  end
+
+  defp has_payment_accounts?(%Transaction{
+         debtor_payment_account_id: debtor,
+         creditor_payment_account_id: creditor
+       }),
+       do: is_binary(debtor) and is_binary(creditor)
 
   # Maps the posted/voided ledger-entry pair to the transaction's resulting status
   # (+ denormalised rejection metadata when a control limit was hit).

@@ -105,7 +105,16 @@ defmodule AtomicFi.TransactionContextTest do
       assert transaction.external_id == "ext-txn-001"
     end
 
-    test "create_transaction/2 with payment account links", %{session: session} do
+    test "create_transaction/2 fails loud when PAs exist but lack the LedgerAccount DAG",
+         %{session: session} do
+      # Corner case: a PaymentAccount was inserted without the
+      # production onboarding hook (`PaymentAccountContext.create_payment_account/2`
+      # auto-runs `LedgerAccountContext.ensure_linked_ledger_accounts/2`).
+      # Improbable but possible: a partial-failure recovery, a manual
+      # data fix-up, a malformed seed. The missing LA DAG is a domain
+      # invariant violation — `create_transaction/2` must fail loud
+      # (per the no-graceful-fallbacks rule), NOT silently leave the
+      # txn :pending.
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
       debtor_account =
@@ -130,11 +139,10 @@ defmodule AtomicFi.TransactionContextTest do
         tenant_id: session.tenant_id
       }
 
-      assert {:ok, %Transaction{} = transaction} =
+      assert {:error, %Ecto.Changeset{valid?: false, errors: errors}} =
                TransactionContext.create_transaction(session, request)
 
-      assert transaction.debtor_payment_account_id == debtor_account.id
-      assert transaction.creditor_payment_account_id == creditor_account.id
+      assert {:ledger_account_id, {"can't be blank", [validation: :required]}} in errors
     end
 
     test "create_transaction/2 defaults status to :pending when not provided", %{
