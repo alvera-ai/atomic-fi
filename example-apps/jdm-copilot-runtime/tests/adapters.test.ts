@@ -37,4 +37,11 @@ describe('selectAdapter', () => {
       /OPENAI_API_KEY is required/,
     );
   });
+
+  it('throws a helpful error when ANTHROPIC_API_KEY is missing', () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    expect(() => selectAdapter({ provider: 'anthropic' })).toThrow(
+      /ANTHROPIC_API_KEY is required/,
+    );
+  });
 });
