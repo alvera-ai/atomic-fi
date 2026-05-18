@@ -41,12 +41,34 @@ defmodule AtomicFi.TransactionContext do
   # LegalEntity + its addresses are preloaded on every party — rules over residency
   # / geo-sanctions (scenario #15 etc.) read `<party>.legal_entity.country_of_residence`,
   # which `AtomicFi.RuleEngine.Payload` derives from the primary residential address.
+  #
+  # `beneficial_owners` is preloaded on every party that can carry UBOs (AH +
+  # CP) — rules over corporate-AH UBO disclosure (FinCEN CDD §1010.230, scenario
+  # #27 etc.) read `account_holder.beneficial_owners[]` (or the CP-side mirror).
+  # The has_many on AH/CP walks the BO-LE rows via the split subject_type, so
+  # AH-BOs never bleed into the CP-BO list and vice versa.
   @rule_engine_preloads [
-    account_holder: [legal_entity: [:addresses]],
-    debtor_counterparty: [legal_entity: [:addresses]],
-    creditor_counterparty: [legal_entity: [:addresses]],
-    debtor_payment_account: [account_holder: [legal_entity: [:addresses]]],
-    creditor_payment_account: [account_holder: [legal_entity: [:addresses]]]
+    account_holder: [legal_entity: [:addresses], beneficial_owners: [legal_entity: [:addresses]]],
+    debtor_counterparty: [
+      legal_entity: [:addresses],
+      beneficial_owners: [legal_entity: [:addresses]]
+    ],
+    creditor_counterparty: [
+      legal_entity: [:addresses],
+      beneficial_owners: [legal_entity: [:addresses]]
+    ],
+    debtor_payment_account: [
+      account_holder: [
+        legal_entity: [:addresses],
+        beneficial_owners: [legal_entity: [:addresses]]
+      ]
+    ],
+    creditor_payment_account: [
+      account_holder: [
+        legal_entity: [:addresses],
+        beneficial_owners: [legal_entity: [:addresses]]
+      ]
+    ]
   ]
 
   @doc """

@@ -18,7 +18,10 @@ defmodule AtomicFi.CounterpartyContext do
   alias AtomicFi.Repo
   alias AtomicFi.SessionContext.Session
 
-  @preloads [legal_entity: [:addresses, :phone_numbers, :identifications]]
+  @preloads [
+    legal_entity: [:addresses, :phone_numbers, :identifications],
+    beneficial_owners: [legal_entity: [:addresses, :phone_numbers, :identifications]]
+  ]
 
   @doc """
   Returns the list of counterparties with pagination and filtering.

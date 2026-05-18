@@ -137,6 +137,19 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
     key: :chain_screening
   )
 
+  # BeneficialOwners of this AccountHolder (FinCEN CDD §1010.230 / Corporate
+  # Transparency Act). Read-only on the AH response; BO records are created
+  # via the dedicated POST /api/beneficial-owners route — never embedded in
+  # the AH POST body.
+  open_api_property(
+    schema: %Schema{
+      type: :array,
+      readOnly: true,
+      items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/BeneficialOwnerResponse"}
+    },
+    key: :beneficial_owners
+  )
+
   open_api_schema(
     title: "AccountHolder",
     description:
@@ -165,7 +178,8 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
       :tenant_id,
       :inserted_at,
       :updated_at,
-      :chain_screening
+      :chain_screening,
+      :beneficial_owners
     ]
   )
 

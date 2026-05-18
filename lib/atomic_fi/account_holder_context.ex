@@ -18,7 +18,10 @@ defmodule AtomicFi.AccountHolderContext do
   alias AtomicFi.SessionContext.Session
   alias Ecto.Multi
 
-  @preloads [legal_entity: [:addresses, :phone_numbers, :identifications]]
+  @preloads [
+    legal_entity: [:addresses, :phone_numbers, :identifications],
+    beneficial_owners: [legal_entity: [:addresses, :phone_numbers, :identifications]]
+  ]
 
   @doc """
   Returns the list of account_holders with pagination and filtering.

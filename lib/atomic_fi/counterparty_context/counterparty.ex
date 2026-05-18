@@ -104,6 +104,19 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
     key: :chain_screening
   )
 
+  # BeneficialOwners of this Counterparty (FinCEN CDD §1010.230 / Corporate
+  # Transparency Act). Read-only on the CP response; BO records are created
+  # via the dedicated POST /api/beneficial-owners route — never embedded in
+  # the CP POST body.
+  open_api_property(
+    schema: %Schema{
+      type: :array,
+      readOnly: true,
+      items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/BeneficialOwnerResponse"}
+    },
+    key: :beneficial_owners
+  )
+
   open_api_schema(
     title: "Counterparty",
     description:
@@ -126,7 +139,8 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
       :tenant_id,
       :inserted_at,
       :updated_at,
-      :chain_screening
+      :chain_screening,
+      :beneficial_owners
     ]
   )
 
