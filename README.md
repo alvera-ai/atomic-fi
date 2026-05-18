@@ -466,18 +466,60 @@ mix compile --warnings-as-errors
 ## AI rule copilot (optional)
 
 The JDM editor at `example-apps/atomic-fi-jdm-editor` includes an
-AI-powered rule authoring sidebar. To enable it, run the sidecar
-runtime in a separate terminal:
+optional AI rule-authoring side panel powered by CopilotKit. With it
+enabled, you can describe a rule in plain English and the agent emits
+a chain of preview cards (add_node → add_edge → save_rule → simulate)
+that you Apply or Reject step by step.
+
+### Local stack with the copilot enabled
+
+Four terminals from the repo root:
 
 ```bash
+# Terminal 1 — ZenRule (rule evaluator, :8090)
+docker compose -f local-dependencies.yaml up -d zenrule
+
+# Terminal 2 — Phoenix (rule CRUD + everything else, :4100)
+mix phx.server
+
+# Terminal 3 — copilot sidecar (LLM broker, :4111)
 cp example-apps/jdm-copilot-runtime/.env.example example-apps/jdm-copilot-runtime/.env.local
-# Edit OPENAI_API_KEY (default provider) or set LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY.
+# edit OPENAI_API_KEY (default) or set LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY
 pnpm --filter @atomic-fi/jdm-copilot-runtime dev
+
+# Terminal 4 — JDM editor (:5173)
+pnpm --filter @atomic-fi/jdm-editor dev
 ```
 
-The editor proxies `/api/copilotkit` → `:4111` automatically. See
-`docs/superpowers/specs/2026-05-18-copilotkit-rules-design.md` for the
-full design.
+Open `http://localhost:5173`, click any rule (or **New rule**), and use
+the chat-bubble icon in the header to open the **Rule copilot** side
+panel. Without the sidecar running the editor still works — the chat
+toggle will just show an empty/erroring panel.
+
+### Provider config
+
+`.env.local` for the sidecar accepts:
+
+| Var | Purpose |
+|---|---|
+| `LLM_PROVIDER` | `openai` (default) or `anthropic` |
+| `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` | Whichever matches `LLM_PROVIDER` |
+| `LLM_MODEL` | Optional override. Defaults: `gpt-4o-mini` / `claude-sonnet-4-6` |
+| `PORT` | Default `4111` |
+| `LOG_LEVEL` | Set to `debug` for per-tool-call detail |
+
+For complex rule authoring, bumping `LLM_MODEL=gpt-4o` (or switching to
+`claude-sonnet-4-6`) is meaningfully more reliable than the default
+`gpt-4o-mini`, which occasionally drops nested-object tool args.
+
+### References
+
+- Editor README: `example-apps/atomic-fi-jdm-editor/README.md`
+- Sidecar README: `example-apps/jdm-copilot-runtime/README.md`
+- Design spec: `docs/superpowers/specs/2026-05-18-copilotkit-rules-design.md`
+- Authoring skill (CLI counterpart of the in-app copilot):
+  `.claude/skills/zenrule-author/SKILL.md`
+- Example prompts: `example-apps/atomic-fi-jdm-editor/example-rulesets/prompts.md`
 
 ---
 
