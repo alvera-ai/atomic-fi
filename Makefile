@@ -162,22 +162,26 @@ run-backing-services:
 	@echo "      The standalone target remains available for running watchman"
 	@echo "      outside compose (e.g. on a host without docker compose)."
 
-# ─── corpus.bench — end-to-end bulk-perf cert run ──────────────────────
+# ─── corpus.bench — concurrency-sweep performance cert ─────────────────
 #
-# Synthetic (default): no Kaggle / Python / network — committed proof.md
-#   make bench BENCH_SOURCES="saml_d,amlgentex" BENCH_SHARDS=10 BENCH_ROWS=1000
+# Synthetic (default): hardcoded synthetic upstream rows; no Kaggle /
+# Python / network. Sweeps concurrency 1..BENCH_MAX in powers of 2 and
+# writes one committed GitHub-flavored markdown report.
+#
+#   make bench BENCH_MAX=32 BENCH_ROWS=1000
 #
 # Real-data: invokes reseed-<src> first (needs Kaggle CLI + uv + Python)
-#   make bench-real BENCH_SOURCES="saml_d,amlgentex" BENCH_SHARDS=10 BENCH_ROWS=10000
+#
+#   make bench-real BENCH_MAX=16 BENCH_ROWS=10000
 BENCH_SOURCES ?= saml_d,amlgentex
-BENCH_SHARDS  ?= 10
+BENCH_MAX     ?= 16
 BENCH_ROWS    ?= 1000
 BENCH_SEED    ?= 0
 
 bench:
 	@mix corpus.bench \
 		--sources $(BENCH_SOURCES) \
-		--shards  $(BENCH_SHARDS) \
+		--max     $(BENCH_MAX) \
 		--rows    $(BENCH_ROWS) \
 		--seed    $(BENCH_SEED) \
 		--in-mode synthetic \
@@ -186,7 +190,7 @@ bench:
 bench-real:
 	@mix corpus.bench \
 		--sources $(BENCH_SOURCES) \
-		--shards  $(BENCH_SHARDS) \
+		--max     $(BENCH_MAX) \
 		--rows    $(BENCH_ROWS) \
 		--seed    $(BENCH_SEED) \
 		--in-mode reseed \

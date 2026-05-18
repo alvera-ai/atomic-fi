@@ -1,57 +1,46 @@
 defmodule Mix.Tasks.Corpus.Bench do
-  @shortdoc "End-to-end bench: generate sharded corpus from N upstream sources, run them through corpus.validate in parallel, produce one consolidated proof.md."
+  @shortdoc "End-to-end bench: throughput sweep across concurrency levels, one consolidated GitHub-flavored markdown report."
 
   @moduledoc """
-  Performance bench — orchestrates the full raw-data → sample → shard →
-  validate → report pipeline across one or more upstream data sources.
+  Bulk performance bench. Sweeps concurrency from 1 up to `--max` in
+  powers of 2, generating fresh sharded corpora and running them
+  through the production write path at each level. Records per-level
+  throughput + latency + block rate plus the test environment fingerprint
+  (CPU model, core count, OS, runtime versions). Emits one GitHub-
+  flavored markdown report.
 
   ## Synopsis
 
       mix corpus.bench
-        --sources <comma-separated>     (default: saml_d,amlgentex)
-        --shards <N>                    (default: 10)
-        --rows <N>                      (per-source rows; default: 1000)
-        --seed <N>                      (RNG seed; default: 0)
-        --out <path>                    (per-source shard parent;
-                                         default: tmp/bench/<src>/shards)
-        --report <path>                 (consolidated markdown report;
-                                         default: corpus/bench/proof.md)
-        --in-mode synthetic|reseed       (default: synthetic — hardcoded
-                                         row generator inside the repo;
-                                         reseed needs Kaggle/Python)
+        --sources <comma>      default: saml_d,amlgentex
+        --max <N>              max concurrency / shards; default 16. The
+                                sweep is the powers-of-2 ladder up to N:
+                                  1, 2, 4, 8, 16, 32, ...
+        --rows <N>             rows per source per level; default 1000.
+        --seed <N>             RNG seed for the synthetic generator; default 0.
+        --report <path>        markdown out;
+                                default: benchmarks/saml_d_amlgentex_synthetic/README.md
+        --in-mode synthetic|reseed
+                               synthetic (default) is hardcoded inside
+                                AtomicFi.Corpus.SyntheticSeed — zero
+                                external deps. reseed shells out to the
+                                Makefile reseed-<src> targets first.
+
+  ## Determinism
+
+  `--in-mode synthetic` is deterministic: same `(--rows, --seed)` →
+  byte-identical NDJSON → byte-identical sharded corpus.
+  `corpus.validate` is non-deterministic in *timing* but every other
+  field of `proof.md` is byte-stable, so re-runs diff cleanly except
+  for the timing-derived columns in the throughput-sweep table.
 
   ## What it produces
 
   ```
-   <out-per-source>/shard-00/{account_holders, counterparties,
-                              payment_accounts, transactions}.ndjson
-                 …shard-NN/…
-
-   <report>          one consolidated markdown file with, per source:
-                       - row count + shard count
-                       - corpus.validate match/mismatch counts
-                       - timing (n, p50, p95, p99, txns/sec)
-                     and a top-level summary across all sources.
+   tmp/bench/c<level>/<src>/shards/         shard folders per level
+   tmp/bench/c<level>/<src>/proof.md        per-source drift report
+   <--report>                                consolidated narrative + sweep table
   ```
-
-  ## Determinism
-
-  In `--in-mode synthetic` (the default) NO external dependency is
-  touched: rows come from `AtomicFi.Corpus.SyntheticSeed`, a hardcoded
-  RNG-seeded generator that mirrors each upstream's column shape. Same
-  `(--rows, --seed)` → identical row stream → identical sharded
-  corpus → identical `proof.md`. Commit the report, run the bench
-  again, the committed file diffs empty.
-
-  In `--in-mode reseed` the Makefile `reseed-<src>` targets are invoked
-  first (Kaggle CLI for SAML-D, uv + Python sim for AMLGentex). The
-  resulting sample sits at `$CORPUS_OUT/<src>/<src>.ndjson` and is
-  consumed by the same generator.
-
-  The committed `corpus/bench/proof.md` is always the synthetic-mode
-  output — the FAA-style cert anyone can reproduce from a clean clone.
-  The reseed-mode bench is for operator perf tuning against the real
-  upstream distribution.
   """
 
   use Mix.Task
@@ -65,18 +54,16 @@ defmodule Mix.Tasks.Corpus.Bench do
       OptionParser.parse(args,
         strict: [
           sources: :string,
-          shards: :integer,
+          max: :integer,
           rows: :integer,
           seed: :integer,
-          out: :string,
           report: :string,
-          in_mode: :string,
-          reset: :boolean
+          in_mode: :string
         ]
       )
 
     sources = parse_sources(opts[:sources])
-    shards = Keyword.get(opts, :shards, 10)
+    max_c = Keyword.get(opts, :max, 16)
     rows = Keyword.get(opts, :rows, 1000)
     seed = Keyword.get(opts, :seed, 0)
     in_mode = Keyword.get(opts, :in_mode, "synthetic")
@@ -84,47 +71,58 @@ defmodule Mix.Tasks.Corpus.Bench do
     report_path =
       Keyword.get(opts, :report, "benchmarks/saml_d_amlgentex_synthetic/README.md")
 
-    reset? = Keyword.get(opts, :reset, true)
+    levels = power_of_two_ladder(max_c)
+    env_info = collect_environment()
 
     Mix.shell().info("""
-    → mix corpus.bench
-        sources:    #{Enum.map_join(sources, ", ", &Atom.to_string/1)}
-        shards:     #{shards}  (corpus.validate runs them in parallel)
-        rows:       #{rows} per source
-        seed:       #{seed}
-        in_mode:    #{in_mode}
-        report:     #{report_path}
+    → mix corpus.bench  (concurrency sweep)
+        sources:        #{Enum.map_join(sources, ", ", &Atom.to_string/1)}
+        levels:         #{Enum.join(levels, ", ")}
+        rows/src/level: #{rows}
+        seed:           #{seed}
+        in_mode:        #{in_mode}
+        report:         #{report_path}
     """)
 
-    per_source =
-      Enum.map(sources, fn src ->
-        run_one_source(src,
-          shards: shards,
-          rows: rows,
-          seed: seed,
-          in_mode: in_mode,
-          reset?: reset?
-        )
+    sweep_rows =
+      Enum.map(levels, fn level ->
+        run_level(level, sources, rows: rows, seed: seed, in_mode: in_mode)
       end)
 
-    write_consolidated_report(report_path, per_source, %{
-      shards: shards,
+    write_report(report_path, %{
+      env: env_info,
+      levels: levels,
+      sweep: sweep_rows,
+      sources: sources,
       rows: rows,
       seed: seed,
-      sources: sources,
-      in_mode: in_mode
+      in_mode: in_mode,
+      max: max_c
     })
 
-    Mix.shell().info("\n✓ wrote consolidated report → #{report_path}")
+    Mix.shell().info("\n✓ wrote report → #{report_path}")
   end
 
-  # ── per-source pipeline ──────────────────────────────────────────
+  # ── concurrency sweep ────────────────────────────────────────────
 
-  defp run_one_source(src, opts) do
-    Mix.shell().info("\n── #{src} ─────────────────────────────")
+  defp power_of_two_ladder(max_c) when max_c >= 1 do
+    Stream.iterate(1, &(&1 * 2))
+    |> Enum.take_while(&(&1 <= max_c))
+  end
 
-    shard_dir = Keyword.get(opts, :out, "tmp/bench/#{src}/shards")
-    File.mkdir_p!(shard_dir)
+  defp run_level(level, sources, opts) do
+    Mix.shell().info("\n── concurrency = #{level} ─────────────────────────")
+
+    per_source =
+      Enum.map(sources, fn src -> run_one_source(src, level, opts) end)
+
+    aggregate_level(level, per_source)
+  end
+
+  defp run_one_source(src, level, opts) do
+    shard_dir = "tmp/bench/c#{pad(level)}/#{src}/shards"
+    proof_path = "tmp/bench/c#{pad(level)}/#{src}/proof.md"
+    File.mkdir_p!(Path.dirname(proof_path))
     cleanup_dir!(shard_dir)
 
     case opts[:in_mode] do
@@ -133,16 +131,16 @@ defmodule Mix.Tasks.Corpus.Bench do
           synthetic: true,
           rows: opts[:rows],
           seed: opts[:seed],
-          shards: opts[:shards],
+          shards: level,
           out: shard_dir
         )
 
       "reseed" ->
-        run_reseed(src, opts)
+        run_reseed(src)
 
         run_generate(src,
           in: default_in_path(src),
-          shards: opts[:shards],
+          shards: level,
           out: shard_dir
         )
 
@@ -150,22 +148,36 @@ defmodule Mix.Tasks.Corpus.Bench do
         Mix.raise("--in-mode must be 'synthetic' or 'reseed' (got: #{inspect(other)})")
     end
 
-    proof_path = "tmp/bench/#{src}/proof.md"
-    File.mkdir_p!(Path.dirname(proof_path))
-    timing_stdout = run_validate(shard_dir, proof_path, opts[:reset?])
+    timing_stdout = run_validate(shard_dir, proof_path)
 
     %{
       src: src,
-      shard_dir: shard_dir,
+      level: level,
       proof_path: proof_path,
       report: File.read!(proof_path),
       timing_stdout: timing_stdout,
-      shards: opts[:shards],
-      rows: opts[:rows]
+      shard_dir: shard_dir
     }
   end
 
-  defp run_reseed(src, _opts) do
+  # Roll the per-source numbers up to one row per concurrency level.
+  defp aggregate_level(level, per_source) do
+    stats = Enum.map(per_source, fn s -> parse_stats(s.report) end)
+    timings = Enum.map(per_source, fn s -> parse_timing(s.timing_stdout) end)
+
+    %{
+      level: level,
+      total_txns: Enum.reduce(stats, 0, &(&1.total + &2)),
+      blocked: Enum.reduce(stats, 0, &(&1.blocked + &2)),
+      txns_per_sec: sum_floats(timings, :txns_per_sec) |> Float.round(1),
+      p50_ms: max_of(timings, :p50_ms),
+      p95_ms: max_of(timings, :p95_ms),
+      p99_ms: max_of(timings, :p99_ms),
+      per_source: per_source
+    }
+  end
+
+  defp run_reseed(src) do
     target = "reseed-#{String.replace(Atom.to_string(src), "_", "-")}"
     Mix.shell().info("→ make #{target}")
     {_out, status} = System.cmd("make", [target], stderr_to_stdout: true)
@@ -185,29 +197,20 @@ defmodule Mix.Tasks.Corpus.Bench do
       Path.join(System.user_home!(), ".local/share/atomic-fi/corpus")
   end
 
-  defp run_generate(:saml_d, args) do
-    Mix.Task.rerun("corpus.generate.saml_d", to_arg_list(args))
-  end
+  defp run_generate(:saml_d, args),
+    do: Mix.Task.rerun("corpus.generate.saml_d", to_arg_list(args))
 
-  defp run_generate(:amlgentex, args) do
-    Mix.Task.rerun("corpus.generate.amlgentex", to_arg_list(args))
-  end
+  defp run_generate(:amlgentex, args),
+    do: Mix.Task.rerun("corpus.generate.amlgentex", to_arg_list(args))
 
   defp run_generate(src, _args), do: Mix.raise("no generator wired for #{inspect(src)}")
 
-  defp run_validate(shard_dir, proof_path, reset?) do
-    # Invoke `mix corpus.validate` as a SUBPROCESS, not Mix.Task.rerun.
-    # Postgrex caches Postgres custom-type OIDs per BEAM; corpus.validate
-    # --reset drops and re-migrates the corpus schema, which gives every
-    # ENUM a fresh OID. Re-running in the same BEAM left the previous
-    # run's cached OIDs stale → "cache lookup failed for type NNNN" on
-    # the second source's insert path. A fresh BEAM per validate run
-    # cleanly avoids the issue and matches how operators invoke the
-    # task by hand.
-    args =
-      ["corpus.validate", shard_dir, "--out", proof_path] ++
-        if(reset?, do: ["--reset"], else: [])
-
+  defp run_validate(shard_dir, proof_path) do
+    # SUBPROCESS — Postgrex caches Postgres custom-type OIDs per BEAM;
+    # corpus.validate --reset drops + re-migrates the corpus schema,
+    # which gives every enum a fresh OID. Fresh BEAM per validate run
+    # cleanly avoids the type-cache lookup failure on the second run.
+    args = ["corpus.validate", shard_dir, "--out", proof_path, "--reset"]
     Mix.shell().info("→ subprocess: mix #{Enum.join(args, " ")}")
 
     {output, status} =
@@ -240,144 +243,89 @@ defmodule Mix.Tasks.Corpus.Bench do
   defp parse_sources(nil), do: @default_sources
 
   defp parse_sources(csv) do
-    csv
-    |> String.split(",", trim: true)
-    |> Enum.map(&String.trim/1)
-    |> Enum.map(&String.to_existing_atom/1)
-    |> Enum.each(fn s ->
+    parsed =
+      csv
+      |> String.split(",", trim: true)
+      |> Enum.map(&String.trim/1)
+      |> Enum.map(&String.to_atom/1)
+
+    Enum.each(parsed, fn s ->
       unless s in @valid_sources do
         Mix.raise("unknown source: #{inspect(s)} (valid: #{inspect(@valid_sources)})")
       end
     end)
-    |> case do
-      :ok -> Enum.map(String.split(csv, ",", trim: true), &String.to_atom/1)
+
+    parsed
+  end
+
+  # ── environment fingerprint ──────────────────────────────────────
+
+  defp collect_environment do
+    %{
+      run_date: DateTime.utc_now() |> DateTime.truncate(:second),
+      cpu_brand: cpu_brand(),
+      cpu_cores: cpu_cores(),
+      os_kernel: os_kernel(),
+      elixir_version: System.version(),
+      otp_version: System.otp_release(),
+      postgres_version: shell_capture("psql", ["--version"]),
+      zenrule_version: zenrule_version(),
+      rule_count: rule_count()
+    }
+  end
+
+  defp cpu_brand do
+    case :os.type() do
+      {:unix, :darwin} -> shell_capture("sysctl", ["-n", "machdep.cpu.brand_string"])
+      {:unix, _} -> shell_grep("/proc/cpuinfo", ~r/^model name\s*:\s*(.+)$/m)
+      _ -> "—"
     end
   end
 
-  # ── consolidated report ──────────────────────────────────────────
-
-  defp write_consolidated_report(report_path, per_source, run) do
-    File.mkdir_p!(Path.dirname(report_path))
-
-    summary = summarise(per_source, run)
-    content = render(per_source, summary, run)
-
-    File.write!(report_path, content)
+  defp cpu_cores do
+    case :os.type() do
+      {:unix, :darwin} -> shell_capture("sysctl", ["-n", "hw.ncpu"])
+      {:unix, _} -> shell_capture("nproc", [])
+      _ -> "—"
+    end
   end
 
-  defp summarise(per_source, _run) do
-    Enum.map(per_source, fn entry ->
-      stats = parse_summary_table(entry.report)
-      # Timing block is printed to stdout by corpus.validate's
-      # `print_timing/1`; the markdown report doesn't include it. Read
-      # it from the captured subprocess output.
-      timing = parse_timing_block(entry.timing_stdout)
-      Map.merge(entry, %{stats: stats, timing: timing})
-    end)
+  defp os_kernel do
+    "#{shell_capture("uname", ["-s"])} #{shell_capture("uname", ["-r"])} #{shell_capture("uname", ["-m"])}"
   end
 
-  defp render(_per_source, summary, run) do
-    total_txns = length(summary) * run.shards * run.rows
-
-    blocked = Enum.reduce(summary, 0, fn s, acc -> acc + (s.stats.blocked || 0) end)
-    passed = total_txns - blocked
-
-    avg_throughput =
-      summary
-      |> Enum.map(fn s -> parse_number(s.timing.txns_per_sec) end)
-      |> Enum.sum()
-      |> Kernel./(max(length(summary), 1))
-      |> Float.round(1)
-
-    max_p95 =
-      summary
-      |> Enum.map(fn s -> s.timing.p95_ms || 0 end)
-      |> Enum.max(fn -> 0 end)
-
-    """
-    # Bulk performance bench — atomic-fi rule engine
-
-    ## What was tested
-
-    atomic-fi's rule engine was driven through **#{total_txns} synthetic
-    transactions** drawn from #{length(run.sources)} AML research datasets:
-
-    #{Enum.map_join(run.sources, "\n", &source_description/1)}
-
-    The transactions were sharded into **#{run.shards} parallel workers**
-    (the "poor-man's k6" model) and the production write path
-    (`AccountHolderContext.create_account_holder/2` →
-    `CounterpartyContext.create_counterparty/2` →
-    `PaymentAccountContext.create_payment_account/2` →
-    `TransactionContext.create_transaction/2`) was exercised end-to-end
-    for every row. Each transaction passed through every rule in
-    `priv/zenrule/transaction-screening/` (#{rule_count()} rules at the
-    time of this run).
-
-    ## Results
-
-    | metric                                                         | value |
-    |----------------------------------------------------------------|------:|
-    | transactions processed                                         | #{total_txns} |
-    | transactions blocked by a rule                                 | #{blocked} |
-    | transactions passed through                                    | #{passed} |
-    | block rate                                                     | #{block_pct(blocked, total_txns)}% |
-    | average throughput across shards                               | #{avg_throughput} txns/sec |
-    | worst-case p95 latency across shards                           | #{max_p95} ms |
-
-    Per-dataset breakdown:
-
-    | dataset    | rows | blocked | passed | txns/sec | p50 ms | p95 ms | p99 ms |
-    |---         | ---: | ---:    | ---:   | ---:     | ---:   | ---:   | ---:   |
-    #{Enum.map_join(summary, "\n", fn s -> render_summary_row(s, run.shards * run.rows) end)}
-
-    ## Reproduce
-
-    ```
-    make bench BENCH_SOURCES="#{Enum.map_join(run.sources, ",", &Atom.to_string/1)}" \\
-               BENCH_SHARDS=#{run.shards} \\
-               BENCH_ROWS=#{run.rows} \\
-               BENCH_SEED=#{run.seed}
-    ```
-
-    No external dependencies required (no Kaggle CLI, no Python sim).
-    The synthetic transaction rows are generated deterministically by
-    `AtomicFi.Corpus.SyntheticSeed` from the seed above. Same seed →
-    byte-identical output.
-
-    For real-data perf tuning (against the actual SAML-D + AMLGentex
-    upstreams), use `make bench-real` after running `make reseed-saml-d`
-    and `make reseed-amlgentex` once.
-
-    ## Per-dataset detailed reports
-
-    The full per-row drift report for each dataset is appended below.
-    Rows are marked `🆕 new` because bulk-bench transactions don't carry
-    a pre-calibrated `_expected` verdict — the bench measures the
-    engine's actual decision distribution, not correctness against a
-    pinned expectation. For the latter, see `corpus/zen_rules/<slug>/`
-    (the 10 hand-authored auditor-walked scenarios).
-
-    """ <>
-      Enum.map_join(summary, "\n\n", fn entry ->
-        "## #{entry.src}\n\n#{entry.report}"
-      end)
+  defp zenrule_version do
+    case System.cmd("curl", ["-fsSL", "http://localhost:8090/api/version"],
+           stderr_to_stdout: true
+         ) do
+      {output, 0} -> String.trim(output)
+      _ -> "—"
+    end
+  rescue
+    _ -> "—"
   end
 
-  defp source_description(:saml_d),
-    do:
-      "  - **SAML-D** (Oztas et al. 2023): synthetic transaction monitoring data " <>
-        "with 28 typologies (11 normal + 17 suspicious patterns like smurfing, " <>
-        "structuring, layering). Original dataset is 12 MB on Kaggle."
+  defp shell_capture(cmd, args) do
+    case System.cmd(cmd, args, stderr_to_stdout: true) do
+      {output, 0} -> output |> String.trim()
+      _ -> "—"
+    end
+  rescue
+    _ -> "—"
+  end
 
-  defp source_description(:amlgentex),
-    do:
-      "  - **AMLGentex** (AI Sweden / Handelsbanken / Swedbank 2024): synthetic " <>
-        "transaction-network simulator producing scale-free graphs with " <>
-        "configurable normal + SAR patterns (fan-in, fan-out, layering, smurfing). " <>
-        "Apache-2.0; runs Python simulator locally."
+  defp shell_grep(path, re) do
+    case File.read(path) do
+      {:ok, content} ->
+        case Regex.run(re, content) do
+          [_, brand] -> String.trim(brand)
+          _ -> "—"
+        end
 
-  defp source_description(other), do: "  - **#{other}**"
+      _ ->
+        "—"
+    end
+  end
 
   defp rule_count do
     "priv/zenrule/transaction-screening"
@@ -385,58 +333,37 @@ defmodule Mix.Tasks.Corpus.Bench do
     |> File.ls!()
     |> Enum.count(&String.ends_with?(&1, ".json"))
   rescue
-    _ -> "N"
+    _ -> 0
   end
 
-  defp render_summary_row(entry, total_rows) do
-    t = entry.timing
-    blocked = entry.stats.blocked || 0
-    passed = total_rows - blocked
+  # ── stats parsing ────────────────────────────────────────────────
 
-    "| #{entry.src} | #{total_rows} | #{blocked} | #{passed} | " <>
-      "#{t.txns_per_sec} | #{t.p50_ms} | #{t.p95_ms} | #{t.p99_ms} |"
-  end
-
-  defp block_pct(_blocked, 0), do: "0.0"
-
-  defp block_pct(blocked, total),
-    do: (blocked / total * 100) |> Float.round(2) |> Float.to_string()
-
-  defp parse_number("—"), do: 0.0
-  defp parse_number(s) when is_binary(s), do: String.to_float(s)
-  defp parse_number(n) when is_number(n), do: n / 1.0
-  defp parse_number(_), do: 0.0
-
-  # Parse `| match | N |` and `| mismatch | N |` from the summary table.
-  defp parse_summary_table(report) do
-    # In the bulk-bench world `_expected` is intentionally absent, so
-    # every row lands as :new in corpus.validate's outcome table. The
-    # number we care about for the bench summary is "how many were
-    # blocked by a rule" — count rows whose `status` line shows
-    # 'rejected' in the per-row detail (not the outcome table).
-    blocked =
-      Regex.scan(~r/"status":\s*"rejected"/m, report)
-      |> length()
+  defp parse_stats(report) do
+    blocked = Regex.scan(~r/"status":\s*"rejected"/m, report) |> length()
+    total = scan_int(report, ~r/^\|\s*\*\*total\*\*\s*\|\s*\*\*(\d+)\*\*/m)
 
     %{
-      match: scan_int(report, ~r/^\|\s*match\s*\|\s*(\d+)\s*\|/m),
-      mismatch: scan_int(report, ~r/^\|\s*mismatch\s*\|\s*(\d+)\s*\|/m),
-      new: scan_int(report, ~r/^\|\s*new\b.*?\|\s*(\d+)\s*\|/m),
-      blocked: blocked
+      total: total,
+      blocked: blocked,
+      new: scan_int(report, ~r/^\|\s*new\b.*?\|\s*(\d+)\s*\|/m)
     }
   end
 
-  # Parse the timing block at the bottom of corpus.validate's stdout
-  # (not in the proof.md by default, but if we capture it we can fold
-  # it in). For now, parse the summary table only and best-effort the
-  # timing fields.
-  defp parse_timing_block(report) do
+  defp parse_timing(report) do
     %{
       txns_per_sec: scan_float(report, ~r/txns\/sec\s+([\d\.]+)/m),
       p50_ms: scan_int(report, ~r/p50\s+(\d+)\s*ms/m),
       p95_ms: scan_int(report, ~r/p95\s+(\d+)\s*ms/m),
       p99_ms: scan_int(report, ~r/p99\s+(\d+)\s*ms/m)
     }
+  end
+
+  defp sum_floats(items, key) do
+    Enum.reduce(items, 0.0, fn item, acc -> acc + (Map.get(item, key) || 0.0) end)
+  end
+
+  defp max_of(items, key) do
+    items |> Enum.map(&Map.get(&1, key, 0)) |> Enum.max(fn -> 0 end)
   end
 
   defp scan_int(text, re) do
@@ -448,8 +375,150 @@ defmodule Mix.Tasks.Corpus.Bench do
 
   defp scan_float(text, re) do
     case Regex.run(re, text) do
-      [_, n] -> n
-      _ -> "—"
+      [_, n] -> String.to_float(n)
+      _ -> 0.0
     end
+  end
+
+  defp pad(n), do: n |> Integer.to_string() |> String.pad_leading(3, "0")
+
+  # ── render ───────────────────────────────────────────────────────
+
+  defp write_report(path, run) do
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, render(run))
+  end
+
+  defp render(run) do
+    """
+    # Bulk performance bench — atomic-fi rule engine
+
+    > Concurrency sweep across powers of 2, from 1 up to **#{run.max}**.
+    > Every transaction is driven end-to-end through the production
+    > write path and the full rule engine (#{run.env.rule_count} rules
+    > under `priv/zenrule/transaction-screening/`).
+
+    ## Test environment
+
+    | component | value |
+    |---|---|
+    | run date          | `#{DateTime.to_iso8601(run.env.run_date)}` |
+    | CPU               | #{run.env.cpu_brand} |
+    | CPU cores         | #{run.env.cpu_cores} |
+    | OS / kernel       | #{run.env.os_kernel} |
+    | Elixir            | #{run.env.elixir_version} |
+    | Erlang / OTP      | #{run.env.otp_version} |
+    | Postgres          | #{run.env.postgres_version} |
+    | ZenRule (agent)   | `#{run.env.zenrule_version}` |
+    | rule count        | #{run.env.rule_count} |
+
+    ## What was tested
+
+    For each concurrency level in the sweep, atomic-fi processed
+    **#{run.rows} synthetic transactions per source** drawn from the AML
+    research datasets below. Each transaction went through:
+
+    1. `AccountHolderContext.create_account_holder/2`
+    2. `CounterpartyContext.create_counterparty/2`
+    3. `PaymentAccountContext.create_payment_account/2`
+    4. `TransactionContext.create_transaction/2` → rule engine fan-out
+       → ledger entry posting
+
+    The rule engine fans out N parallel `RuleEngine.Default.evaluate/4`
+    calls to the GoRules ZenRule agent (one per rule under
+    `transaction-screening/`) and folds the per-rule outputs into a
+    single effective control per ledger account.
+
+    ### Sources
+
+    #{Enum.map_join(run.sources, "\n", &source_description/1)}
+
+    ## Throughput sweep
+
+    | concurrency | total txns | blocked | passed | txns/sec | p50 (ms) | p95 (ms) | p99 (ms) |
+    | ---:        | ---:       | ---:    | ---:   | ---:     | ---:     | ---:     | ---:     |
+    #{Enum.map_join(run.sweep, "\n", &render_sweep_row/1)}
+
+    ## Reproduce
+
+    ```
+    make bench BENCH_MAX=#{run.max} BENCH_ROWS=#{run.rows} BENCH_SEED=#{run.seed}
+    ```
+
+    Synthetic mode requires no external dependencies — rows are
+    generated by `AtomicFi.Corpus.SyntheticSeed` from a fixed RNG seed.
+    Same seed → identical NDJSON → identical sharded corpus. Timing
+    columns vary across runs (they're real wall-clock measurements);
+    every other column diffs cleanly.
+
+    For real-data perf tuning (the actual SAML-D dataset from Kaggle
+    and the AMLGentex Python simulator's output), run
+    `make bench-real` after `make reseed-saml-d` and
+    `make reseed-amlgentex` once. The report lands under `tmp/` to
+    keep the committed cert deterministic.
+
+    <details><summary>Per-concurrency detailed reports (per-row drift, full timing)</summary>
+
+    #{Enum.map_join(run.sweep, "\n\n", &render_level_detail/1)}
+
+    </details>
+
+    ## How this report is generated
+
+    `mix corpus.bench` orchestrates the whole pipeline:
+
+    1. Collects the test environment fingerprint (CPU, OS, runtime versions).
+    2. For each concurrency level in the power-of-2 ladder:
+        - regenerates a fresh sharded corpus per source via
+          `mix corpus.generate.<src>`;
+        - invokes `mix corpus.validate <shards> --reset` as a subprocess
+          (fresh BEAM per validate run — Postgrex caches custom-type
+          OIDs per process, and `--reset` invalidates them);
+        - captures the per-source `proof.md` plus the timing block
+          (printed to stdout, parsed by regex into the sweep row).
+    3. Renders the consolidated markdown — this file.
+
+    See `lib/mix/tasks/corpus.bench.ex` for the implementation.
+    """
+  end
+
+  defp source_description(:saml_d),
+    do:
+      "- **SAML-D** (Oztas et al. 2023): synthetic transaction monitoring data " <>
+        "with 28 typologies — 11 normal and 17 suspicious patterns including " <>
+        "smurfing, structuring, layering. " <>
+        "Real Kaggle dataset: 12 MB / ~9.5 M rows. " <>
+        "[paper](https://ieeexplore.ieee.org/document/10374100), " <>
+        "[dataset](https://www.kaggle.com/datasets/berkanoztas/synthetic-transaction-monitoring-dataset-aml)"
+
+  defp source_description(:amlgentex),
+    do:
+      "- **AMLGentex** (AI Sweden / Handelsbanken / Swedbank 2024): scale-free " <>
+        "transaction-network simulator with configurable normal and SAR patterns " <>
+        "(fan-in, fan-out, layering, smurfing). Apache-2.0. " <>
+        "[paper](https://arxiv.org/abs/2506.13989), " <>
+        "[repo](https://github.com/aidotse/AMLGentex)"
+
+  defp source_description(other), do: "- **#{other}**"
+
+  defp render_sweep_row(level) do
+    "| #{level.level} | #{level.total_txns} | #{level.blocked} | " <>
+      "#{level.total_txns - level.blocked} | #{level.txns_per_sec} | " <>
+      "#{level.p50_ms} | #{level.p95_ms} | #{level.p99_ms} |"
+  end
+
+  defp render_level_detail(level) do
+    blocks =
+      Enum.map_join(level.per_source, "\n\n", fn s ->
+        "#### #{s.src} (concurrency #{s.level})\n\n#{s.report}"
+      end)
+
+    """
+    ### Concurrency #{level.level}
+
+    Total: #{level.total_txns} txns ¦ blocked: #{level.blocked} ¦ throughput: #{level.txns_per_sec} txns/sec ¦ p95: #{level.p95_ms} ms
+
+    #{blocks}
+    """
   end
 end
