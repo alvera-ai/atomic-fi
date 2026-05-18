@@ -109,6 +109,42 @@ defmodule AtomicFi.Corpus.SyntheticSeed do
     end)
   end
 
+  @doc """
+  Synthetic StableAML-shape rows. Field names match the FINOS Labs
+  `address_sanctioned.csv` columns (`blockchain`, `wallet_address`,
+  `flag`) so `mix corpus.generate.stableaml --synthetic` and the
+  CSV-reading path emit identical shard contents.
+
+  Determinism: `(rows, seed) -> identical NDJSON list every run`.
+  Each row is a synthetic ETH-shape address derived from a fixed RNG
+  seed; the addresses don't collide with real OFAC sanctioned wallets
+  but exercise the same `stableaml_wallet_blocklist` rule path (the
+  rule reads the on-platform blocklist, which the bench seeds from the
+  same synthetic wallets via `corpus.validate`'s blocklist_entries
+  seeding step).
+  """
+  @spec stableaml(non_neg_integer(), non_neg_integer()) :: [map()]
+  def stableaml(rows, seed) do
+    :rand.seed(:exsss, {seed * 19, seed * 23, seed * 29})
+
+    Enum.map(1..rows, fn _idx ->
+      %{
+        "blockchain" => "ETH",
+        "wallet_address" => synthetic_eth_address(),
+        "flag" => "1"
+      }
+    end)
+  end
+
+  defp synthetic_eth_address do
+    hex =
+      Enum.map_join(1..40, "", fn _ ->
+        Integer.to_string(:rand.uniform(16) - 1, 16) |> String.downcase()
+      end)
+
+    "0x" <> hex
+  end
+
   # Amount distributions:
   #
   #   Smurfing    — many small payments (USD 500-3000), the same band

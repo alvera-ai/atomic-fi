@@ -88,14 +88,50 @@ defmodule Mix.Tasks.Corpus.Generate.Stableaml do
           emit_corpus: :boolean,
           emit_shards: :boolean,
           shards: :integer,
-          txns: :integer
+          txns: :integer,
+          synthetic: :boolean,
+          rows: :integer
         ]
       )
 
     seed = Keyword.get(opts, :seed, 0)
-    in_path = Keyword.get(opts, :in, default_in_path())
-    rows = read_csv!(in_path)
 
+    # --synthetic short-circuits the CSV-read path so the bench can drive
+    # this generator without any external data dependency (mirrors how
+    # corpus.generate.saml_d / corpus.generate.amlgentex handle --synthetic).
+    cond do
+      Keyword.get(opts, :synthetic, false) ->
+        out_dir =
+          opts[:out] ||
+            Mix.raise("--synthetic requires --out <dir> (sharded corpus root)")
+
+        row_count = Keyword.get(opts, :rows, 1000)
+        shards = Keyword.get(opts, :shards, 1)
+
+        Mix.shell().info(
+          "→ generating #{row_count} synthetic StableAML-shape wallet rows (seed=#{seed})"
+        )
+
+        rows = AtomicFi.Corpus.SyntheticSeed.stableaml(row_count, seed)
+
+        # Bench-mode shard mapper: no `_expected` blocks (these are bulk
+        # uncalibrated rows mirroring the saml-d/amlgentex `--synthetic`
+        # behaviour, not the hand-curated scenario buckets the CSV-driven
+        # `--emit-shards` mode emits).
+        AtomicFi.Corpus.Shard.emit(rows,
+          out: out_dir,
+          shards: shards,
+          mapper: &synthetic_bench_shard_mapper(&1, &2)
+        )
+
+      true ->
+        in_path = Keyword.get(opts, :in, default_in_path())
+        rows = read_csv!(in_path)
+        dispatch_csv(rows, opts, seed)
+    end
+  end
+
+  defp dispatch_csv(rows, opts, seed) do
     cond do
       Keyword.get(opts, :emit_rule, false) ->
         emit_rule(rows)
@@ -347,6 +383,122 @@ defmodule Mix.Tasks.Corpus.Generate.Stableaml do
     end)
     |> then(fn {cps, pas, txns} -> {Enum.reverse(cps), Enum.reverse(pas), Enum.reverse(txns)} end)
   end
+
+  # ─── bench-mode shard mapper (no _expected) ──────────────────────────
+  #
+  # Used by `--synthetic`: replicates the synthetic wallet rows into a
+  # single sender → many sanctioned recipients fan-out, exactly the
+  # shape `stableaml_wallet_blocklist` is supposed to trip on, but
+  # without per-row scenario validation. Rows land under
+  # `new (no _expected)` in corpus.validate's classification.
+
+  defp synthetic_bench_shard_mapper(wallet_rows, prefix) do
+    ah_lines = [
+      synthetic_ah_row("#{prefix}ah-sender")
+    ]
+
+    sender_pa = synthetic_pa_row("#{prefix}pa-sender", "#{prefix}ah-sender")
+
+    {cp_lines, receiver_pa_lines, txn_lines} =
+      wallet_rows
+      |> Enum.with_index()
+      |> Enum.reduce({[], [], []}, fn {row, idx}, {cps, pas, txns} ->
+        slug = synthetic_pad(idx)
+        cp_ext = "#{prefix}cp-#{slug}"
+        pa_ext = "#{prefix}pa-#{slug}"
+        addr = String.downcase(row["wallet_address"])
+
+        cp = synthetic_cp_row(cp_ext, "#{prefix}ah-sender", slug)
+        pa = synthetic_wallet_pa_row(pa_ext, "#{prefix}ah-sender", cp_ext, addr)
+
+        txn =
+          synthetic_txn_row(
+            "#{prefix}txn-#{slug}",
+            "#{prefix}ah-sender",
+            "#{prefix}pa-sender",
+            pa_ext
+          )
+
+        {[cp | cps], [pa | pas], [txn | txns]}
+      end)
+
+    %{
+      account_holders: ah_lines,
+      counterparties: Enum.reverse(cp_lines),
+      payment_accounts: [sender_pa | Enum.reverse(receiver_pa_lines)],
+      transactions: Enum.reverse(txn_lines)
+    }
+  end
+
+  defp synthetic_ah_row(ext) do
+    Jason.encode!(%{
+      "external_id" => ext,
+      "account_holder_type" => "individual",
+      "status" => "pending",
+      "kyc_status" => "approved",
+      "risk_level" => "low",
+      "enabled_currencies" => ["USD"],
+      "chain_screening" => false,
+      "legal_entity" => %{
+        "legal_entity_type" => "individual",
+        "first_name" => "Alice",
+        "last_name" => "Sender"
+      }
+    })
+  end
+
+  defp synthetic_cp_row(ext, host_ah_ext, slug) do
+    Jason.encode!(%{
+      "external_id" => ext,
+      "account_holder_external_id" => host_ah_ext,
+      "status" => "active",
+      "chain_screening" => false,
+      "legal_entity" => %{
+        "legal_entity_type" => "individual",
+        "first_name" => "Recipient",
+        "last_name" => "Idx#{slug}"
+      }
+    })
+  end
+
+  defp synthetic_pa_row(ext, ah_ext) do
+    Jason.encode!(%{
+      "external_id" => ext,
+      "account_holder_external_id" => ah_ext,
+      "account_type" => "wallet",
+      "currency" => "USD"
+    })
+  end
+
+  defp synthetic_wallet_pa_row(ext, ah_ext, cp_ext, wallet_address) do
+    Jason.encode!(%{
+      "external_id" => ext,
+      "account_holder_external_id" => ah_ext,
+      "counterparty_external_id" => cp_ext,
+      "account_type" => "wallet",
+      "currency" => "USD",
+      "wallet_address" => wallet_address,
+      "wallet_chain" => "ETH"
+    })
+  end
+
+  defp synthetic_txn_row(ext, ah_ext, sender_pa_ext, recipient_pa_ext) do
+    Jason.encode!(%{
+      "external_id" => ext,
+      "transaction_type" => "internal_transfer",
+      "amount" => 12_000,
+      "currency" => "USD",
+      "account_holder_external_id" => ah_ext,
+      "debtor_payment_account_external_id" => sender_pa_ext,
+      "creditor_payment_account_external_id" => recipient_pa_ext,
+      "_label" => %{
+        "regime" => "stableaml-bench",
+        "scenario" => "synthetic wallet load"
+      }
+    })
+  end
+
+  defp synthetic_pad(idx), do: idx |> Integer.to_string() |> String.pad_leading(6, "0")
 
   defp shard_txn_row(ext, opts) do
     Jason.encode!(%{

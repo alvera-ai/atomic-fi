@@ -22,6 +22,11 @@ erl_crash.dump
 # Temporary files, for example, from tests.
 /tmp/
 
+# Ephemeral bench working state — sharded NDJSON inputs + per-source
+# subprocess proofs that get folded into the single committed report
+# under benchmarks/. Regenerated from a fixed RNG seed on every run.
+/.bench-work/
+
 # Ignore package tarball (built via "mix hex.build").
 phoenix_template_server-*.tar
 

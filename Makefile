@@ -1,4 +1,4 @@
-.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install reseed-stableaml reseed-saml-d reseed-amlgentex bench bench-real
+.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install reseed-stableaml reseed-saml-d reseed-amlgentex bench
 
 COMPOSE_FILE := local-dependencies.yaml
 
@@ -162,39 +162,32 @@ run-backing-services:
 	@echo "      The standalone target remains available for running watchman"
 	@echo "      outside compose (e.g. on a host without docker compose)."
 
-# ─── corpus.bench — concurrency-sweep performance cert ─────────────────
+# ─── corpus.bench — k6-shape VU-sweep performance cert ─────────────────
 #
-# Synthetic (default): hardcoded synthetic upstream rows; no Kaggle /
-# Python / network. Sweeps concurrency 1..BENCH_MAX in powers of 2 and
-# writes one committed GitHub-flavored markdown report.
+# Each VU is one parallel iteration of one of the 10 catalog scenarios
+# (round-robin) under corpus/zen_rules/<slug>/. Within a VU the txns run
+# sequentially (velocity rules); across VUs the runs are independent
+# (UUID id-prefix per VU). Writes one committed GitHub-flavored
+# markdown report under benchmarks/.
 #
-#   make bench BENCH_MAX=32 BENCH_ROWS=1000
+#   make bench
+#   make bench BENCH_LEVELS=1,10,100,1000
 #
-# Real-data: invokes reseed-<src> first (needs Kaggle CLI + uv + Python)
+# Bump POOL_SIZE for the larger VU steps — the default of 10 will
+# bottleneck at 100+ VUs:
 #
-#   make bench-real BENCH_MAX=16 BENCH_ROWS=10000
-BENCH_SOURCES ?= saml_d,amlgentex
-BENCH_MAX     ?= 16
-BENCH_ROWS    ?= 1000
-BENCH_SEED    ?= 0
+#   POOL_SIZE=200 make bench BENCH_LEVELS=1,10,100,1000,2000
+#
+BENCH_LEVELS ?= 1,10,100,1000,2000,10000
+# Unset by default — `mix corpus.bench` auto-derives a meaningful
+# filename: benchmarks/<cpu-slug>-<date>-<peak-vus-english>-vus.md
+# Set BENCH_REPORT=path/to/file.md to override.
+BENCH_REPORT ?=
 
 bench:
 	@mix corpus.bench \
-		--sources $(BENCH_SOURCES) \
-		--max     $(BENCH_MAX) \
-		--rows    $(BENCH_ROWS) \
-		--seed    $(BENCH_SEED) \
-		--in-mode synthetic \
-		--report  benchmarks/saml_d_amlgentex_synthetic/README.md
-
-bench-real:
-	@mix corpus.bench \
-		--sources $(BENCH_SOURCES) \
-		--max     $(BENCH_MAX) \
-		--rows    $(BENCH_ROWS) \
-		--seed    $(BENCH_SEED) \
-		--in-mode reseed \
-		--report  tmp/bench/real-README.md
+		--levels $(BENCH_LEVELS) \
+		$(if $(BENCH_REPORT),--report $(BENCH_REPORT))
 
 stop-backing-services:
 	@echo "Stopping local backing services (docker compose)..."
