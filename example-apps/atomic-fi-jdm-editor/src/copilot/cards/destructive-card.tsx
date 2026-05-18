@@ -22,6 +22,28 @@ export const DestructiveCard: React.FC<DestructiveCardProps> = ({
   const [confirmText, setConfirmText] = useState('');
   const decided = status === 'complete';
   const ready = confirmText.trim() === filename;
+
+  // Same idempotency + stale-respond defense as PreviewCard. See that file
+  // for the full explanation of CK's per-action serialization.
+  const appliedRef = React.useRef(false);
+  const onApplyRef = React.useRef(onApply);
+  const onRejectRef = React.useRef(onReject);
+  React.useEffect(() => {
+    onApplyRef.current = onApply;
+  }, [onApply]);
+  React.useEffect(() => {
+    onRejectRef.current = onReject;
+  }, [onReject]);
+  const guardedApply = React.useCallback(() => {
+    if (appliedRef.current) return;
+    appliedRef.current = true;
+    onApplyRef.current();
+  }, []);
+  const guardedReject = React.useCallback(() => {
+    if (appliedRef.current) return;
+    appliedRef.current = true;
+    onRejectRef.current();
+  }, []);
   return (
     <Card
       size="small"
@@ -36,7 +58,7 @@ export const DestructiveCard: React.FC<DestructiveCardProps> = ({
       className="my-2"
     >
       <div className="text-sm">{warning}</div>
-      {!decided && (
+      {!decided && status === 'executing' && (
         <>
           <div className="mt-2 text-xs">
             Type <code className="font-mono">{filename}</code> to confirm:
@@ -49,14 +71,17 @@ export const DestructiveCard: React.FC<DestructiveCardProps> = ({
             placeholder={filename}
           />
           <div className="flex justify-end gap-2 mt-3">
-            <Button size="small" icon={<CloseOutlined />} onClick={onReject}>
+            <Button size="small" icon={<CloseOutlined />} onClick={guardedReject}>
               Cancel
             </Button>
-            <Button size="small" danger type="primary" icon={<DeleteOutlined />} disabled={!ready} onClick={onApply}>
+            <Button size="small" danger type="primary" icon={<DeleteOutlined />} disabled={!ready} onClick={guardedApply}>
               Delete
             </Button>
           </div>
         </>
+      )}
+      {!decided && status !== 'executing' && (
+        <div className="mt-2 text-xs text-ink-muted">queued — waiting for previous tool to finish…</div>
       )}
     </Card>
   );

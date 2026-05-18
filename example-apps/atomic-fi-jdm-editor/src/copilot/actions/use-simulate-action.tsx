@@ -20,26 +20,47 @@ export function useSimulateAction(args: Args): void {
   useCopilotAction({
     name: 'simulate_rule',
     description:
-      'Run the last saved version of the current rule against a JSON context. The trace lands in last_simulation on the next turn.',
+      'Run the last saved version of the current rule against a JSON context. ' +
+      "Pass the context as a JSON-ENCODED STRING in the `context_json` argument — small models drop nested-object args. " +
+      'The trace lands in last_simulation on the next turn.',
     parameters: [
       {
-        name: 'context',
-        type: 'object',
+        name: 'context_json',
+        type: 'string',
         required: true,
         description:
-          'JSON context matching rule_engine_payload_schema. Use only fields present in the schema readable.',
+          'REQUIRED. A JSON-ENCODED STRING describing a non-empty context object that matches rule_engine_payload_schema. ' +
+          'Example value (note the OUTER quotes — this is a string, not an object): ' +
+          '"{\\"account_holder\\": {\\"kyc_status\\": \\"approved\\"}}". ' +
+          "Do NOT pass an object directly — small LLMs drop nested-object args. Always JSON.stringify the context yourself before passing.",
       },
     ],
     renderAndWaitForResponse: ({ args: a, status, respond }) => {
+      // Surface the raw tool-call args so we can see exactly what the LLM
+      // sent. Saved us at least once already (the "{trace:true}" mystery).
+      // eslint-disable-next-line no-console
+      console.log('[copilot] simulate_rule raw args:', a);
       const parsed = SimulateRuleArgsSchema.safeParse(a);
       if (!parsed.success) {
+        // Surface the issue plainly so the user knows what to ask the agent
+        // for, and feed the reason back to the LLM so it self-corrects.
+        const reason = parsed.error.issues
+          .map((iss) => `${iss.path.join('.') || '<root>'}: ${iss.message}`)
+          .join('; ');
         return (
           <PersistCard
-            title="simulate_rule — invalid args"
+            title="simulate_rule — missing context"
             status={status as 'inProgress' | 'executing' | 'complete'}
             sideEffectLabel="Acknowledge"
-            summary={<span>{parsed.error.message}</span>}
-            onApply={() => respond?.({ accepted: false, reason: parsed.error.message })}
+            summary={
+              <span>
+                Cannot simulate: <code className="font-mono">{reason}</code>. The agent must pass a
+                concrete <code className="font-mono">context</code> object (e.g.{' '}
+                <code className="font-mono">{'{ "account_holder": { "kyc_status": "approved" } }'}</code>
+                ) — not an empty body.
+              </span>
+            }
+            onApply={() => respond?.({ accepted: false, reason })}
             onReject={() => respond?.({ accepted: false, reason: 'Rejected by user' })}
           />
         );
@@ -56,6 +77,7 @@ export function useSimulateAction(args: Args): void {
                 : `Evaluate ${filename} against the provided context.`}
             </span>
           }
+          diff={JSON.stringify(parsed.data.context, null, 2)}
           onApply={async () => {
             try {
               const sim = await runSimulation({
