@@ -37,12 +37,16 @@ defmodule AtomicFi.TransactionContext do
   # Associations preloaded before handing the transaction to the rule engine, so it
   # can evaluate the full entity tree (debtor/creditor payment accounts + counterparties
   # + the account holder) and resolve the leaf ledger accounts in play.
+  #
+  # LegalEntity + its addresses are preloaded on every party — rules over residency
+  # / geo-sanctions (scenario #15 etc.) read `<party>.legal_entity.country_of_residence`,
+  # which `AtomicFi.RuleEngine.Payload` derives from the primary residential address.
   @rule_engine_preloads [
-    :account_holder,
-    :debtor_counterparty,
-    :creditor_counterparty,
-    debtor_payment_account: :account_holder,
-    creditor_payment_account: :account_holder
+    account_holder: [legal_entity: [:addresses]],
+    debtor_counterparty: [legal_entity: [:addresses]],
+    creditor_counterparty: [legal_entity: [:addresses]],
+    debtor_payment_account: [account_holder: [legal_entity: [:addresses]]],
+    creditor_payment_account: [account_holder: [legal_entity: [:addresses]]]
   ]
 
   @doc """

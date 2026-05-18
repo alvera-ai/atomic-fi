@@ -29,6 +29,8 @@ defmodule AtomicFi.RuleEngine.Payload do
   alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.LedgerAccountContext
   alias AtomicFi.LedgerAccountContext.LedgerAccount
+  alias AtomicFi.LegalEntityContext.LegalEntity
+  alias AtomicFi.LegalEntityContext.LegalEntityAddress
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.SessionContext.Session
   alias AtomicFi.TransactionContext
@@ -82,8 +84,8 @@ defmodule AtomicFi.RuleEngine.Payload do
       account_holder: ah_payload(session, transaction.account_holder, transaction.id),
       debtor_payment_account: pa_payload(session, transaction.debtor_payment_account),
       creditor_payment_account: pa_payload(session, transaction.creditor_payment_account),
-      debtor_counterparty: map_entity(transaction.debtor_counterparty),
-      creditor_counterparty: map_entity(transaction.creditor_counterparty)
+      debtor_counterparty: party_with_residence(transaction.debtor_counterparty),
+      creditor_counterparty: party_with_residence(transaction.creditor_counterparty)
     }
   end
 
@@ -101,7 +103,7 @@ defmodule AtomicFi.RuleEngine.Payload do
       |> Enum.map(&map_entity/1)
 
     ah
-    |> ExOpenApiUtils.Mapper.to_map()
+    |> party_with_residence()
     |> Map.put("recent_debits_24h", debits)
   end
 
@@ -109,13 +111,56 @@ defmodule AtomicFi.RuleEngine.Payload do
   defp map_entity(nil), do: nil
   defp map_entity(struct), do: ExOpenApiUtils.Mapper.to_map(struct)
 
+  # Projects `country_of_residence` onto the party's nested `legal_entity` map,
+  # derived from the LE's primary residential address (falling back to the LE's
+  # `citizenship_country` when no primary residential address is loaded).
+  # The flat key keeps JDM `legal_entity.country_of_residence` expressions
+  # legible — JDM cell expressions don't filter on nested arrays cleanly.
+  defp party_with_residence(%Ecto.Association.NotLoaded{}), do: nil
+  defp party_with_residence(nil), do: nil
+
+  defp party_with_residence(party)
+       when is_struct(party, AccountHolder) or is_struct(party, Counterparty) do
+    map = ExOpenApiUtils.Mapper.to_map(party)
+
+    case party.legal_entity do
+      %LegalEntity{} = le ->
+        country = country_of_residence(le)
+        Map.update(map, "legal_entity", nil, &Map.put(&1, "country_of_residence", country))
+
+      _ ->
+        map
+    end
+  end
+
+  defp country_of_residence(%LegalEntity{addresses: addresses, citizenship_country: cc}) do
+    case primary_residential_address(addresses) do
+      %LegalEntityAddress{country: country} when is_binary(country) -> country
+      _ -> cc
+    end
+  end
+
+  defp primary_residential_address(%Ecto.Association.NotLoaded{}), do: nil
+
+  defp primary_residential_address(addresses) when is_list(addresses) do
+    Enum.find(addresses, fn
+      %LegalEntityAddress{primary: true, address_types: types} ->
+        is_list(types) and "residential" in types
+
+      _ ->
+        false
+    end)
+  end
+
+  defp primary_residential_address(_), do: nil
+
   defp pa_payload(_session, %Ecto.Association.NotLoaded{}), do: nil
   defp pa_payload(_session, nil), do: nil
 
   defp pa_payload(session, %PaymentAccount{} = pa) do
     pa
     |> ExOpenApiUtils.Mapper.to_map()
-    |> Map.put("account_holder", map_entity(pa.account_holder))
+    |> Map.put("account_holder", party_with_residence(pa.account_holder))
     |> Map.put("las", build_las(session, pa))
     |> Map.put("compliance_screenings", build_compliance_screenings(session, pa))
   end

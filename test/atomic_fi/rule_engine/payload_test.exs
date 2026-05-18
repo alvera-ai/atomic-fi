@@ -4,17 +4,20 @@ defmodule AtomicFi.RuleEngine.PayloadTest do
   alias AtomicFi.RuleEngine.Payload
   alias AtomicFi.TransactionContext.Transaction
 
+  alias AtomicFi.LegalEntityContext.LegalEntityAddress
+  alias AtomicFi.Repo
+
   # Mirrors TransactionContext.@rule_engine_preloads — the production txn flow
   # preloads this exact shape before handing the entity tree to the rule engine.
   # `las` and `compliance_screenings` are NOT preloaded — Payload queries them
   # fresh from each PA at build time (rule-engine-internal projections, not
   # part of the public PA schema).
   @preloads [
-    :account_holder,
-    :debtor_counterparty,
-    :creditor_counterparty,
-    debtor_payment_account: :account_holder,
-    creditor_payment_account: :account_holder
+    account_holder: [legal_entity: [:addresses]],
+    debtor_counterparty: [legal_entity: [:addresses]],
+    creditor_counterparty: [legal_entity: [:addresses]],
+    debtor_payment_account: [account_holder: [legal_entity: [:addresses]]],
+    creditor_payment_account: [account_holder: [legal_entity: [:addresses]]]
   ]
 
   describe "from_transaction/1 — payload nodes the rule engine reads" do
@@ -130,6 +133,58 @@ defmodule AtomicFi.RuleEngine.PayloadTest do
       # screening list — its choice. Both paths must work.
       assert creditor["account_holder"]["kyc_status"] == "in_progress"
       assert debtor["account_holder"]["kyc_status"] == "approved"
+    end
+
+    test "projects country_of_residence on account_holder.legal_entity from primary residential address (scenario #15)",
+         %{tenant: tenant, session: session} do
+      ah = insert(:account_holder, tenant_id: tenant.id, kyc_status: :approved)
+
+      le =
+        insert(:legal_entity,
+          tenant_id: tenant.id,
+          account_holder_id: ah.id,
+          citizenship_country: "US"
+        )
+
+      # Primary residential address in KP — the scenario #15 trigger
+      Repo.insert!(%LegalEntityAddress{
+        tenant_id: tenant.id,
+        legal_entity_id: le.id,
+        address_types: ["residential"],
+        primary: true,
+        line1: "1 Kim Il-sung Square",
+        locality: "Pyongyang",
+        country: "KP"
+      })
+
+      # Non-primary mailing address in a clean country — must NOT override KP
+      Repo.insert!(%LegalEntityAddress{
+        tenant_id: tenant.id,
+        legal_entity_id: le.id,
+        address_types: ["mailing"],
+        primary: false,
+        line1: "1 Mailing Drop",
+        locality: "Honolulu",
+        country: "US"
+      })
+
+      txn = %Transaction{
+        tenant_id: tenant.id,
+        account_holder_id: ah.id,
+        transaction_type: :credit_transfer,
+        currency: "USD",
+        amount: 5_000
+      }
+
+      txn = Repo.preload(txn, @preloads, skip_multi_tenancy_check: true)
+
+      payload = Payload.from_transaction(session, txn)
+
+      assert payload.account_holder["legal_entity"]["country_of_residence"] == "KP",
+             "country_of_residence must derive from the primary residential address"
+
+      # Existing citizenship_country stays addressable (different concept)
+      assert payload.account_holder["legal_entity"]["citizenship_country"] == "US"
     end
 
     test "transaction node remains addressable for input fields like transaction_type",

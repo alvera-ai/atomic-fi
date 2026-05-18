@@ -54,8 +54,24 @@ Backed by `lib/atomic_fi/account_holder_context/account_holder.ex`.
 | `account_holder.holder_type`        | enum    | `"individual"`, `"business"`, `"trust"`, `"nonprofit"`                  |
 | `account_holder.status`             | enum    | `"pending"`, `"active"`, `"suspended"`, `"closed"`, `"flagged"`        |
 | `account_holder.kyc_status`         | enum    | `"not_started"`, `"in_progress"`, `"approved"`, `"rejected"`, `"expired"` |
-| `account_holder.risk_level`         | enum    | `"low"`, `"medium"`, `"high"`, `"very_high"`                           |
+| `account_holder.risk_level`         | enum    | `"low"`, `"medium"`, `"high"`, `"very_high"`, `"prohibited"`           |
 | `account_holder.enabled_currencies` | string[]| e.g. `["USD","EUR"]`                                                   |
+
+### account_holder.legal_entity
+
+The AH's identity record (ISO 20022 acmt:007). Preloaded on every party in the rule-engine context.
+
+| Field path                                          | Type    | Notes                                                                  |
+|-----------------------------------------------------|---------|------------------------------------------------------------------------|
+| `account_holder.legal_entity.legal_entity_type`     | enum    | `"individual"`, `"business"`                                            |
+| `account_holder.legal_entity.first_name`            | string  | Individuals only                                                        |
+| `account_holder.legal_entity.last_name`             | string  | Individuals only                                                        |
+| `account_holder.legal_entity.business_name`         | string  | Businesses only                                                         |
+| `account_holder.legal_entity.citizenship_country`   | string  | ISO 3166-1 alpha-2 (e.g. `"US"`, `"KP"`)                                |
+| `account_holder.legal_entity.country_of_residence`  | string  | **Projection.** ISO 3166-1 alpha-2 derived from the LE's primary residential address; falls back to `citizenship_country` when no primary residential address is loaded. Read this for residency-band rules (scenario #15). |
+| `account_holder.legal_entity.politically_exposed_person` | bool | FATF PEP flag                                                           |
+
+The same `legal_entity.*` shape applies to `debtor_counterparty.legal_entity` and `creditor_counterparty.legal_entity`.
 
 ## debtor_payment_account / creditor_payment_account
 
