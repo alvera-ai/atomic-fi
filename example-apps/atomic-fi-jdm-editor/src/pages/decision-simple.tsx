@@ -8,6 +8,7 @@ import { useBlocker, useNavigate, useParams, useSearchParams } from 'react-route
 
 import { CopilotSidebar } from '@copilotkit/react-ui';
 
+import { ApplyAllFooter } from '../copilot/cards/apply-all-footer';
 import { displayError, errorMessage } from '../helpers/error-message';
 import { getRule, listRules, RULE_TYPES, RULE_TYPE_LABELS, type RuleType, saveRule } from '../helpers/rules-api';
 import { runSimulation } from '../helpers/simulator';
@@ -183,6 +184,7 @@ export const DecisionSimplePage: React.FC = () => {
         }}
         instructions=""
       />
+      <ApplyAllFooter />
       <header
         className="flex items-center justify-between px-6 py-3 border-b border-rule"
         style={{ background: token.colorBgLayout }}

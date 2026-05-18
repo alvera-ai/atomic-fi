@@ -2,6 +2,8 @@ import React from 'react';
 import { Button, Card, Tag } from 'antd';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
 
+import { registerPending } from './apply-all-footer';
+
 export type PreviewCardProps = {
   title: string;
   status: 'inProgress' | 'executing' | 'complete';
@@ -22,6 +24,10 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({
   applyLabel = 'Apply',
 }) => {
   const decided = status === 'complete';
+  React.useEffect(() => {
+    if (status === 'complete') return;
+    return registerPending(onApply);
+  }, [status, onApply]);
   return (
     <Card
       size="small"
