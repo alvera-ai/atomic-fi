@@ -12,25 +12,26 @@ type NodeBindings = {
 
 export function createApp(): Hono<{ Bindings: NodeBindings }> {
   const { runtime, serviceAdapter, provider } = buildRuntime();
+  // Build the Yoga-backed Node http handler once per app instance, not per
+  // request — the factory does non-trivial setup (graphql schema, plugins).
+  const handler = copilotRuntimeNodeHttpEndpoint({
+    endpoint: '/api/copilotkit',
+    runtime,
+    serviceAdapter,
+  });
   const app = new Hono<{ Bindings: NodeBindings }>();
 
   app.get('/healthz', (c) => c.json({ ok: true, provider }));
 
   // CopilotKit's Node http endpoint reads + writes the raw Node streams.
   // We hand it `c.env.incoming` and `c.env.outgoing` from @hono/node-server,
-  // then return a never-resolving Response so Hono doesn't try to also
-  // write to `outgoing`. The endpoint itself terminates the response.
+  // then return a Response carrying the `x-hono-already-sent` sentinel so
+  // @hono/node-server's listener skips its own writeHead/end — the Yoga
+  // handler has already finished writing to `outgoing` (including SSE chunks
+  // for streaming chat completions).
   app.all('/api/copilotkit', async (c) => {
-    const handler = copilotRuntimeNodeHttpEndpoint({
-      endpoint: '/api/copilotkit',
-      runtime,
-      serviceAdapter,
-    });
-    // @hono/node-server exposes the raw Node req/res via `c.env.incoming`
-    // and `c.env.outgoing`. The Yoga server adapter's `.handle(req, res)`
-    // overload writes directly to the Node response and resolves when done.
     await handler.handle(c.env.incoming, c.env.outgoing);
-    return new Response(null, { status: 200 });
+    return new Response(null, { headers: { 'x-hono-already-sent': 'true' } });
   });
 
   return app;
