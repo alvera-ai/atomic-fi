@@ -40,7 +40,8 @@ defmodule AtomicFi.TransactionContext do
   #
   # LegalEntity + its addresses are preloaded on every party — rules over residency
   # / geo-sanctions (scenario #15 etc.) read `<party>.legal_entity.country_of_residence`,
-  # which `AtomicFi.RuleEngine.Payload` derives from the primary residential address.
+  # which `AtomicFi.RuleEngine.build_payload/2` carries onto the party via
+  # `legal_entity.addresses[]` (the rule walks the array directly).
   #
   # `beneficial_owners` is preloaded on every party that can carry UBOs (AH +
   # CP) — rules over corporate-AH UBO disclosure (FinCEN CDD §1010.230, scenario
@@ -77,7 +78,7 @@ defmodule AtomicFi.TransactionContext do
   rejected transactions — rejected attempts don't move money and so
   don't count toward structuring/velocity aggregates.
 
-  Used by `AtomicFi.RuleEngine.Payload.from_transaction/2` to surface
+  Used by `AtomicFi.RuleEngine.build_payload/2` to surface
   a recent-debit projection that BSA §5324 (anti-structuring) rules
   can window over. `exclude_id` skips a specific transaction — the
   payload builder passes the current transaction's id so the row

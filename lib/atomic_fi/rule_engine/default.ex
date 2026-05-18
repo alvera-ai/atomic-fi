@@ -1,25 +1,28 @@
 defmodule AtomicFi.RuleEngine.Default do
   @moduledoc """
-  Default `AtomicFi.RuleEngine` impl — evaluates every rule under
-  `rule_type` against the entity by POSTing to the GoRules Agent
-  (ZenRule). Returns the raw per-rule outputs as a list; folding into
-  one effective control map is `AtomicFi.RuleEngine.apply_rules/3`'s
-  job, not this module's.
+  Default `AtomicFi.RuleEngine` impl — the JDM transport step.
 
-  Per-rule flow:
+  `AtomicFi.RuleEngine` (the common layer) owns payload assembly, rule
+  discovery, fan-out, and folding. This module's sole responsibility is
+  evaluating one `(project, decision, payload)` tuple against the
+  GoRules Agent (ZenRule) over HTTP and decoding the response into one
+  `rule_result`.
 
-    1. List every JDM file under the rule_type's folder via
-       `AtomicFi.RulesContext.list_rules/2` (ZenRule auto-loads the
-       same directory).
-    2. For each rule, POST to
-       `<base_url>/api/projects/<project>/evaluate/<rule_name>` with
-       the entity's payload (`AtomicFi.RuleEngine.Payload.from_entity/2`).
-    3. Decode each response into
+  Per-call flow:
+
+    1. POST to `<base_url>/api/projects/<project>/evaluate/<decision>`
+       with the prepared payload.
+    2. Decode the JDM output into
        `%{controls: %{la_id => Control}, next_screening_at: dt | nil}`.
 
   Rules whose output has no `ledger_accounts` map decode to empty
   controls + a logged warning (catches rules drifting from the
   expected output shape).
+
+  Swapping this impl (e.g. an in-process NIF) only requires
+  implementing `evaluate/4` — every other concern (rule listing,
+  parallel fan-out, payload assembly, fold) stays in
+  `AtomicFi.RuleEngine`.
   """
 
   @behaviour AtomicFi.RuleEngine
@@ -29,44 +32,21 @@ defmodule AtomicFi.RuleEngine.Default do
 
   alias AtomicFi.RuleEngine
   alias AtomicFi.RuleEngine.Control
-  alias AtomicFi.RuleEngine.Payload
-  alias AtomicFi.RulesContext
   alias AtomicFi.SessionContext.Session
   alias AtomicFi.ZenRule.Client
   alias Ecto.Changeset
 
   @impl AtomicFi.RuleEngine
-  @spec get_controls(Session.t(), RuleEngine.rule_type(), struct()) ::
-          {:ok, [RuleEngine.rule_result()]} | {:error, term()}
-  def_with_rls_and_logging get_controls(session, rule_type, entity), log_fields: [:rule_type] do
-    Logger.info(
-      "[rule_engine] get_controls rule_type=#{inspect(rule_type)} entity=#{inspect(entity.__struct__)}"
-    )
-
-    with {:ok, names} <- RulesContext.list_rules(session, rule_type),
-         _ = Logger.info("[rule_engine] rules listed: #{inspect(names)}") do
-      base_url = base_url()
-      project = RulesContext.project_name(rule_type)
-      context = Payload.from_entity(session, entity)
-
-      Enum.reduce_while(names, {:ok, []}, fn name, {:ok, acc} ->
-        case evaluate_one(base_url, project, name, context) do
-          {:ok, rule_result} -> {:cont, {:ok, [rule_result | acc]}}
-          {:error, _} = err -> {:halt, err}
-        end
-      end)
-      |> case do
-        {:ok, results} -> {:ok, Enum.reverse(results)}
-        err -> err
-      end
-    end
-  end
-
-  defp evaluate_one(base_url, project, decision, context) do
+  @spec evaluate(Session.t(), String.t(), String.t(), RuleEngine.payload()) ::
+          {:ok, RuleEngine.rule_result()} | {:error, term()}
+  def_with_rls_and_logging evaluate(session, project, decision, payload),
+    log_fields: [:project, :decision] do
+    _ = session
+    base_url = base_url()
     Logger.info("[rule_engine] POST #{base_url} project=#{project} decision=#{decision}")
     t0 = System.monotonic_time(:millisecond)
 
-    case Client.evaluate(base_url, project, decision, context) do
+    case Client.evaluate(base_url, project, decision, payload) do
       {:ok, result} ->
         Logger.info(
           "[rule_engine] evaluate #{decision} OK in #{System.monotonic_time(:millisecond) - t0}ms"

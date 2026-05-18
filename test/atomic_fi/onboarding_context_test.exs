@@ -39,8 +39,8 @@ defmodule AtomicFi.OnboardingContextTest do
       ah = build_ah(session)
       future = DateTime.add(DateTime.utc_now(), 3600, :second)
 
-      stub(RuleEngineMock, :get_controls, fn _session, :onboarding, _entity ->
-        {:ok, [%{controls: %{}, next_screening_at: future}]}
+      stub(RuleEngineMock, :evaluate, fn _session, _project, _decision, _payload ->
+        {:ok, %{controls: %{}, next_screening_at: future}}
       end)
 
       # Seed an initial rescreen_job_id via a first onboard.
@@ -136,8 +136,8 @@ defmodule AtomicFi.OnboardingContextTest do
       ah = build_ah(session)
       future = DateTime.add(DateTime.utc_now(), 3600, :second)
 
-      stub(RuleEngineMock, :get_controls, fn _session, :onboarding, _entity ->
-        {:ok, [%{controls: %{}, next_screening_at: future}]}
+      stub(RuleEngineMock, :evaluate, fn _session, _project, _decision, _payload ->
+        {:ok, %{controls: %{}, next_screening_at: future}}
       end)
 
       assert {:ok, updated} = OnboardingContext.onboard(session, ah)
@@ -148,7 +148,7 @@ defmodule AtomicFi.OnboardingContextTest do
     test "engine error path propagates", %{session: session} do
       ah = build_ah(session)
 
-      stub(RuleEngineMock, :get_controls, fn _session, :onboarding, _entity ->
+      stub(RuleEngineMock, :evaluate, fn _session, _project, _decision, _payload ->
         {:error, :engine_unreachable}
       end)
 

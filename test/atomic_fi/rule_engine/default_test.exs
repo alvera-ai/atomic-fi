@@ -2,7 +2,7 @@ defmodule AtomicFi.RuleEngine.DefaultTest do
   use AtomicFi.DataCase, async: true
 
   alias AtomicFi.RuleEngine
-  alias AtomicFi.RuleEngine.{Control, Default}
+  alias AtomicFi.RuleEngine.Control
   alias AtomicFi.TransactionContext.Transaction
 
   # These tests drive the live ZenRule agent (http://localhost:8090) against
@@ -13,28 +13,14 @@ defmodule AtomicFi.RuleEngine.DefaultTest do
   # Combined, the two rule_types exercise the full decoder surface of
   # AtomicFi.RuleEngine.Default plus the public fold in AtomicFi.RuleEngine:
   #
-  #   • Default.get_controls returns one rule_result per rule under rule_type
+  #   • Default.evaluate/4 — one HTTP call → one decoded rule_result
   #   • decode_rule_result/1 with ledger_accounts payload
   #   • decode_controls_map/1 fold + decode_control/1 cast
-  #   • RuleEngine.apply_rules + effective_control + fold across rules
+  #   • RuleEngine.apply_rules orchestration: rule listing + parallel
+  #     fan-out + effective_control + fold across rules
   #   • decode_next_screening_at/1 for nil, valid ISO, and bad ISO
   #   • earliest/2 inside fold (one rule has a date, another nil)
   #   • {:error, _} halt path when a decoder errors
-
-  describe "Default.get_controls/3 — raw per-rule list" do
-    test "returns a list with one rule_result per rule that fired",
-         %{session: session} do
-      transaction = %Transaction{tenant_id: session.tenant_id}
-
-      assert {:ok, results} = Default.get_controls(session, :test_fixtures_good, transaction)
-      assert is_list(results)
-      # test-fixtures-good ships 4 rules (happy_caps, second_rule,
-      # early_screening, with_next_screening)
-      assert length(results) == 4
-      assert Enum.all?(results, &Map.has_key?(&1, :controls))
-      assert Enum.all?(results, &Map.has_key?(&1, :next_screening_at))
-    end
-  end
 
   describe "RuleEngine.apply_rules/3 — test-fixtures-good (happy path)" do
     test "merges 3 rules: tighter caps + adds slots + earliest next_screening_at",
