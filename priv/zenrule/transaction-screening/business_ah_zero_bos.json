@@ -1,0 +1,30 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": { "x": 100, "y": 160 }
+    },
+    {
+      "id": "ubo_gate",
+      "type": "functionNode",
+      "name": "Business AH UBO Gate",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "source": "/**\n * FinCEN CDD beneficial owner gate (Corporate Transparency Act;\n * 31 CFR §1010.380).\n *\n * Scenario #27 of guides/use-cases.md: a business AccountHolder with\n * kyc_status='approved' but ZERO disclosed beneficial owners may not\n * originate a payment. Individual / trust / nonprofit AHs are out of\n * scope of §1010.380 and pass through unchanged.\n *\n * Reads `debtor_payment_account.account_holder.account_holder_type`\n * and `.beneficial_owners[]` (preloaded by\n * `AccountHolderContext.@preloads` and serialized to the rule engine\n * via the standard public OpenAPI mapper — no payload-layer scaffolding).\n *\n * When the originating AH is `business` and `beneficial_owners` is\n * empty, emits a blocked Control per LedgerAccount on the debtor side.\n * cap=0 + is_blocked=true converts to status='rejected' with\n * rejected_rule='business_ah_zero_bos' at limits-at-entry time.\n */\nexport const handler = async (input) => {\n  const debtor = input.debtor_payment_account;\n  if (!debtor) return { ledger_accounts: {} };\n\n  const ah = debtor.account_holder;\n  if (!ah) return { ledger_accounts: {} };\n\n  if (ah.account_holder_type !== 'business') {\n    return { ledger_accounts: {} };\n  }\n\n  const bos = ah.beneficial_owners || [];\n  if (bos.length > 0) return { ledger_accounts: {} };\n\n  const las = debtor.las || [];\n  const ledger_accounts = {};\n  for (const la of las) {\n    ledger_accounts[la.id] = {\n      daily_debit_cap: 0,\n      daily_credit_cap: 0,\n      reason: 'business_ah_zero_bos',\n      block_reason: 'business_ah_zero_bos',\n      is_blocked: true\n    };\n  }\n  return { ledger_accounts };\n};\n"
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": { "x": 700, "y": 160 }
+    }
+  ],
+  "edges": [
+    { "id": "edge_request_ubo", "type": "edge", "sourceId": "request", "targetId": "ubo_gate" },
+    { "id": "edge_ubo_response", "type": "edge", "sourceId": "ubo_gate", "targetId": "response" }
+  ]
+}

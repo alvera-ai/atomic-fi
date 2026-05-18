@@ -50,11 +50,13 @@ defmodule Mix.Tasks.Corpus.Validate do
 
   alias AtomicFi.AccountHolderContext
   alias AtomicFi.AccountHolderContext.AccountHolder
+  alias AtomicFi.BeneficialOwnerContext
   alias AtomicFi.Config
   alias Ecto.Adapters.SQL
   alias AtomicFi.CounterpartyContext
   alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.OpenApiSchema.AccountHolderRequest
+  alias AtomicFi.OpenApiSchema.BeneficialOwnerRequest
   alias AtomicFi.OpenApiSchema.CounterpartyRequest
   alias AtomicFi.OpenApiSchema.PaymentAccountRequest
   alias AtomicFi.OpenApiSchema.TransactionRequest
@@ -98,6 +100,7 @@ defmodule Mix.Tasks.Corpus.Validate do
 
     ah_seed = read_ndjson(corpus_path, "account_holders.ndjson")
     cp_seed = read_ndjson(corpus_path, "counterparties.ndjson")
+    bo_seed = read_ndjson(corpus_path, "beneficial_owners.ndjson")
     pa_seed = read_ndjson(corpus_path, "payment_accounts.ndjson")
     tx_seed = read_ndjson(corpus_path, "transactions.ndjson")
 
@@ -107,7 +110,7 @@ defmodule Mix.Tasks.Corpus.Validate do
       "→ fanning out across #{concurrency} VU(s) (k6 model — each VU runs the seed scenario with its own id prefix)"
     )
 
-    vu_outputs = run_vus(session, concurrency, ah_seed, cp_seed, pa_seed, tx_seed)
+    vu_outputs = run_vus(session, concurrency, ah_seed, cp_seed, bo_seed, pa_seed, tx_seed)
 
     rows = reduce_vu_outputs(vu_outputs)
     all_timings = Enum.flat_map(vu_outputs, & &1)
@@ -270,6 +273,40 @@ defmodule Mix.Tasks.Corpus.Validate do
     end)
   end
 
+  defp insert_beneficial_owners(session, rows) do
+    Enum.each(rows, fn row ->
+      ext_id = row["external_id"]
+      ah_ext = Map.fetch!(row, "account_holder_external_id")
+      ah = fetch_by_external_id!(session, AccountHolder, ah_ext)
+
+      request =
+        row
+        |> Map.drop(["account_holder_external_id"])
+        |> Map.put("account_holder_id", ah.id)
+        |> Map.put("chain_screening", false)
+        |> stamp_tenant(session.tenant_id)
+        |> to_request(BeneficialOwnerRequest)
+
+      case BeneficialOwnerContext.get_beneficial_owner_by_external_id(session, ext_id) do
+        nil ->
+          Mix.shell().info("   BO #{ext_id} [create]")
+
+          case BeneficialOwnerContext.create_beneficial_owner(session, request) do
+            {:ok, _bo} -> :ok
+            {:error, reason} -> Mix.raise("BO create failed for #{ext_id}: #{inspect(reason)}")
+          end
+
+        existing ->
+          Mix.shell().info("   BO #{ext_id} [update]")
+
+          case BeneficialOwnerContext.update_beneficial_owner(session, existing, request) do
+            {:ok, _bo} -> :ok
+            {:error, reason} -> Mix.raise("BO update failed for #{ext_id}: #{inspect(reason)}")
+          end
+      end
+    end)
+  end
+
   defp insert_payment_accounts(session, rows) do
     Enum.each(rows, fn row ->
       ext_id = row["external_id"]
@@ -328,18 +365,20 @@ defmodule Mix.Tasks.Corpus.Validate do
   # The reduce step strips the prefix and asserts every VU produced an
   # identical actual for the same logical txn; divergence between VUs
   # surfaces as a mismatch (catches non-determinism).
-  defp run_vus(session, concurrency, ah_seed, cp_seed, pa_seed, tx_seed) do
+  defp run_vus(session, concurrency, ah_seed, cp_seed, bo_seed, pa_seed, tx_seed) do
     0..(concurrency - 1)
     |> Task.async_stream(
       fn vu ->
         prefix = vu_prefix(vu)
         ah = Enum.map(ah_seed, &prefix_external_ids(&1, prefix))
         cp = Enum.map(cp_seed, &prefix_external_ids(&1, prefix))
+        bo = Enum.map(bo_seed, &prefix_external_ids(&1, prefix))
         pa = Enum.map(pa_seed, &prefix_external_ids(&1, prefix))
         tx = Enum.map(tx_seed, &prefix_external_ids(&1, prefix))
 
         insert_account_holders(session, ah)
         insert_counterparties(session, cp)
+        insert_beneficial_owners(session, bo)
         insert_payment_accounts(session, pa)
 
         Enum.map(tx, fn row ->

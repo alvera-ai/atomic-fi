@@ -15,6 +15,7 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
 
   * `id` - UUID primary key
   * `account_holder_id` - FK to the corporate AccountHolder being examined
+  * `external_id` - Upstream ID (Stripe/JPMC/Moov / corpus fixture key), unique per tenant
   * `legal_entity` - 1:1 identity record (LE carries the FK back via `legal_entities.beneficial_owner_id`)
   * `ownership_pct` - Ownership percentage (≥25% triggers FinCEN CDD)
   * `control_type` - `shareholder` | `director` | `officer` | `trustee`
@@ -43,6 +44,8 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
     schema: %Schema{type: :string, format: :uuid},
     key: :account_holder_id
   )
+
+  open_api_property(schema: %Schema{type: :string, nullable: true}, key: :external_id)
 
   open_api_property(
     schema: %OpenApiSpex.Reference{"$ref": "#/components/schemas/LegalEntityRequest"},
@@ -123,6 +126,7 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
     properties: [
       :id,
       :account_holder_id,
+      :external_id,
       :legal_entity,
       :ownership_pct,
       :control_type,
@@ -159,6 +163,7 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
       values: [:pending, :verified, :failed],
       default: :pending
 
+    field :external_id, :string
     field :beneficial_owner_number, :string
 
     # Virtual: controls whether a compliance screening job is enqueued on create
@@ -179,6 +184,7 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
     beneficial_owner
     |> cast(attrs, [
       :account_holder_id,
+      :external_id,
       :ownership_pct,
       :control_type,
       :verification_status,
@@ -189,6 +195,9 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
     |> validate_required([:account_holder_id, :control_type, :tenant_id])
     |> validate_number(:ownership_pct, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
     |> AtomicFi.Identifier.put_default(:beneficial_owner_number, :bo)
+    |> unique_constraint([:external_id, :tenant_id],
+      name: :beneficial_owners_external_id_tenant_id_unique
+    )
     |> foreign_key_constraint(:account_holder_id)
     |> foreign_key_constraint(:tenant_id)
   end
