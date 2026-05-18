@@ -1,0 +1,8 @@
+{
+  "row_number": 11,
+  "rule_type": "transaction-screening",
+  "live_rule_path": "priv/zenrule/transaction-screening/ofac_sdn_match.json",
+  "live_corpus_path": "corpus/zen_rules/ofac_sdn_match/",
+  "promoted_in": "P3 (seed)",
+  "notes": "Seed promotion: filename predates slug convention. P5 may extend."
+}

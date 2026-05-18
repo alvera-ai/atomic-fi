@@ -1,0 +1,3 @@
+{"external_id":"ofac-ah-sender","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"Alice","last_name":"Cleanperson"}}
+{"external_id":"ofac-ah-clean-recipient","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"John","last_name":"Tester"}}
+{"external_id":"ofac-ah-putin-recipient","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"Vladimir","last_name":"Putin"}}

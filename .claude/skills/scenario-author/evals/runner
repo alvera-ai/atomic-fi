@@ -1,0 +1,177 @@
+#!/usr/bin/env bash
+# scenario-author / evals / runner
+#
+# Scores the 10 golden scenarios from artifacts on disk. Pure file-system
+# inspection — does NOT invoke `mix corpus.validate`, the ZenRule agent,
+# or any backing service. Byte-stability across --concurrency 1 vs 8 is
+# verified separately in P9 (quality-gate); this runner is the fast,
+# CI-friendly summary of the committed golden tree.
+#
+# Inputs:
+#   evals/cases.csv         row_number,slug,rule_type,expected_verdict
+#   evals/golden/<slug>/    self-contained snapshot:
+#                             rule.json
+#                             account_holders.ndjson
+#                             counterparties.ndjson
+#                             payment_accounts.ndjson
+#                             transactions.ndjson
+#                             proof.md
+#                             .meta.json                (optional: live paths)
+#                             .human_edits_needed       (optional sidecar)
+#
+# Output:
+#   evals/eval.json   per-row {row_number, slug, gates, pass} + a summary
+#
+# Exit codes:
+#   0  every row pass=true
+#   1  one or more rows fail
+#   2  missing dependency (jq) or malformed inputs
+#
+# Usage:
+#   .claude/skills/scenario-author/evals/runner
+#   .claude/skills/scenario-author/evals/runner --out /tmp/eval.json
+#   .claude/skills/scenario-author/evals/runner --quiet
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+EVALS_DIR="$SCRIPT_DIR"
+GOLDEN_DIR="$EVALS_DIR/golden"
+CASES_CSV="$EVALS_DIR/cases.csv"
+
+OUT="$EVALS_DIR/eval.json"
+QUIET=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --out)    OUT="$2"; shift 2 ;;
+    --quiet)  QUIET=1; shift ;;
+    -h|--help)
+      sed -n '2,30p' "$0"
+      exit 0
+      ;;
+    *)
+      echo "error: unknown arg '$1'" >&2
+      exit 2
+      ;;
+  esac
+done
+
+command -v jq >/dev/null 2>&1 || { echo "error: jq required" >&2; exit 2; }
+[[ -f "$CASES_CSV" ]] || { echo "error: cases.csv not found at $CASES_CSV" >&2; exit 2; }
+
+log() { [[ "$QUIET" -eq 1 ]] || printf '%s\n' "$*" >&2; }
+
+# Score one row. Echoes a single-line JSON object.
+score_row() {
+  local row_number="$1" slug="$2" rule_type="$3" expected_verdict="$4"
+
+  local golden_slug_dir="$GOLDEN_DIR/$slug"
+  local rule_file="$golden_slug_dir/rule.json"
+  local proof_file="$golden_slug_dir/proof.md"
+  local edits_flag="$golden_slug_dir/.human_edits_needed"
+
+  local notes=""
+  local rule_compiles=false
+  local corpus_validates=false
+  local human_edits_needed=false
+
+  # Gate 1 — rule_compiles
+  if [[ -f "$rule_file" ]] && jq -e '
+       (.nodes | length) >= 3 and
+       (.nodes | map(.type) | contains(["inputNode","outputNode"]))
+     ' "$rule_file" >/dev/null 2>&1; then
+    rule_compiles=true
+  else
+    notes="${notes}rule_missing_or_malformed; "
+  fi
+
+  # Gate 2 — corpus_validates
+  # mix corpus.validate emits a markdown report with a "| mismatch | N |"
+  # row in the outcomes table. Pass requires N=0 AND at least one match.
+  if [[ -f "$proof_file" ]]; then
+    if grep -qE '^\| mismatch \| 0 \|' "$proof_file" 2>/dev/null \
+       && grep -qE '^\| match \| [1-9][0-9]* \|' "$proof_file" 2>/dev/null; then
+      corpus_validates=true
+    else
+      notes="${notes}proof_shows_mismatches_or_no_matches; "
+    fi
+  else
+    notes="${notes}proof_missing; "
+  fi
+
+  # Gate 3 — human_edits_needed (sidecar)
+  if [[ -f "$edits_flag" ]]; then
+    human_edits_needed=true
+  fi
+
+  local pass=false
+  if $rule_compiles && $corpus_validates && ! $human_edits_needed; then
+    pass=true
+  fi
+
+  jq -nc \
+    --argjson row_number "$row_number" \
+    --arg slug "$slug" \
+    --arg rule_type "$rule_type" \
+    --arg expected_verdict "$expected_verdict" \
+    --argjson rule_compiles "$rule_compiles" \
+    --argjson corpus_validates "$corpus_validates" \
+    --argjson human_edits_needed "$human_edits_needed" \
+    --argjson pass "$pass" \
+    --arg notes "$notes" \
+    '{
+       row_number: $row_number,
+       slug: $slug,
+       rule_type: $rule_type,
+       expected_verdict: $expected_verdict,
+       gates: {
+         rule_compiles: $rule_compiles,
+         corpus_validates: $corpus_validates,
+         human_edits_needed: $human_edits_needed
+       },
+       pass: $pass,
+       notes: $notes
+     }'
+}
+
+log "scenario-author evals — reading $CASES_CSV"
+
+rows_json="$(mktemp)"
+trap 'rm -f "$rows_json"' EXIT
+
+: > "$rows_json"
+
+tail -n +2 "$CASES_CSV" | while IFS=, read -r row_number slug rule_type expected_verdict; do
+  [[ -z "$row_number" ]] && continue
+  score_row "$row_number" "$slug" "$rule_type" "$expected_verdict" >> "$rows_json"
+done
+
+pass_count=$(jq -s '[.[] | select(.pass)] | length' "$rows_json")
+fail_count=$(jq -s '[.[] | select(.pass | not)] | length' "$rows_json")
+total=$(jq -s 'length' "$rows_json")
+
+jq -s --argjson pass "$pass_count" --argjson fail "$fail_count" --argjson total "$total" '
+  {
+    rows: .,
+    summary: { pass: $pass, fail: $fail, total: $total }
+  }
+' "$rows_json" > "$OUT"
+
+log "→ $OUT"
+log "summary: pass=$pass_count fail=$fail_count total=$total"
+
+if [[ "$QUIET" -ne 1 ]]; then
+  jq -r '.rows[] | [
+    .row_number, .slug,
+    (.gates.rule_compiles      | if . then "✓" else "✗" end),
+    (.gates.corpus_validates   | if . then "✓" else "✗" end),
+    (.gates.human_edits_needed | if . then "edits" else "clean" end),
+    (.pass                     | if . then "PASS" else "FAIL" end)
+  ] | @tsv' "$OUT" >&2
+fi
+
+if [[ "$fail_count" -gt 0 ]]; then
+  exit 1
+fi
+exit 0
