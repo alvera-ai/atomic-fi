@@ -138,7 +138,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       Keyword.merge(
         [
           beneficial_owner_id: bo.id,
-          subject_type: :beneficial_owner,
+          subject_type: :account_holder_beneficial_owner,
           account_holder_id: account_holder_id,
           tenant_id: tenant_id
         ],

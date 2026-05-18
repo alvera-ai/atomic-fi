@@ -518,7 +518,7 @@ defmodule AtomicFiApi.BeneficialOwnerControllerTest do
 
     insert(:legal_entity,
       beneficial_owner_id: beneficial_owner.id,
-      subject_type: :beneficial_owner,
+      subject_type: :account_holder_beneficial_owner,
       account_holder_id: account_holder.id,
       tenant_id: platform_tenant.id
     )

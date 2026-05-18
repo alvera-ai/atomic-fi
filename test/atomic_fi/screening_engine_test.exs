@@ -73,7 +73,7 @@ defmodule AtomicFi.ScreeningEngineTest do
       Keyword.merge(
         [
           beneficial_owner_id: bo.id,
-          subject_type: :beneficial_owner,
+          subject_type: :account_holder_beneficial_owner,
           account_holder_id: bo.account_holder_id,
           tenant_id: session.tenant_id
         ],

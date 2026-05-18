@@ -3,7 +3,8 @@ defmodule AtomicFi.Factory.BeneficialOwnerFactory do
   Factory for BeneficialOwner context schemas.
 
   BeneficialOwner owns no FK to LegalEntity — LE carries the FK back via
-  `legal_entities.beneficial_owner_id` (subject_type = :beneficial_owner).
+  `legal_entities.beneficial_owner_id`, with subject_type ∈
+  {`:account_holder_beneficial_owner`, `:counterparty_beneficial_owner`}.
   This factory only inserts the BO; no LE is cascaded. `legal_entity` is
   initialised to `nil` so `bo.legal_entity` reads don't trip on the
   `%Ecto.Association.NotLoaded{}` sentinel before hydration. Tests that

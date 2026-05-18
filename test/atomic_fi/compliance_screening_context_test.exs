@@ -832,7 +832,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
       bo_legal_entity =
         insert(:legal_entity,
           tenant_id: session.tenant_id,
-          subject_type: :beneficial_owner,
+          subject_type: :account_holder_beneficial_owner,
           account_holder_id: account_holder.id,
           beneficial_owner_id: beneficial_owner.id,
           first_name: "Clara",

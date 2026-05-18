@@ -177,6 +177,21 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
       foreign_key: :account_holder_id,
       where: [subject_type: :account_holder]
 
+    # FinCEN CDD §1010.230 / Corporate Transparency Act beneficial owners
+    # of this AccountHolder. Walked through the AH's BO-LE rows: an LE
+    # whose `subject_type = :account_holder_beneficial_owner` and whose
+    # `account_holder_id = ah.id` points (via `beneficial_owner_id`) at
+    # the BO row itself. The `:counterparty_beneficial_owner` variant —
+    # BOs of one of this AH's Counterparties — lives on the Counterparty
+    # schema (`Counterparty.has_many :beneficial_owners`), so this assoc
+    # never bleeds CP-side BOs into AH-side compliance.
+    has_many :account_holder_beneficial_owner_legal_entities, LegalEntity,
+      foreign_key: :account_holder_id,
+      where: [subject_type: :account_holder_beneficial_owner]
+
+    has_many :beneficial_owners,
+      through: [:account_holder_beneficial_owner_legal_entities, :beneficial_owner]
+
     field :external_id, :string
 
     field :account_holder_type, Ecto.Enum, values: [:individual, :business, :trust, :nonprofit]

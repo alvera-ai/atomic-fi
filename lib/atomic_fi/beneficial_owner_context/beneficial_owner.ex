@@ -138,8 +138,18 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
   typed_schema "beneficial_owners" do
     belongs_to :account_holder, AccountHolder
 
-    # 1:1 identity. LE carries the FK back via `legal_entities.beneficial_owner_id`.
-    has_one :legal_entity, LegalEntity, foreign_key: :beneficial_owner_id
+    # 1:1 identity. LE carries the FK back via `legal_entities.beneficial_owner_id`,
+    # which is non-null only on BO-owned LEs (subject_type ∈
+    # {`:account_holder_beneficial_owner`, `:counterparty_beneficial_owner`}).
+    # `where:` matches both BO variants — the LE's subject_type still
+    # records which parent (AH or CP) the BO sits under, and the
+    # `legal_entities_subject_fk_consistency` CHECK constraint keeps the
+    # (subject_type, parent-FK presence) tuple coherent.
+    has_one :legal_entity, LegalEntity,
+      foreign_key: :beneficial_owner_id,
+      where: [
+        subject_type: {:in, [:account_holder_beneficial_owner, :counterparty_beneficial_owner]}
+      ]
 
     field :ownership_pct, :float
 

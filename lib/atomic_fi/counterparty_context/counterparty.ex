@@ -134,8 +134,26 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
     belongs_to :account_holder, AccountHolder
 
     # 1:1 identity. LE carries the FK back via `legal_entities.counterparty_id`.
-    # No `where:` filter — `counterparty_id` is non-null only on CP-owned LEs.
-    has_one :legal_entity, LegalEntity, foreign_key: :counterparty_id
+    # `where:` filter is required: CP-BO LEs (subject_type
+    # `:counterparty_beneficial_owner`) also stamp `counterparty_id` for
+    # the host-CP rollup, so without the filter Ecto would non-determi-
+    # nistically match the CP's own identity LE or one of its BO LEs.
+    has_one :legal_entity, LegalEntity,
+      foreign_key: :counterparty_id,
+      where: [subject_type: :counterparty]
+
+    # FinCEN CDD §1010.230 / Corporate Transparency Act beneficial owners
+    # of this Counterparty. Walked through the CP's BO-LE rows: an LE
+    # whose `subject_type = :counterparty_beneficial_owner` and whose
+    # `counterparty_id = cp.id` points (via `beneficial_owner_id`) at the
+    # BO row itself. AH-side BOs live on the AccountHolder schema and
+    # never bleed into CP-side compliance.
+    has_many :counterparty_beneficial_owner_legal_entities, LegalEntity,
+      foreign_key: :counterparty_id,
+      where: [subject_type: :counterparty_beneficial_owner]
+
+    has_many :beneficial_owners,
+      through: [:counterparty_beneficial_owner_legal_entities, :beneficial_owner]
 
     field :status, Ecto.Enum, values: [:active, :suspended, :blocked], default: :active
 
