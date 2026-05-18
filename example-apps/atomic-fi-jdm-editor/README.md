@@ -59,3 +59,20 @@ Modifications from upstream (`gorules/editor` @ pinned SHA):
 
 Upstream `gorules/editor` is MIT (see `LICENSE`). Our modifications are
 distributed under the parent atomic-fi license.
+
+## AI rule copilot
+
+The editor includes an AI sidebar (CopilotKit) on the rule-edit route
+(`/rules/:ruleType/:name`). It needs a sidecar runtime:
+
+```bash
+# In a separate terminal:
+cp example-apps/jdm-copilot-runtime/.env.example example-apps/jdm-copilot-runtime/.env.local
+# edit OPENAI_API_KEY (or set LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY)
+pnpm --filter @atomic-fi/jdm-copilot-runtime dev
+```
+
+The sidecar listens on `:4111`. The editor's Vite proxy forwards
+`/api/copilotkit` to it.
+
+Design notes: `docs/superpowers/specs/2026-05-18-copilotkit-rules-design.md`.

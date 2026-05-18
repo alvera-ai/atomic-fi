@@ -463,6 +463,24 @@ mix compile --warnings-as-errors
 
 ---
 
+## AI rule copilot (optional)
+
+The JDM editor at `example-apps/atomic-fi-jdm-editor` includes an
+AI-powered rule authoring sidebar. To enable it, run the sidecar
+runtime in a separate terminal:
+
+```bash
+cp example-apps/jdm-copilot-runtime/.env.example example-apps/jdm-copilot-runtime/.env.local
+# Edit OPENAI_API_KEY (default provider) or set LLM_PROVIDER=anthropic + ANTHROPIC_API_KEY.
+pnpm --filter @atomic-fi/jdm-copilot-runtime dev
+```
+
+The editor proxies `/api/copilotkit` → `:4111` automatically. See
+`docs/superpowers/specs/2026-05-18-copilotkit-rules-design.md` for the
+full design.
+
+---
+
 ## Technology Stack
 
 | Layer | Technology |
