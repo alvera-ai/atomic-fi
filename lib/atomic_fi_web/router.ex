@@ -1,5 +1,6 @@
 defmodule AtomicFiWeb.Router do
   use AtomicFiWeb, :router
+  import Lotus.Web.Router
 
   # Browser pipeline for web pages (including Scalar UI)
   pipeline :browser do
@@ -9,6 +10,22 @@ defmodule AtomicFiWeb.Router do
     plug :put_root_layout, {AtomicFiWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
+  end
+
+  # Lotus embed pipeline — iframe-friendly (no X-Frame-Options)
+  pipeline :lotus_embed do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug :fetch_live_flash
+    plug :put_root_layout, {AtomicFiWeb.Layouts, :root}
+    plug :protect_from_forgery
+
+    plug :put_secure_browser_headers, %{
+      "x-frame-options" => "",
+      "content-security-policy" => ""
+    }
+
+    plug AtomicFiWeb.Plugs.EmbedTokenAuth
   end
 
   # API pipeline for JSON endpoints (includes OpenAPI spec)
@@ -40,6 +57,13 @@ defmodule AtomicFiWeb.Router do
   # Delegate API routes (uses routes.ex macro)
   scope "/" do
     use AtomicFiApi.Routes
+  end
+
+  # Lotus dashboard — authenticated via embed token in query param
+  scope "/" do
+    pipe_through :lotus_embed
+
+    lotus_dashboard("/lotus")
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

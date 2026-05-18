@@ -108,5 +108,19 @@ config :oapi_generator,
     ]
   ]
 
+# LotusRepo — same DB, no RLS enforcement (Lotus needs unscoped schema access)
+config :atomic_fi, AtomicFi.LotusRepo,
+  username: "postgres",
+  password: "postgres",
+  hostname: "localhost",
+  database: "atomic_fi_dev",
+  pool_size: 5
+
 # Import OpenAPI server configuration
 import_config "openapi_servers.#{config_env()}.exs"
+
+# Import dev secrets (API keys, etc.) — not checked into version control.
+# Copy config/dev.secret.exs.example to config/dev.secret.exs and fill in values.
+if File.exists?(Path.expand("dev.secret.exs", __DIR__)) do
+  import_config "dev.secret.exs"
+end

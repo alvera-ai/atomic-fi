@@ -64,6 +64,15 @@ config :atomic_fi, AtomicFi.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: 10
 
+# LotusRepo — same DB, no RLS enforcement (Lotus needs unscoped schema access)
+config :atomic_fi, AtomicFi.LotusRepo,
+  username: "postgres",
+  password: "postgres",
+  hostname: "localhost",
+  database: "atomic_fi_test#{System.get_env("MIX_TEST_PARTITION")}",
+  pool: Ecto.Adapters.SQL.Sandbox,
+  pool_size: 5
+
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :atomic_fi, AtomicFiWeb.Endpoint,
