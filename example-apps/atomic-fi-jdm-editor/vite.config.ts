@@ -16,6 +16,11 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      // CopilotKit runtime sidecar (LLM broker).
+      '/api/copilotkit': {
+        target: 'http://localhost:4111',
+        changeOrigin: true,
+      },
       // ZenRule agent (unauthenticated, hot-reloads JDM files).
       // Evaluate: POST /api/projects/<rule_type>/evaluate/<name>.json
       '/api/projects': {
