@@ -69,7 +69,7 @@ SAML_D_MANIFEST := $(CURDIR)/corpus/upstream/saml-d/manifest.json
 SAML_D_DIR := $(CORPUS_OUT)/saml-d
 SAML_D_RAW_CSV := $(SAML_D_DIR)/SAML-D.csv
 SAML_D_NDJSON := $(SAML_D_DIR)/saml_d.ndjson
-SAML_D_KAGGLE_DATASET := bostas/anti-money-laundering-transaction-data-saml-d
+SAML_D_KAGGLE_DATASET := berkanoztas/synthetic-transaction-monitoring-dataset-aml
 # RNG seed for the Python subset step; deterministic across reseeds.
 SAML_D_SEED ?= 0
 # Default subset size; override on the command line for larger runs.

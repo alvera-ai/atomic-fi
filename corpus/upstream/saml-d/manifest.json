@@ -2,7 +2,7 @@
   "source": "Oztas et al. 2023 — Synthetic AML Transaction Monitoring Dataset (SAML-D)",
   "paper": "https://ieeexplore.ieee.org/document/10374100",
   "repo": "https://github.com/BOztasUK/Anti_Money_Laundering_Transaction_Data_SAML-D",
-  "kaggle_dataset": "bostas/anti-money-laundering-transaction-data-saml-d",
+  "kaggle_dataset": "berkanoztas/synthetic-transaction-monitoring-dataset-aml",
   "license": "CC BY 4.0 (per Kaggle dataset license field)",
   "fetched_via": "kaggle CLI — `kaggle datasets download -d <kaggle_dataset>`",
   "fetched_ref": "v1 (Kaggle latest)",

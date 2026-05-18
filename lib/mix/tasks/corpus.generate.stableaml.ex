@@ -86,6 +86,8 @@ defmodule Mix.Tasks.Corpus.Generate.Stableaml do
           out: :string,
           emit_rule: :boolean,
           emit_corpus: :boolean,
+          emit_shards: :boolean,
+          shards: :integer,
           txns: :integer
         ]
       )
@@ -101,6 +103,17 @@ defmodule Mix.Tasks.Corpus.Generate.Stableaml do
       Keyword.get(opts, :emit_corpus, false) ->
         txns = Keyword.get(opts, :txns, 100)
         emit_corpus(rows, txns, seed)
+
+      Keyword.get(opts, :emit_shards, false) ->
+        out_dir =
+          opts[:out] ||
+            Mix.raise(
+              "--emit-shards requires --out <dir> (the sharded corpus root, outside repo)"
+            )
+
+        shards = Keyword.get(opts, :shards, 4)
+        txns = Keyword.get(opts, :txns, 100)
+        emit_shards(rows, %{out: out_dir, shards: shards, txns: txns, seed: seed})
 
       true ->
         wallets = parse_wallets(Keyword.get(opts, :wallets, "100"))
@@ -219,6 +232,141 @@ defmodule Mix.Tasks.Corpus.Generate.Stableaml do
 
     File.write!(@rule_path, Jason.encode!(jdm, pretty: true) <> "\n")
     Mix.shell().info("→ wrote #{length(wallets)} wallets into #{@rule_path}")
+  end
+
+  # ─── --emit-shards ───────────────────────────────────────────────────
+  #
+  # Produces K replicated shard folders under --out, each containing a
+  # full corpus (account_holders / counterparties / payment_accounts /
+  # transactions ndjson) prefixed with a shard-unique external_id
+  # namespace. Same logical workload as --emit-corpus, but laid out for
+  # `mix corpus.validate <out> --concurrency K` to run all shards in
+  # parallel as K independent VUs against the engine.
+  #
+  # --out is mandatory and is expected to live OUTSIDE the repo (e.g.
+  # under $CORPUS_OUT/sharded/stableaml/); committed corpora are in
+  # corpus/zen_rules/<slug>/ via --emit-corpus.
+
+  defp emit_shards(rows, %{out: out, shards: shards, txns: txns, seed: seed}) do
+    sanctioned = sample(rows, txns, seed)
+
+    AtomicFi.Corpus.Shard.emit(sanctioned,
+      out: out,
+      shards: shards,
+      mapper: &shard_mapper(&1, &2)
+    )
+  end
+
+  defp shard_mapper(sanctioned_rows, prefix) do
+    ah_lines = [
+      ah_row("#{prefix}ah-sender", "approved", "Alice", "Sender"),
+      ah_row("#{prefix}ah-clean", "approved", "Charlie", "Clean"),
+      ah_row("#{prefix}ah-in-progress", "in_progress", "Patty", "Pending")
+    ]
+
+    {cp_lines, pa_dyn_lines, txn_lines} = build_shard_buckets(sanctioned_rows, prefix)
+
+    pa_static_lines = [
+      pa_row("#{prefix}pa-sender", account_holder_external_id: "#{prefix}ah-sender"),
+      pa_row("#{prefix}pa-clean-recipient", account_holder_external_id: "#{prefix}ah-clean"),
+      pa_row("#{prefix}pa-in-progress-recipient",
+        account_holder_external_id: "#{prefix}ah-in-progress"
+      )
+    ]
+
+    %{
+      account_holders: ah_lines,
+      counterparties: cp_lines,
+      payment_accounts: pa_static_lines ++ pa_dyn_lines,
+      transactions: txn_lines
+    }
+  end
+
+  defp build_shard_buckets(sanctioned_rows, prefix) do
+    sanctioned_rows
+    |> Enum.with_index()
+    |> Enum.reduce({[], [], []}, fn {row, idx}, {cps, pas, txns} ->
+      bucket = rem(idx, 3)
+      slug = pad(idx)
+
+      case bucket do
+        0 ->
+          cp_ext = "#{prefix}cp-sanc-#{slug}"
+          pa_ext = "#{prefix}pa-sanc-#{slug}"
+          addr = String.downcase(row["wallet_address"])
+
+          cp = cp_row(cp_ext, "#{prefix}ah-sender", "Sanc-#{slug}", "Holder")
+
+          pa =
+            pa_row(pa_ext,
+              account_holder_external_id: "#{prefix}ah-sender",
+              counterparty_external_id: cp_ext,
+              account_type: "wallet",
+              wallet_address: addr,
+              wallet_chain: "ETH"
+            )
+
+          txn =
+            shard_txn_row("#{prefix}txn-#{slug}-sanc",
+              ah: "#{prefix}ah-sender",
+              debtor_pa: "#{prefix}pa-sender",
+              creditor_pa: pa_ext,
+              scenario: "sanctioned wallet #{addr} — BLOCK",
+              expected_status: "rejected",
+              expected_rule: "stableaml_wallet_blocklist"
+            )
+
+          {[cp | cps], [pa | pas], [txn | txns]}
+
+        1 ->
+          txn =
+            shard_txn_row("#{prefix}txn-#{slug}-kyc",
+              ah: "#{prefix}ah-sender",
+              debtor_pa: "#{prefix}pa-sender",
+              creditor_pa: "#{prefix}pa-in-progress-recipient",
+              scenario: "recipient kyc=in_progress — de_minimis BLOCK",
+              expected_status: "rejected",
+              expected_rule: "stablecoin_block_unverified"
+            )
+
+          {cps, pas, [txn | txns]}
+
+        2 ->
+          txn =
+            shard_txn_row("#{prefix}txn-#{slug}-clean",
+              ah: "#{prefix}ah-sender",
+              debtor_pa: "#{prefix}pa-sender",
+              creditor_pa: "#{prefix}pa-clean-recipient",
+              scenario: "clean wallet + approved kyc — PASS",
+              expected_status: "accepted",
+              expected_rule: nil
+            )
+
+          {cps, pas, [txn | txns]}
+      end
+    end)
+    |> then(fn {cps, pas, txns} -> {Enum.reverse(cps), Enum.reverse(pas), Enum.reverse(txns)} end)
+  end
+
+  defp shard_txn_row(ext, opts) do
+    Jason.encode!(%{
+      "external_id" => ext,
+      "transaction_type" => "internal_transfer",
+      "amount" => 12_000,
+      "currency" => "USD",
+      "account_holder_external_id" => Keyword.fetch!(opts, :ah),
+      "debtor_payment_account_external_id" => Keyword.fetch!(opts, :debtor_pa),
+      "creditor_payment_account_external_id" => Keyword.fetch!(opts, :creditor_pa),
+      "_label" => %{
+        "regime" => "ofac",
+        "cite" => "31 CFR §501.404 + GENIUS §4(a)(5)",
+        "scenario" => Keyword.fetch!(opts, :scenario)
+      },
+      "_expected" => %{
+        "status" => Keyword.fetch!(opts, :expected_status),
+        "rejected_rule" => Keyword.fetch!(opts, :expected_rule)
+      }
+    })
   end
 
   # ─── --emit-corpus ───────────────────────────────────────────────────

@@ -98,24 +98,46 @@ defmodule Mix.Tasks.Corpus.Validate do
     session = build_system_session()
     AtomicFi.BlocklistContext.BlocklistCache.refresh_tenant_cache(session.tenant_id)
 
-    ah_seed = read_ndjson(corpus_path, "account_holders.ndjson")
-    cp_seed = read_ndjson(corpus_path, "counterparties.ndjson")
-    bo_seed = read_ndjson(corpus_path, "beneficial_owners.ndjson")
-    pa_seed = read_ndjson(corpus_path, "payment_accounts.ndjson")
-    tx_seed = read_ndjson(corpus_path, "transactions.ndjson")
+    shard_dirs = discover_shards(corpus_path)
 
-    concurrency = Keyword.get(opts, :concurrency, 1)
+    {seed_dir_for_report, vu_outputs, all_timings, rows} =
+      if shard_dirs == [] do
+        # Classic single-folder corpus (hand-authored scenario fixture
+        # under corpus/zen_rules/<slug>/). VU fan-out via id prefix.
+        ah_seed = read_ndjson(corpus_path, "account_holders.ndjson")
+        cp_seed = read_ndjson(corpus_path, "counterparties.ndjson")
+        bo_seed = read_ndjson(corpus_path, "beneficial_owners.ndjson")
+        pa_seed = read_ndjson(corpus_path, "payment_accounts.ndjson")
+        tx_seed = read_ndjson(corpus_path, "transactions.ndjson")
 
-    Mix.shell().info(
-      "→ fanning out across #{concurrency} VU(s) (k6 model — each VU runs the seed scenario with its own id prefix)"
-    )
+        concurrency = Keyword.get(opts, :concurrency, 1)
 
-    vu_outputs = run_vus(session, concurrency, ah_seed, cp_seed, bo_seed, pa_seed, tx_seed)
+        Mix.shell().info(
+          "→ fanning out across #{concurrency} VU(s) (k6 model — each VU runs the seed scenario with its own id prefix)"
+        )
 
-    rows = reduce_vu_outputs(vu_outputs)
-    all_timings = Enum.flat_map(vu_outputs, & &1)
+        vu_outputs = run_vus(session, concurrency, ah_seed, cp_seed, bo_seed, pa_seed, tx_seed)
+        timings = Enum.flat_map(vu_outputs, & &1)
+        rows = reduce_vu_outputs(vu_outputs)
+        {corpus_path, vu_outputs, timings, rows}
+      else
+        # Sharded corpus — each shard-* subdir is a complete corpus
+        # with its own external_id namespace; run them in parallel as K
+        # independent VUs (the per-shard prefixing already disambiguates
+        # ids across shards).
+        Mix.shell().info(
+          "→ found #{length(shard_dirs)} shard folder(s); running them in parallel as K VUs"
+        )
 
-    report = render_markdown(corpus_path, rows)
+        outputs = run_shards(session, shard_dirs)
+        timings = Enum.flat_map(outputs, & &1)
+        rows = reduce_vu_outputs(outputs)
+        {corpus_path, outputs, timings, rows}
+      end
+
+    _ = vu_outputs
+
+    report = render_markdown(seed_dir_for_report, rows)
 
     case opts[:out] do
       nil ->
@@ -132,6 +154,44 @@ defmodule Mix.Tasks.Corpus.Validate do
     if Enum.any?(rows, &(&1.status in [:mismatch, :engine_error, :setup_error])) do
       System.at_exit(fn _ -> exit({:shutdown, 1}) end)
     end
+  end
+
+  # Discover `shard-*` subdirectories under a parent corpus path. Returns
+  # `[]` when none are present (signals classic single-folder mode).
+  defp discover_shards(corpus_path) do
+    corpus_path
+    |> File.ls!()
+    |> Enum.filter(&String.starts_with?(&1, "shard-"))
+    |> Enum.map(&Path.join(corpus_path, &1))
+    |> Enum.filter(&File.dir?/1)
+    |> Enum.sort()
+  end
+
+  # Run each shard folder as its own VU. Each shard is already prefixed
+  # for id-uniqueness across shards (mix corpus.generate.<src> takes care
+  # of this), so no in-memory prefixing happens here.
+  defp run_shards(session, shard_dirs) do
+    shard_dirs
+    |> Task.async_stream(
+      fn shard_dir ->
+        ah = read_ndjson(shard_dir, "account_holders.ndjson")
+        cp = read_ndjson(shard_dir, "counterparties.ndjson")
+        bo = read_ndjson(shard_dir, "beneficial_owners.ndjson")
+        pa = read_ndjson(shard_dir, "payment_accounts.ndjson")
+        tx = read_ndjson(shard_dir, "transactions.ndjson")
+
+        insert_account_holders(session, ah)
+        insert_counterparties(session, cp)
+        insert_beneficial_owners(session, bo)
+        insert_payment_accounts(session, pa)
+
+        Enum.map(tx, fn row -> validate_transaction(session, row) end)
+      end,
+      max_concurrency: max(length(shard_dirs), 1),
+      ordered: true,
+      timeout: :infinity
+    )
+    |> Enum.map(fn {:ok, rows} -> rows end)
   end
 
   # ───────────────────────────── schema isolation ─────────────────────
