@@ -11,9 +11,7 @@ export function makeOpenAIAdapter(opts: { model?: string }): OpenAIAdapter {
   }
   const openai = new OpenAI({ apiKey });
   return new OpenAIAdapter({
-    // Cast: @copilotkit/runtime is compiled against a newer openai SDK than the
-    // one pinned here; runtime shape is compatible.
-    openai: openai as never,
+    openai,
     model: opts.model ?? 'gpt-4o-mini',
   });
 }
