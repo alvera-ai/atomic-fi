@@ -135,8 +135,15 @@ defmodule AtomicFi.RuleEngine.PayloadTest do
       assert debtor["account_holder"]["kyc_status"] == "approved"
     end
 
-    test "projects country_of_residence on account_holder.legal_entity from primary residential address (scenario #15)",
+    test "exposes account_holder.legal_entity.addresses[] so rules can derive residency (scenario #15)",
          %{tenant: tenant, session: session} do
+      # Sentinel: scenario #15 (`ah_country_kp_residence`) reads
+      # `debtor_payment_account.account_holder.legal_entity.addresses[]`,
+      # picks the row with `primary = true` and `address_types` containing
+      # `'residential'`, and reads its `country`. The payload contract is
+      # that those address rows survive Mapper.to_map untouched, with both
+      # the `primary` flag and the `address_types` array intact — and that
+      # the LE's `citizenship_country` stays addressable as the fallback.
       ah = insert(:account_holder, tenant_id: tenant.id, kyc_status: :approved)
 
       le =
@@ -180,10 +187,24 @@ defmodule AtomicFi.RuleEngine.PayloadTest do
 
       payload = Payload.from_transaction(session, txn)
 
-      assert payload.account_holder["legal_entity"]["country_of_residence"] == "KP",
-             "country_of_residence must derive from the primary residential address"
+      addresses = payload.account_holder["legal_entity"]["addresses"]
+      assert is_list(addresses) and length(addresses) == 2
 
-      # Existing citizenship_country stays addressable (different concept)
+      residential =
+        Enum.find(addresses, fn a ->
+          a["primary"] == true and is_list(a["address_types"]) and
+            "residential" in a["address_types"]
+        end)
+
+      assert residential != nil,
+             "the primary residential address row must survive to the payload"
+
+      assert residential["country"] == "KP",
+             "country must be readable on the primary residential address row"
+
+      # Fallback path: rules drop back to citizenship_country when no
+      # primary residential address is on file. citizenship_country
+      # must stay addressable on the LE map.
       assert payload.account_holder["legal_entity"]["citizenship_country"] == "US"
     end
 
