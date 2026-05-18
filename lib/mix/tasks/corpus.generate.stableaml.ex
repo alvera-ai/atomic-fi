@@ -144,7 +144,7 @@ defmodule Mix.Tasks.Corpus.Generate.Stableaml do
      * edit by hand. Re-run after `make reseed-stableaml` when the upstream
      * sha changes. The sanctioned-wallet set is the Category-1 slice of
      * FINOS Labs StableAML — OFAC-listed, SEC-flagged, Tether/Circle-frozen
-     * addresses. See test/support/upstream/stableaml/manifest.json for the
+     * addresses. See corpus/upstream/stableaml/manifest.json for the
      * pinned upstream sha256.
      *
      * Maps to use-cases.md scenario #34 — sending stablecoin to an OFAC-
