@@ -1,0 +1,42 @@
+meta {
+  name: 008 — Create receiver #2 payment account
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/payment-accounts
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("rPaExternalId", `SMURF-PA-RCV-2-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{rPaExternalId}}",
+    "account_type": "wallet",
+    "currency": "USD",
+    "account_holder_id": "{{receiverAhId2}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("receiverPaId2", res.body.id);
+}
+
+assert {
+  res.status: eq 201
+}

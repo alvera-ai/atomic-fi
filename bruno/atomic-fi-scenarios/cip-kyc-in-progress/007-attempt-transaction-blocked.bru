@@ -1,0 +1,53 @@
+meta {
+  name: 007 — Attempt transaction (asserts BLOCK)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/transactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "transaction_type": "internal_transfer",
+    "amount": 2500,
+    "currency": "USD",
+    "account_holder_id": "{{senderAhId}}",
+    "debtor_payment_account_id": "{{senderPaId}}",
+    "creditor_payment_account_id": "{{receiverPaId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Attempt the transfer while the sender's KYC is still in_progress.
+
+  The rule engine fans out across all transaction-screening rules; the
+  `cip_kyc_not_approved` rule reads `account_holder.kyc_status` and,
+  finding anything other than `approved`, returns a BLOCK control.
+
+  Expected response:
+    - `status: rejected`
+    - `rejected_rule: "cip_kyc_not_approved"`
+
+  This is the BSA §326 gate firing — funds cannot move until the
+  customer's identity has been verified.
+}
+
+assert {
+  res.status: eq 201
+  res.body.status: eq rejected
+  res.body.rejected_rule: eq cip_kyc_not_approved
+}

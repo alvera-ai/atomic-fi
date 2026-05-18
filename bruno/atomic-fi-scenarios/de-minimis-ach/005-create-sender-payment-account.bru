@@ -1,0 +1,55 @@
+meta {
+  name: 005 — Create sender payment account
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/payment-accounts
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("senderPaExternalId", `DEMI-PA-SENDER-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{senderPaExternalId}}",
+    "account_type": "bank_account",
+    "currency": "USD",
+    "account_number": "000123456789",
+    "routing_number": "121000358",
+    "bank_name": "Demo Bank",
+    "account_holder_id": "{{senderAhId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("senderPaId", res.body.id);
+}
+
+docs {
+  ACH-style funding account for the sender. `account_type: bank_account`
+  with US routing + account numbers — the canonical ACH origination
+  surface. AtomicFi's ledger creates the matching internal LedgerAccount
+  pair on this POST so the transaction call later can post double-entry
+  debit/credit lines atomically.
+}
+
+assert {
+  res.status: eq 201
+  res.body.id: matches ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+  res.body.account_type: eq bank_account
+}

@@ -1,0 +1,46 @@
+meta {
+  name: 008 — Second sub-CTR debit (still passes — 1 prior)
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/transactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "transaction_type": "internal_transfer",
+    "amount": 9500,
+    "currency": "USD",
+    "account_holder_id": "{{senderAhId}}",
+    "debtor_payment_account_id": "{{senderPaId}}",
+    "creditor_payment_account_id": "{{receiverPaId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Second debit, same shape. One prior sub-CTR debit on record;
+  the rule's threshold is ≥2 priors, so this one still passes. The
+  pattern is forming but hasn't yet crossed into structuring.
+
+  Expected:
+    - `status: accepted`
+}
+
+assert {
+  res.status: eq 201
+  res.body.status: eq accepted
+}

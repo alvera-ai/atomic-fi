@@ -1,0 +1,45 @@
+meta {
+  name: 005 — Create sender payment account (USDC wallet)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/payment-accounts
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("senderPaExternalId", `MIXER-PA-SENDER-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{senderPaExternalId}}",
+    "account_type": "crypto_wallet",
+    "currency": "USD",
+    "wallet_address": "0xab5801a7d398351b8be11c439e05c5b3259aec9b",
+    "wallet_chain": "ETH",
+    "account_holder_id": "{{senderAhId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("senderPaId", res.body.id);
+}
+
+assert {
+  res.status: eq 201
+  res.body.account_type: eq crypto_wallet
+}

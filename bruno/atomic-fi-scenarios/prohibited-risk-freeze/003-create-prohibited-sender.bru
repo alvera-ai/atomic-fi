@@ -1,0 +1,72 @@
+meta {
+  name: 003 — Create sender with risk_level=prohibited
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("senderExternalId", `PR-AH-SENDER-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{senderExternalId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "prohibited",
+    "enabled_currencies": ["USD"],
+    "chain_screening": false,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Carol",
+      "last_name": "Prohibited",
+      "date_of_birth": "1975-08-30",
+      "citizenship_country": "US",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("senderAhId", res.body.id);
+}
+
+docs {
+  Scenario #10 — prohibited risk freeze (FREEZE, modelled as BLOCK).
+
+  Cite: 31 CFR §1010.230 — customer due diligence rule (CDD); plus
+  internal policy / lawful-order context (e.g., a court order or
+  internal compliance freeze).
+
+  The account holder is fully identified (KYC approved) but compliance
+  has classified them as `risk_level: prohibited`. This is the lever a
+  bank pulls when an account must remain on-platform (for audit /
+  investigation purposes) but no funds may move.
+
+  The `prohibited_risk_freeze` rule reads `account_holder.risk_level`
+  and emits BLOCK whenever the value is `:prohibited` — regardless of
+  amount, counterparty, or any other signal.
+}
+
+assert {
+  res.status: eq 201
+  res.body.risk_level: eq prohibited
+}

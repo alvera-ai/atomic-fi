@@ -1,0 +1,58 @@
+meta {
+  name: 008 — Correct the residence address (sender moved to US)
+  type: http
+  seq: 8
+}
+
+put {
+  url: {{baseUrl}}/api/account-holders/{{senderAhId}}/legal-entity
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "legal_entity_type": "individual",
+    "first_name": "Kim",
+    "last_name": "Pyongyang",
+    "date_of_birth": "1985-06-15",
+    "citizenship_country": "KP",
+    "politically_exposed_person": false,
+    "addresses": [
+      {
+        "address_types": ["residential"],
+        "primary": true,
+        "country": "US",
+        "line_1": "123 Main St",
+        "city": "Seattle",
+        "tenant_id": "{{tenantId}}"
+      }
+    ],
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Customer notifies compliance of a change in residence — they have
+  relocated from DPRK to the United States. Ops updates the LE
+  address via the standard `PUT /:id/legal-entity` endpoint; nested
+  `addresses[]` is `cast_assoc(on_replace: :delete)` so the KP entry
+  is removed and the US entry takes its place atomically.
+
+  Citizenship country is preserved at KP — sanctions are residence-
+  based here, not citizenship-based.
+}
+
+assert {
+  res.status: eq 200
+  res.body.addresses[0].country: eq US
+}

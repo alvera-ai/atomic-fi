@@ -1,0 +1,49 @@
+meta {
+  name: 007 — First $9,500 debit (passes — 0 priors)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/transactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "transaction_type": "internal_transfer",
+    "amount": 9500,
+    "currency": "USD",
+    "account_holder_id": "{{senderAhId}}",
+    "debtor_payment_account_id": "{{senderPaId}}",
+    "creditor_payment_account_id": "{{receiverPaId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  First debit in the sub-CTR band the structuring rule watches
+  (amounts in the rule's 5000–9999-cent window — scaled for fixture
+  use; production values would be 500000–999999 cents = USD 5K–9.99K
+  matching the real CTR threshold). With zero prior debits in the
+  24-hour window, the rule sees a single innocent transaction and
+  returns no-action.
+
+  Expected:
+    - `status: accepted`
+}
+
+assert {
+  res.status: eq 201
+  res.body.status: eq accepted
+}

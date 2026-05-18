@@ -1,0 +1,43 @@
+meta {
+  name: 006 — Inspect receiver compliance screening
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/api/compliance-screenings?screened_entity_type=legal_entity&screening_type=sanctions
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  accept: application/json
+}
+
+script:post-response {
+  const items = res.body.items || res.body;
+  const flagged = items.find(s => (s.sanctions_matches || []).length > 0);
+  if (!flagged) {
+    throw new Error("Expected at least one sanctions screening with sanctions_matches[] populated.");
+  }
+  bru.setEnvVar("flaggedScreeningId", flagged.id);
+}
+
+docs {
+  Inspect the live screening artefact. The list filter narrows to
+  sanctions-type screenings on legal-entity subjects; the post-response
+  script picks the one with non-empty `sanctions_matches[]` and stashes
+  its id for the override call later.
+
+  In a real ops UI this is the panel an investigator sees: name,
+  screening_score, list of matched OFAC entities — enough context to
+  decide whether to clear the hit.
+}
+
+assert {
+  res.status: eq 200
+}

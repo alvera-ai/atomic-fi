@@ -1,0 +1,36 @@
+meta {
+  name: 005 — Refresh receiver (synchronous OFAC screen via Watchman)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders/{{receiverAhId}}/refresh
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  accept: application/json
+}
+
+docs {
+  `POST /:id/refresh` re-runs the onboarding screening pipeline
+  synchronously against the live Watchman container at :8084. Watchman
+  returns one or more SDN matches for "Vladimir Putin" with a fuzzy
+  score >=95. The platform writes a ComplianceScreening row with
+  `screening_type: sanctions` and child `SanctionsMatch` rows
+  capturing each hit (entity name, score, OFAC entity id).
+
+  Synchronous refresh removes the timing dependency on the async
+  worker that ran inside the create call; by the time this returns
+  200 we know the screening artefacts are in the database.
+}
+
+assert {
+  res.status: in [200, 202]
+}

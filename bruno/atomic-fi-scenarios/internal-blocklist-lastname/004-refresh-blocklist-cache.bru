@@ -1,0 +1,30 @@
+meta {
+  name: 004 — Refresh blocklist cache (pick up new entry)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/tenants/refresh-blocklist-cache
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  accept: application/json
+}
+
+docs {
+  Force the per-tenant `BlocklistCache` ETS table to reload from
+  `blocklist_entries`. In production Quantum refreshes hourly; for
+  this scenario we want the entry seeded at step 3 to be visible to
+  the next screening, so we trigger the refresh synchronously.
+}
+
+assert {
+  res.status: in [200, 204]
+}

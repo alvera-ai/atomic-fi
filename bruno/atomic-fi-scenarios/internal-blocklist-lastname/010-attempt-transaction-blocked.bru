@@ -1,0 +1,54 @@
+meta {
+  name: 010 — Attempt transaction (asserts BLOCK on internal blocklist)
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/transactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "transaction_type": "internal_transfer",
+    "amount": 2500,
+    "currency": "USD",
+    "account_holder_id": "{{senderAhId}}",
+    "debtor_payment_account_id": "{{senderPaId}}",
+    "creditor_payment_account_id": "{{receiverPaId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Attempt the transfer. The `internal_blocklist_lastname` rule walks
+  `creditor_payment_account.compliance_screenings[].blocklist_matches[]`,
+  finds the seeded entry (scope=last_name, term=Smurf), and emits
+  BLOCK.
+
+  Expected:
+    - `status: rejected`
+    - `rejected_rule: "internal_blocklist_lastname"`
+
+  Internal blocklist hits are distinct from OFAC SDN — different audit
+  trail (the entry is keyed to a compliance ops user/timestamp via
+  `added_by_id`), different remediation surface (the bank itself
+  decides when to deactivate the entry rather than waiting for OFAC).
+}
+
+assert {
+  res.status: eq 201
+  res.body.status: eq rejected
+  res.body.rejected_rule: eq internal_blocklist_lastname
+}

@@ -1,0 +1,67 @@
+meta {
+  name: 004 — Create receiver (name on OFAC SDN list)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("receiverExternalId", `OFAC-AH-SDN-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{receiverExternalId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "chain_screening": true,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Vladimir",
+      "last_name": "Putin",
+      "date_of_birth": "1952-10-07",
+      "citizenship_country": "RU",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("receiverAhId", res.body.id);
+}
+
+docs {
+  Receiver carries a name that exact-matches a record on the live OFAC
+  SDN list (Vladimir Putin is in the OFAC sample dataset Watchman ships
+  with). `chain_screening: true` schedules the async screen — by the
+  time the next request runs, the legal entity has a
+  ComplianceScreening row with `sanctions_matches[]` populated.
+
+  This is the entity-creation half of the flow. Notice the account
+  holder itself is created successfully (201) — AtomicFi does not
+  refuse to onboard suspected SDNs, it just flags them so downstream
+  transactions don't settle.
+}
+
+assert {
+  res.status: eq 201
+}

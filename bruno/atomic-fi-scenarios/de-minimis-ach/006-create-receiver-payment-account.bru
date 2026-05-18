@@ -1,0 +1,52 @@
+meta {
+  name: 006 — Create receiver payment account
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/payment-accounts
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("receiverPaExternalId", `DEMI-PA-RECEIVER-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{receiverPaExternalId}}",
+    "account_type": "bank_account",
+    "currency": "USD",
+    "account_number": "000987654321",
+    "routing_number": "021000021",
+    "bank_name": "Demo Bank",
+    "account_holder_id": "{{receiverAhId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("receiverPaId", res.body.id);
+}
+
+docs {
+  Funding account on the receiver side. Same shape as the sender PA;
+  different account number + routing keeps the two PAs distinct under
+  the per-tenant unique constraints.
+}
+
+assert {
+  res.status: eq 201
+  res.body.id: matches ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+}

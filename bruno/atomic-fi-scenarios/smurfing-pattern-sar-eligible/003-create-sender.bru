@@ -1,0 +1,68 @@
+meta {
+  name: 003 — Create sender (the smurfer)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("senderExternalId", `SMURF-AH-SENDER-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+  bru.setEnvVar("receiverPaIds", "[]");
+}
+
+body:json {
+  {
+    "external_id": "{{senderExternalId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "chain_screening": false,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Sam",
+      "last_name": "Smurfsender",
+      "date_of_birth": "1985-06-15",
+      "citizenship_country": "US",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("senderAhId", res.body.id);
+}
+
+docs {
+  Scenario #20 — smurfing pattern (REVIEW + SAR-eligible BLOCK).
+
+  Cite: 31 USC §5324; 31 CFR §1020.320.
+
+  One sender, many small payments to many distinct recipients, all in a
+  24-hour window — the textbook smurfing typology where a single party
+  fans out cash through multiple agents to disguise the total.
+
+  This step also resets the `receiverPaIds` env array so re-runs of
+  this folder start with a clean list of recipients.
+}
+
+assert {
+  res.status: eq 201
+}

@@ -1,0 +1,53 @@
+meta {
+  name: 009 — Third sub-CTR debit (asserts BLOCK — structuring pattern)
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/transactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "transaction_type": "internal_transfer",
+    "amount": 9500,
+    "currency": "USD",
+    "account_holder_id": "{{senderAhId}}",
+    "debtor_payment_account_id": "{{senderPaId}}",
+    "creditor_payment_account_id": "{{receiverPaId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Third sub-CTR debit inside the 24-hour window. The structuring rule
+  now sees ≥2 priors in the sub-CTR band — the textbook §5324 pattern:
+  splitting what would otherwise be one $28,500 transfer into three
+  smaller payments to dodge the $10,000 CTR filing requirement.
+
+  Expected:
+    - `status: rejected`
+    - `rejected_rule: "ctr_structuring"`
+
+  This is SAR-eligible. The compliance ops surface (out of scope for
+  this collection) would auto-draft a SAR-MSB narrative and queue
+  for analyst review within the 30-day FinCEN window.
+}
+
+assert {
+  res.status: eq 201
+  res.body.status: eq rejected
+  res.body.rejected_rule: eq ctr_structuring
+}
