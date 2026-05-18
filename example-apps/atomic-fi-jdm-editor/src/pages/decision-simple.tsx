@@ -69,11 +69,13 @@ export const DecisionSimplePage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time seed of existing rule names list
     refreshExistingRules();
   }, [refreshExistingRules]);
 
   useEffect(() => {
     if (isNew || !name) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time load gate for new/empty rule
       setLoading(false);
       return;
     }
