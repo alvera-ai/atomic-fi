@@ -33,6 +33,14 @@ defmodule AtomicFi.ComplianceScreeningContext do
 
   alias AtomicFi.AccountHolderContext.AccountHolder
   alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
+
+  # Preload child matches on every getter so callers (controllers,
+  # RuleEngine.build_payload) see populated lists, never
+  # `%Ecto.Association.NotLoaded{}`. The public OpenAPI response
+  # declares `sanctions_matches[]` / `blocklist_matches[]` as readOnly
+  # arrays — they must be loaded for `Mapper.to_map` to produce a
+  # valid response shape.
+  @preloads [:sanctions_matches, :blocklist_matches]
   alias AtomicFi.ComplianceScreeningContext.BlocklistMatch
   alias AtomicFi.ComplianceScreeningContext.ComplianceScreening
   alias AtomicFi.ComplianceScreeningContext.SanctionsMatch
@@ -65,6 +73,7 @@ defmodule AtomicFi.ComplianceScreeningContext do
   def_with_rls_and_logging list_compliance_screenings(session, flop_params \\ %{}),
     log_fields: [:flop_params] do
     ComplianceScreening
+    |> Ecto.Query.preload(^@preloads)
     |> Flop.validate_and_run(flop_params,
       for: ComplianceScreening,
       repo: Repo,
@@ -88,7 +97,9 @@ defmodule AtomicFi.ComplianceScreeningContext do
   """
   @spec get_compliance_screening!(Session.t(), Ecto.UUID.t()) :: ComplianceScreening.t()
   def_with_rls_and_logging get_compliance_screening!(session, id), log_fields: [:id] do
-    Repo.get!(ComplianceScreening, id, session: session)
+    ComplianceScreening
+    |> Ecto.Query.preload(^@preloads)
+    |> Repo.get!(id, session: session)
   end
 
   @doc """
@@ -108,12 +119,14 @@ defmodule AtomicFi.ComplianceScreeningContext do
   def_with_rls_and_logging get_screenings_for_target(session, %LegalEntity{id: le_id}),
     log_fields: [] do
     from(cs in ComplianceScreening, where: cs.legal_entity_id == ^le_id)
+    |> Ecto.Query.preload(^@preloads)
     |> Repo.all(session: session)
   end
 
   def_with_rls_and_logging get_screenings_for_target(session, %PaymentAccount{id: pa_id}),
     log_fields: [] do
     from(cs in ComplianceScreening, where: cs.payment_account_id == ^pa_id)
+    |> Ecto.Query.preload(^@preloads)
     |> Repo.all(session: session)
   end
 

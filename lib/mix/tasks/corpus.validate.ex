@@ -51,6 +51,7 @@ defmodule Mix.Tasks.Corpus.Validate do
   alias AtomicFi.AccountHolderContext
   alias AtomicFi.AccountHolderContext.AccountHolder
   alias AtomicFi.BeneficialOwnerContext
+  alias AtomicFi.BlocklistContext
   alias AtomicFi.Config
   alias Ecto.Adapters.SQL
   alias AtomicFi.CounterpartyContext
@@ -96,6 +97,20 @@ defmodule Mix.Tasks.Corpus.Validate do
     ensure_schema!(opts[:reset])
 
     session = build_system_session()
+
+    # Seed any internal-blocklist entries BEFORE the cache refresh: the
+    # cache reads from the DB into ETS, so entries inserted later won't
+    # be visible to the screening pipeline (which queries the cache by
+    # tenant_id). Idempotency is unnecessary — the schema was reset
+    # above (--reset) or carried over from a prior identical reseed.
+    # Looking under the parent corpus_path is fine for both
+    # single-folder corpora (file lives next to ah/cp/pa/txn) and
+    # sharded corpora (each shard MAY carry its own blocklist; reseed
+    # honours the union across shards by reading from each shard
+    # below, but the single-folder path reads only here).
+    blocklist_seed = read_ndjson(corpus_path, "blocklist_entries.ndjson")
+    insert_blocklist_entries(session, blocklist_seed)
+
     AtomicFi.BlocklistContext.BlocklistCache.refresh_tenant_cache(session.tenant_id)
 
     shard_dirs = discover_shards(corpus_path)
@@ -329,6 +344,37 @@ defmodule Mix.Tasks.Corpus.Validate do
             {:ok, _cp} -> :ok
             {:error, reason} -> Mix.raise("CP update failed for #{number}: #{inspect(reason)}")
           end
+      end
+    end)
+  end
+
+  # Internal-blocklist entries (scope=last_name|first_name|company_name,
+  # entry_type=exact|regex, term, reason, active). Inserted before the
+  # BlocklistCache refresh in `run/1` so the ETS cache picks them up.
+  # Loader is line-by-line (no upsert) — schema reset above guarantees
+  # uniqueness; on a non-reset reseed the partial unique index on
+  # (tenant_id, scope, entry_type, term) catches duplicates.
+  defp insert_blocklist_entries(_session, []), do: :ok
+
+  defp insert_blocklist_entries(session, rows) do
+    Enum.each(rows, fn row ->
+      attrs = stamp_tenant(row, session.tenant_id)
+      attrs = Map.put_new(attrs, "active", true)
+
+      case BlocklistContext.create_blocklist_entry(session, attrs) do
+        {:ok, _entry} ->
+          Mix.shell().info(
+            "   BL #{Map.get(row, "scope")}/#{Map.get(row, "entry_type")}: #{inspect(Map.get(row, "term"))} [create]"
+          )
+
+        {:error, %Ecto.Changeset{errors: [{key, {"has already been taken", _}} | _]}}
+        when key in [:term, :tenant_id] ->
+          Mix.shell().info(
+            "   BL #{Map.get(row, "scope")}/#{Map.get(row, "entry_type")}: #{inspect(Map.get(row, "term"))} [exists]"
+          )
+
+        {:error, reason} ->
+          Mix.raise("blocklist entry create failed for #{inspect(row)}: #{inspect(reason)}")
       end
     end)
   end

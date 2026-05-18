@@ -226,6 +226,29 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
     key: :updated_at
   )
 
+  # Per-hit child collections — readOnly on the response surface so
+  # rules can read `compliance_screenings[].blocklist_matches[]` or
+  # `.sanctions_matches[]` to dispatch on the source list (OFAC SDN vs
+  # internal chargeback-fraud ring vs PEP, etc.) without having to add
+  # a new `screening_type` enum value per list.
+  open_api_property(
+    schema: %Schema{
+      type: :array,
+      readOnly: true,
+      items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/SanctionsMatchResponse"}
+    },
+    key: :sanctions_matches
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :array,
+      readOnly: true,
+      items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/BlocklistMatchResponse"}
+    },
+    key: :blocklist_matches
+  )
+
   open_api_schema(
     title: "ComplianceScreening",
     description:
@@ -271,7 +294,9 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
       :payment_account_id,
       :tenant_id,
       :inserted_at,
-      :updated_at
+      :updated_at,
+      :sanctions_matches,
+      :blocklist_matches
     ]
   )
 

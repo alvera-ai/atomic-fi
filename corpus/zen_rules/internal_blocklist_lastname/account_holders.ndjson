@@ -1,0 +1,3 @@
+{"external_id":"ibl-ah-sender","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"Alice","last_name":"Sender"}}
+{"external_id":"ibl-ah-clean-recipient","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"Charlie","last_name":"Clean"}}
+{"external_id":"ibl-ah-blocked-recipient","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"Bob","last_name":"Smurf"}}

@@ -1,0 +1,30 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": { "x": 100, "y": 160 }
+    },
+    {
+      "id": "blocklist_gate",
+      "type": "functionNode",
+      "name": "Internal Blocklist Gate",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "source": "/**\n * Internal blocklist last_name gate (Internal policy; FFIEC BSA/AML\n * Examination Manual — internal lists).\n *\n * Scenario #41 of guides/use-cases.md: a transaction whose creditor\n * side carries any active internal-blocklist hit (chargeback fraud\n * rings, repeat-offender lists, ABA-style watchlists, etc.) is\n * blocked. The list itself is operator-curated in the\n * `blocklist_entries` table; `ScreeningEngine.screen_*` populates a\n * `ComplianceScreening` row with one `BlocklistMatch` per hit. Rules\n * read the projected `blocklist_matches[]` on the screening, not the\n * BlocklistCache directly — the cache is the production-path search\n * index, not the rule's data source.\n *\n * Reads `creditor_payment_account.compliance_screenings[]` and looks\n * for any screening whose `blocklist_matches[]` is non-empty.\n * `screening_type` is irrelevant here; the OFAC SDN rule (#11)\n * dispatches on `sanctions_matches[]` for the same reason. When a hit\n * is found, emits a blocked Control per LedgerAccount on the creditor\n * side. cap=0 + is_blocked=true converts to status='rejected' with\n * rejected_rule='internal_blocklist_lastname' at limits-at-entry time.\n */\nexport const handler = async (input) => {\n  const creditor = input.creditor_payment_account;\n  if (!creditor) return { ledger_accounts: {} };\n\n  const screenings = creditor.compliance_screenings || [];\n  const hit = screenings.some(function (s) {\n    const matches = s.blocklist_matches || [];\n    return matches.some(function (m) { return m.scope === 'last_name'; });\n  });\n  if (!hit) return { ledger_accounts: {} };\n\n  const las = creditor.las || [];\n  const ledger_accounts = {};\n  for (const la of las) {\n    ledger_accounts[la.id] = {\n      daily_debit_cap: 0,\n      daily_credit_cap: 0,\n      reason: 'internal_blocklist_lastname',\n      block_reason: 'internal_blocklist_lastname',\n      is_blocked: true\n    };\n  }\n  return { ledger_accounts };\n};\n"
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": { "x": 700, "y": 160 }
+    }
+  ],
+  "edges": [
+    { "id": "edge_request_blocklist", "type": "edge", "sourceId": "request", "targetId": "blocklist_gate" },
+    { "id": "edge_blocklist_response", "type": "edge", "sourceId": "blocklist_gate", "targetId": "response" }
+  ]
+}

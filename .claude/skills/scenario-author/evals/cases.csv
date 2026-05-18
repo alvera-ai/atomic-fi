@@ -5,7 +5,7 @@ row_number,slug,rule_type,expected_verdict
 11,ofac_sdn_high_score,transaction-screening,rejected
 15,ah_country_kp_residence,transaction-screening,rejected
 19,ctr_sub_threshold_structuring,transaction-screening,rejected
-27,business_ah_zero_bos,onboarding,rejected
+20,smurfing_pattern_sar_eligible,transaction-screening,rejected
+27,business_ah_zero_bos,transaction-screening,rejected
 34,ofac_mixer_usdc,transaction-screening,rejected
 41,internal_blocklist_lastname,transaction-screening,rejected
-53,watchman_unreachable_held,transaction-screening,rejected
