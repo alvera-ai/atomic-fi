@@ -6,10 +6,16 @@ import { DirectedGraph } from 'graphology';
 import { hasCycle } from 'graphology-dag';
 import { useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
+import { CopilotSidebar } from '@copilotkit/react-ui';
+
 import { displayError, errorMessage } from '../helpers/error-message';
-import { getRule, RULE_TYPES, RULE_TYPE_LABELS, type RuleType, saveRule } from '../helpers/rules-api';
+import { getRule, listRules, RULE_TYPES, RULE_TYPE_LABELS, type RuleType, saveRule } from '../helpers/rules-api';
 import { runSimulation } from '../helpers/simulator';
 import { ThemePreference, useTheme } from '../context/theme.provider';
+import { useEditorReadables } from '../copilot/use-editor-readables';
+import { useGraphActions } from '../copilot/actions/use-graph-actions';
+import { usePersistActions } from '../copilot/actions/use-persist-actions';
+import { useSimulateAction } from '../copilot/actions/use-simulate-action';
 
 const DECISION_CONTENT_TYPE = 'application/vnd.gorules.decision';
 
@@ -42,6 +48,7 @@ export const DecisionSimplePage: React.FC = () => {
 
   const [graph, setGraph] = useState<DecisionGraphType>(emptyGraph);
   const [graphTrace, setGraphTrace] = useState<Simulation>();
+  const [lastSimulation, setLastSimulation] = useState<Simulation | null>(null);
   const [revision, setRevision] = useState(0);
   const [savedRevision, setSavedRevision] = useState(0);
   const [loading, setLoading] = useState(!isNew);
@@ -49,6 +56,20 @@ export const DecisionSimplePage: React.FC = () => {
   const [saving, setSaving] = useState(false);
 
   const dirty = revision !== savedRevision;
+
+  const [existingRules, setExistingRules] = useState<Record<RuleType, string[] | undefined>>({
+    onboarding: undefined,
+    'transaction-screening': undefined,
+  });
+
+  const refreshExistingRules = useCallback(async () => {
+    const results = await Promise.all(RULE_TYPES.map((t) => listRules(t).then((r) => [t, r] as const)));
+    setExistingRules(Object.fromEntries(results) as Record<RuleType, string[]>);
+  }, []);
+
+  useEffect(() => {
+    refreshExistingRules();
+  }, [refreshExistingRules]);
 
   useEffect(() => {
     if (isNew || !name) {
@@ -124,8 +145,44 @@ export const DecisionSimplePage: React.FC = () => {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
 
+  useEditorReadables({
+    ruleType,
+    filename: name,
+    isNew,
+    dirty,
+    savedRevision,
+    graph,
+    lastSimulation,
+    existingRules,
+  });
+  useGraphActions(setGraph);
+  usePersistActions({
+    ruleType,
+    filename: name,
+    dirty,
+    graph,
+    onSaved: () => setSavedRevision(revision),
+    refreshExistingRules,
+  });
+  useSimulateAction({
+    ruleType,
+    filename: name,
+    dirty,
+    graph,
+    setLastSimulation,
+  });
+
   return (
     <div className="flex flex-col h-screen bg-surface text-ink">
+      <CopilotSidebar
+        defaultOpen={false}
+        labels={{
+          title: 'Rule copilot',
+          initial:
+            "Describe a rule in plain English and I'll draft, save, and simulate it for you. Each step surfaces a card you can Apply or Reject.",
+        }}
+        instructions=""
+      />
       <header
         className="flex items-center justify-between px-6 py-3 border-b border-rule"
         style={{ background: token.colorBgLayout }}
@@ -216,6 +273,7 @@ export const DecisionSimplePage: React.FC = () => {
                         input: { graph: simGraph, context },
                       });
                       setGraphTrace(sim);
+                      setLastSimulation(sim);
                       if (sim.error?.message) message.error(sim.error.message);
                     }}
                   />
