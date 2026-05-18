@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.5.0](https://github.com/alvera-ai/atomic-fi/compare/v1.4.0...v1.5.0) (2026-05-18)
+
+
+### Features
+
+* add document-agent client example app and Makefile delegation ([465eb41](https://github.com/alvera-ai/atomic-fi/commit/465eb41d4207cd82f0f7336bdd819aeedf0a9436))
+* add onboarding-flow example app to workspace ([a4c5b2f](https://github.com/alvera-ai/atomic-fi/commit/a4c5b2fe396714a565752ae2117e688a93f0dab2))
+* **jdm-editor:** add api clients for phoenix + zenrule ([b318504](https://github.com/alvera-ai/atomic-fi/commit/b318504cc9ac36ae0eb88e05e11230aef2ae34c4))
+* **jdm-editor:** rules index page + rule-type routes ([26dbf86](https://github.com/alvera-ai/atomic-fi/commit/26dbf86973a62c6be65f447d6dbdbe4bfc7d3c76))
+* **jdm-editor:** split vite proxy for phoenix + zenrule ([bb82dc6](https://github.com/alvera-ai/atomic-fi/commit/bb82dc672dc7544a46432edaff6c1b1ccc20c2dc))
+* **jdm-editor:** wire editor to RuleController + revision-counter dirty state ([962e1e9](https://github.com/alvera-ai/atomic-fi/commit/962e1e948e8f5ed41208f986f029919b6b9c498b))
+* **lotus:** add lotus_web dependency and LotusRepo for embedded SQL dashboard ([4696a04](https://github.com/alvera-ai/atomic-fi/commit/4696a04517a85d1b06f8e83add79de4d7d8f4602))
+* **lotus:** add React secure embed example app with E2E tests ([db2ce80](https://github.com/alvera-ai/atomic-fi/commit/db2ce804ee92c196a6e84a2d337bf08fa8a282b2))
+* **lotus:** add secure iframe embed auth with Phoenix.Token ([793a30f](https://github.com/alvera-ai/atomic-fi/commit/793a30fcf71c078d59077e93997e73f0eb8d36ed))
+* **lotus:** secure iframe embed with React POC and E2E tests ([f2a3af4](https://github.com/alvera-ai/atomic-fi/commit/f2a3af4581733769f149534e180002a18a3a2ca8))
+* **onboarding-flow:** business onboarding with AI document extraction ([1a2d68f](https://github.com/alvera-ai/atomic-fi/commit/1a2d68f177e574a46d36ce16d1282cc820fd15f1))
+* **onboarding-flow:** integrate document-agent-server for AI extraction ([4c80277](https://github.com/alvera-ai/atomic-fi/commit/4c80277e765e4bb842d97c36717dfd58c62a1360))
+* **onboarding-flow:** show full entity details on status page after submission ([7bf70e1](https://github.com/alvera-ai/atomic-fi/commit/7bf70e1cadcfa7cd87276cf7b841470f593cb873))
+* **onboarding-flow:** wire M1 API integration and Playwright E2E test ([5eeb8a1](https://github.com/alvera-ai/atomic-fi/commit/5eeb8a1f34d4dc7fe3bedc53d965de8d5bed6c90))
+
+
+### Bug Fixes
+
+* add LotusRepo config to test.exs to fix CI ([9be41f7](https://github.com/alvera-ai/atomic-fi/commit/9be41f7eed734ba2032755ff30765f00567ed475))
+* **jdm-editor:** align rules index visual language with editor ([a3a1892](https://github.com/alvera-ai/atomic-fi/commit/a3a18924114a9b0d39ba76079438fad1c1d69c73))
+* **jdm-editor:** point phoenix proxy at :4100 (not :4000) ([fe2ef08](https://github.com/alvera-ai/atomic-fi/commit/fe2ef08cea6aaec5caa7323eb69cae40eddf783f))
+* **jdm-editor:** swap theme tokens via CSS vars for dark mode ([f78a760](https://github.com/alvera-ai/atomic-fi/commit/f78a7600c455bd70a902140a2cb01524de633819))
+* **onboarding-flow:** correct FieldProvenance type in processSampleEntries ([cb54203](https://github.com/alvera-ai/atomic-fi/commit/cb54203ecc1cdfa6a4865eeb0c6837a084662088))
+* **onboarding-flow:** fix submission bugs and add full E2E test ([ed98e00](https://github.com/alvera-ai/atomic-fi/commit/ed98e00404424e14da47399088631f878fc5873c))
+* **onboarding-flow:** lower image dimension threshold to 100x100 ([6ac7cd0](https://github.com/alvera-ai/atomic-fi/commit/6ac7cd065871f2ba612bf5e2bd80c9372cdad575))
+* **onboarding-flow:** resolve lint errors in app code ([9504878](https://github.com/alvera-ai/atomic-fi/commit/950487831039e26345da3566ca7a755cce69cd7b))
+* resolve RuleEngine infinite recursion and onboarding submission bugs ([bd78551](https://github.com/alvera-ai/atomic-fi/commit/bd78551ae1013e346c73f1b9d6c667cc55af3149))
+
 ## [1.4.0](https://github.com/alvera-ai/atomic-fi/compare/v1.3.0...v1.4.0) (2026-05-15)
 
 
