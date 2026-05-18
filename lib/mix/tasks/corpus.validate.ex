@@ -416,12 +416,12 @@ defmodule Mix.Tasks.Corpus.Validate do
   defp insert_payment_accounts(session, rows) do
     Enum.each(rows, fn row ->
       ext_id = row["external_id"]
-      {parent_field, parent_struct} = resolve_pa_parent(session, row)
+      fk_overrides = resolve_pa_fks(session, row)
 
       request =
         row
         |> Map.drop(["account_holder_external_id", "counterparty_external_id"])
-        |> Map.put(parent_field, parent_struct.id)
+        |> Map.merge(fk_overrides)
         |> stamp_tenant(session.tenant_id)
         |> to_request(PaymentAccountRequest)
 
@@ -445,14 +445,37 @@ defmodule Mix.Tasks.Corpus.Validate do
     end)
   end
 
-  defp resolve_pa_parent(session, %{"account_holder_external_id" => ah_ext})
-       when is_binary(ah_ext) do
-    {"account_holder_id", fetch_by_external_id!(session, AccountHolder, ah_ext)}
+  # Resolve any combination of `account_holder_external_id` and
+  # `counterparty_external_id` into the corresponding ids. Either or both
+  # may be present:
+  #   - AH-owned PA       → only account_holder_external_id
+  #   - CP-owned PA       → both (the host AH for partition + the CP for ownership)
+  defp resolve_pa_fks(session, row) do
+    %{}
+    |> maybe_resolve_fk(
+      session,
+      row,
+      "account_holder_external_id",
+      "account_holder_id",
+      AccountHolder
+    )
+    |> maybe_resolve_fk(
+      session,
+      row,
+      "counterparty_external_id",
+      "counterparty_id",
+      Counterparty
+    )
   end
 
-  defp resolve_pa_parent(session, %{"counterparty_external_id" => cp_ext})
-       when is_binary(cp_ext) do
-    {"counterparty_id", fetch_by!(session, Counterparty, external_id: cp_ext)}
+  defp maybe_resolve_fk(acc, session, row, src_key, dest_key, schema) do
+    case Map.get(row, src_key) do
+      ext when is_binary(ext) ->
+        Map.put(acc, dest_key, fetch_by_external_id!(session, schema, ext).id)
+
+      _ ->
+        acc
+    end
   end
 
   # ───────────────────────────── VU fan-out (k6 model) ────────────────

@@ -57,6 +57,7 @@ defmodule Mix.Tasks.Corpus.Generate.Amlgentex do
   use Mix.Task
 
   alias AtomicFi.Corpus.Shard
+  alias AtomicFi.Corpus.SyntheticSeed
 
   @impl true
   def run(args) do
@@ -65,15 +66,12 @@ defmodule Mix.Tasks.Corpus.Generate.Amlgentex do
         strict: [
           in: :string,
           out: :string,
-          shards: :integer
+          shards: :integer,
+          synthetic: :boolean,
+          rows: :integer,
+          seed: :integer
         ]
       )
-
-    in_path =
-      opts[:in] ||
-        Mix.raise(
-          "--in <path/to/amlgentex.ndjson> is required (run `make reseed-amlgentex` first)"
-        )
 
     out_dir =
       opts[:out] ||
@@ -81,8 +79,30 @@ defmodule Mix.Tasks.Corpus.Generate.Amlgentex do
 
     shards = Keyword.get(opts, :shards, 4)
 
-    rows = Shard.read_ndjson!(in_path)
-    Mix.shell().info("→ read #{length(rows)} rows from #{in_path}")
+    rows =
+      cond do
+        Keyword.get(opts, :synthetic, false) ->
+          row_count = Keyword.get(opts, :rows, 1000)
+          rng_seed = Keyword.get(opts, :seed, 0)
+
+          Mix.shell().info(
+            "→ generating #{row_count} synthetic AMLGentex-shape rows (seed=#{rng_seed})"
+          )
+
+          SyntheticSeed.amlgentex(row_count, rng_seed)
+
+        opts[:in] != nil ->
+          Mix.shell().info("→ reading rows from #{opts[:in]}")
+          Shard.read_ndjson!(opts[:in])
+
+        true ->
+          Mix.raise(
+            "either --in <path/to/amlgentex.ndjson> (run `make reseed-amlgentex` first) " <>
+              "or --synthetic --rows N (hardcoded AMLGentex-shape generator, no external deps) is required"
+          )
+      end
+
+    Mix.shell().info("→ #{length(rows)} rows ready")
 
     Shard.emit(rows,
       out: out_dir,
@@ -201,6 +221,9 @@ defmodule Mix.Tasks.Corpus.Generate.Amlgentex do
   defp receiver_pa_row(prefix, idx) do
     Jason.encode!(%{
       "external_id" => receiver_pa_external_id(prefix, idx),
+      # CP-owned PA: host AH is the first sender (same anchor used by
+      # the CP rows). counterparty_external_id ties PA to its CP.
+      "account_holder_external_id" => ah_external_id(prefix, 0),
       "counterparty_external_id" => cp_external_id(prefix, idx),
       "account_type" => "wallet",
       "currency" => "USD"
@@ -216,6 +239,9 @@ defmodule Mix.Tasks.Corpus.Generate.Amlgentex do
     currency = extract_currency(row)
     sar = extract_sar_label(row)
 
+    # No `_expected` — bulk-bench rows are uncalibrated synthetic data,
+    # not hand-tuned scenario fixtures. corpus.validate reports them
+    # under "new (no _expected)".
     Jason.encode!(%{
       "external_id" => "#{prefix}txn-#{pad(idx)}",
       "transaction_type" => "credit_transfer",
@@ -228,10 +254,6 @@ defmodule Mix.Tasks.Corpus.Generate.Amlgentex do
         "regime" => "amlgentex",
         "cite" => "AI Sweden / Handelsbanken / Swedbank 2024 — AMLGentex synthetic network",
         "scenario" => "is_sar=#{sar}"
-      },
-      "_expected" => %{
-        "status" => "accepted",
-        "rejected_rule" => nil
       }
     })
   end

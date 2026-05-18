@@ -68,6 +68,7 @@ defmodule Mix.Tasks.Corpus.Generate.SamlD do
   use Mix.Task
 
   alias AtomicFi.Corpus.Shard
+  alias AtomicFi.Corpus.SyntheticSeed
 
   @impl true
   def run(args) do
@@ -76,13 +77,12 @@ defmodule Mix.Tasks.Corpus.Generate.SamlD do
         strict: [
           in: :string,
           out: :string,
-          shards: :integer
+          shards: :integer,
+          synthetic: :boolean,
+          rows: :integer,
+          seed: :integer
         ]
       )
-
-    in_path =
-      opts[:in] ||
-        Mix.raise("--in <path/to/saml_d.ndjson> is required (run `make reseed-saml-d` first)")
 
     out_dir =
       opts[:out] ||
@@ -90,8 +90,30 @@ defmodule Mix.Tasks.Corpus.Generate.SamlD do
 
     shards = Keyword.get(opts, :shards, 4)
 
-    rows = Shard.read_ndjson!(in_path)
-    Mix.shell().info("→ read #{length(rows)} rows from #{in_path}")
+    rows =
+      cond do
+        Keyword.get(opts, :synthetic, false) ->
+          row_count = Keyword.get(opts, :rows, 1000)
+          rng_seed = Keyword.get(opts, :seed, 0)
+
+          Mix.shell().info(
+            "→ generating #{row_count} synthetic SAML-D-shape rows (seed=#{rng_seed})"
+          )
+
+          SyntheticSeed.saml_d(row_count, rng_seed)
+
+        opts[:in] != nil ->
+          Mix.shell().info("→ reading rows from #{opts[:in]}")
+          Shard.read_ndjson!(opts[:in])
+
+        true ->
+          Mix.raise(
+            "either --in <path/to/saml_d.ndjson> (run `make reseed-saml-d` first) " <>
+              "or --synthetic --rows N (hardcoded SAML-D-shape generator, no external deps) is required"
+          )
+      end
+
+    Mix.shell().info("→ #{length(rows)} rows ready")
 
     Shard.emit(rows,
       out: out_dir,
@@ -199,6 +221,10 @@ defmodule Mix.Tasks.Corpus.Generate.SamlD do
   defp receiver_pa_row(prefix, idx) do
     Jason.encode!(%{
       "external_id" => receiver_pa_external_id(prefix, idx),
+      # CP-owned PA: account_holder_external_id is the host AH (always
+      # the first sender by convention — same anchor the CP rows use).
+      # counterparty_external_id ties the PA to its receiver CP.
+      "account_holder_external_id" => ah_external_id(prefix, 0),
       "counterparty_external_id" => cp_external_id(prefix, idx),
       "account_type" => "wallet",
       "currency" => "USD"
@@ -215,6 +241,10 @@ defmodule Mix.Tasks.Corpus.Generate.SamlD do
     payment_type = row["Payment_type"] || "Cash Deposit"
     date = row["Date"] || ""
 
+    # No `_expected` — bulk-bench rows are uncalibrated synthetic data,
+    # not hand-tuned scenario fixtures. corpus.validate reports them
+    # under "new (no _expected)" and the bench's job is to record
+    # throughput + verdict distribution, not match a verdict expectation.
     Jason.encode!(%{
       "external_id" => "#{prefix}txn-#{pad(idx)}",
       "transaction_type" => map_payment_type(payment_type),
@@ -227,10 +257,6 @@ defmodule Mix.Tasks.Corpus.Generate.SamlD do
         "regime" => "saml-d",
         "cite" => "Oztas et al. 2023 — SAML-D synthetic monitoring dataset",
         "scenario" => "type=#{payment_type} laundering_type=#{laundering_type} date=#{date}"
-      },
-      "_expected" => %{
-        "status" => "accepted",
-        "rejected_rule" => nil
       }
     })
   end

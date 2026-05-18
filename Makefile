@@ -1,4 +1,4 @@
-.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install reseed-stableaml reseed-saml-d reseed-amlgentex
+.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install reseed-stableaml reseed-saml-d reseed-amlgentex bench bench-real
 
 COMPOSE_FILE := local-dependencies.yaml
 
@@ -161,6 +161,36 @@ run-backing-services:
 	@echo "      same config + custom watchlist as 'make run-watchman'."
 	@echo "      The standalone target remains available for running watchman"
 	@echo "      outside compose (e.g. on a host without docker compose)."
+
+# ─── corpus.bench — end-to-end bulk-perf cert run ──────────────────────
+#
+# Synthetic (default): no Kaggle / Python / network — committed proof.md
+#   make bench BENCH_SOURCES="saml_d,amlgentex" BENCH_SHARDS=10 BENCH_ROWS=1000
+#
+# Real-data: invokes reseed-<src> first (needs Kaggle CLI + uv + Python)
+#   make bench-real BENCH_SOURCES="saml_d,amlgentex" BENCH_SHARDS=10 BENCH_ROWS=10000
+BENCH_SOURCES ?= saml_d,amlgentex
+BENCH_SHARDS  ?= 10
+BENCH_ROWS    ?= 1000
+BENCH_SEED    ?= 0
+
+bench:
+	@mix corpus.bench \
+		--sources $(BENCH_SOURCES) \
+		--shards  $(BENCH_SHARDS) \
+		--rows    $(BENCH_ROWS) \
+		--seed    $(BENCH_SEED) \
+		--in-mode synthetic \
+		--report  benchmarks/saml_d_amlgentex_synthetic/README.md
+
+bench-real:
+	@mix corpus.bench \
+		--sources $(BENCH_SOURCES) \
+		--shards  $(BENCH_SHARDS) \
+		--rows    $(BENCH_ROWS) \
+		--seed    $(BENCH_SEED) \
+		--in-mode reseed \
+		--report  tmp/bench/real-README.md
 
 stop-backing-services:
 	@echo "Stopping local backing services (docker compose)..."
