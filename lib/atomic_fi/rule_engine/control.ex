@@ -92,36 +92,6 @@ defmodule AtomicFi.RuleEngine.Control do
     end
   end
 
-  @doc """
-  Merge two Controls on the same LedgerAccount — slot-by-slot, picking
-  the tighter (smaller) cap. `nil` means unconstrained, so any concrete
-  cap wins. Reasons concatenate with `; ` so the trigger records every
-  rule that contributed.
-  """
-  @spec tighter(t(), t()) :: t()
-  def tighter(%__MODULE__{} = a, %__MODULE__{} = b) do
-    %__MODULE__{
-      daily_debit_cap: min_cap(a.daily_debit_cap, b.daily_debit_cap),
-      daily_credit_cap: min_cap(a.daily_credit_cap, b.daily_credit_cap),
-      weekly_debit_cap: min_cap(a.weekly_debit_cap, b.weekly_debit_cap),
-      weekly_credit_cap: min_cap(a.weekly_credit_cap, b.weekly_credit_cap),
-      monthly_debit_cap: min_cap(a.monthly_debit_cap, b.monthly_debit_cap),
-      monthly_credit_cap: min_cap(a.monthly_credit_cap, b.monthly_credit_cap),
-      yearly_debit_cap: min_cap(a.yearly_debit_cap, b.yearly_debit_cap),
-      yearly_credit_cap: min_cap(a.yearly_credit_cap, b.yearly_credit_cap),
-      reason: merge_reasons(a.reason, b.reason)
-    }
-  end
-
-  defp min_cap(nil, b), do: b
-  defp min_cap(a, nil), do: a
-  defp min_cap(a, b), do: min(a, b)
-
-  defp merge_reasons(nil, b), do: b
-  defp merge_reasons(a, nil), do: a
-  defp merge_reasons(a, a), do: a
-  defp merge_reasons(a, b), do: "#{a}; #{b}"
-
   defp validate_caps_non_negative(changeset) do
     Enum.reduce(@cap_fields, changeset, fn field, cs ->
       validate_number(cs, field, greater_than_or_equal_to: 0)

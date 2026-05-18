@@ -594,20 +594,42 @@ defmodule AtomicFi.LedgerEntryContextTest do
       assert reload_account(session, cl).balance == 0
     end
 
-    test "controls_to_limits handles nil control (no caps for one side)",
+    test "one-sided controls post cleanly — the other side resolves structurally with no caps",
          %{session: session} do
       %{transaction: txn, debtor_leaf: dl, creditor_leaf: cl} =
         setup_balanced_transaction(session, 1_000)
 
-      # Only the debit side has caps; the credit side falls through controls_to_limits(nil).
+      # Only the debit side has caps; the credit side has no rule-emitted
+      # Control. Under the new structural LA-resolution model (LedgerEntryContext
+      # derives both sides' LAs from the transaction itself, not from the
+      # controls map keys), the credit entry posts unconstrained.
       controls = %{
-        dl.id => %Control{daily_debit_cap: 100_000, reason: "test_nil_credit_side"}
+        dl.id => %Control{daily_debit_cap: 100_000, reason: "debit_side_only"}
       }
 
-      # resolve_leaf_accounts gives credit_la_id = nil (no entry for creditor PA);
-      # changeset fails ledger_account_id required ⇒ surfaces as {:error, changeset}.
-      assert {:error, %Ecto.Changeset{valid?: false} = cs} =
+      assert {:ok, [debit, credit]} =
                LedgerEntryContext.create_entries(session, txn, controls)
+
+      assert debit.ledger_account_id == dl.id
+      assert credit.ledger_account_id == cl.id
+      assert credit.limits_at_entry == []
+    end
+
+    test "loud-failure: no regime leaf for the txn's regime → changeset error on ledger_account_id",
+         %{session: session} do
+      # setup_balanced_transaction materialises LAs at regime="ach". We build
+      # a transaction with transaction_type=:internal_transfer (regime
+      # "internal_transfer") so the PA has no matching regime leaf.
+      # resolve_leaf_accounts returns nil for both sides → ledger_account_id
+      # required ⇒ surfaces as {:error, changeset}. The earlier scenario
+      # (one-sided controls map → nil LA) no longer triggers this failure
+      # under the structural model, but the invariant that we surface
+      # missing-LA loudly must still hold.
+      %{transaction: txn} = setup_balanced_transaction(session, 1_000)
+      mismatched_txn = %{txn | transaction_type: :internal_transfer}
+
+      assert {:error, %Ecto.Changeset{valid?: false} = cs} =
+               LedgerEntryContext.create_entries(session, mismatched_txn, %{})
 
       assert cs.errors[:ledger_account_id]
     end

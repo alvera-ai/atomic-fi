@@ -1,30 +1,28 @@
 defmodule AtomicFi.RuleEngine.Default do
   @moduledoc """
-  Default rule-engine implementation — orchestrates JDM evaluation
-  against the GoRules Agent (ZenRule) over HTTP.
+  Default `AtomicFi.RuleEngine` impl — evaluates every rule under
+  `rule_type` against the entity by POSTing to the GoRules Agent
+  (ZenRule). Returns the raw per-rule outputs as a list; folding into
+  one effective control map is `AtomicFi.RuleEngine.apply_rules/3`'s
+  job, not this module's.
 
-  Wired in via `AtomicFi.RuleEngine` (the public dispatcher).
-
-  ## Flow
-
-  Given a `rule_type` (`:onboarding | :transaction_screening`) and a
-  fully-preloaded domain entity:
+  Per-rule flow:
 
     1. List every JDM file under the rule_type's folder via
-       `AtomicFi.RulesContext.list_rules/2` (ZenRule mounts and
-       auto-loads the same directory).
-    2. For each rule, call
-       `AtomicFi.ZenRule.Client.evaluate(base_url, project, decision, ctx)`
-       where `project = RulesContext.project_name(rule_type)`.
-    3. Decode each rule result into
-       `%{controls: %{la_id => Control}, next_screening_at: DateTime | nil}`.
-    4. Merge across rules — per-LA controls combine with `Control.tighter/2`
-       (smaller cap wins per slot); `next_screening_at` takes the earliest
-       non-nil value.
-    5. Empty merged controls map → `{:ok, :no_limits}`.
+       `AtomicFi.RulesContext.list_rules/2` (ZenRule auto-loads the
+       same directory).
+    2. For each rule, POST to
+       `<base_url>/api/projects/<project>/evaluate/<rule_name>` with
+       the entity's payload (`AtomicFi.RuleEngine.Payload.from_entity/2`).
+    3. Decode each response into
+       `%{controls: %{la_id => Control}, next_screening_at: dt | nil}`.
+
+  Rules whose output has no `ledger_accounts` map decode to empty
+  controls + a logged warning (catches rules drifting from the
+  expected output shape).
   """
 
-  @behaviour AtomicFi.RuleEngine.Behaviour
+  @behaviour AtomicFi.RuleEngine
 
   require Logger
   use AtomicFi.LoggerMacro
@@ -37,38 +35,31 @@ defmodule AtomicFi.RuleEngine.Default do
   alias AtomicFi.ZenRule.Client
   alias Ecto.Changeset
 
-  @impl AtomicFi.RuleEngine.Behaviour
-  @spec get_controls(Session.t(), RulesContext.rule_type(), struct()) ::
-          {:ok, AtomicFi.RuleEngine.Behaviour.result()}
-          | {:ok, :no_limits}
-          | {:error, term()}
-  def_with_rls_and_logging get_controls(session, rule_type, entity),
-    log_fields: [:rule_type] do
+  @impl AtomicFi.RuleEngine
+  @spec get_controls(Session.t(), RuleEngine.rule_type(), struct()) ::
+          {:ok, [RuleEngine.rule_result()]} | {:error, term()}
+  def_with_rls_and_logging get_controls(session, rule_type, entity), log_fields: [:rule_type] do
     Logger.info(
       "[rule_engine] get_controls rule_type=#{inspect(rule_type)} entity=#{inspect(entity.__struct__)}"
     )
 
     with {:ok, names} <- RulesContext.list_rules(session, rule_type),
-         _ = Logger.info("[rule_engine] rules listed: #{inspect(names)}"),
-         {:ok, %{controls: controls} = merged} <-
-           evaluate_and_merge(session, rule_type, entity, names) do
-      Logger.info("[rule_engine] evaluate_and_merge done controls=#{map_size(controls)}")
-      if map_size(controls) == 0, do: {:ok, :no_limits}, else: {:ok, merged}
-    end
-  end
+         _ = Logger.info("[rule_engine] rules listed: #{inspect(names)}") do
+      base_url = base_url()
+      project = RulesContext.project_name(rule_type)
+      context = Payload.from_entity(session, entity)
 
-  defp evaluate_and_merge(session, rule_type, entity, names) do
-    project = RulesContext.project_name(rule_type)
-    context = Payload.from_entity(session, entity)
-    base_url = base_url()
-    empty = %{controls: %{}, next_screening_at: nil}
-
-    Enum.reduce_while(names, {:ok, empty}, fn name, {:ok, acc} ->
-      case evaluate_one(base_url, project, name, context) do
-        {:ok, rule_result} -> {:cont, {:ok, merge_results(acc, rule_result)}}
-        {:error, _} = err -> {:halt, err}
+      Enum.reduce_while(names, {:ok, []}, fn name, {:ok, acc} ->
+        case evaluate_one(base_url, project, name, context) do
+          {:ok, rule_result} -> {:cont, {:ok, [rule_result | acc]}}
+          {:error, _} = err -> {:halt, err}
+        end
+      end)
+      |> case do
+        {:ok, results} -> {:ok, Enum.reverse(results)}
+        err -> err
       end
-    end)
+    end
   end
 
   defp evaluate_one(base_url, project, decision, context) do
@@ -92,20 +83,6 @@ defmodule AtomicFi.RuleEngine.Default do
     end
   end
 
-  defp merge_results(a, b) do
-    %{
-      controls:
-        Map.merge(a.controls, b.controls, fn _la_id, %Control{} = c1, %Control{} = c2 ->
-          Control.tighter(c1, c2)
-        end),
-      next_screening_at: earliest(a.next_screening_at, b.next_screening_at)
-    }
-  end
-
-  defp earliest(nil, b), do: b
-  defp earliest(a, nil), do: a
-  defp earliest(a, b), do: if(DateTime.compare(a, b) == :lt, do: a, else: b)
-
   defp base_url do
     :atomic_fi
     |> Application.fetch_env!(RuleEngine)
@@ -119,12 +96,11 @@ defmodule AtomicFi.RuleEngine.Default do
     end
   end
 
-  # Any result that doesn't have a top-level "ledger_accounts" map is treated as
-  # "engine produced no LA-shaped output". This is the right behaviour for rules
-  # like de_minimis.json that write to transaction.* keys (no LA controls to
-  # apply), but it also catches drift — a rule that mistakenly emits the wrong
-  # shape will silently produce :no_limits. Log a warning so the drift is
-  # visible in test/dev runs.
+  # Any result without a top-level "ledger_accounts" map is treated as
+  # "engine produced no LA-shaped output". Right for rules that write to
+  # transaction.* keys; also catches drift — a rule emitting the wrong
+  # shape silently produces empty controls. Log a warning so the drift
+  # is visible in test/dev runs.
   defp decode_rule_result(other) do
     Logger.warning(
       "rule_engine: rule output has no ledger_accounts map — result=#{inspect(other, limit: :infinity, printable_limit: 4096)}"

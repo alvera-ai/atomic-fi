@@ -64,7 +64,8 @@ defmodule AtomicFi.DataCase do
   @doc """
   Default: AtomicFi.RuleEngineMock delegates to the real engine (which hits
   the local GoRules Agent container). Individual tests opt-in to canned
-  controls via `Mox.expect(AtomicFi.RuleEngineMock, :get_controls, fn _, _, _ -> ... end)`.
+  per-rule controls via
+  `Mox.expect(AtomicFi.RuleEngineMock, :evaluate_rule, fn _, _, _, _ -> ... end)`.
   """
   def setup_rule_engine_mock(tags) do
     Mox.set_mox_from_context(tags)

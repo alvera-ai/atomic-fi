@@ -25,7 +25,7 @@ defmodule AtomicFi.OnboardingWorkerTest do
       ah = build_ah(session)
 
       stub(RuleEngineMock, :get_controls, fn _session, :onboarding, _entity ->
-        {:ok, %{controls: %{}, next_screening_at: nil}}
+        {:ok, [%{controls: %{}, next_screening_at: nil}]}
       end)
 
       job_args = %{

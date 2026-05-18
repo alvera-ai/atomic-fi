@@ -40,7 +40,7 @@ defmodule AtomicFi.OnboardingContextTest do
       future = DateTime.add(DateTime.utc_now(), 3600, :second)
 
       stub(RuleEngineMock, :get_controls, fn _session, :onboarding, _entity ->
-        {:ok, %{controls: %{}, next_screening_at: future}}
+        {:ok, [%{controls: %{}, next_screening_at: future}]}
       end)
 
       # Seed an initial rescreen_job_id via a first onboard.
@@ -137,7 +137,7 @@ defmodule AtomicFi.OnboardingContextTest do
       future = DateTime.add(DateTime.utc_now(), 3600, :second)
 
       stub(RuleEngineMock, :get_controls, fn _session, :onboarding, _entity ->
-        {:ok, %{controls: %{}, next_screening_at: future}}
+        {:ok, [%{controls: %{}, next_screening_at: future}]}
       end)
 
       assert {:ok, updated} = OnboardingContext.onboard(session, ah)

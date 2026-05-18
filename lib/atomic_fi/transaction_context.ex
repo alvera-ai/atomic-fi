@@ -174,7 +174,7 @@ defmodule AtomicFi.TransactionContext do
            %Transaction{} |> Transaction.changeset(request) |> Repo.insert(session: session),
          transaction <-
            Repo.preload(transaction, @rule_engine_preloads, skip_multi_tenancy_check: true) do
-      case RuleEngine.get_controls(session, :transaction_screening, transaction) do
+      case RuleEngine.apply_rules(session, :transaction_screening, transaction) do
         {:ok, :no_limits} ->
           # Engine declined to score this transaction; leave it :pending with no
           # ledger movement.

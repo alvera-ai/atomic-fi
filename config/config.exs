@@ -102,7 +102,8 @@ config :atomic_fi, :enabled_regimes, ["ach", "wire", "card", "stablecoin", "inte
 config :atomic_fi, AtomicFi.Watchman.Client, base_url: "http://localhost:8084"
 
 # ZenRule rules/limits engine (GoRules Agent). The rule_engine impl satisfies
-# AtomicFi.RuleEngine.Behaviour and is consulted synchronously when a
+# the `AtomicFi.RuleEngine` behaviour (per-rule `evaluate_rule/4`) and is
+# consulted synchronously when a
 # Transaction/AccountHolder/Counterparty is created or updated. Mirrors the
 # ScreeningEngine seam — the caller picks the impl via
 # `Application.compile_env` (RuleEngine in prod; RuleEngineMock in test).

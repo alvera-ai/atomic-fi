@@ -1,6 +1,7 @@
 defmodule AtomicFi.RuleEngine.DefaultTest do
   use AtomicFi.DataCase, async: true
 
+  alias AtomicFi.RuleEngine
   alias AtomicFi.RuleEngine.{Control, Default}
   alias AtomicFi.TransactionContext.Transaction
 
@@ -10,23 +11,38 @@ defmodule AtomicFi.RuleEngine.DefaultTest do
   # config/test.exs — prod's compiled binary never sees them.
   #
   # Combined, the two rule_types exercise the full decoder surface of
-  # AtomicFi.RuleEngine.Default:
+  # AtomicFi.RuleEngine.Default plus the public fold in AtomicFi.RuleEngine:
   #
-  #   • get_controls happy path (function head + evaluate_and_merge fold)
+  #   • Default.get_controls returns one rule_result per rule under rule_type
   #   • decode_rule_result/1 with ledger_accounts payload
   #   • decode_controls_map/1 fold + decode_control/1 cast
-  #   • merge_results/2 + Control.tighter/2 (two rules on same LA)
+  #   • RuleEngine.apply_rules + effective_control + fold across rules
   #   • decode_next_screening_at/1 for nil, valid ISO, and bad ISO
-  #   • earliest/2 (one rule has a screening date, the other nil)
-  #   • {:error, _} halt path from evaluate_one when a decoder errors
+  #   • earliest/2 inside fold (one rule has a date, another nil)
+  #   • {:error, _} halt path when a decoder errors
 
-  describe "get_controls/3 — test-fixtures-good (happy path)" do
+  describe "Default.get_controls/3 — raw per-rule list" do
+    test "returns a list with one rule_result per rule that fired",
+         %{session: session} do
+      transaction = %Transaction{tenant_id: session.tenant_id}
+
+      assert {:ok, results} = Default.get_controls(session, :test_fixtures_good, transaction)
+      assert is_list(results)
+      # test-fixtures-good ships 4 rules (happy_caps, second_rule,
+      # early_screening, with_next_screening)
+      assert length(results) == 4
+      assert Enum.all?(results, &Map.has_key?(&1, :controls))
+      assert Enum.all?(results, &Map.has_key?(&1, :next_screening_at))
+    end
+  end
+
+  describe "RuleEngine.apply_rules/3 — test-fixtures-good (happy path)" do
     test "merges 3 rules: tighter caps + adds slots + earliest next_screening_at",
          %{session: session} do
       transaction = %Transaction{tenant_id: session.tenant_id}
 
       assert {:ok, %{controls: controls, next_screening_at: nsa}} =
-               Default.get_controls(session, :test_fixtures_good, transaction)
+               RuleEngine.apply_rules(session, :test_fixtures_good, transaction)
 
       # la_test_001 is touched by both happy_caps and second_rule. Expect the
       # tighter daily_debit_cap (3000), plus union of other slots.
@@ -41,18 +57,17 @@ defmodule AtomicFi.RuleEngine.DefaultTest do
 
       # next_screening_at takes the EARLIEST non-nil across rules:
       # early_screening (2026-06-01) wins over with_next_screening (2026-12-31).
-      # The intermediate fold steps exercise earliest(a, nil) and earliest(a, b).
       assert nsa == ~U[2026-06-01 00:00:00Z]
     end
   end
 
-  describe "get_controls/3 — test-fixtures-bad (error path)" do
+  describe "RuleEngine.apply_rules/3 — test-fixtures-bad (error path)" do
     test "halts with {:error, {:invalid_next_screening_at, _}} on bad ISO",
          %{session: session} do
       transaction = %Transaction{tenant_id: session.tenant_id}
 
       assert {:error, {:invalid_next_screening_at, _reason}} =
-               Default.get_controls(session, :test_fixtures_bad, transaction)
+               RuleEngine.apply_rules(session, :test_fixtures_bad, transaction)
     end
 
     test "halts with %Ecto.Changeset{} when a rule emits invalid (negative) caps",
@@ -60,20 +75,19 @@ defmodule AtomicFi.RuleEngine.DefaultTest do
       transaction = %Transaction{tenant_id: session.tenant_id}
 
       assert {:error, %Ecto.Changeset{valid?: false}} =
-               Default.get_controls(session, :test_fixtures_bad_caps, transaction)
+               RuleEngine.apply_rules(session, :test_fixtures_bad_caps, transaction)
     end
   end
 
-  describe "get_controls/3 — :no_limits short-circuit" do
-    test "transaction-screening (de_minimis emits transaction.* shape) returns :no_limits",
+  describe "RuleEngine.apply_rules/3 — :no_limits short-circuit" do
+    test "transaction-screening returns :no_limits when no rule emits caps",
          %{session: session} do
-      # de_minimis.json writes to transaction.* fields, not ledger_accounts.*,
-      # so decode_rule_result falls through to the empty-controls catch-all
-      # and get_controls returns :no_limits.
+      # When no rule produces controls AND no rule supplies a next_screening_at,
+      # apply_rules collapses to :no_limits.
       transaction = %Transaction{tenant_id: session.tenant_id, transaction_type: :credit_transfer}
 
       assert {:ok, :no_limits} =
-               Default.get_controls(session, :transaction_screening, transaction)
+               RuleEngine.apply_rules(session, :transaction_screening, transaction)
     end
   end
 end

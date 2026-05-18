@@ -76,7 +76,9 @@ defmodule Mix.Tasks.Corpus.Validate do
   @impl true
   def run(args) do
     {opts, positional, _} =
-      OptionParser.parse(args, strict: [out: :string, reset: :boolean])
+      OptionParser.parse(args,
+        strict: [out: :string, reset: :boolean, concurrency: :integer]
+      )
 
     corpus_path =
       List.first(positional) ||
@@ -94,17 +96,21 @@ defmodule Mix.Tasks.Corpus.Validate do
     session = build_system_session()
     AtomicFi.BlocklistContext.BlocklistCache.refresh_tenant_cache(session.tenant_id)
 
-    Mix.shell().info("→ inserting account_holders.ndjson")
-    insert_account_holders(session, corpus_path)
+    ah_seed = read_ndjson(corpus_path, "account_holders.ndjson")
+    cp_seed = read_ndjson(corpus_path, "counterparties.ndjson")
+    pa_seed = read_ndjson(corpus_path, "payment_accounts.ndjson")
+    tx_seed = read_ndjson(corpus_path, "transactions.ndjson")
 
-    Mix.shell().info("→ inserting counterparties.ndjson")
-    insert_counterparties(session, corpus_path)
+    concurrency = Keyword.get(opts, :concurrency, 1)
 
-    Mix.shell().info("→ inserting payment_accounts.ndjson")
-    insert_payment_accounts(session, corpus_path)
+    Mix.shell().info(
+      "→ fanning out across #{concurrency} VU(s) (k6 model — each VU runs the seed scenario with its own id prefix)"
+    )
 
-    Mix.shell().info("→ creating transactions.ndjson")
-    rows = process_transactions(session, corpus_path)
+    vu_outputs = run_vus(session, concurrency, ah_seed, cp_seed, pa_seed, tx_seed)
+
+    rows = reduce_vu_outputs(vu_outputs)
+    all_timings = Enum.flat_map(vu_outputs, & &1)
 
     report = render_markdown(corpus_path, rows)
 
@@ -117,6 +123,8 @@ defmodule Mix.Tasks.Corpus.Validate do
         File.write!(path, report)
         Mix.shell().info("✓ Wrote validation report to #{path}")
     end
+
+    print_timing(all_timings)
 
     if Enum.any?(rows, &(&1.status in [:mismatch, :engine_error, :setup_error])) do
       System.at_exit(fn _ -> exit({:shutdown, 1}) end)
@@ -199,10 +207,8 @@ defmodule Mix.Tasks.Corpus.Validate do
 
   # ───────────────────────────── inserts ──────────────────────────────
 
-  defp insert_account_holders(session, corpus_path) do
-    corpus_path
-    |> read_ndjson("account_holders.ndjson")
-    |> Enum.each(fn row ->
+  defp insert_account_holders(session, rows) do
+    Enum.each(rows, fn row ->
       ext_id = row["external_id"]
 
       request =
@@ -231,10 +237,8 @@ defmodule Mix.Tasks.Corpus.Validate do
     end)
   end
 
-  defp insert_counterparties(session, corpus_path) do
-    corpus_path
-    |> read_ndjson("counterparties.ndjson")
-    |> Enum.each(fn row ->
+  defp insert_counterparties(session, rows) do
+    Enum.each(rows, fn row ->
       number = row["external_id"]
       ah_ext = Map.fetch!(row, "account_holder_external_id")
       ah = fetch_by_external_id!(session, AccountHolder, ah_ext)
@@ -266,10 +270,8 @@ defmodule Mix.Tasks.Corpus.Validate do
     end)
   end
 
-  defp insert_payment_accounts(session, corpus_path) do
-    corpus_path
-    |> read_ndjson("payment_accounts.ndjson")
-    |> Enum.each(fn row ->
+  defp insert_payment_accounts(session, rows) do
+    Enum.each(rows, fn row ->
       ext_id = row["external_id"]
       {parent_field, parent_struct} = resolve_pa_parent(session, row)
 
@@ -310,14 +312,97 @@ defmodule Mix.Tasks.Corpus.Validate do
     {"counterparty_id", fetch_by!(session, Counterparty, external_id: cp_ext)}
   end
 
-  # ───────────────────────────── transactions ─────────────────────────
+  # ───────────────────────────── VU fan-out (k6 model) ────────────────
+  #
+  # `--concurrency K` spawns K virtual users via `Task.async_stream`. Each
+  # VU clones the seed corpus in-memory with its own id prefix
+  # (`vu0000-`, `vu0001-`, …) and runs the full pipeline against it:
+  # insert AHs → insert CPs → insert PAs → for each txn (SEQUENTIAL within
+  # the VU) call validate_transaction.
+  #
+  # Sequential-within-VU is non-negotiable: velocity rules (BSA §5324
+  # anti-structuring, etc.) window over the AH's prior debits and need
+  # arrival-order semantics. Parallelism happens BETWEEN VUs, which is
+  # safe because each VU has its own AH/CP/PA set — no cross-VU sharing.
+  #
+  # The reduce step strips the prefix and asserts every VU produced an
+  # identical actual for the same logical txn; divergence between VUs
+  # surfaces as a mismatch (catches non-determinism).
+  defp run_vus(session, concurrency, ah_seed, cp_seed, pa_seed, tx_seed) do
+    0..(concurrency - 1)
+    |> Task.async_stream(
+      fn vu ->
+        prefix = vu_prefix(vu)
+        ah = Enum.map(ah_seed, &prefix_external_ids(&1, prefix))
+        cp = Enum.map(cp_seed, &prefix_external_ids(&1, prefix))
+        pa = Enum.map(pa_seed, &prefix_external_ids(&1, prefix))
+        tx = Enum.map(tx_seed, &prefix_external_ids(&1, prefix))
 
-  defp process_transactions(session, corpus_path) do
-    corpus_path
-    |> read_ndjson("transactions.ndjson")
-    |> Enum.map(fn row ->
-      validate_transaction(session, row)
+        insert_account_holders(session, ah)
+        insert_counterparties(session, cp)
+        insert_payment_accounts(session, pa)
+
+        Enum.map(tx, fn row ->
+          result = validate_transaction(session, row)
+          %{result | external_id: strip_prefix(result.external_id, prefix)}
+        end)
+      end,
+      max_concurrency: max(concurrency, 1),
+      ordered: true,
+      timeout: :infinity
+    )
+    |> Enum.map(fn {:ok, rows} -> rows end)
+  end
+
+  defp vu_prefix(vu), do: "vu#{:io_lib.format("~4..0B", [vu]) |> IO.iodata_to_binary()}-"
+
+  # Rewrite every value whose key is `*external_id` with the VU prefix.
+  # Wallet addresses, names, amounts untouched.
+  defp prefix_external_ids(row, prefix) when is_map(row) do
+    Map.new(row, fn
+      {k, v} when is_binary(k) and is_binary(v) ->
+        if String.ends_with?(k, "external_id"), do: {k, prefix <> v}, else: {k, v}
+
+      kv ->
+        kv
     end)
+  end
+
+  defp strip_prefix(nil, _prefix), do: nil
+
+  defp strip_prefix(ext_id, prefix) when is_binary(ext_id) do
+    case ext_id do
+      <<^prefix::binary-size(byte_size(prefix)), rest::binary>> -> rest
+      _ -> ext_id
+    end
+  end
+
+  # Reduce K VUs into a single canonical row list. VU 0 is the canonical
+  # ordering. For each logical txn, assert all VUs produced the same
+  # `actual`; if any diverge, surface as mismatch.
+  defp reduce_vu_outputs([vu0 | rest_vus]) do
+    Enum.with_index(vu0)
+    |> Enum.map(fn {row, idx} ->
+      others = Enum.map(rest_vus, &Enum.at(&1, idx))
+      reduce_row(row, others)
+    end)
+  end
+
+  defp reduce_row(canonical, []), do: canonical
+
+  defp reduce_row(canonical, others) do
+    if Enum.all?(others, &(&1.actual == canonical.actual and &1.status == canonical.status)) do
+      canonical
+    else
+      diverging = Enum.find(others, &(&1.actual != canonical.actual))
+
+      %{
+        canonical
+        | status: :mismatch,
+          expected: canonical.actual,
+          actual: diverging && diverging.actual
+      }
+    end
   end
 
   defp validate_transaction(session, row) do
@@ -325,19 +410,7 @@ defmodule Mix.Tasks.Corpus.Validate do
     {expected, row} = Map.pop(row, "_expected")
     ext_id = row["external_id"]
 
-    result =
-      case TransactionContext.get_transaction_by_external_id(session, ext_id) do
-        nil ->
-          Mix.shell().info("   txn #{ext_id} [create]")
-
-          with {:ok, request} <- build_transaction_request(session, row) do
-            TransactionContext.create_transaction(session, request)
-          end
-
-        existing ->
-          Mix.shell().info("   txn #{ext_id} [reuse]")
-          {:ok, existing}
-      end
+    {result, elapsed_ms} = time_ms(fn -> create_or_reuse(session, ext_id, row) end)
 
     with {:ok, txn} <- result do
       actual = transaction_summary(txn)
@@ -354,7 +427,8 @@ defmodule Mix.Tasks.Corpus.Validate do
         label: label,
         expected: expected,
         actual: actual,
-        status: status
+        status: status,
+        elapsed_ms: elapsed_ms
       }
     else
       {:error, %Ecto.Changeset{} = cs} ->
@@ -364,7 +438,8 @@ defmodule Mix.Tasks.Corpus.Validate do
           expected: expected,
           actual: nil,
           status: :setup_error,
-          error: changeset_errors(cs)
+          error: changeset_errors(cs),
+          elapsed_ms: elapsed_ms
         }
 
       {:error, reason} ->
@@ -374,7 +449,8 @@ defmodule Mix.Tasks.Corpus.Validate do
           expected: expected,
           actual: nil,
           status: :engine_error,
-          error: reason
+          error: reason,
+          elapsed_ms: elapsed_ms
         }
     end
   end
@@ -600,6 +676,70 @@ defmodule Mix.Tasks.Corpus.Validate do
     | engine_error | #{Map.get(counts, :engine_error, 0)} |
     | **total** | **#{length(rows)}** |
     """
+  end
+
+  # Poor-man's-k6 footer. Times the `TransactionContext.create_transaction/2`
+  # call per row (the slow path — RuleEngine HTTP, Postgres triggers, RLS).
+  # NDJSON parsing and entity inserts are excluded; this is the screening
+  # hot path only. Printed to stderr so it never lands in the deterministic
+  # proof.md artifact.
+  defp print_timing(rows) do
+    samples = rows |> Enum.map(& &1.elapsed_ms) |> Enum.reject(&is_nil/1) |> Enum.sort()
+
+    case samples do
+      [] ->
+        Mix.shell().error("Timing: (no rows timed)")
+
+      _ ->
+        total = Enum.sum(samples)
+        n = length(samples)
+        avg = total / n
+        rate = if total > 0, do: n * 1_000 / total, else: 0.0
+
+        Mix.shell().error("""
+
+        Timing (poor man's k6 — per-row TransactionContext.create_transaction)
+          n         #{n}
+          ms_total  #{total}
+          ms_avg    #{format_ms_float(avg)}
+          txns/sec  #{format_rate(rate)}
+          p50       #{percentile(samples, 0.50)} ms
+          p95       #{percentile(samples, 0.95)} ms
+          p99       #{percentile(samples, 0.99)} ms
+          ms_max    #{List.last(samples)}
+        """)
+    end
+  end
+
+  defp percentile(sorted, p) when is_list(sorted) and is_float(p) do
+    # Linear nearest-rank percentile (Excel's PERCENTILE.INC, ish).
+    len = length(sorted)
+    idx = max(0, min(len - 1, round(p * (len - 1))))
+    Enum.at(sorted, idx)
+  end
+
+  defp format_ms_float(ms), do: :erlang.float_to_binary(ms / 1, decimals: 1)
+  defp format_rate(rate), do: :erlang.float_to_binary(rate / 1, decimals: 1)
+
+  defp time_ms(fun) do
+    t0 = System.monotonic_time(:millisecond)
+    result = fun.()
+    {result, System.monotonic_time(:millisecond) - t0}
+  end
+
+  defp create_or_reuse(session, ext_id, row) do
+    case TransactionContext.get_transaction_by_external_id(session, ext_id) do
+      nil ->
+        Mix.shell().info("   txn #{ext_id} [create]")
+
+        with {:ok, request} <- build_transaction_request(session, row) do
+          TransactionContext.create_transaction(session, request)
+        end
+
+      existing ->
+        Mix.shell().info("   txn #{ext_id} [reuse]")
+        {:ok, existing}
+    end
   end
 
   defp status_label(:match), do: "✓ match"

@@ -10,7 +10,7 @@ defmodule AtomicFi.OnboardingContext do
        screening. Records a `%ComplianceScreening{}` audit row. PA is a
        no-op screening-wise (payment accounts carry no PII; the parent
        AccountHolder does).
-    2. `AtomicFi.RuleEngine.get_controls(:onboarding, entity)` — sync HTTP
+    2. `AtomicFi.RuleEngine.apply_rules(:onboarding, entity)` — sync HTTP
        call to ZenRule for a `result` envelope: per-LA controls +
        `next_screening_at`.
     3. `AtomicFi.ControlProtocol.process_controls(entity, session, result)`
@@ -284,10 +284,10 @@ defmodule AtomicFi.OnboardingContext do
   # links / enqueues consistently.
   defp engine_result(session, entity) do
     require Logger
-    Logger.info("[engine_result] calling RuleEngine.get_controls/3")
+    Logger.info("[engine_result] calling RuleEngine.apply_rules/3")
     t0 = System.monotonic_time(:millisecond)
 
-    case RuleEngine.get_controls(session, :onboarding, entity) do
+    case RuleEngine.apply_rules(session, :onboarding, entity) do
       {:ok, :no_limits} ->
         Logger.info("[engine_result] :no_limits in #{System.monotonic_time(:millisecond) - t0}ms")
         {:ok, %{controls: %{}, next_screening_at: nil}}
