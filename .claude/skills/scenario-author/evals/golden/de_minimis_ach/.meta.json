@@ -1,0 +1,8 @@
+{
+  "row_number": 1,
+  "rule_type": "transaction-screening",
+  "live_rule_path": "priv/zenrule/transaction-screening/de_minimis.json",
+  "live_corpus_path": "corpus/zen_rules/de_minimis_stablecoin/",
+  "promoted_in": "P3 (seed)",
+  "notes": "Seed promotion: filename predates slug convention. P5 may extend."
+}

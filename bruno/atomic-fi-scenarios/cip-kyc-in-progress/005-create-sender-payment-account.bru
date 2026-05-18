@@ -1,0 +1,49 @@
+meta {
+  name: 005 — Create sender payment account
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/payment-accounts
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("senderPaExternalId", `CIP-PA-SENDER-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{senderPaExternalId}}",
+    "account_type": "wallet",
+    "currency": "USD",
+    "account_holder_id": "{{senderAhId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("senderPaId", res.body.id);
+}
+
+docs {
+  Funding account on the in-progress sender. The account is created
+  fine — the platform's CIP gate is at the *transaction* boundary,
+  not at PA creation. This lets the customer set up their wallet
+  while identity verification finishes.
+}
+
+assert {
+  res.status: eq 201
+}

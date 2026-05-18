@@ -3,10 +3,14 @@ defmodule AtomicFiApi.AccountHolderController do
   use OpenApiSpex.ControllerSpecs
 
   alias AtomicFi.AccountHolderContext
+  alias AtomicFi.LegalEntityContext
+  alias AtomicFi.OnboardingContext
   alias AtomicFi.OpenApiSchema
   alias AtomicFi.OpenApiSchema.AccountHolderListResponse
   alias AtomicFi.OpenApiSchema.AccountHolderRequest
   alias AtomicFi.OpenApiSchema.AccountHolderResponse
+  alias AtomicFi.OpenApiSchema.LegalEntityRequest
+  alias AtomicFi.OpenApiSchema.LegalEntityResponse
   alias AtomicFiApi.Helpers.ApiHelpers
   alias OpenApiSpex.Reference
   alias OpenApiSpex.Schema
@@ -27,7 +31,7 @@ defmodule AtomicFiApi.AccountHolderController do
     - `page_size` - Items per page (default: 20, max: 100)
     - `order_by` - Field to sort by
     - `order_directions` - Sort direction (asc or desc)
-    - `filters` - Flop filters (holder_type, status, kyc_status, risk_level)
+    - `filters` - Flop filters (account_holder_type, status, kyc_status, risk_level)
     """,
     parameters: [
       page: [in: :query, type: :integer, description: "Page number (1-indexed)", example: 1],
@@ -195,6 +199,85 @@ defmodule AtomicFiApi.AccountHolderController do
 
       {:error, changeset} ->
         {:error, changeset}
+    end
+  end
+
+  operation(:refresh,
+    summary: "Refresh account holder onboarding",
+    description: """
+    Manually re-runs the onboarding pipeline (screening + RuleEngine +
+    control application) for an existing account holder. Clears the
+    currently-scheduled rescreen job and enqueues a new one based on the
+    engine's `next_screening_at`.
+
+    Used by operator-driven re-screen flows; the same `OnboardingContext.refresh/2`
+    is invoked by `AtomicFi.OnboardingWorker` on the scheduled cadence.
+    """,
+    parameters: [
+      id: [
+        in: :path,
+        description: "Account holder ID",
+        schema: %Schema{type: :string, format: :uuid},
+        example: "123e4567-e89b-12d3-a456-426614174000"
+      ]
+    ],
+    responses: [
+      ok:
+        {"Refreshed account holder", "application/json",
+         %Reference{"$ref": "#/components/schemas/AccountHolderResponse"}},
+      not_found: {"Not found", "application/json", OpenApiSchema.ErrorResponse}
+    ]
+  )
+
+  def refresh(conn, %{id: id}) do
+    session = conn.assigns.api_session
+    account_holder = AccountHolderContext.get_account_holder!(session, id)
+
+    case OnboardingContext.refresh(session, account_holder) do
+      {:ok, account_holder} ->
+        ApiHelpers.json_response(conn, account_holder, AccountHolderResponse)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  operation(:update_legal_entity,
+    summary: "Replace the linked LegalEntity (PII) for an account holder",
+    description: """
+    Updates the AccountHolder-owned LegalEntity using PUT semantics
+    (full replacement of PII). The AH-LE link itself is immutable
+    post-create; this endpoint replaces the linked LE's identity fields,
+    nested addresses, phone numbers, and identifications.
+    """,
+    parameters: [
+      id: [
+        in: :path,
+        description: "Account holder ID",
+        schema: %Schema{type: :string, format: :uuid},
+        example: "123e4567-e89b-12d3-a456-426614174000"
+      ]
+    ],
+    request_body:
+      {"Legal entity params", "application/json", LegalEntityRequest.schema(), required: true},
+    responses: [
+      ok: {"Legal entity replaced", "application/json", LegalEntityResponse},
+      not_found: {"Not found", "application/json", OpenApiSchema.ErrorResponse},
+      unprocessable_entity:
+        {"Validation errors", "application/json", OpenApiSchema.ChangesetErrors}
+    ]
+  )
+
+  def update_legal_entity(
+        %{body_params: %LegalEntityRequest{} = legal_entity_request} = conn,
+        %{id: id}
+      ) do
+    session = conn.assigns.api_session
+    %{legal_entity: legal_entity} = AccountHolderContext.get_account_holder!(session, id)
+
+    with {:ok, legal_entity} <-
+           LegalEntityContext.update_legal_entity(session, legal_entity, legal_entity_request) do
+      ApiHelpers.json_response(conn, legal_entity, LegalEntityResponse)
     end
   end
 end

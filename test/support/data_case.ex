@@ -41,9 +41,9 @@ defmodule AtomicFi.DataCase do
     AtomicFi.DataCase.setup_screening_engine_mock(tags)
     AtomicFi.DataCase.setup_rule_engine_mock(tags)
     tenant = system_tenant()
-    # Onboarding (PA / CP / AH / BO write paths) now screens synchronously,
-    # which requires the BlocklistCache to be initialised for the session's
-    # tenant. Refresh once per test so every write path "just works".
+    # Re-init BlocklistCache for the system tenant on every test — cheap (single
+    # ETS insert + a Repo.all of usually-empty blocklist entries) and immune to
+    # test-order pollution from other tests that overwrite ETS state.
     AtomicFi.BlocklistContext.BlocklistCache.refresh_tenant_cache(tenant.id)
     {:ok, tenant: tenant, session: system_session()}
   end
@@ -64,7 +64,8 @@ defmodule AtomicFi.DataCase do
   @doc """
   Default: AtomicFi.RuleEngineMock delegates to the real engine (which hits
   the local GoRules Agent container). Individual tests opt-in to canned
-  controls via `Mox.expect(AtomicFi.RuleEngineMock, :get_controls, fn _, _, _ -> ... end)`.
+  per-rule controls via
+  `Mox.expect(AtomicFi.RuleEngineMock, :evaluate_rule, fn _, _, _, _ -> ... end)`.
   """
   def setup_rule_engine_mock(tags) do
     Mox.set_mox_from_context(tags)

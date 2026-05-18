@@ -1,0 +1,58 @@
+meta {
+  name: 003 — Seed internal blocklist entry (last_name = Smurf)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/blocklist-entries
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "scope": "last_name",
+    "entry_type": "exact",
+    "term": "Smurf",
+    "reason": "Internal compliance ops flagged this surname as part of an ongoing investigation. Per FFIEC BSA/AML Examination Manual, banks may maintain internal lists in addition to OFAC SDN.",
+    "active": true,
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("blocklistEntryId", res.body.id);
+}
+
+docs {
+  Scenario #41 — internal blocklist hit on last_name (BLOCK).
+
+  Cite: FFIEC BSA/AML Examination Manual — internal-list screening
+  obligations beyond OFAC SDN.
+
+  Adds a per-tenant internal blocklist entry. This is the compliance
+  ops surface for catching parties the bank itself has reason to
+  watch — typos found in investigations, names from law-enforcement
+  letters, internal close-out lists. The BlocklistCache (ETS, per
+  tenant) refreshes asynchronously on a Quantum schedule; for
+  scenarios we trigger the refresh explicitly at step 4.
+
+  `scope: last_name` matches LegalEntity.last_name; the `term: "Smurf"`
+  is exact-match (case-sensitive in the cache today).
+}
+
+assert {
+  res.status: eq 201
+  res.body.scope: eq last_name
+  res.body.term: eq Smurf
+}

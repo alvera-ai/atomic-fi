@@ -1,0 +1,67 @@
+meta {
+  name: 003 — Create clean sender
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("senderExternalId", `OFAC-AH-SENDER-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{senderExternalId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "chain_screening": true,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Alice",
+      "last_name": "Cleanperson",
+      "date_of_birth": "1985-06-15",
+      "citizenship_country": "US",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("senderAhId", res.body.id);
+}
+
+docs {
+  Scenario #11 — OFAC SDN high-score hit (BLOCK → PASS via false-positive
+  override).
+
+  Cite: 31 CFR §501.404 — every party to a US-jurisdiction transaction
+  must be screened against the OFAC SDN list before settlement.
+
+  The sender ("Alice Cleanperson") is unambiguous. `chain_screening: true`
+  enqueues an async Watchman screen at create time; the sender comes
+  back clean. Watchman screening here uses the real moov/watchman
+  container running at :8084.
+}
+
+assert {
+  res.status: eq 201
+}

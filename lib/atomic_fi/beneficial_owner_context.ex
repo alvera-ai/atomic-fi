@@ -68,6 +68,21 @@ defmodule AtomicFi.BeneficialOwnerContext do
   end
 
   @doc """
+  Fetches a beneficial_owner by caller-supplied SoE handle. Returns the
+  fully-preloaded struct or `nil`. Mirrors `get_account_holder_by_external_id/2`
+  on AccountHolder — used by `mix corpus.validate` for idempotent reseeds
+  and by SoE integrations that hold an upstream id (Stripe / JPMC / Moov).
+  """
+  @spec get_beneficial_owner_by_external_id(Session.t(), String.t()) ::
+          BeneficialOwner.t() | nil
+  def_with_rls_and_logging get_beneficial_owner_by_external_id(session, external_id),
+    log_fields: [:external_id] do
+    BeneficialOwner
+    |> preload_query()
+    |> Repo.get_by([external_id: external_id], session: session)
+  end
+
+  @doc """
   Creates a beneficial_owner.
 
   ## Examples

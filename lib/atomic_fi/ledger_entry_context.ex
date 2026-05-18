@@ -122,7 +122,7 @@ defmodule AtomicFi.LedgerEntryContext do
           {:ok, [LedgerEntry.t()]} | {:error, term()}
   def_with_rls_and_logging create_entries(session, %Transaction{} = transaction, controls),
     log_fields: [] do
-    {debit_la_id, credit_la_id} = resolve_leaf_accounts(transaction, controls)
+    {debit_la_id, credit_la_id} = resolve_leaf_accounts(transaction)
 
     debit_cs =
       build_changeset(transaction, debit_la_id, :debit, Map.get(controls, debit_la_id))
@@ -185,21 +185,28 @@ defmodule AtomicFi.LedgerEntryContext do
     end
   end
 
-  # The leaf LedgerAccount for each side = the id in `limits` that belongs to
-  # that side's PaymentAccount and is a regime leaf (one of the *_regime_root
-  # la_types — not an aggregation-root row).
+  # The leaf LedgerAccount for each side is structurally determined by the
+  # transaction itself: (debtor/creditor PA, regime mapped from
+  # transaction_type, la_type ∈ *_regime_root). We do NOT read this off
+  # the rule-engine's `controls` map keys — rules only contribute caps
+  # for LAs they want to constrain. With no rule firing, the LA still
+  # exists; we still need to post the entry on it.
   @regime_leaf_la_types [
     :account_holder_payment_account_regime_root,
     :counter_party_payment_account_regime_root
   ]
 
-  defp resolve_leaf_accounts(%Transaction{} = txn, limits) do
-    ids = Map.keys(limits)
+  defp resolve_leaf_accounts(%Transaction{} = txn) do
+    regime = regime_for_transaction_type(txn.transaction_type)
+    pa_ids = [txn.debtor_payment_account_id, txn.creditor_payment_account_id]
 
     leaves =
       Repo.all(
         from(la in LedgerAccount,
-          where: la.id in ^ids and la.la_type in ^@regime_leaf_la_types,
+          where:
+            la.payment_account_id in ^pa_ids and
+              la.la_type in ^@regime_leaf_la_types and
+              la.regime == ^regime,
           select: {la.id, la.payment_account_id}
         ),
         skip_multi_tenancy_check: true
@@ -212,6 +219,17 @@ defmodule AtomicFi.LedgerEntryContext do
   defp find_leaf(leaves, payment_account_id) do
     Enum.find_value(leaves, fn {id, pa_id} -> pa_id == payment_account_id && id end)
   end
+
+  # ISO 20022 transaction_type → ledger regime. Single source of truth on
+  # which regime-root LA an entry posts to. Same mapping the JDM rules use
+  # inside their expressions — kept here so structural LA resolution works
+  # regardless of whether any rule fired.
+  defp regime_for_transaction_type(:internal_transfer), do: "internal_transfer"
+  defp regime_for_transaction_type(:credit_transfer), do: "ach"
+  defp regime_for_transaction_type(:direct_debit), do: "ach"
+  defp regime_for_transaction_type(:card_payment), do: "card"
+  defp regime_for_transaction_type(:refund), do: "card"
+  defp regime_for_transaction_type(:reversal), do: "card"
 
   # Translation boundary: RuleEngine speaks Control (one struct per LA with
   # 8 named caps + reason); the ledger speaks ControlLimit (one struct per

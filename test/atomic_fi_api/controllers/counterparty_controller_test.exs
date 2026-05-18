@@ -10,49 +10,56 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
   @update_attrs %{status: "suspended"}
   @invalid_attrs %{status: nil}
 
-  defp create_attrs(tenant_id, account_holder_id, legal_entity_id) do
+  defp nested_le(tenant_id, overrides \\ %{}) do
+    Map.merge(
+      %{
+        legal_entity_type: "individual",
+        first_name: "CP",
+        last_name: "Holder",
+        citizenship_country: "US",
+        politically_exposed_person: false,
+        tenant_id: tenant_id
+      },
+      overrides
+    )
+  end
+
+  defp create_attrs(tenant_id, account_holder_id) do
     @valid_attrs
     |> Map.put(:tenant_id, tenant_id)
     |> Map.put(:account_holder_id, account_holder_id)
-    |> Map.put(:legal_entity_id, legal_entity_id)
+    |> Map.put(:legal_entity, nested_le(tenant_id))
   end
 
-  defp update_attrs(tenant_id, account_holder_id, legal_entity_id) do
+  defp update_attrs(tenant_id, account_holder_id) do
     @update_attrs
     |> Map.put(:tenant_id, tenant_id)
     |> Map.put(:account_holder_id, account_holder_id)
-    |> Map.put(:legal_entity_id, legal_entity_id)
   end
 
   setup :setup_platform_admin_api
 
   setup %{platform_tenant: platform_tenant} do
     account_holder = insert(:account_holder, tenant_id: platform_tenant.id)
-    legal_entity = insert(:legal_entity, tenant_id: platform_tenant.id)
-    %{account_holder: account_holder, legal_entity: legal_entity}
+    %{account_holder: account_holder}
   end
 
   describe "index (GET /api/counterparties)" do
     test "lists counterparties for tenant", %{
       conn: conn,
       platform_tenant: platform_tenant,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       _cp1 =
         insert(:counterparty,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: legal_entity.id
+          account_holder_id: account_holder.id
         )
-
-      legal_entity2 = insert(:legal_entity, tenant_id: platform_tenant.id)
 
       _cp2 =
         insert(:counterparty,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: legal_entity2.id
+          account_holder_id: account_holder.id
         )
 
       conn = get(conn, ~p"/api/counterparties")
@@ -73,12 +80,9 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
       account_holder: account_holder
     } do
       for _ <- 1..12 do
-        le = insert(:legal_entity, tenant_id: platform_tenant.id)
-
         insert(:counterparty,
           tenant_id: platform_tenant.id,
-          account_holder_id: account_holder.id,
-          legal_entity_id: le.id
+          account_holder_id: account_holder.id
         )
       end
 
@@ -147,14 +151,13 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
     test "creates counterparty with valid data", %{
       conn: conn,
       platform_tenant: platform_tenant,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       conn =
         post(
           conn,
           ~p"/api/counterparties",
-          create_attrs(platform_tenant.id, account_holder.id, legal_entity.id)
+          create_attrs(platform_tenant.id, account_holder.id)
         )
 
       response = json_response(conn, 201)
@@ -166,29 +169,28 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
                "id" => id,
                "status" => "active",
                "account_holder_id" => account_holder_id,
-               "legal_entity_id" => legal_entity_id
+               "legal_entity" => %{"id" => le_id}
              } = response
 
       assert is_binary(id)
       assert account_holder_id == account_holder.id
-      assert legal_entity_id == legal_entity.id
+      assert is_binary(le_id)
       assert Plug.Conn.get_resp_header(conn, "location") == ["/api/counterparties/#{id}"]
     end
 
-    test "creates counterparty with optional counterparty_number", %{
+    test "creates counterparty with optional external_id", %{
       conn: conn,
       platform_tenant: platform_tenant,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       attrs =
-        create_attrs(platform_tenant.id, account_holder.id, legal_entity.id)
-        |> Map.put(:counterparty_number, "CP-EXT-001")
+        create_attrs(platform_tenant.id, account_holder.id)
+        |> Map.put(:external_id, "CP-EXT-001")
 
       conn = post(conn, ~p"/api/counterparties", attrs)
       response = json_response(conn, 201)
 
-      assert %{"counterparty_number" => "CP-EXT-001"} = response
+      assert %{"external_id" => "CP-EXT-001"} = response
     end
 
     test "renders errors when status is missing", %{conn: conn} do
@@ -202,11 +204,10 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
     test "renders errors when status is invalid enum", %{
       conn: conn,
       platform_tenant: platform_tenant,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       attrs =
-        create_attrs(platform_tenant.id, account_holder.id, legal_entity.id)
+        create_attrs(platform_tenant.id, account_holder.id)
         |> Map.put(:status, "invalid_status")
 
       conn = post(conn, ~p"/api/counterparties", attrs)
@@ -215,7 +216,7 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
 
     test "returns 401 without API key", %{
       account_holder: account_holder,
-      legal_entity: legal_entity
+      platform_tenant: platform_tenant
     } do
       conn =
         build_conn()
@@ -223,9 +224,7 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
         |> put_req_header("content-type", "application/json")
         |> post(
           ~p"/api/counterparties",
-          @valid_attrs
-          |> Map.put(:account_holder_id, account_holder.id)
-          |> Map.put(:legal_entity_id, legal_entity.id)
+          create_attrs(platform_tenant.id, account_holder.id)
         )
 
       assert json_response(conn, 401)
@@ -263,62 +262,52 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
                "id" => id,
                "status" => "active",
                "account_holder_id" => returned_ah_id,
-               "legal_entity_id" => le_id,
                "legal_entity" => le_payload
              } = response
 
       assert is_binary(id)
       assert returned_ah_id == account_holder.id
-      assert is_binary(le_id)
 
-      # Nested LE is serialised in the response (no second round-trip needed).
       assert le_payload["first_name"] == "Jane"
       assert le_payload["last_name"] == "External"
       assert le_payload["tenant_id"] == platform_tenant.id
+      le_id = le_payload["id"]
+      assert is_binary(le_id)
 
-      # Cross-check via the real session that the LE was actually persisted.
       le = AtomicFi.LegalEntityContext.get_legal_entity!(session, le_id)
       assert le.first_name == "Jane"
       assert le.last_name == "External"
       assert le.tenant_id == platform_tenant.id
     end
 
-    test "POST is get-or-create on counterparty_number (idempotent)", %{
+    test "POST is get-or-create on external_id (idempotent)", %{
       conn: conn,
       platform_tenant: platform_tenant,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       attrs =
-        create_attrs(platform_tenant.id, account_holder.id, legal_entity.id)
-        |> Map.put(:counterparty_number, "CP-EXT-IDEMPOTENT-1")
+        create_attrs(platform_tenant.id, account_holder.id)
+        |> Map.put(:external_id, "CP-EXT-IDEMPOTENT-1")
 
       conn1 = post(conn, ~p"/api/counterparties", attrs)
       response1 = json_response(conn1, 201)
       api_spec = ApiSpec.spec()
       assert_schema(response1, "CounterpartyResponse", api_spec)
       id1 = response1["id"]
+      original_status = response1["status"]
 
-      # Re-POST with same counterparty_number, even with different status / FK
-      # values, returns the original record unchanged (external SoE id wins).
-      other_le = insert(:legal_entity, tenant_id: platform_tenant.id)
-
-      attrs2 =
-        attrs
-        |> Map.put(:legal_entity_id, other_le.id)
-        |> Map.put(:status, "suspended")
+      attrs2 = Map.put(attrs, :status, "suspended")
 
       conn2 = post(conn, ~p"/api/counterparties", attrs2)
       response2 = json_response(conn2, 201)
       assert_schema(response2, "CounterpartyResponse", api_spec)
 
       assert response2["id"] == id1
-      assert response2["legal_entity_id"] == legal_entity.id
-      assert response2["status"] == "active"
-      assert response2["counterparty_number"] == "CP-EXT-IDEMPOTENT-1"
+      assert response2["status"] == original_status
+      assert response2["external_id"] == "CP-EXT-IDEMPOTENT-1"
     end
 
-    test "renders 422 when neither legal_entity_id nor nested legal_entity is supplied", %{
+    test "renders 422 when nested legal_entity is missing", %{
       conn: conn,
       platform_tenant: platform_tenant,
       account_holder: account_holder
@@ -342,14 +331,13 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
       conn: conn,
       counterparty: counterparty,
       platform_tenant: platform_tenant,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       conn =
         put(
           conn,
           ~p"/api/counterparties/#{counterparty.id}",
-          update_attrs(platform_tenant.id, account_holder.id, legal_entity.id)
+          update_attrs(platform_tenant.id, account_holder.id)
         )
 
       response = json_response(conn, 200)
@@ -376,8 +364,7 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
     test "renders 404 when counterparty does not exist", %{
       conn: conn,
       platform_tenant: platform_tenant,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       non_existent_id = Ecto.UUID.generate()
 
@@ -385,7 +372,7 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
         put(
           conn,
           ~p"/api/counterparties/#{non_existent_id}",
-          update_attrs(platform_tenant.id, account_holder.id, legal_entity.id)
+          update_attrs(platform_tenant.id, account_holder.id)
         )
 
       assert json_response(conn, 404)
@@ -393,8 +380,7 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
 
     test "returns 401 without API key", %{
       counterparty: counterparty,
-      account_holder: account_holder,
-      legal_entity: legal_entity
+      account_holder: account_holder
     } do
       conn =
         build_conn()
@@ -404,7 +390,6 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
           ~p"/api/counterparties/#{counterparty.id}",
           @update_attrs
           |> Map.put(:account_holder_id, account_holder.id)
-          |> Map.put(:legal_entity_id, legal_entity.id)
         )
 
       assert json_response(conn, 401)
@@ -464,6 +449,93 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
     end
   end
 
+  describe "refresh (POST /api/counterparties/:id/refresh)" do
+    setup [:create_counterparty]
+
+    setup %{platform_tenant: platform_tenant} do
+      init_blocklist_cache(platform_tenant.id)
+      :ok
+    end
+
+    test "re-runs the onboarding flow and returns the refreshed CP", %{
+      conn: conn,
+      counterparty: counterparty
+    } do
+      conn = post(conn, ~p"/api/counterparties/#{counterparty.id}/refresh", %{})
+      response = json_response(conn, 200)
+
+      assert response["id"] == counterparty.id
+      assert_schema(response, "CounterpartyResponse", ApiSpec.spec())
+    end
+
+    test "returns 404 when counterparty does not exist", %{conn: conn} do
+      conn = post(conn, ~p"/api/counterparties/#{Ecto.UUID.generate()}/refresh", %{})
+      assert json_response(conn, 404)
+    end
+
+    test "returns 401 without API key", %{counterparty: counterparty} do
+      conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> post(~p"/api/counterparties/#{counterparty.id}/refresh", %{})
+
+      assert json_response(conn, 401)
+    end
+  end
+
+  describe "update_legal_entity (PUT /api/counterparties/:id/legal-entity)" do
+    setup [:create_counterparty]
+
+    test "replaces the linked LE PII", %{
+      conn: conn,
+      counterparty: counterparty,
+      platform_tenant: platform_tenant
+    } do
+      body = %{
+        legal_entity_type: "individual",
+        first_name: "Maria",
+        last_name: "Updated",
+        citizenship_country: "MX",
+        tenant_id: platform_tenant.id
+      }
+
+      conn = put(conn, ~p"/api/counterparties/#{counterparty.id}/legal-entity", body)
+      response = json_response(conn, 200)
+
+      assert_schema(response, "LegalEntityResponse", ApiSpec.spec())
+      assert response["first_name"] == "Maria"
+      assert response["citizenship_country"] == "MX"
+    end
+
+    test "renders 404 when counterparty does not exist", %{
+      conn: conn,
+      platform_tenant: platform_tenant
+    } do
+      body = %{legal_entity_type: "individual", first_name: "X", tenant_id: platform_tenant.id}
+
+      conn =
+        put(conn, ~p"/api/counterparties/#{Ecto.UUID.generate()}/legal-entity", body)
+
+      assert json_response(conn, 404)
+    end
+
+    test "returns 401 without API key", %{
+      counterparty: counterparty,
+      platform_tenant: platform_tenant
+    } do
+      conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> put_req_header("content-type", "application/json")
+        |> put(
+          ~p"/api/counterparties/#{counterparty.id}/legal-entity",
+          %{legal_entity_type: "individual", first_name: "X", tenant_id: platform_tenant.id}
+        )
+
+      assert json_response(conn, 401)
+    end
+  end
+
   describe "OpenAPI spec validation" do
     test "OpenAPI spec includes counterparty endpoints", %{conn: conn} do
       conn = get(conn, ~p"/api/openapi")
@@ -504,7 +576,7 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
       refute get_in(request_schema, ["properties", "updated_at"])
 
       assert get_in(request_schema, ["properties", "account_holder_id"])
-      assert get_in(request_schema, ["properties", "legal_entity_id"])
+      assert get_in(request_schema, ["properties", "legal_entity"])
       assert get_in(request_schema, ["properties", "status"])
     end
 
@@ -518,7 +590,6 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
 
       assert get_in(response_schema, ["properties", "id"])
       assert get_in(response_schema, ["properties", "account_holder_id"])
-      assert get_in(response_schema, ["properties", "legal_entity_id"])
       assert get_in(response_schema, ["properties", "status"])
       assert get_in(response_schema, ["properties", "inserted_at"])
       assert get_in(response_schema, ["properties", "updated_at"])
@@ -527,15 +598,20 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
 
   defp create_counterparty(%{
          platform_tenant: platform_tenant,
-         account_holder: account_holder,
-         legal_entity: legal_entity
+         account_holder: account_holder
        }) do
     counterparty =
       insert(:counterparty,
         tenant_id: platform_tenant.id,
-        account_holder_id: account_holder.id,
-        legal_entity_id: legal_entity.id
+        account_holder_id: account_holder.id
       )
+
+    insert(:legal_entity,
+      counterparty_id: counterparty.id,
+      subject_type: :counterparty,
+      account_holder_id: account_holder.id,
+      tenant_id: platform_tenant.id
+    )
 
     %{counterparty: counterparty}
   end

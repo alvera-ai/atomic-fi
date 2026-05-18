@@ -1,0 +1,40 @@
+{
+  "source": "Oztas et al. 2023 — Synthetic AML Transaction Monitoring Dataset (SAML-D)",
+  "paper": "https://ieeexplore.ieee.org/document/10374100",
+  "repo": "https://github.com/BOztasUK/Anti_Money_Laundering_Transaction_Data_SAML-D",
+  "kaggle_dataset": "berkanoztas/synthetic-transaction-monitoring-dataset-aml",
+  "license": "CC BY 4.0 (per Kaggle dataset license field)",
+  "fetched_via": "kaggle CLI — `kaggle datasets download -d <kaggle_dataset>`",
+  "fetched_ref": "v1 (Kaggle latest)",
+  "auth_required": true,
+  "files": {
+    "SAML-D.csv": {
+      "approximate_bytes": 12000000,
+      "approximate_rows": 9504852,
+      "header": true,
+      "columns": [
+        "Time",
+        "Date",
+        "Sender_account",
+        "Receiver_account",
+        "Amount",
+        "Payment_currency",
+        "Received_currency",
+        "Sender_bank_location",
+        "Receiver_bank_location",
+        "Payment_type",
+        "Is_laundering",
+        "Laundering_type"
+      ],
+      "notes": "12 features per row. 28 typologies in `Laundering_type` (11 normal, 17 suspicious). `Is_laundering` is the binary label."
+    }
+  },
+  "pipeline": {
+    "reseed_target": "make reseed-saml-d CORPUS_OUT=<dir> SAML_D_ROWS=<n> SAML_D_SEED=<s>",
+    "subset_step": "python3 pandas — sample(n, random_state=seed).to_json(orient='records', lines=True)",
+    "raw_dest": "$CORPUS_OUT/saml-d/SAML-D.csv",
+    "subset_dest": "$CORPUS_OUT/saml-d/saml_d.ndjson",
+    "elixir_consumer": "mix corpus.generate.saml_d (reads saml_d.ndjson; produces sharded AH/CP/PA/Txn ndjson under --out)"
+  },
+  "notes": "No direct download — Kaggle CLI auth (kaggle.json) required. Subset to NDJSON happens in the Makefile via pandas so Elixir never reads the 12 MB raw CSV; only the small ndjson sample enters the mix task. Per-row checksum is not pinned because the upstream is mutable on Kaggle; pin a `fetched_ref` instead."
+}

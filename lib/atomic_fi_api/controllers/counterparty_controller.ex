@@ -3,10 +3,14 @@ defmodule AtomicFiApi.CounterpartyController do
   use OpenApiSpex.ControllerSpecs
 
   alias AtomicFi.CounterpartyContext
+  alias AtomicFi.LegalEntityContext
+  alias AtomicFi.OnboardingContext
   alias AtomicFi.OpenApiSchema
   alias AtomicFi.OpenApiSchema.CounterpartyListResponse
   alias AtomicFi.OpenApiSchema.CounterpartyRequest
   alias AtomicFi.OpenApiSchema.CounterpartyResponse
+  alias AtomicFi.OpenApiSchema.LegalEntityRequest
+  alias AtomicFi.OpenApiSchema.LegalEntityResponse
   alias AtomicFiApi.Helpers.ApiHelpers
   alias OpenApiSpex.Reference
   alias OpenApiSpex.Schema
@@ -184,6 +188,79 @@ defmodule AtomicFiApi.CounterpartyController do
 
       {:error, changeset} ->
         {:error, changeset}
+    end
+  end
+
+  operation(:refresh,
+    summary: "Refresh counterparty onboarding",
+    description: """
+    Manually re-runs the onboarding pipeline for an existing counterparty.
+    Same `OnboardingContext.refresh/2` invoked by `AtomicFi.OnboardingWorker`
+    on the scheduled cadence.
+    """,
+    parameters: [
+      id: [
+        in: :path,
+        description: "Counterparty ID",
+        schema: %Schema{type: :string, format: :uuid},
+        example: "123e4567-e89b-12d3-a456-426614174000"
+      ]
+    ],
+    responses: [
+      ok:
+        {"Refreshed counterparty", "application/json",
+         %Reference{"$ref": "#/components/schemas/CounterpartyResponse"}},
+      not_found: {"Not found", "application/json", OpenApiSchema.ErrorResponse}
+    ]
+  )
+
+  def refresh(conn, %{id: id}) do
+    session = conn.assigns.api_session
+    counterparty = CounterpartyContext.get_counterparty!(session, id)
+
+    case OnboardingContext.refresh(session, counterparty) do
+      {:ok, counterparty} ->
+        ApiHelpers.json_response(conn, counterparty, CounterpartyResponse)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  operation(:update_legal_entity,
+    summary: "Replace the linked LegalEntity (PII) for a counterparty",
+    description: """
+    Updates the Counterparty-owned LegalEntity using PUT semantics
+    (full replacement of PII). The CP-LE link is immutable post-create.
+    """,
+    parameters: [
+      id: [
+        in: :path,
+        description: "Counterparty ID",
+        schema: %Schema{type: :string, format: :uuid},
+        example: "123e4567-e89b-12d3-a456-426614174000"
+      ]
+    ],
+    request_body:
+      {"Legal entity params", "application/json", LegalEntityRequest.schema(), required: true},
+    responses: [
+      ok: {"Legal entity replaced", "application/json", LegalEntityResponse},
+      not_found: {"Not found", "application/json", OpenApiSchema.ErrorResponse},
+      unprocessable_entity:
+        {"Validation errors", "application/json", OpenApiSchema.ChangesetErrors}
+    ]
+  )
+
+  def update_legal_entity(
+        %{body_params: %LegalEntityRequest{} = legal_entity_request} = conn,
+        %{id: id}
+      ) do
+    session = conn.assigns.api_session
+    %{legal_entity: legal_entity} = CounterpartyContext.get_counterparty!(session, id)
+
+    with {:ok, legal_entity} <-
+           LegalEntityContext.update_legal_entity(session, legal_entity, legal_entity_request) do
+      ApiHelpers.json_response(conn, legal_entity, LegalEntityResponse)
     end
   end
 end

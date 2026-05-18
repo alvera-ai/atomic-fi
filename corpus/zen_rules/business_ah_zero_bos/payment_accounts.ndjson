@@ -1,0 +1,4 @@
+{"external_id":"bz-pa-business-no-bos","account_holder_external_id":"bz-ah-business-no-bos","account_type":"wallet","currency":"USD"}
+{"external_id":"bz-pa-business-with-bo","account_holder_external_id":"bz-ah-business-with-bo","account_type":"wallet","currency":"USD"}
+{"external_id":"bz-pa-individual-sender","account_holder_external_id":"bz-ah-individual-sender","account_type":"wallet","currency":"USD"}
+{"external_id":"bz-pa-receiver","account_holder_external_id":"bz-ah-receiver","account_type":"wallet","currency":"USD"}

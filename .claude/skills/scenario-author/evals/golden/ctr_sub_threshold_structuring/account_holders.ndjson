@@ -1,0 +1,2 @@
+{"external_id":"ctr-ah-sender","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"Eve","last_name":"Structurer"}}
+{"external_id":"ctr-ah-receiver","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"Frank","last_name":"Receiverson"}}

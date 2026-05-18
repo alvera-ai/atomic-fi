@@ -16,8 +16,14 @@ defmodule AtomicFi.MixProject do
       source_url: "https://github.com/alvera-ai/atomic-fi",
       homepage_url: "https://github.com/alvera-ai/atomic-fi",
       listeners: [Phoenix.CodeReloader],
-      test_coverage: [tool: ExCoveralls],
-      preferred_cli_env: [
+      test_coverage: [tool: ExCoveralls]
+    ]
+  end
+
+  # Mix 1.19 moved preferred CLI envs out of project/0.
+  def cli do
+    [
+      preferred_envs: [
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
@@ -70,7 +76,13 @@ defmodule AtomicFi.MixProject do
       {:phoenix_html, "~> 4.1", override: true},
       {:phoenix_live_reload, "~> 1.5", only: :dev},
       {:phoenix_live_view, "~> 1.0.1", override: true},
-      {:heroicons, "~> 0.5"},
+      {:heroicons,
+       github: "tailwindlabs/heroicons",
+       tag: "v2.2.0",
+       sparse: "optimized",
+       app: false,
+       compile: false,
+       depth: 1},
       {:floki, ">= 0.34.3"},
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:esbuild, "~> 0.8", runtime: Mix.env() == :dev},
@@ -125,6 +137,7 @@ defmodule AtomicFi.MixProject do
 
       # Utils
       {:slugify, "~> 1.3"},
+      {:puid, "~> 2.3"},
       {:timex, "~> 3.7", override: true},
       {:rename, "~> 0.1.0", only: :dev},
 
@@ -141,6 +154,7 @@ defmodule AtomicFi.MixProject do
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.18", only: [:dev, :test], runtime: false},
       {:styler, "~> 1.4", only: [:dev, :test], runtime: false},
+      {:rewrite, "~> 1.1", only: [:dev, :test], runtime: false},
 
       # Development tools
       {:tidewave, "~> 0.5.2", only: :dev},

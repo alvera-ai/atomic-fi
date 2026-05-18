@@ -43,7 +43,7 @@ defmodule AtomicFi.PartyActivitySnapshotContext.PartyActivitySnapshot do
   @foreign_key_type :binary_id
 
   @kyc_statuses [:not_started, :in_progress, :approved, :rejected, :expired]
-  @risk_levels [:low, :medium, :high, :very_high]
+  @risk_levels [:low, :medium, :high, :very_high, :prohibited]
   @period_types [:daily, :weekly, :monthly, :quarterly]
 
   @derive {

@@ -14,6 +14,7 @@ defmodule AtomicFi.Factory do
   use AtomicFi.Factory.SessionFactory
   use AtomicFi.Factory.AccountHolderFactory
   use AtomicFi.Factory.BlocklistEntryFactory
+  use AtomicFi.Factory.ComplianceScreeningFactory
 
   @doc """
   Helper to insert a tenant and initialize its blocklist cache.
@@ -31,6 +32,70 @@ defmodule AtomicFi.Factory do
     tenant = insert(:tenant, attrs)
     AtomicFi.BlocklistContext.BlocklistCache.refresh_tenant_cache(tenant.id)
     tenant
+  end
+
+  @doc """
+  Hydrates an inserted AccountHolder with its identity LegalEntity tree
+  (LE + LE's identifications, addresses, phone_numbers).
+
+  `Repo.preload(..., force: true)` re-queries every assoc — needed when
+  the test inserted an LE row AFTER the factory built the AH struct, since
+  the factory pre-sets `legal_entity: nil` and stale-nil fields aren't
+  re-hydrated by a default preload call.
+
+  Pattern-matches on `%AccountHolder{}` so the wrong arg blows up loudly
+  at the callsite.
+
+  ## Examples
+
+      ah = insert(:account_holder, tenant_id: tenant.id)
+      insert(:legal_entity, account_holder_id: ah.id, tenant_id: tenant.id)
+      ah = with_hydrated_account_holder(ah)
+      ah.legal_entity.id  # the AH-owned identity LE
+  """
+  @spec with_hydrated_account_holder(AtomicFi.AccountHolderContext.AccountHolder.t()) ::
+          AtomicFi.AccountHolderContext.AccountHolder.t()
+  def with_hydrated_account_holder(%AtomicFi.AccountHolderContext.AccountHolder{} = ah) do
+    AtomicFi.Repo.preload(
+      ah,
+      [legal_entity: [:addresses, :phone_numbers, :identifications]],
+      force: true,
+      skip_multi_tenancy_check: true
+    )
+  end
+
+  @doc """
+  Hydrates an inserted Counterparty with its identity LegalEntity tree.
+
+  See `with_hydrated_account_holder/1` for the rationale around `force: true`
+  and the explicit pattern match.
+  """
+  @spec with_hydrated_counterparty(AtomicFi.CounterpartyContext.Counterparty.t()) ::
+          AtomicFi.CounterpartyContext.Counterparty.t()
+  def with_hydrated_counterparty(%AtomicFi.CounterpartyContext.Counterparty{} = cp) do
+    AtomicFi.Repo.preload(
+      cp,
+      [legal_entity: [:addresses, :phone_numbers, :identifications]],
+      force: true,
+      skip_multi_tenancy_check: true
+    )
+  end
+
+  @doc """
+  Hydrates an inserted BeneficialOwner with its identity LegalEntity tree.
+
+  See `with_hydrated_account_holder/1` for the rationale around `force: true`
+  and the explicit pattern match.
+  """
+  @spec with_hydrated_beneficial_owner(AtomicFi.BeneficialOwnerContext.BeneficialOwner.t()) ::
+          AtomicFi.BeneficialOwnerContext.BeneficialOwner.t()
+  def with_hydrated_beneficial_owner(%AtomicFi.BeneficialOwnerContext.BeneficialOwner{} = bo) do
+    AtomicFi.Repo.preload(
+      bo,
+      [legal_entity: [:addresses, :phone_numbers, :identifications]],
+      force: true,
+      skip_multi_tenancy_check: true
+    )
   end
 
   use AtomicFi.Factory.LegalEntityFactory

@@ -1,0 +1,64 @@
+meta {
+  name: 004 — Create receiver (US resident)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("receiverExternalId", `KP-AH-RECEIVER-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{receiverExternalId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "chain_screening": false,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Uma",
+      "last_name": "Stateside",
+      "date_of_birth": "1980-11-04",
+      "citizenship_country": "US",
+      "politically_exposed_person": false,
+      "addresses": [
+        {
+          "address_types": ["residential"],
+          "primary": true,
+          "country": "US",
+          "line_1": "1600 Pennsylvania Ave NW",
+          "city": "Washington",
+          "tenant_id": "{{tenantId}}"
+        }
+      ],
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("receiverAhId", res.body.id);
+}
+
+assert {
+  res.status: eq 201
+}

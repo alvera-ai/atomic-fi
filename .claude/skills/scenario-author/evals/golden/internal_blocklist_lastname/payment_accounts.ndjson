@@ -1,0 +1,3 @@
+{"external_id":"ibl-pa-sender","account_holder_external_id":"ibl-ah-sender","account_type":"wallet","currency":"USD"}
+{"external_id":"ibl-pa-clean-recipient","account_holder_external_id":"ibl-ah-clean-recipient","account_type":"wallet","currency":"USD"}
+{"external_id":"ibl-pa-blocked-recipient","account_holder_external_id":"ibl-ah-blocked-recipient","account_type":"wallet","currency":"USD"}

@@ -1,0 +1,54 @@
+meta {
+  name: 022 — Sixth debit ($25 to receiver 6) — asserts BLOCK
+  type: http
+  seq: 22
+}
+
+post {
+  url: {{baseUrl}}/api/transactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "transaction_type": "internal_transfer",
+    "amount": 2500,
+    "currency": "USD",
+    "account_holder_id": "{{senderAhId}}",
+    "debtor_payment_account_id": "{{senderPaId}}",
+    "creditor_payment_account_id": "{{receiverPaId6}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Sixth payment closes the smurfing typology: 6 distinct creditor PAs
+  hit inside 24h, each ≤ the rule's small-payment cap, totalling above
+  the smurfing threshold. The `smurfing_pattern_sar_eligible` rule fires
+  and BLOCKs.
+
+  Expected:
+    - `status: rejected`
+    - `rejected_rule: "smurfing_pattern_sar_eligible"`
+
+  SAR-MSB-eligible. In a real compliance ops setup this draws an
+  analyst review queue entry; the prior 5 transactions remain
+  accepted (they did not look suspicious in isolation) but the fan-out
+  pattern surfaces only on the 6th hit.
+}
+
+assert {
+  res.status: eq 201
+  res.body.status: eq rejected
+  res.body.rejected_rule: eq smurfing_pattern_sar_eligible
+}

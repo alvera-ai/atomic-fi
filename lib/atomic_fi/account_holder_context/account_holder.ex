@@ -7,14 +7,16 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
   @typedoc """
   Account holder — the MDM subject that controls an account (ISO 20022 acmt:007, acmt:019).
 
-  Operational state lives here. All PII lives in the linked LegalEntity.
+  Operational state lives here. All PII lives in the linked LegalEntity, which
+  is reached via `has_one :legal_entity` (LE carries the FK back: `legal_entities.account_holder_id`).
 
   ## Attributes
 
   * `id` - UUID primary key
-  * `legal_entity_id` - FK to LegalEntity (all PII / identity)
+  * `legal_entity` - one-to-one identity record (LE owns the FK back; no
+    `legal_entity_id` column on AccountHolder)
   * `external_id` - Upstream ID (Stripe/JPMC/Moov), unique per tenant
-  * `holder_type` - `individual` | `business` | `trust` | `nonprofit`
+  * `account_holder_type` - `individual` | `business` | `trust` | `nonprofit`
   * `status` - `pending` | `active` | `suspended` | `closed`
   * `kyc_status` - `not_started` | `in_progress` | `approved` | `rejected` | `expired`
   * `risk_level` - `low` | `medium` | `high` | `very_high` | `prohibited`
@@ -32,19 +34,14 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
 
   @derive {
     Flop.Schema,
-    filterable: [:id, :tenant_id, :holder_type, :status, :kyc_status, :risk_level],
-    sortable: [:id, :inserted_at, :updated_at, :holder_type, :status, :onboarded_at],
+    filterable: [:id, :tenant_id, :account_holder_type, :status, :kyc_status, :risk_level],
+    sortable: [:id, :inserted_at, :updated_at, :account_holder_type, :status, :onboarded_at],
     default_limit: 20,
     max_limit: 100
   }
 
   # OpenAPI annotations
   open_api_property(schema: %Schema{type: :string, format: :uuid, readOnly: true}, key: :id)
-
-  open_api_property(
-    schema: %Schema{type: :string, format: :uuid, nullable: true},
-    key: :legal_entity_id
-  )
 
   open_api_property(
     schema: %OpenApiSpex.Reference{"$ref": "#/components/schemas/LegalEntityRequest"},
@@ -62,7 +59,7 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
 
   open_api_property(
     schema: %Schema{type: :string, enum: ["individual", "business", "trust", "nonprofit"]},
-    key: :holder_type
+    key: :account_holder_type
   )
 
   open_api_property(
@@ -87,7 +84,7 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
     schema: %Schema{
       type: :string,
       nullable: true,
-      enum: ["low", "medium", "high", "very_high"]
+      enum: ["low", "medium", "high", "very_high", "prohibited"]
     },
     key: :risk_level
   )
@@ -140,19 +137,36 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
     key: :chain_screening
   )
 
+  # BeneficialOwners of this AccountHolder (FinCEN CDD §1010.230 / Corporate
+  # Transparency Act). Read-only on the AH response; BO records are created
+  # via the dedicated POST /api/beneficial-owners route — never embedded in
+  # the AH POST body.
+  open_api_property(
+    schema: %Schema{
+      type: :array,
+      readOnly: true,
+      items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/BeneficialOwnerResponse"}
+    },
+    key: :beneficial_owners
+  )
+
   open_api_schema(
     title: "AccountHolder",
     description:
       "Account holder — the MDM subject controlling an account. " <>
         "All PII lives in the linked LegalEntity (ISO 20022 acmt:007 / acmt:019). " <>
-        "Pass either `legal_entity_id` (FK to an existing LegalEntity) or a nested `legal_entity` object to create one atomically.",
-    required: [:holder_type],
+        "POST creates the LegalEntity atomically via the nested `legal_entity` " <>
+        "object — the LE link is immutable post-create (LE carries the FK, " <>
+        "not AH). To replace LE PII content, use `PUT /api/account-holders/:id/legal-entity`.",
+    # `legal_entity` is required on POST but optional on PUT (cast_assoc is a
+    # no-op on update; the LE link is immutable post-create). Enforcing it at
+    # the Ecto layer keeps schema validation consistent across both verbs.
+    required: [:account_holder_type],
     properties: [
       :id,
-      :legal_entity_id,
       :legal_entity,
       :external_id,
-      :holder_type,
+      :account_holder_type,
       :status,
       :kyc_status,
       :risk_level,
@@ -164,16 +178,37 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
       :tenant_id,
       :inserted_at,
       :updated_at,
-      :chain_screening
+      :chain_screening,
+      :beneficial_owners
     ]
   )
 
   typed_schema "account_holders" do
-    belongs_to :legal_entity, LegalEntity
+    # 1:1 identity record. LE carries the FK back via `legal_entities.account_holder_id`
+    # (filtered by subject_type=:account_holder so this assoc doesn't include
+    # CP-owned or BO-owned LEs that roll up to the same AH for compliance).
+    has_one :legal_entity, LegalEntity,
+      foreign_key: :account_holder_id,
+      where: [subject_type: :account_holder]
+
+    # FinCEN CDD §1010.230 / Corporate Transparency Act beneficial owners
+    # of this AccountHolder. Walked through the AH's BO-LE rows: an LE
+    # whose `subject_type = :account_holder_beneficial_owner` and whose
+    # `account_holder_id = ah.id` points (via `beneficial_owner_id`) at
+    # the BO row itself. The `:counterparty_beneficial_owner` variant —
+    # BOs of one of this AH's Counterparties — lives on the Counterparty
+    # schema (`Counterparty.has_many :beneficial_owners`), so this assoc
+    # never bleeds CP-side BOs into AH-side compliance.
+    has_many :account_holder_beneficial_owner_legal_entities, LegalEntity,
+      foreign_key: :account_holder_id,
+      where: [subject_type: :account_holder_beneficial_owner]
+
+    has_many :beneficial_owners,
+      through: [:account_holder_beneficial_owner_legal_entities, :beneficial_owner]
 
     field :external_id, :string
 
-    field :holder_type, Ecto.Enum, values: [:individual, :business, :trust, :nonprofit]
+    field :account_holder_type, Ecto.Enum, values: [:individual, :business, :trust, :nonprofit]
 
     field :status, Ecto.Enum,
       values: [:pending, :active, :suspended, :closed, :flagged],
@@ -184,7 +219,7 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
       default: :not_started
 
     field :risk_level, Ecto.Enum,
-      values: [:low, :medium, :high, :very_high],
+      values: [:low, :medium, :high, :very_high, :prohibited],
       default: :low
 
     field :enabled_currencies, {:array, :string}, default: []
@@ -212,9 +247,8 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
   def changeset(account_holder, attrs) do
     account_holder
     |> cast(attrs, [
-      :legal_entity_id,
       :external_id,
-      :holder_type,
+      :account_holder_type,
       :status,
       :kyc_status,
       :risk_level,
@@ -226,10 +260,9 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
       :tenant_id
     ])
     |> maybe_cast_assoc_legal_entity(attrs)
-    |> validate_required([:holder_type, :tenant_id])
-    |> validate_legal_entity_present()
+    |> validate_required([:account_holder_type, :tenant_id])
     |> cast_and_validate_enabled_regimes()
-    |> foreign_key_constraint(:legal_entity_id)
+    |> AtomicFi.Identifier.put_default(:account_holder_number, :ah)
     |> foreign_key_constraint(:tenant_id)
   end
 
@@ -247,43 +280,38 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
   end
 
   defp parent_regimes(prepared) do
-    case Ecto.Changeset.get_field(prepared, :tenant_id) do
-      nil -> AtomicFi.EnabledRegimes.default()
-      tenant_id -> tenant_regimes(prepared.repo, tenant_id)
-    end
+    tenant_id = Ecto.Changeset.get_field(prepared, :tenant_id)
+
+    %Tenant{enabled_regimes: regimes} =
+      prepared.repo.get!(Tenant, tenant_id, skip_multi_tenancy_check: true)
+
+    regimes
   end
 
-  defp tenant_regimes(repo, tenant_id) do
-    case repo.get(Tenant, tenant_id, skip_multi_tenancy_check: true) do
-      nil -> AtomicFi.EnabledRegimes.default()
-      %{enabled_regimes: regimes} -> regimes
-    end
-  end
-
-  # Cast nested legal_entity only when the key is present in attrs (not a nil default).
-  defp maybe_cast_assoc_legal_entity(changeset, attrs) do
+  # cast_assoc nested legal_entity only when the key is present in attrs (not a
+  # nil default). The per-parent `account_holder_changeset/2` on LE puts
+  # `subject_type` via put_change — Ecto's has_one foreign_key auto-sets
+  # `legal_entity.account_holder_id` from the inserted AH's id.
+  #
+  # Required on INSERT (every AH must have its identity LE), optional on
+  # UPDATE (existing LE stays put — replacing LE PII goes through the
+  # nested `PUT /api/account-holders/:id/legal-entity` route).
+  defp maybe_cast_assoc_legal_entity(%Ecto.Changeset{data: %{id: nil}} = changeset, attrs) do
     case Map.fetch(attrs, :legal_entity) do
       {:ok, value} when not is_nil(value) ->
-        cast_assoc(changeset, :legal_entity, required: true)
+        cast_assoc(changeset, :legal_entity,
+          required: true,
+          with: &LegalEntity.account_holder_changeset/2
+        )
 
       _ ->
-        changeset
+        add_error(
+          changeset,
+          :legal_entity,
+          "is required on create — provide a nested legal_entity object"
+        )
     end
   end
 
-  # Require either legal_entity_id (FK) or a nested legal_entity change in this changeset.
-  defp validate_legal_entity_present(changeset) do
-    legal_entity_id = get_field(changeset, :legal_entity_id)
-    has_nested = Map.has_key?(changeset.changes, :legal_entity)
-
-    if is_nil(legal_entity_id) and not has_nested do
-      add_error(
-        changeset,
-        :legal_entity_id,
-        "must provide either legal_entity_id or a nested legal_entity"
-      )
-    else
-      changeset
-    end
-  end
+  defp maybe_cast_assoc_legal_entity(%Ecto.Changeset{} = changeset, _attrs), do: changeset
 end

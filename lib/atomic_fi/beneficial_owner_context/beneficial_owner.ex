@@ -15,7 +15,8 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
 
   * `id` - UUID primary key
   * `account_holder_id` - FK to the corporate AccountHolder being examined
-  * `legal_entity_id` - FK to LegalEntity (all PII / identity for the owner)
+  * `external_id` - Upstream ID (Stripe/JPMC/Moov / corpus fixture key), unique per tenant
+  * `legal_entity` - 1:1 identity record (LE carries the FK back via `legal_entities.beneficial_owner_id`)
   * `ownership_pct` - Ownership percentage (≥25% triggers FinCEN CDD)
   * `control_type` - `shareholder` | `director` | `officer` | `trustee`
   * `verification_status` - `pending` | `verified` | `failed`
@@ -44,10 +45,7 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
     key: :account_holder_id
   )
 
-  open_api_property(
-    schema: %Schema{type: :string, format: :uuid, nullable: true},
-    key: :legal_entity_id
-  )
+  open_api_property(schema: %Schema{type: :string, nullable: true}, key: :external_id)
 
   open_api_property(
     schema: %OpenApiSpex.Reference{"$ref": "#/components/schemas/LegalEntityRequest"},
@@ -119,12 +117,16 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
     description:
       "Beneficial owner of a corporate account holder. " <>
         "≥25% ownership triggers FinCEN CDD Rule 31 CFR §1010.230 (FATF Rec 24). " <>
-        "All PII lives in the linked LegalEntity.",
+        "All PII lives in the linked LegalEntity, created atomically via the nested " <>
+        "`legal_entity` object. The LE link is immutable post-create (LE owns the " <>
+        "FK back). To replace LE PII, use `PUT /api/beneficial-owners/:id/legal-entity`.",
+    # `legal_entity` is required on POST but optional on PUT (cast_assoc is a
+    # no-op on update; the LE link is immutable post-create).
     required: [:account_holder_id, :control_type],
     properties: [
       :id,
       :account_holder_id,
-      :legal_entity_id,
+      :external_id,
       :legal_entity,
       :ownership_pct,
       :control_type,
@@ -139,7 +141,19 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
 
   typed_schema "beneficial_owners" do
     belongs_to :account_holder, AccountHolder
-    belongs_to :legal_entity, LegalEntity
+
+    # 1:1 identity. LE carries the FK back via `legal_entities.beneficial_owner_id`,
+    # which is non-null only on BO-owned LEs (subject_type ∈
+    # {`:account_holder_beneficial_owner`, `:counterparty_beneficial_owner`}).
+    # `where:` matches both BO variants — the LE's subject_type still
+    # records which parent (AH or CP) the BO sits under, and the
+    # `legal_entities_subject_fk_consistency` CHECK constraint keeps the
+    # (subject_type, parent-FK presence) tuple coherent.
+    has_one :legal_entity, LegalEntity,
+      foreign_key: :beneficial_owner_id,
+      where: [
+        subject_type: {:in, [:account_holder_beneficial_owner, :counterparty_beneficial_owner]}
+      ]
 
     field :ownership_pct, :float
 
@@ -149,6 +163,7 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
       values: [:pending, :verified, :failed],
       default: :pending
 
+    field :external_id, :string
     field :beneficial_owner_number, :string
 
     # Virtual: controls whether a compliance screening job is enqueued on create
@@ -169,7 +184,7 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
     beneficial_owner
     |> cast(attrs, [
       :account_holder_id,
-      :legal_entity_id,
+      :external_id,
       :ownership_pct,
       :control_type,
       :verification_status,
@@ -178,40 +193,39 @@ defmodule AtomicFi.BeneficialOwnerContext.BeneficialOwner do
     ])
     |> maybe_cast_assoc_legal_entity(attrs)
     |> validate_required([:account_holder_id, :control_type, :tenant_id])
-    |> validate_legal_entity_present()
     |> validate_number(:ownership_pct, greater_than_or_equal_to: 0, less_than_or_equal_to: 100)
-    |> foreign_key_constraint(:account_holder_id)
-    |> foreign_key_constraint(:legal_entity_id)
-    |> foreign_key_constraint(:tenant_id)
-    |> unique_constraint([:account_holder_id, :legal_entity_id],
-      name: :beneficial_owners_account_holder_legal_entity_unique
+    |> AtomicFi.Identifier.put_default(:beneficial_owner_number, :bo)
+    |> unique_constraint([:external_id, :tenant_id],
+      name: :beneficial_owners_external_id_tenant_id_unique
     )
+    |> foreign_key_constraint(:account_holder_id)
+    |> foreign_key_constraint(:tenant_id)
   end
 
-  # Cast nested legal_entity only when present in attrs.
-  defp maybe_cast_assoc_legal_entity(changeset, attrs) do
+  # cast_assoc nested legal_entity (required on insert; untouched on update —
+  # LE PII replacement is the dedicated PUT /api/beneficial-owners/:id/legal-entity
+  # route). Captures the cast'd `account_holder_id` for the AH-rollup put_change
+  # on the LE's per-parent changeset.
+  defp maybe_cast_assoc_legal_entity(%Ecto.Changeset{data: %{id: nil}} = changeset, attrs) do
     case Map.fetch(attrs, :legal_entity) do
       {:ok, value} when not is_nil(value) ->
-        cast_assoc(changeset, :legal_entity, required: true)
+        account_holder_id = get_field(changeset, :account_holder_id)
+
+        cast_assoc(changeset, :legal_entity,
+          required: true,
+          with: fn le, le_attrs ->
+            LegalEntity.beneficial_owner_changeset(le, le_attrs, account_holder_id)
+          end
+        )
 
       _ ->
-        changeset
+        add_error(
+          changeset,
+          :legal_entity,
+          "is required on create — provide a nested legal_entity object"
+        )
     end
   end
 
-  # Require either legal_entity_id (FK) or a nested legal_entity in this changeset.
-  defp validate_legal_entity_present(changeset) do
-    legal_entity_id = get_field(changeset, :legal_entity_id)
-    has_nested = Map.has_key?(changeset.changes, :legal_entity)
-
-    if is_nil(legal_entity_id) and not has_nested do
-      add_error(
-        changeset,
-        :legal_entity_id,
-        "must provide either legal_entity_id or a nested legal_entity"
-      )
-    else
-      changeset
-    end
-  end
+  defp maybe_cast_assoc_legal_entity(%Ecto.Changeset{} = changeset, _attrs), do: changeset
 end

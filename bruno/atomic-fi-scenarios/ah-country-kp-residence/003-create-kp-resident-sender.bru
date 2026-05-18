@@ -1,0 +1,86 @@
+meta {
+  name: 003 — Create sender resident in DPRK (KP)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("senderExternalId", `KP-AH-SENDER-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{senderExternalId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "chain_screening": false,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Kim",
+      "last_name": "Pyongyang",
+      "date_of_birth": "1985-06-15",
+      "citizenship_country": "KP",
+      "politically_exposed_person": false,
+      "addresses": [
+        {
+          "address_types": ["residential"],
+          "primary": true,
+          "country": "KP",
+          "line_1": "1 Mansudae St",
+          "city": "Pyongyang",
+          "tenant_id": "{{tenantId}}"
+        }
+      ],
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("senderAhId", res.body.id);
+  bru.setEnvVar("senderLegalEntityId", res.body.legal_entity_id);
+}
+
+docs {
+  Scenario #15 — account holder country of residence (BLOCK → PASS).
+
+  Cite: OFAC E.O. 13466 — comprehensive sanctions on the Democratic
+  People's Republic of Korea (KP). All transactions involving KP-
+  resident parties are blocked unless OFAC has issued a specific
+  license.
+
+  Onboards an account holder whose primary residential address is in
+  KP. The platform does not refuse onboarding (an OFAC-sanctioned
+  resident may still need a US bank account to receive remittances,
+  for example) — but every outbound transaction is blocked until the
+  residence record changes.
+
+  The `ah_country_kp_residence` rule walks the AH's legal entity's
+  addresses, finds the primary residential one, and emits BLOCK
+  whenever `country` is in the OFAC sanctioned set (KP, IR, CU, SY).
+}
+
+assert {
+  res.status: eq 201
+  res.body.id: matches ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+  res.body.legal_entity_id: matches ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+}

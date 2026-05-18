@@ -1,6 +1,15 @@
 defmodule AtomicFi.Factory.BeneficialOwnerFactory do
   @moduledoc """
   Factory for BeneficialOwner context schemas.
+
+  BeneficialOwner owns no FK to LegalEntity — LE carries the FK back via
+  `legal_entities.beneficial_owner_id`, with subject_type ∈
+  {`:account_holder_beneficial_owner`, `:counterparty_beneficial_owner`}.
+  This factory only inserts the BO; no LE is cascaded. `legal_entity` is
+  initialised to `nil` so `bo.legal_entity` reads don't trip on the
+  `%Ecto.Association.NotLoaded{}` sentinel before hydration. Tests that
+  need the LE loaded call `with_hydrated_beneficial_owner/1` from
+  `AtomicFi.Factory` after inserting the LE.
   """
 
   defmacro __using__(_opts) do
@@ -18,14 +27,9 @@ defmodule AtomicFi.Factory.BeneficialOwnerFactory do
             insert(:account_holder, tenant_id: tenant_id).id
           end)
 
-        legal_entity_id =
-          Map.get_lazy(attrs, :legal_entity_id, fn ->
-            insert(:legal_entity, tenant_id: tenant_id).id
-          end)
-
         %BeneficialOwner{
+          legal_entity: nil,
           account_holder_id: account_holder_id,
-          legal_entity_id: legal_entity_id,
           ownership_pct: 25.0,
           control_type: :shareholder,
           verification_status: :pending,

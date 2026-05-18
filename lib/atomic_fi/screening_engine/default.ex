@@ -11,7 +11,7 @@ defmodule AtomicFi.ScreeningEngine.Default do
   `ComplianceScreeningContext.record_screening/3` to insert.
 
   All public methods take a fully-preloaded domain struct (AccountHolder,
-  BeneficialOwner, Counterparty, PaymentAccount, Transaction) and return
+  BeneficialOwner, Counterparty, PaymentAccount) and return
   a normalized `%ComplianceScreening{}` carrying nested `%SanctionsMatch{}`
   + `%BlocklistMatch{}` rows. Watchman-shaped internals stop at this
   module's gate.
@@ -39,7 +39,6 @@ defmodule AtomicFi.ScreeningEngine.Default do
   alias AtomicFi.LegalEntityContext.LegalEntity
   alias AtomicFi.PaymentAccountContext.PaymentAccount
   alias AtomicFi.Repo
-  alias AtomicFi.TransactionContext.Transaction
   alias AtomicFi.Watchman.Client
 
   @type list_info :: %{started_at: DateTime.t(), lists: term(), version: term()}
@@ -85,11 +84,6 @@ defmodule AtomicFi.ScreeningEngine.Default do
   @impl true
   def screen_payment_account(session, %PaymentAccount{} = pa, _opts \\ []) do
     screen_pa(session, pa)
-  end
-
-  @impl true
-  def screen_transaction(_session, %Transaction{} = _txn, _opts \\ []) do
-    raise "AtomicFi.ScreeningEngine.screen_transaction/3 is not implemented yet"
   end
 
   # ── private: party (AH / BO / CP) screening via LegalEntity ───────────────

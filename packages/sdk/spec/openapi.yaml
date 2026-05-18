@@ -513,7 +513,7 @@ components:
         status: pending
         status_reason_code: ''
         tenant_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
-        transaction_external_id: ''
+        external_id: ''
         transaction_type: credit_transfer
         uetr: ''
       properties:
@@ -624,7 +624,7 @@ components:
           type: string
           x-struct:
           x-validate:
-        transaction_external_id:
+        external_id:
           description: Caller-supplied SoE upsert key (unique per tenant when set)
           nullable: true
           type: string
@@ -668,7 +668,7 @@ components:
         - status_reason_code
         - requested_execution_date
         - settlement_date
-        - transaction_external_id
+        - external_id
         - account_holder_id
         - debtor_payment_account_id
         - creditor_payment_account_id
@@ -1643,7 +1643,7 @@ components:
         enabled_currencies:
           - ""
         external_id: ''
-        holder_type: individual
+        account_holder_type: individual
         id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
         inserted_at: 2020-04-20T16:20:00Z
         kyc_status: not_started
@@ -1675,7 +1675,7 @@ components:
           type: string
           x-struct:
           x-validate:
-        holder_type:
+        account_holder_type:
           enum:
             - individual
             - business
@@ -1761,7 +1761,7 @@ components:
           x-validate:
       readOnly: true
       required:
-        - holder_type
+        - account_holder_type
       title: AccountHolderResponse
       type: object
       x-order:
@@ -1769,7 +1769,7 @@ components:
         - legal_entity_id
         - legal_entity
         - external_id
-        - holder_type
+        - account_holder_type
         - status
         - kyc_status
         - risk_level
@@ -1887,7 +1887,7 @@ components:
         enabled_currencies:
           - ""
         external_id: ''
-        holder_type: individual
+        account_holder_type: individual
         kyc_status: not_started
         last_reviewed_at: 2020-04-20T16:20:00Z
         legal_entity:
@@ -1923,7 +1923,7 @@ components:
           type: string
           x-struct:
           x-validate:
-        holder_type:
+        account_holder_type:
           enum:
             - individual
             - business
@@ -1990,7 +1990,7 @@ components:
           x-struct:
           x-validate:
       required:
-        - holder_type
+        - account_holder_type
       title: AccountHolderRequest
       type: object
       writeOnly: true
@@ -1998,7 +1998,7 @@ components:
         - legal_entity_id
         - legal_entity
         - external_id
-        - holder_type
+        - account_holder_type
         - status
         - kyc_status
         - risk_level
@@ -2747,7 +2747,7 @@ components:
         iban: ''
         ledger_account_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
         legal_entity_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
-        payment_account_external_id: ''
+        external_id: ''
         payment_account_number: ''
         routing_number: ''
         status: active
@@ -2816,7 +2816,7 @@ components:
           type: string
           x-struct:
           x-validate:
-        payment_account_external_id:
+        external_id:
           description: Caller-supplied SoE upsert key (unique per tenant when set)
           nullable: true
           type: string
@@ -2872,7 +2872,7 @@ components:
         - bank_name
         - card_pan
         - payment_account_number
-        - payment_account_external_id
+        - external_id
         - account_holder_id
         - legal_entity_id
         - counterparty_id
@@ -3572,7 +3572,7 @@ components:
       example:
         account_holder_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
         chain_screening: false
-        counterparty_number: ''
+        external_id: ''
         legal_entity_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
         status: active
         tenant_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
@@ -3589,7 +3589,7 @@ components:
           writeOnly: true
           x-struct:
           x-validate:
-        counterparty_number:
+        external_id:
           nullable: true
           type: string
           x-struct:
@@ -3623,7 +3623,7 @@ components:
         - account_holder_id
         - legal_entity_id
         - status
-        - counterparty_number
+        - external_id
         - tenant_id
         - chain_screening
       x-struct: Elixir.AtomicFi.OpenApiSchema.CounterpartyRequest
@@ -5042,7 +5042,7 @@ components:
       description: External payer/payee (ISO 20022 <Dbtr>/<Cdtr>) that an AccountHolder transacts with. All PII lives in the linked LegalEntity.
       example:
         account_holder_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
-        counterparty_number: ''
+        external_id: ''
         id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
         inserted_at: 2020-04-20T16:20:00Z
         legal_entity_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
@@ -5055,7 +5055,7 @@ components:
           type: string
           x-struct:
           x-validate:
-        counterparty_number:
+        external_id:
           nullable: true
           type: string
           x-struct:
@@ -5108,7 +5108,7 @@ components:
         - account_holder_id
         - legal_entity_id
         - status
-        - counterparty_number
+        - external_id
         - tenant_id
         - inserted_at
         - updated_at
@@ -5563,7 +5563,7 @@ components:
         inserted_at: 2020-04-20T16:20:00Z
         ledger_account_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
         legal_entity_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
-        payment_account_external_id: ''
+        external_id: ''
         payment_account_number: ''
         routing_number: ''
         status: active
@@ -5645,7 +5645,7 @@ components:
           type: string
           x-struct:
           x-validate:
-        payment_account_external_id:
+        external_id:
           description: Caller-supplied SoE upsert key (unique per tenant when set)
           nullable: true
           type: string
@@ -5708,7 +5708,7 @@ components:
         - bank_name
         - card_pan
         - payment_account_number
-        - payment_account_external_id
+        - external_id
         - account_holder_id
         - legal_entity_id
         - counterparty_id
@@ -7449,7 +7449,7 @@ components:
         status: pending
         status_reason_code: ''
         tenant_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
-        transaction_external_id: ''
+        external_id: ''
         transaction_type: credit_transfer
         uetr: ''
         updated_at: 2020-04-20T16:20:00Z
@@ -7573,7 +7573,7 @@ components:
           type: string
           x-struct:
           x-validate:
-        transaction_external_id:
+        external_id:
           description: Caller-supplied SoE upsert key (unique per tenant when set)
           nullable: true
           type: string
@@ -7624,7 +7624,7 @@ components:
         - status_reason_code
         - requested_execution_date
         - settlement_date
-        - transaction_external_id
+        - external_id
         - account_holder_id
         - debtor_payment_account_id
         - creditor_payment_account_id
@@ -8545,7 +8545,7 @@ paths:
                 iban: ''
                 ledger_account_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
                 legal_entity_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
-                payment_account_external_id: ''
+                external_id: ''
                 payment_account_number: ''
                 routing_number: ''
                 status: active
@@ -8614,7 +8614,7 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                payment_account_external_id:
+                external_id:
                   description: Caller-supplied SoE upsert key (unique per tenant when set)
                   nullable: true
                   type: string
@@ -8670,7 +8670,7 @@ paths:
                 - bank_name
                 - card_pan
                 - payment_account_number
-                - payment_account_external_id
+                - external_id
                 - account_holder_id
                 - legal_entity_id
                 - counterparty_id
@@ -9892,7 +9892,7 @@ paths:
                 status: pending
                 status_reason_code: ''
                 tenant_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
-                transaction_external_id: ''
+                external_id: ''
                 transaction_type: credit_transfer
                 uetr: ''
               properties:
@@ -10003,7 +10003,7 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                transaction_external_id:
+                external_id:
                   description: Caller-supplied SoE upsert key (unique per tenant when set)
                   nullable: true
                   type: string
@@ -10047,7 +10047,7 @@ paths:
                 - status_reason_code
                 - requested_execution_date
                 - settlement_date
-                - transaction_external_id
+                - external_id
                 - account_holder_id
                 - debtor_payment_account_id
                 - creditor_payment_account_id
@@ -10435,7 +10435,7 @@ paths:
                 status: pending
                 status_reason_code: ''
                 tenant_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
-                transaction_external_id: ''
+                external_id: ''
                 transaction_type: credit_transfer
                 uetr: ''
               properties:
@@ -10546,7 +10546,7 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                transaction_external_id:
+                external_id:
                   description: Caller-supplied SoE upsert key (unique per tenant when set)
                   nullable: true
                   type: string
@@ -10590,7 +10590,7 @@ paths:
                 - status_reason_code
                 - requested_execution_date
                 - settlement_date
-                - transaction_external_id
+                - external_id
                 - account_holder_id
                 - debtor_payment_account_id
                 - creditor_payment_account_id
@@ -11178,7 +11178,7 @@ paths:
                 iban: ''
                 ledger_account_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
                 legal_entity_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
-                payment_account_external_id: ''
+                external_id: ''
                 payment_account_number: ''
                 routing_number: ''
                 status: active
@@ -11247,7 +11247,7 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                payment_account_external_id:
+                external_id:
                   description: Caller-supplied SoE upsert key (unique per tenant when set)
                   nullable: true
                   type: string
@@ -11303,7 +11303,7 @@ paths:
                 - bank_name
                 - card_pan
                 - payment_account_number
-                - payment_account_external_id
+                - external_id
                 - account_holder_id
                 - legal_entity_id
                 - counterparty_id
@@ -11928,7 +11928,7 @@ paths:
         - `page_size` - Items per page (default: 20, max: 100)
         - `order_by` - Field to sort by
         - `order_directions` - Sort direction (asc or desc)
-        - `filters` - Flop filters (holder_type, status, kyc_status, risk_level)
+        - `filters` - Flop filters (account_holder_type, status, kyc_status, risk_level)
       operationId: AtomicFiApi.AccountHolderController.index
       parameters:
         - description: Page number (1-indexed)
@@ -11996,7 +11996,7 @@ paths:
                 enabled_currencies:
                   - ""
                 external_id: ''
-                holder_type: individual
+                account_holder_type: individual
                 kyc_status: not_started
                 last_reviewed_at: 2020-04-20T16:20:00Z
                 legal_entity:
@@ -12032,7 +12032,7 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                holder_type:
+                account_holder_type:
                   enum:
                     - individual
                     - business
@@ -12099,7 +12099,7 @@ paths:
                   x-struct:
                   x-validate:
               required:
-                - holder_type
+                - account_holder_type
               title: AccountHolderRequest
               type: object
               writeOnly: true
@@ -12107,7 +12107,7 @@ paths:
                 - legal_entity_id
                 - legal_entity
                 - external_id
-                - holder_type
+                - account_holder_type
                 - status
                 - kyc_status
                 - risk_level
@@ -12475,7 +12475,7 @@ paths:
               example:
                 account_holder_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
                 chain_screening: false
-                counterparty_number: ''
+                external_id: ''
                 legal_entity_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
                 status: active
                 tenant_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
@@ -12492,7 +12492,7 @@ paths:
                   writeOnly: true
                   x-struct:
                   x-validate:
-                counterparty_number:
+                external_id:
                   nullable: true
                   type: string
                   x-struct:
@@ -12526,7 +12526,7 @@ paths:
                 - account_holder_id
                 - legal_entity_id
                 - status
-                - counterparty_number
+                - external_id
                 - tenant_id
                 - chain_screening
               x-struct: Elixir.AtomicFi.OpenApiSchema.CounterpartyRequest
@@ -14330,7 +14330,7 @@ paths:
               example:
                 account_holder_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
                 chain_screening: false
-                counterparty_number: ''
+                external_id: ''
                 legal_entity_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
                 status: active
                 tenant_id: 02ef9c5f-29e6-48fc-9ec3-7ed57ed351f6
@@ -14347,7 +14347,7 @@ paths:
                   writeOnly: true
                   x-struct:
                   x-validate:
-                counterparty_number:
+                external_id:
                   nullable: true
                   type: string
                   x-struct:
@@ -14381,7 +14381,7 @@ paths:
                 - account_holder_id
                 - legal_entity_id
                 - status
-                - counterparty_number
+                - external_id
                 - tenant_id
                 - chain_screening
               x-struct: Elixir.AtomicFi.OpenApiSchema.CounterpartyRequest
@@ -15316,7 +15316,7 @@ paths:
                 enabled_currencies:
                   - ""
                 external_id: ''
-                holder_type: individual
+                account_holder_type: individual
                 kyc_status: not_started
                 last_reviewed_at: 2020-04-20T16:20:00Z
                 legal_entity:
@@ -15352,7 +15352,7 @@ paths:
                   type: string
                   x-struct:
                   x-validate:
-                holder_type:
+                account_holder_type:
                   enum:
                     - individual
                     - business
@@ -15419,7 +15419,7 @@ paths:
                   x-struct:
                   x-validate:
               required:
-                - holder_type
+                - account_holder_type
               title: AccountHolderRequest
               type: object
               writeOnly: true
@@ -15427,7 +15427,7 @@ paths:
                 - legal_entity_id
                 - legal_entity
                 - external_id
-                - holder_type
+                - account_holder_type
                 - status
                 - kyc_status
                 - risk_level

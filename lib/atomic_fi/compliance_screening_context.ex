@@ -33,6 +33,14 @@ defmodule AtomicFi.ComplianceScreeningContext do
 
   alias AtomicFi.AccountHolderContext.AccountHolder
   alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
+
+  # Preload child matches on every getter so callers (controllers,
+  # RuleEngine.build_payload) see populated lists, never
+  # `%Ecto.Association.NotLoaded{}`. The public OpenAPI response
+  # declares `sanctions_matches[]` / `blocklist_matches[]` as readOnly
+  # arrays — they must be loaded for `Mapper.to_map` to produce a
+  # valid response shape.
+  @preloads [:sanctions_matches, :blocklist_matches]
   alias AtomicFi.ComplianceScreeningContext.BlocklistMatch
   alias AtomicFi.ComplianceScreeningContext.ComplianceScreening
   alias AtomicFi.ComplianceScreeningContext.SanctionsMatch
@@ -65,6 +73,7 @@ defmodule AtomicFi.ComplianceScreeningContext do
   def_with_rls_and_logging list_compliance_screenings(session, flop_params \\ %{}),
     log_fields: [:flop_params] do
     ComplianceScreening
+    |> Ecto.Query.preload(^@preloads)
     |> Flop.validate_and_run(flop_params,
       for: ComplianceScreening,
       repo: Repo,
@@ -88,7 +97,37 @@ defmodule AtomicFi.ComplianceScreeningContext do
   """
   @spec get_compliance_screening!(Session.t(), Ecto.UUID.t()) :: ComplianceScreening.t()
   def_with_rls_and_logging get_compliance_screening!(session, id), log_fields: [:id] do
-    Repo.get!(ComplianceScreening, id, session: session)
+    ComplianceScreening
+    |> Ecto.Query.preload(^@preloads)
+    |> Repo.get!(id, session: session)
+  end
+
+  @doc """
+  All screenings attached to a target. Polymorphic on the target struct:
+
+    - `%LegalEntity{}`    — party screenings (PII subject) where
+                            `legal_entity_id = target.id`.
+    - `%PaymentAccount{}` — instrument screenings (wallet / IBAN) where
+                            `payment_account_id = target.id`.
+
+  Used by the rule-engine payload composer to assemble the flat per-PA-side
+  `compliance_screenings[]` view, calling this multiple times (the PA itself,
+  the AH's identity LE, each BO LE, the CP LE) and concatenating.
+  """
+  @spec get_screenings_for_target(Session.t(), LegalEntity.t() | PaymentAccount.t()) ::
+          [ComplianceScreening.t()]
+  def_with_rls_and_logging get_screenings_for_target(session, %LegalEntity{id: le_id}),
+    log_fields: [] do
+    from(cs in ComplianceScreening, where: cs.legal_entity_id == ^le_id)
+    |> Ecto.Query.preload(^@preloads)
+    |> Repo.all(session: session)
+  end
+
+  def_with_rls_and_logging get_screenings_for_target(session, %PaymentAccount{id: pa_id}),
+    log_fields: [] do
+    from(cs in ComplianceScreening, where: cs.payment_account_id == ^pa_id)
+    |> Ecto.Query.preload(^@preloads)
+    |> Repo.all(session: session)
   end
 
   @doc """
@@ -333,9 +372,10 @@ defmodule AtomicFi.ComplianceScreeningContext do
 
   @doc """
   Persists an unsaved `%ComplianceScreening{}` returned by `ScreeningEngine`.
-  `fks` carries the entity FKs to attach (e.g.
-  `%{account_holder_id: ah.id, counterparty_id: cp.id}`). Tenant id is taken
-  from `session`. Child matches inherit the tenant id automatically.
+  `fks` carries the primary anchor (`legal_entity_id` for party screenings,
+  `payment_account_id` for instrument screenings). Exactly one anchor must be
+  set per DB CHECK. Tenant id is taken from `session`. Child matches inherit
+  the tenant id automatically.
   """
   @spec record_screening(Session.t(), ComplianceScreening.t(), map()) ::
           {:ok, ComplianceScreening.t()} | {:error, Ecto.Changeset.t()}
@@ -367,7 +407,6 @@ defmodule AtomicFi.ComplianceScreeningContext do
   defp account_holder_from_request(%AccountHolderRequest{} = req, tenant_id) do
     %AccountHolder{
       tenant_id: tenant_id,
-      legal_entity_id: req.legal_entity_id,
       legal_entity: legal_entity_from_request(req.legal_entity, tenant_id)
     }
   end
@@ -376,7 +415,6 @@ defmodule AtomicFi.ComplianceScreeningContext do
     %BeneficialOwner{
       tenant_id: tenant_id,
       account_holder_id: req.account_holder_id,
-      legal_entity_id: req.legal_entity_id,
       legal_entity: legal_entity_from_request(req.legal_entity, tenant_id)
     }
   end
@@ -385,7 +423,6 @@ defmodule AtomicFi.ComplianceScreeningContext do
     %Counterparty{
       tenant_id: tenant_id,
       account_holder_id: req.account_holder_id,
-      legal_entity_id: req.legal_entity_id,
       legal_entity: legal_entity_from_request(req.legal_entity, tenant_id)
     }
   end

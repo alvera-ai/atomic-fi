@@ -42,7 +42,7 @@ The internal/external parties involved in any payment, plus their PII container.
 | Context | Schema | Docs | Tests | RLS | API | Vitest | Notes |
 |---|---|---|---|---|---|---|---|
 | `AccountHolderContext` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | MDM subject. ISO 20022 acmt:007 / acmt:019. `chain_screening` enqueues Oban. |
-| `CounterpartyContext` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | External party. ISO 20022 pain:001 `<Dbtr>`/`<Cdtr>`. Get-or-create on `counterparty_number`. PA/CP lifecycle hook fans out LAs. |
+| `CounterpartyContext` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | External party. ISO 20022 pain:001 `<Dbtr>`/`<Cdtr>`. Get-or-create on `external_id`. PA/CP lifecycle hook fans out LAs. |
 | `LegalEntityContext` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | PII container. `cast_assoc` Addresses / Identifications / PhoneNumbers. FATF Rec 10. |
 | `LegalEntityChangeEventContext` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | Audit trail of LE mutations — gates re-screening. |
 | `BeneficialOwnerContext` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | FinCEN CDD chain. Recursive — BO has its own LE. |

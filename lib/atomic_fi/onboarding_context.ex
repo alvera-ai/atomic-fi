@@ -10,7 +10,7 @@ defmodule AtomicFi.OnboardingContext do
        screening. Records a `%ComplianceScreening{}` audit row. PA is a
        no-op screening-wise (payment accounts carry no PII; the parent
        AccountHolder does).
-    2. `AtomicFi.RuleEngine.get_controls(:onboarding, entity)` — sync HTTP
+    2. `AtomicFi.RuleEngine.apply_rules(:onboarding, entity)` — sync HTTP
        call to ZenRule for a `result` envelope: per-LA controls +
        `next_screening_at`.
     3. `AtomicFi.ControlProtocol.process_controls(entity, session, result)`
@@ -38,17 +38,24 @@ defmodule AtomicFi.OnboardingContext do
 
   use AtomicFi.LoggerMacro
 
+  require Logger
+
   alias AtomicFi.AccountHolderContext
   alias AtomicFi.AccountHolderContext.AccountHolder
   alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
   alias AtomicFi.ComplianceScreeningContext
   alias AtomicFi.ControlProtocol
+  alias AtomicFi.CounterpartyContext
   alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.OnboardingWorker
+  alias AtomicFi.PaymentAccountContext
   alias AtomicFi.PaymentAccountContext.PaymentAccount
+  alias AtomicFi.Repo
+  alias AtomicFi.RoleContext.RoleConstants
   alias AtomicFi.RuleEngine
   alias AtomicFi.ScreeningEngine
   alias AtomicFi.SessionContext.Session
+  alias AtomicFi.TenantContext.Tenant
 
   @type entity ::
           AccountHolder.t() | Counterparty.t() | PaymentAccount.t() | BeneficialOwner.t()
@@ -75,18 +82,34 @@ defmodule AtomicFi.OnboardingContext do
   """
   @spec onboard(Session.t(), entity()) :: {:ok, entity()} | {:error, term()}
   def_with_rls_and_logging onboard(session, entity), log_fields: [] do
+    require Logger
+    Logger.info("[onboard] entry entity=#{inspect(entity.__struct__)} id=#{entity.id}")
     engine_entity = resolve_engine_entity(session, entity)
+    Logger.info("[onboard] engine_entity resolved")
 
-    with {:ok, _screenings} <- screen(session, entity),
+    with :ok <- log_step("screen.start"),
+         {:ok, _screenings} <- screen(session, entity),
+         :ok <- log_step("screen.done → engine_result.start"),
          {:ok, result} <- engine_result(session, engine_entity),
+         :ok <-
+           log_step(
+             "engine_result.done controls=#{map_size(result.controls)} → process_controls.start"
+           ),
          {:ok, entity} <-
            ControlProtocol.process_controls(
              entity,
              session,
              Map.put(result, :engine_entity, engine_entity)
-           ) do
+           ),
+         :ok <- log_step("process_controls.done") do
       {:ok, entity}
     end
+  end
+
+  defp log_step(msg) do
+    require Logger
+    Logger.info("[onboard] #{msg}")
+    :ok
   end
 
   # The entity the RuleEngine actually runs against. AH/CP/PA run against
@@ -102,6 +125,83 @@ defmodule AtomicFi.OnboardingContext do
   end
 
   @doc """
+  Re-runs the onboarding flow for an existing entity. Clears the entity's
+  current `rescreen_job_id` first (the running job IS that pointer; it must
+  be dropped before any work that may re-link it). Then delegates to
+  `onboard/2`.
+
+  Callable from:
+
+    * `AtomicFi.OnboardingWorker.perform/1` — on every scheduled re-screen.
+    * `AccountHolderController` / `CounterpartyController` /
+      `PaymentAccountController` `:refresh` actions — manual operator-driven
+      re-screen via `POST .../:id/refresh`.
+
+  Idempotent: re-running on a freshly-refreshed entity is a no-op for the
+  rescreen_job_id clear step, then runs onboarding again (which may
+  enqueue a new scheduled job).
+  """
+  @spec refresh(Session.t(), entity()) :: {:ok, entity()} | {:error, term()}
+  def refresh(session, entity) do
+    with {:ok, entity} <- clear_rescreen_job_id(session, entity),
+         {:ok, entity} <- onboard(session, entity) do
+      {:ok, entity}
+    end
+  end
+
+  @doc """
+  Worker-only: given the Oban job args map, resolve a session for the
+  job's tenant and load the entity by `entity_module` + `entity_id`.
+  Returns `{:ok, session, entity}`. Raises if any lookup fails — the
+  Oban job is a closed-system message we constructed ourselves, so a
+  miss here is a real invariant violation.
+  """
+  @spec load_for_rescreen(map()) :: {:ok, Session.t(), entity()}
+  def load_for_rescreen(%{
+        "entity_module" => entity_module,
+        "entity_id" => entity_id,
+        "tenant_id" => tenant_id
+      }) do
+    session = build_system_session(tenant_id)
+    module = String.to_existing_atom(entity_module)
+    entity = load_entity!(session, module, entity_id)
+    {:ok, session, entity}
+  end
+
+  # Narrow per-entity loader so the worker can ask the relevant context
+  # for a fully preloaded struct without reaching into Repo.
+  defp load_entity!(session, AccountHolder, id),
+    do: AccountHolderContext.get_account_holder!(session, id)
+
+  defp load_entity!(session, Counterparty, id),
+    do: CounterpartyContext.get_counterparty!(session, id)
+
+  defp load_entity!(session, PaymentAccount, id),
+    do: PaymentAccountContext.get_payment_account!(session, id)
+
+  # Minimal session for the worker. The worker re-runs onboarding under
+  # the tenant the original write was for — there's no human user. Uses
+  # the "root" reserved role so RLS is bypassed (platform-admin path in
+  # `AtomicFi.Repo.platform_admin?/1`); the worker is system-internal.
+  defp build_system_session(tenant_id) do
+    tenant = Repo.get!(Tenant, tenant_id, skip_multi_tenancy_check: true)
+
+    %Session{
+      tenant_id: tenant_id,
+      tenant: tenant,
+      role: %{name: RoleConstants.root_role()}
+    }
+  end
+
+  # Narrow update — bypasses the public `update_*` paths (which would re-
+  # trigger the full onboarding flow). Polymorphic on entity type.
+  defp clear_rescreen_job_id(session, entity) do
+    entity
+    |> Ecto.Changeset.change(%{rescreen_job_id: nil})
+    |> Repo.update(session: session)
+  end
+
+  @doc """
   Enqueues the next `OnboardingWorker` for `entity` at `scheduled_at`,
   returning the new Oban job id. Used by `ControlProtocol` impls.
 
@@ -114,35 +214,53 @@ defmodule AtomicFi.OnboardingContext do
   def enqueue_next(_entity, nil), do: {:ok, nil}
 
   def enqueue_next(entity, %DateTime{} = scheduled_at) do
-    %{
-      "entity_module" => entity.__struct__ |> Atom.to_string(),
-      "entity_id" => entity.id,
-      "tenant_id" => entity.tenant_id
-    }
-    |> OnboardingWorker.new(scheduled_at: scheduled_at)
-    |> Oban.insert()
-    |> case do
-      {:ok, %Oban.Job{id: job_id}} -> {:ok, job_id}
-      {:error, _} = err -> err
+    job_changeset =
+      %{
+        "entity_module" => entity.__struct__ |> Atom.to_string(),
+        "entity_id" => entity.id,
+        "tenant_id" => entity.tenant_id
+      }
+      |> OnboardingWorker.new(scheduled_at: scheduled_at)
+
+    case Oban.insert(job_changeset) do
+      {:ok, %Oban.Job{id: job_id}} ->
+        {:ok, job_id}
+
+      # coveralls-ignore-start — Oban.insert error path. Args/scheduled_at are
+      # fully controlled by this function; reaching this branch means Oban or
+      # the DB is in a state our public-API tests can't induce.
+      {:error, %Ecto.Changeset{errors: errors} = changeset} ->
+        Logger.error(
+          msg: "onboarding_enqueue_failed",
+          entity_module: entity.__struct__,
+          entity_id: entity.id,
+          tenant_id: entity.tenant_id,
+          errors: inspect(errors)
+        )
+
+        raise "OnboardingContext.enqueue_next: Oban.insert rejected job for " <>
+                "entity_module=#{inspect(entity.__struct__)} entity_id=#{entity.id} " <>
+                "errors=#{inspect(changeset.errors)}"
+
+        # coveralls-ignore-stop
     end
   end
 
-  defp screen(session, %AccountHolder{} = account_holder) do
+  defp screen(session, %AccountHolder{legal_entity: %{id: le_id}} = account_holder) do
     with {:ok, screening} <- ScreeningEngine.screen_account_holder(session, account_holder),
          {:ok, persisted} <-
            ComplianceScreeningContext.record_screening(session, screening, %{
-             account_holder_id: account_holder.id
+             legal_entity_id: le_id
            }) do
       {:ok, [persisted]}
     end
   end
 
-  defp screen(session, %Counterparty{} = counterparty) do
+  defp screen(session, %Counterparty{legal_entity: %{id: le_id}} = counterparty) do
     with {:ok, screening} <- ScreeningEngine.screen_counterparty(session, counterparty),
          {:ok, persisted} <-
            ComplianceScreeningContext.record_screening(session, screening, %{
-             account_holder_id: counterparty.account_holder_id,
-             counterparty_id: counterparty.id
+             legal_entity_id: le_id
            }) do
       {:ok, [persisted]}
     end
@@ -150,13 +268,12 @@ defmodule AtomicFi.OnboardingContext do
 
   defp screen(_session, %PaymentAccount{}), do: {:ok, []}
 
-  defp screen(session, %BeneficialOwner{} = beneficial_owner) do
+  defp screen(session, %BeneficialOwner{legal_entity: %{id: le_id}} = beneficial_owner) do
     with {:ok, screening} <-
            ScreeningEngine.screen_beneficial_owner(session, beneficial_owner),
          {:ok, persisted} <-
            ComplianceScreeningContext.record_screening(session, screening, %{
-             account_holder_id: beneficial_owner.account_holder_id,
-             beneficial_owner_id: beneficial_owner.id
+             legal_entity_id: le_id
            }) do
       {:ok, [persisted]}
     end
@@ -166,10 +283,22 @@ defmodule AtomicFi.OnboardingContext do
   # normalised to an empty envelope so the protocol dispatch still
   # links / enqueues consistently.
   defp engine_result(session, entity) do
-    case RuleEngine.get_controls(session, :onboarding, entity) do
-      {:ok, :no_limits} -> {:ok, %{controls: %{}, next_screening_at: nil}}
-      {:ok, %{controls: _, next_screening_at: _} = result} -> {:ok, result}
-      {:error, _} = err -> err
+    require Logger
+    Logger.info("[engine_result] calling RuleEngine.apply_rules/3")
+    t0 = System.monotonic_time(:millisecond)
+
+    case RuleEngine.apply_rules(session, :onboarding, entity) do
+      {:ok, :no_limits} ->
+        Logger.info("[engine_result] :no_limits in #{System.monotonic_time(:millisecond) - t0}ms")
+        {:ok, %{controls: %{}, next_screening_at: nil}}
+
+      {:ok, %{controls: _, next_screening_at: _} = result} ->
+        Logger.info("[engine_result] :ok in #{System.monotonic_time(:millisecond) - t0}ms")
+        {:ok, result}
+
+      {:error, _} = err ->
+        Logger.error("[engine_result] error: #{inspect(err)}")
+        err
     end
   end
 end

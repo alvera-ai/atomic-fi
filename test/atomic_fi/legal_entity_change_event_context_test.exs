@@ -354,7 +354,6 @@ defmodule AtomicFi.LegalEntityChangeEventContextTest do
           doing_business_as_names: [],
           date_formed: nil,
           website: nil,
-          subject_type: nil,
           legal_structure: nil
         )
 
@@ -374,7 +373,6 @@ defmodule AtomicFi.LegalEntityChangeEventContextTest do
         doing_business_as_names: [],
         date_formed: nil,
         website: nil,
-        subject_type: nil,
         legal_structure: nil,
         tenant_id: session.tenant_id
       }
@@ -401,11 +399,12 @@ defmodule AtomicFi.LegalEntityChangeEventContextTest do
 
       count_before = length(events_before)
 
-      request = %LegalEntityRequest{
-        legal_entity_type: :individual,
-        first_name: "Alice",
-        tenant_id: session.tenant_id
-      }
+      request =
+        params_for(:legal_entity,
+          legal_entity_type: :individual,
+          first_name: "Alice",
+          tenant_id: session.tenant_id
+        )
 
       assert {:ok, _} = LegalEntityContext.create_legal_entity(session, request)
 

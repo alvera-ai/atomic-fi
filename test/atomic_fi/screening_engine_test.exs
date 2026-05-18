@@ -28,6 +28,62 @@ defmodule AtomicFi.ScreeningEngineTest do
     )
   end
 
+  defp build_ah_with_le(session, le_attrs) do
+    ah = insert(:account_holder, tenant_id: session.tenant_id)
+
+    insert(
+      :legal_entity,
+      Keyword.merge(
+        [
+          account_holder_id: ah.id,
+          subject_type: :account_holder,
+          tenant_id: session.tenant_id
+        ],
+        le_attrs
+      )
+    )
+
+    AccountHolderContext.get_account_holder!(session, ah.id)
+  end
+
+  defp build_cp_with_business_le(session, le_attrs) do
+    cp = insert(:counterparty, tenant_id: session.tenant_id)
+
+    insert(
+      :business_legal_entity,
+      Keyword.merge(
+        [
+          counterparty_id: cp.id,
+          subject_type: :counterparty,
+          account_holder_id: cp.account_holder_id,
+          tenant_id: session.tenant_id
+        ],
+        le_attrs
+      )
+    )
+
+    CounterpartyContext.get_counterparty!(session, cp.id)
+  end
+
+  defp build_bo_with_le(session, le_attrs) do
+    bo = insert(:beneficial_owner, tenant_id: session.tenant_id)
+
+    insert(
+      :legal_entity,
+      Keyword.merge(
+        [
+          beneficial_owner_id: bo.id,
+          subject_type: :account_holder_beneficial_owner,
+          account_holder_id: bo.account_holder_id,
+          tenant_id: session.tenant_id
+        ],
+        le_attrs
+      )
+    )
+
+    BeneficialOwnerContext.get_beneficial_owner!(session, bo.id)
+  end
+
   describe "get_watchman_list_info/0 (live Watchman)" do
     test "returns started_at, lists, version" do
       assert {:ok, info} = ScreeningEngine.get_watchman_list_info()
@@ -45,15 +101,7 @@ defmodule AtomicFi.ScreeningEngineTest do
     end
 
     test "returns a :pending result with blocklist_matches", %{session: session} do
-      legal_entity =
-        insert(:legal_entity,
-          tenant_id: session.tenant_id,
-          first_name: "Blocked",
-          last_name: "Person"
-        )
-
-      ah = insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
-      ah = AccountHolderContext.get_account_holder!(session, ah.id)
+      ah = build_ah_with_le(session, first_name: "Blocked", last_name: "Person")
 
       assert {:ok, %ComplianceScreening{} = result} =
                ScreeningEngine.screen_account_holder(session, ah)
@@ -78,13 +126,7 @@ defmodule AtomicFi.ScreeningEngineTest do
     end
 
     test "returns :pending with company-name match", %{session: session} do
-      legal_entity =
-        insert(:business_legal_entity, tenant_id: session.tenant_id, business_name: "ACME Corp")
-
-      cp =
-        insert(:counterparty, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
-
-      cp = CounterpartyContext.get_counterparty!(session, cp.id)
+      cp = build_cp_with_business_le(session, business_name: "ACME Corp")
 
       assert {:ok, %ComplianceScreening{} = result} =
                ScreeningEngine.screen_counterparty(session, cp)
@@ -104,15 +146,11 @@ defmodule AtomicFi.ScreeningEngineTest do
 
     test "clean name passes through Watchman with zero active matches",
          %{session: session} do
-      legal_entity =
-        insert(:legal_entity,
-          tenant_id: session.tenant_id,
+      ah =
+        build_ah_with_le(session,
           first_name: "Jane",
           last_name: "Cleansurname#{System.unique_integer([:positive])}"
         )
-
-      ah = insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
-      ah = AccountHolderContext.get_account_holder!(session, ah.id)
 
       assert {:ok, %ComplianceScreening{} = result} =
                ScreeningEngine.screen_account_holder(session, ah)
@@ -125,15 +163,7 @@ defmodule AtomicFi.ScreeningEngineTest do
 
     test "sanctioned name (Vladimir Putin) yields hits with normalized person data",
          %{session: session} do
-      legal_entity =
-        insert(:legal_entity,
-          tenant_id: session.tenant_id,
-          first_name: "Vladimir",
-          last_name: "Putin"
-        )
-
-      ah = insert(:account_holder, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
-      ah = AccountHolderContext.get_account_holder!(session, ah.id)
+      ah = build_ah_with_le(session, first_name: "Vladimir", last_name: "Putin")
 
       assert {:ok, %ComplianceScreening{} = result} =
                ScreeningEngine.screen_account_holder(session, ah)
@@ -153,14 +183,10 @@ defmodule AtomicFi.ScreeningEngineTest do
     end
 
     test "clean company passes through Watchman", %{session: session} do
-      legal_entity =
-        insert(:business_legal_entity,
-          tenant_id: session.tenant_id,
+      cp =
+        build_cp_with_business_le(session,
           business_name: "Random Company #{System.unique_integer([:positive])}"
         )
-
-      cp = insert(:counterparty, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
-      cp = CounterpartyContext.get_counterparty!(session, cp.id)
 
       assert {:ok, %ComplianceScreening{} = result} =
                ScreeningEngine.screen_counterparty(session, cp)
@@ -172,14 +198,7 @@ defmodule AtomicFi.ScreeningEngineTest do
 
     test "sanctioned business (Wagner Group) returns matches with normalized business_data",
          %{session: session} do
-      legal_entity =
-        insert(:business_legal_entity,
-          tenant_id: session.tenant_id,
-          business_name: "Wagner Group"
-        )
-
-      cp = insert(:counterparty, tenant_id: session.tenant_id, legal_entity_id: legal_entity.id)
-      cp = CounterpartyContext.get_counterparty!(session, cp.id)
+      cp = build_cp_with_business_le(session, business_name: "Wagner Group")
 
       assert {:ok, %ComplianceScreening{} = result} =
                ScreeningEngine.screen_counterparty(session, cp)
@@ -196,20 +215,11 @@ defmodule AtomicFi.ScreeningEngineTest do
     end
 
     test "screens a clean BO and returns a :pending result", %{session: session} do
-      bo_legal_entity =
-        insert(:legal_entity,
-          tenant_id: session.tenant_id,
+      bo =
+        build_bo_with_le(session,
           first_name: "Clean",
           last_name: "BO#{System.unique_integer([:positive])}"
         )
-
-      bo =
-        insert(:beneficial_owner,
-          tenant_id: session.tenant_id,
-          legal_entity_id: bo_legal_entity.id
-        )
-
-      bo = BeneficialOwnerContext.get_beneficial_owner!(session, bo.id)
 
       assert {:ok, %ComplianceScreening{} = result} =
                ScreeningEngine.screen_beneficial_owner(session, bo)
@@ -258,14 +268,6 @@ defmodule AtomicFi.ScreeningEngineTest do
       assert result.scope == :payment_account
       assert result.screened_entity_type == :crypto_address
       assert result.screening_status == :pending
-    end
-  end
-
-  describe "unimplemented callbacks" do
-    test "screen_transaction/3 raises", %{session: session} do
-      assert_raise RuntimeError, ~r/not implemented yet/, fn ->
-        ScreeningEngine.screen_transaction(session, %AtomicFi.TransactionContext.Transaction{})
-      end
     end
   end
 end

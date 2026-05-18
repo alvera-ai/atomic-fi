@@ -35,7 +35,7 @@ script:pre-request {
   bru.setVar("cpCountry", countries[Math.floor(Math.random() * countries.length)]);
 
   // External SoE identifier — randomised per request so a fresh smoke run
-  // does not collide with prior runs' counterparty_numbers (get-or-create
+  // does not collide with prior runs' external_ids (get-or-create
   // would return the prior record otherwise).
   bru.setVar("cpExternalNumber", `SMOKE-CP-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
 }
@@ -44,7 +44,7 @@ body:json {
   {
     "status": "active",
     "account_holder_id": "{{randomAhId}}",
-    "counterparty_number": "{{cpExternalNumber}}",
+    "external_id": "{{cpExternalNumber}}",
     "chain_screening": false,
     "tenant_id": "{{tenantId}}",
     "legal_entity": {

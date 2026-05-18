@@ -46,9 +46,9 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
 
   use AtomicFi.Schema
 
-  alias AtomicFi.AccountHolderContext.AccountHolder
   alias AtomicFi.ComplianceScreeningContext.BlocklistMatch
   alias AtomicFi.ComplianceScreeningContext.SanctionsMatch
+  alias AtomicFi.LegalEntityContext.LegalEntity
   alias AtomicFi.TenantContext.Tenant
 
   @primary_key {:id, :binary_id, autogenerate: true}
@@ -59,7 +59,8 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
     filterable: [
       :id,
       :tenant_id,
-      :account_holder_id,
+      :legal_entity_id,
+      :payment_account_id,
       :scope,
       :screening_type,
       :screening_status,
@@ -197,25 +198,17 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
     key: :compliance_screening_number
   )
 
-  # Entity references (account_holder is always set; others are soft refs)
+  # Primary anchor — exactly one of (legal_entity_id, payment_account_id) is set
+  # per DB CHECK. legal_entity_id anchors party screenings (PII subject);
+  # payment_account_id anchors instrument screenings (crypto wallet / IBAN).
   open_api_property(
     schema: %Schema{type: :string, format: :uuid, nullable: true},
-    key: :account_holder_id
-  )
-
-  open_api_property(
-    schema: %Schema{type: :string, format: :uuid, nullable: true},
-    key: :counterparty_id
+    key: :legal_entity_id
   )
 
   open_api_property(
     schema: %Schema{type: :string, format: :uuid, nullable: true},
     key: :payment_account_id
-  )
-
-  open_api_property(
-    schema: %Schema{type: :string, format: :uuid, nullable: true},
-    key: :transaction_id
   )
 
   open_api_property(
@@ -233,6 +226,29 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
     key: :updated_at
   )
 
+  # Per-hit child collections — readOnly on the response surface so
+  # rules can read `compliance_screenings[].blocklist_matches[]` or
+  # `.sanctions_matches[]` to dispatch on the source list (OFAC SDN vs
+  # internal chargeback-fraud ring vs PEP, etc.) without having to add
+  # a new `screening_type` enum value per list.
+  open_api_property(
+    schema: %Schema{
+      type: :array,
+      readOnly: true,
+      items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/SanctionsMatchResponse"}
+    },
+    key: :sanctions_matches
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :array,
+      readOnly: true,
+      items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/BlocklistMatchResponse"}
+    },
+    key: :blocklist_matches
+  )
+
   open_api_schema(
     title: "ComplianceScreening",
     description:
@@ -245,8 +261,7 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
       :screening_type,
       :screening_status,
       :screened_entity_type,
-      :screened_entity_name,
-      :account_holder_id
+      :screened_entity_name
     ],
     properties: [
       :id,
@@ -275,13 +290,13 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
       :review_notes,
       :escalation_level,
       :compliance_screening_number,
-      :account_holder_id,
-      :counterparty_id,
+      :legal_entity_id,
       :payment_account_id,
-      :transaction_id,
       :tenant_id,
       :inserted_at,
-      :updated_at
+      :updated_at,
+      :sanctions_matches,
+      :blocklist_matches
     ]
   )
 
@@ -340,14 +355,12 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
     # Opaque SoE identifier
     field :compliance_screening_number, :string
 
-    # Entity references — account_holder is the MDM subject (required)
-    belongs_to :account_holder, AccountHolder
-
-    # Soft refs — counterparty/payment_account/transaction tables not yet created
-    field :beneficial_owner_id, :binary_id
-    field :counterparty_id, :binary_id
+    # Primary anchor — exactly one set per DB CHECK constraint
+    # `compliance_screenings_exactly_one_anchor`. legal_entity_id anchors party
+    # screenings (Watchman PII pass); payment_account_id anchors instrument
+    # screenings (Watchman crypto-address / IBAN pass).
+    belongs_to :legal_entity, LegalEntity
     field :payment_account_id, :binary_id
-    field :transaction_id, :binary_id
 
     # Child match rows
     has_many :sanctions_matches, SanctionsMatch
@@ -387,11 +400,8 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
       :review_notes,
       :escalation_level,
       :compliance_screening_number,
-      :account_holder_id,
-      :beneficial_owner_id,
-      :counterparty_id,
+      :legal_entity_id,
       :payment_account_id,
-      :transaction_id,
       :tenant_id
     ])
     |> validate_required([
@@ -400,7 +410,6 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
       :screening_status,
       :screened_entity_type,
       :screened_entity_name,
-      :account_holder_id,
       :tenant_id
     ])
     |> validate_number(:screening_score,
@@ -411,7 +420,11 @@ defmodule AtomicFi.ComplianceScreeningContext.ComplianceScreening do
       greater_than_or_equal_to: 1,
       less_than_or_equal_to: 5
     )
-    |> foreign_key_constraint(:account_holder_id)
+    |> foreign_key_constraint(:legal_entity_id)
     |> foreign_key_constraint(:tenant_id)
+    |> check_constraint(:legal_entity_id,
+      name: :compliance_screenings_exactly_one_anchor,
+      message: "exactly one of legal_entity_id or payment_account_id must be set"
+    )
   end
 end

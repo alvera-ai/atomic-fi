@@ -196,7 +196,7 @@ defmodule AtomicFiApi.TransactionControllerTest do
           status_reason_code: "ACCP",
           requested_execution_date: "2026-03-01",
           settlement_date: "2026-03-02",
-          transaction_external_id: "ext-txn-ctrl-001"
+          external_id: "ext-txn-ctrl-001"
         })
 
       conn = post(conn, ~p"/api/transactions", attrs)
@@ -217,11 +217,17 @@ defmodule AtomicFiApi.TransactionControllerTest do
              } = response
     end
 
-    test "creates transaction with payment account links", %{
+    test "returns 422 when PAs exist but lack the LedgerAccount DAG", %{
       conn: conn,
       platform_tenant: platform_tenant,
       account_holder: account_holder
     } do
+      # Corner case: factory-inserted PAs skip the onboarding hook that
+      # `PaymentAccountContext.create_payment_account/2` runs in production
+      # (`LedgerAccountContext.ensure_linked_ledger_accounts/2`). The
+      # missing LA DAG is a domain invariant violation — the controller
+      # must surface it as a 422 (per no-graceful-fallbacks), NOT silently
+      # 201 with a perpetually :pending txn.
       debtor_account =
         insert(:payment_account,
           tenant_id: platform_tenant.id,
@@ -243,19 +249,10 @@ defmodule AtomicFiApi.TransactionControllerTest do
         })
 
       conn = post(conn, ~p"/api/transactions", attrs)
-      response = json_response(conn, 201)
-      api_spec = ApiSpec.spec()
+      response = json_response(conn, 422)
 
-      assert_schema(response, "TransactionResponse", api_spec)
-
-      assert %{
-               "transaction_type" => "internal_transfer",
-               "debtor_payment_account_id" => debtor_id,
-               "creditor_payment_account_id" => creditor_id
-             } = response
-
-      assert debtor_id == debtor_account.id
-      assert creditor_id == creditor_account.id
+      assert %{"errors" => errors} = response
+      assert is_map(errors) or is_list(errors)
     end
 
     test "renders errors when required fields are missing", %{conn: conn} do

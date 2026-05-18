@@ -1,0 +1,73 @@
+meta {
+  name: 003 — Create sender with KYC in_progress
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("senderExternalId", `CIP-AH-SENDER-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{senderExternalId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "in_progress",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "chain_screening": false,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Bob",
+      "last_name": "InProgress",
+      "date_of_birth": "1988-03-12",
+      "citizenship_country": "US",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("senderAhId", res.body.id);
+}
+
+docs {
+  Scenario #6 — CIP KYC gate (BLOCK → PASS lifecycle).
+
+  Cite: BSA §326 (31 CFR §1020.220) — banks must verify customer
+  identity before permitting account activity.
+
+  Onboards the sender with `kyc_status: in_progress`. Per CIP, the
+  customer is identified but identity has not been verified — so the
+  account is open for further information collection, but money-movement
+  is not yet authorised.
+
+  The transaction call later in this folder will trip the
+  `cip_kyc_not_approved` rule. After we PUT the AH to `approved`, the
+  retry passes — that is the regulator-walkable evidence of the gate
+  opening only after the BSA §326 check completes.
+}
+
+assert {
+  res.status: eq 201
+  res.body.id: matches ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+  res.body.kyc_status: eq in_progress
+}

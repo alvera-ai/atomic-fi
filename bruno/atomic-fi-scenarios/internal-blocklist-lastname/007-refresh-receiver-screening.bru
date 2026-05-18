@@ -1,0 +1,29 @@
+meta {
+  name: 007 — Refresh receiver (synchronously screen against blocklist)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders/{{receiverAhId}}/refresh
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  accept: application/json
+}
+
+docs {
+  Force the screening pipeline to run synchronously. By the time this
+  returns 200 the compliance screening row for the receiver's LE has
+  `blocklist_matches[]` with the seeded entry.
+}
+
+assert {
+  res.status: in [200, 202]
+}

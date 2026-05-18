@@ -37,13 +37,80 @@ defmodule AtomicFi.TransactionContext do
   # Associations preloaded before handing the transaction to the rule engine, so it
   # can evaluate the full entity tree (debtor/creditor payment accounts + counterparties
   # + the account holder) and resolve the leaf ledger accounts in play.
+  #
+  # LegalEntity + its addresses are preloaded on every party — rules over residency
+  # / geo-sanctions (scenario #15 etc.) read `<party>.legal_entity.country_of_residence`,
+  # which `AtomicFi.RuleEngine.build_payload/2` carries onto the party via
+  # `legal_entity.addresses[]` (the rule walks the array directly).
+  #
+  # `beneficial_owners` is preloaded on every party that can carry UBOs (AH +
+  # CP) — rules over corporate-AH UBO disclosure (FinCEN CDD §1010.230, scenario
+  # #27 etc.) read `account_holder.beneficial_owners[]` (or the CP-side mirror).
+  # The has_many on AH/CP walks the BO-LE rows via the split subject_type, so
+  # AH-BOs never bleed into the CP-BO list and vice versa.
   @rule_engine_preloads [
-    :account_holder,
-    :debtor_payment_account,
-    :creditor_payment_account,
-    :debtor_counterparty,
-    :creditor_counterparty
+    account_holder: [legal_entity: [:addresses], beneficial_owners: [legal_entity: [:addresses]]],
+    debtor_counterparty: [
+      legal_entity: [:addresses],
+      beneficial_owners: [legal_entity: [:addresses]]
+    ],
+    creditor_counterparty: [
+      legal_entity: [:addresses],
+      beneficial_owners: [legal_entity: [:addresses]]
+    ],
+    debtor_payment_account: [
+      account_holder: [
+        legal_entity: [:addresses],
+        beneficial_owners: [legal_entity: [:addresses]]
+      ]
+    ],
+    creditor_payment_account: [
+      account_holder: [
+        legal_entity: [:addresses],
+        beneficial_owners: [legal_entity: [:addresses]]
+      ]
+    ]
   ]
+
+  @doc """
+  Returns transactions originated by `account_holder` (i.e. the AH was the
+  payer / debtor side) inserted within the last 24 hours. Excludes
+  rejected transactions — rejected attempts don't move money and so
+  don't count toward structuring/velocity aggregates.
+
+  Used by `AtomicFi.RuleEngine.build_payload/2` to surface
+  a recent-debit projection that BSA §5324 (anti-structuring) rules
+  can window over. `exclude_id` skips a specific transaction — the
+  payload builder passes the current transaction's id so the row
+  being evaluated never counts itself as a prior debit.
+  """
+  @spec list_recent_debits_for_account_holder(Session.t(), Ecto.UUID.t(), Ecto.UUID.t() | nil) ::
+          [Transaction.t()]
+  def_with_rls_and_logging list_recent_debits_for_account_holder(
+                             session,
+                             account_holder_id,
+                             exclude_id
+                           ),
+                           log_fields: [] do
+    since = DateTime.add(DateTime.utc_now(), -24 * 60 * 60, :second)
+
+    base =
+      from(t in Transaction,
+        where:
+          t.account_holder_id == ^account_holder_id and
+            t.inserted_at >= ^since and
+            t.status != :rejected,
+        order_by: [desc: t.inserted_at]
+      )
+
+    query =
+      case exclude_id do
+        nil -> base
+        id -> from(t in base, where: t.id != ^id)
+      end
+
+    Repo.all(query, session: session)
+  end
 
   @doc """
   Returns the list of transactions with pagination and filtering.
@@ -88,6 +155,16 @@ defmodule AtomicFi.TransactionContext do
   end
 
   @doc """
+  Fetches a transaction by caller-supplied SoE handle. Returns the
+  struct or `nil`.
+  """
+  @spec get_transaction_by_external_id(Session.t(), String.t()) :: Transaction.t() | nil
+  def_with_rls_and_logging get_transaction_by_external_id(session, external_id),
+    log_fields: [:external_id] do
+    Repo.get_by(Transaction, [external_id: external_id], session: session)
+  end
+
+  @doc """
   Creates a transaction.
 
   Flow:
@@ -124,27 +201,45 @@ defmodule AtomicFi.TransactionContext do
            %Transaction{} |> Transaction.changeset(request) |> Repo.insert(session: session),
          transaction <-
            Repo.preload(transaction, @rule_engine_preloads, skip_multi_tenancy_check: true) do
-      case RuleEngine.get_controls(session, :transaction_screening, transaction) do
+      case RuleEngine.apply_rules(session, :transaction_screening, transaction) do
         {:ok, :no_limits} ->
-          # Engine declined to score this transaction; leave it :pending with no
-          # ledger movement.
-          {:ok, transaction}
+          # No rule emitted controls — the catalog's PASS path. If both PAs
+          # are wired, post un-capped entries; the txn flips to :accepted
+          # (`guides/use-cases.md` result vocabulary: "transaction proceeds;
+          # ledger commits; no compliance event opened"). If the txn is
+          # malformed (missing a PA), keep :pending — engine has nothing
+          # to score against and there are no leaf LAs to post into.
+          if has_payment_accounts?(transaction) do
+            post_entries(session, transaction, %{})
+          else
+            {:ok, transaction}
+          end
 
         {:ok, %{controls: controls}} ->
           # next_screening_at is meaningful only for onboarding; transactions
           # are one-shot, so we ignore it here.
-          with {:ok, entries} <-
-                 LedgerEntryContext.create_entries(session, transaction, controls) do
-            transaction
-            |> Transaction.changeset(transaction_outcome(entries))
-            |> Repo.update(session: session)
-          end
+          post_entries(session, transaction, controls)
 
         {:error, _} = err ->
           err
       end
     end
   end
+
+  defp post_entries(session, %Transaction{} = transaction, controls) do
+    with {:ok, entries} <-
+           LedgerEntryContext.create_entries(session, transaction, controls) do
+      transaction
+      |> Transaction.changeset(transaction_outcome(entries))
+      |> Repo.update(session: session)
+    end
+  end
+
+  defp has_payment_accounts?(%Transaction{
+         debtor_payment_account_id: debtor,
+         creditor_payment_account_id: creditor
+       }),
+       do: is_binary(debtor) and is_binary(creditor)
 
   # Maps the posted/voided ledger-entry pair to the transaction's resulting status
   # (+ denormalised rejection metadata when a control limit was hit).

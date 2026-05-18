@@ -1,0 +1,30 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": { "x": 100, "y": 160 }
+    },
+    {
+      "id": "cip_gate",
+      "type": "functionNode",
+      "name": "CIP KYC Gate",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "source": "/**\n * BSA §326 CIP gate (31 CFR §1020.220).\n *\n * Scenarios #6/#7 of guides/use-cases.md: an AccountHolder whose\n * kyc_status is not 'approved' may not originate any transaction,\n * regardless of amount or payment rail.\n *\n * Reads `debtor_payment_account.account_holder.kyc_status`. If the\n * status is anything other than 'approved' (in_progress, rejected,\n * expired, …), emits a blocked Control per LedgerAccount on the\n * debtor side. The cap=0 + is_blocked=true combination is what the\n * limits-at-entry check converts into status='rejected' with\n * rejected_rule='cip_kyc_not_approved'.\n */\nexport const handler = async (input) => {\n  const debtor = input.debtor_payment_account;\n  if (!debtor) return { ledger_accounts: {} };\n\n  const kyc = debtor.account_holder && debtor.account_holder.kyc_status;\n  if (kyc === 'approved') return { ledger_accounts: {} };\n\n  const las = debtor.las || [];\n  const ledger_accounts = {};\n  for (const la of las) {\n    ledger_accounts[la.id] = {\n      daily_debit_cap: 0,\n      daily_credit_cap: 0,\n      reason: 'cip_kyc_not_approved',\n      block_reason: 'cip_kyc_not_approved',\n      is_blocked: true\n    };\n  }\n  return { ledger_accounts };\n};\n"
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": { "x": 700, "y": 160 }
+    }
+  ],
+  "edges": [
+    { "id": "edge_request_cip", "type": "edge", "sourceId": "request", "targetId": "cip_gate" },
+    { "id": "edge_cip_response", "type": "edge", "sourceId": "cip_gate", "targetId": "response" }
+  ]
+}

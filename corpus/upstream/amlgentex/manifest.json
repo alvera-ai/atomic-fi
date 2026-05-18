@@ -1,0 +1,26 @@
+{
+  "source": "AI Sweden, Handelsbanken & Swedbank (2024–25) — AMLGentex",
+  "paper": "https://arxiv.org/abs/2506.13989",
+  "repo": "https://github.com/aidotse/AMLGentex",
+  "license": "Apache-2.0 (per parent repo LICENSE)",
+  "fetched_via": "git clone + uv sync + uv run scripts/generate.py",
+  "fetched_ref": "main",
+  "python_version": ">=3.10",
+  "extra_runtime": ["uv"],
+  "files": {
+    "transactions.parquet": {
+      "produced_by": "scripts/generate.py --conf_file corpus/upstream/amlgentex/config/data.yaml --output_path <out>/transactions.parquet",
+      "schema_note": "AMLGentex emits transaction-network parquet with sender/receiver accounts, amounts, timestamps, and SAR pattern labels. Schema is configurable via data.yaml; see AMLGentex docs."
+    }
+  },
+  "pipeline": {
+    "reseed_target": "make reseed-amlgentex CORPUS_OUT=<dir> AMLGENTEX_ROWS=<n> AMLGENTEX_SEED=<s>",
+    "clone_ref": "main (override with AMLGENTEX_REF=<sha-or-tag>)",
+    "subset_step": "python3 polars — sample(n, seed=seed).write_ndjson(...)",
+    "raw_dest": "$CORPUS_OUT/amlgentex/transactions.parquet",
+    "subset_dest": "$CORPUS_OUT/amlgentex/amlgentex.ndjson",
+    "elixir_consumer": "mix corpus.generate.amlgentex (reads amlgentex.ndjson; produces sharded AH/CP/PA/Txn ndjson under --out)"
+  },
+  "config_pin": "corpus/upstream/amlgentex/config/data.yaml — committed alongside this manifest so the simulator output is reproducible across reseeds. Override the AMLGENTEX_REF for a different repo commit.",
+  "notes": "AMLGentex is a generator, not a static dataset — there is no upstream artefact to sha-pin. Determinism comes from (repo ref + data.yaml + simulator seed). Parquet stays outside the repo; only the NDJSON subset enters the Elixir-side mix task. No new Elixir deps (no parquet reader) — Python emits the NDJSON sidecar."
+}

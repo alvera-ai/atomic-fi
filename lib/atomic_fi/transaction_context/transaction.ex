@@ -54,7 +54,7 @@ defmodule AtomicFi.TransactionContext.Transaction do
   * `status_reason_code` - pacs:002 status reason code (e.g. "RJCT", "ACCP", "ACSC")
   * `requested_execution_date` - pain:001 ReqdExctnDt
   * `settlement_date` - Actual settlement date (pacs:008 IntrBkSttlmDt / camt:054 BookgDt)
-  * `transaction_external_id` - Caller-supplied SoE upsert key (unique per tenant when set)
+  * `external_id` - Caller-supplied SoE upsert key (unique per tenant when set)
   * `rejected_ledger_account_id` - FK to the LedgerAccount whose control limit was breached (NULL unless `:rejected` for a limit)
   * `rejected_period` - `"daily" | "weekly" | "monthly" | "yearly"` (NULL unless rejected)
   * `rejected_direction` - `"debit" | "credit"` (NULL unless rejected)
@@ -209,7 +209,16 @@ defmodule AtomicFi.TransactionContext.Transaction do
       nullable: true,
       description: "Caller-supplied SoE upsert key (unique per tenant when set)"
     },
-    key: :transaction_external_id
+    key: :external_id
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      readOnly: true,
+      description: "atomic-fi-generated internal handle"
+    },
+    key: :transaction_number
   )
 
   # Rejection metadata, denormalised from the offending ledger entry — populated when
@@ -354,7 +363,8 @@ defmodule AtomicFi.TransactionContext.Transaction do
       :status_reason_code,
       :requested_execution_date,
       :settlement_date,
-      :transaction_external_id,
+      :external_id,
+      :transaction_number,
       :rejected_ledger_account_id,
       :rejected_period,
       :rejected_direction,
@@ -402,7 +412,8 @@ defmodule AtomicFi.TransactionContext.Transaction do
     field :settlement_date, :date
 
     # Identifiers
-    field :transaction_external_id, :string
+    field :external_id, :string
+    field :transaction_number, :string
 
     # Rejection metadata, denormalised from the offending ledger entry. Set by the
     # orchestration layer when the transaction is :rejected for a control limit.
@@ -449,7 +460,8 @@ defmodule AtomicFi.TransactionContext.Transaction do
       :status_reason_code,
       :requested_execution_date,
       :settlement_date,
-      :transaction_external_id,
+      :external_id,
+      :transaction_number,
       :rejected_ledger_account_id,
       :rejected_period,
       :rejected_direction,
@@ -467,6 +479,7 @@ defmodule AtomicFi.TransactionContext.Transaction do
     |> maybe_cast_status(attrs)
     |> validate_required([:transaction_type, :amount, :currency, :account_holder_id, :tenant_id])
     |> validate_number(:amount, greater_than: 0)
+    |> AtomicFi.Identifier.put_default(:transaction_number, :txn)
     |> foreign_key_constraint(:rejected_ledger_account_id)
     |> foreign_key_constraint(:account_holder_id)
     |> foreign_key_constraint(:debtor_payment_account_id)
@@ -476,7 +489,7 @@ defmodule AtomicFi.TransactionContext.Transaction do
     |> foreign_key_constraint(:ledger_entry_id)
     |> foreign_key_constraint(:compliance_screening_id)
     |> foreign_key_constraint(:tenant_id)
-    |> unique_constraint([:transaction_external_id, :tenant_id],
+    |> unique_constraint([:external_id, :tenant_id],
       name: :transactions_external_id_tenant_unique,
       message: "has already been taken"
     )

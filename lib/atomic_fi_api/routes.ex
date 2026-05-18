@@ -84,18 +84,17 @@ defmodule AtomicFiApi.Routes do
              ComplianceScreeningController,
              :screen_payment_account
 
-        # Legal entity CRUD endpoints (PUT only for full replacement semantics)
-        get "/legal-entities", LegalEntityController, :index
-        get "/legal-entities/:id", LegalEntityController, :show
-        post "/legal-entities", LegalEntityController, :create
-        put "/legal-entities/:id", LegalEntityController, :update
-        delete "/legal-entities/:id", LegalEntityController, :delete
+        # Legal entities have no standalone REST surface — they are managed
+        # via cast_assoc on parent POSTs and nested PUT routes on the parent
+        # controller (AH / CP / BO). See architecture notes.
 
         # Account holder CRUD endpoints (PUT only for full replacement semantics)
         get "/account-holders", AccountHolderController, :index
         get "/account-holders/:id", AccountHolderController, :show
         post "/account-holders", AccountHolderController, :create
+        post "/account-holders/:id/refresh", AccountHolderController, :refresh
         put "/account-holders/:id", AccountHolderController, :update
+        put "/account-holders/:id/legal-entity", AccountHolderController, :update_legal_entity
         delete "/account-holders/:id", AccountHolderController, :delete
 
         # Beneficial owner CRUD endpoints (PUT only for full replacement semantics)
@@ -103,13 +102,16 @@ defmodule AtomicFiApi.Routes do
         get "/beneficial-owners/:id", BeneficialOwnerController, :show
         post "/beneficial-owners", BeneficialOwnerController, :create
         put "/beneficial-owners/:id", BeneficialOwnerController, :update
+        put "/beneficial-owners/:id/legal-entity", BeneficialOwnerController, :update_legal_entity
         delete "/beneficial-owners/:id", BeneficialOwnerController, :delete
 
         # Counterparty CRUD endpoints (PUT only for full replacement semantics)
         get "/counterparties", CounterpartyController, :index
         get "/counterparties/:id", CounterpartyController, :show
         post "/counterparties", CounterpartyController, :create
+        post "/counterparties/:id/refresh", CounterpartyController, :refresh
         put "/counterparties/:id", CounterpartyController, :update
+        put "/counterparties/:id/legal-entity", CounterpartyController, :update_legal_entity
         delete "/counterparties/:id", CounterpartyController, :delete
 
         # Rule (JDM) file CRUD — thin REST shim over RulesContext / shared
@@ -162,6 +164,7 @@ defmodule AtomicFiApi.Routes do
         get "/payment-accounts", PaymentAccountController, :index
         get "/payment-accounts/:id", PaymentAccountController, :show
         post "/payment-accounts", PaymentAccountController, :create
+        post "/payment-accounts/:id/refresh", PaymentAccountController, :refresh
         put "/payment-accounts/:id", PaymentAccountController, :update
         delete "/payment-accounts/:id", PaymentAccountController, :delete
 

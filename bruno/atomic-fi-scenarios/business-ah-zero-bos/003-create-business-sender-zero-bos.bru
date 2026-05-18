@@ -1,0 +1,66 @@
+meta {
+  name: 003 — Create business sender (zero beneficial owners disclosed)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("senderExternalId", `BIZ-AH-SHELL-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{senderExternalId}}",
+    "account_holder_type": "business",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "chain_screening": false,
+    "legal_entity": {
+      "legal_entity_type": "business",
+      "business_name": "Shellco LLC",
+      "citizenship_country": "US",
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("senderAhId", res.body.id);
+}
+
+docs {
+  Scenario #27 — business account holder with zero beneficial owners
+  (BLOCK → PASS via UBO disclosure).
+
+  Cite: Corporate Transparency Act; 31 CFR §1010.380 (FinCEN CDD rule).
+
+  Onboards a business AH but discloses no beneficial owners. The
+  Corporate Transparency Act requires US legal entities to report
+  every UBO with ≥25% ownership OR substantial control to FinCEN;
+  AtomicFi enforces this at the transaction boundary — the AH onboards
+  fine (the platform doesn't refuse to open the account), but no
+  outbound payment can settle until at least one BO is on file.
+}
+
+assert {
+  res.status: eq 201
+  res.body.account_holder_type: eq business
+}

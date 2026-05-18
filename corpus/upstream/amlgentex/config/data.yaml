@@ -1,0 +1,36 @@
+# AMLGentex simulator config — pinned for reproducibility.
+#
+# Consumed by `scripts/generate.py --conf_file <this-file>` inside the
+# cloned AMLGentex repo. Field names follow the AMLGentex
+# `experiments/template_experiment/config/data.yaml` schema; refer to
+# AMLGentex docs for the full vocabulary.
+#
+# This is the smallest config that produces a transaction-network parquet
+# with a non-trivial mix of normal + SAR patterns. Bump network_size +
+# pattern counts when the rule surface needs more breadth.
+
+seed: 0
+
+network:
+  size: 5000               # number of accounts (scale-free graph nodes)
+  degree_alpha: 2.5        # scale-free exponent
+
+temporal:
+  duration_days: 30
+  transactions_per_day: 1000
+
+patterns:
+  normal:
+    fan_in: 50
+    fan_out: 50
+    cycle: 20
+  suspicious:
+    layering: 10
+    smurfing: 5
+    fan_out_then_in: 5
+
+output:
+  format: parquet
+  # output_path is supplied on the command line by the Makefile target
+  # (--output_path <CORPUS_OUT>/amlgentex/transactions.parquet) so the
+  # parquet stays out of the repo.

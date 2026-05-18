@@ -55,7 +55,7 @@ describe('documents — /api/documents', () => {
       tenant_id: primaryTenantId,
     })
     const ah = await postJson('/api/account-holders', bearerHeaders(bearer), {
-      holder_type: 'individual',
+      account_holder_type: 'individual',
       status: 'pending',
       kyc_status: 'not_started',
       risk_level: 'low',

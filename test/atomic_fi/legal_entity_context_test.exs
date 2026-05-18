@@ -30,7 +30,7 @@ defmodule AtomicFi.LegalEntityContextTest do
     end
 
     test "create_legal_entity/2 with valid data creates a legal_entity", %{session: session} do
-      attrs = Map.put(@valid_attrs, :tenant_id, session.tenant_id)
+      attrs = params_for(:legal_entity, Map.put(@valid_attrs, :tenant_id, session.tenant_id))
 
       assert {:ok, %LegalEntity{} = legal_entity} =
                LegalEntityContext.create_legal_entity(session, attrs)

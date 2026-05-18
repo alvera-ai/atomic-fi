@@ -1,0 +1,3 @@
+{"external_id":"pr-ah-prohibited-sender","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"prohibited","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"Patty","last_name":"Prohibited"}}
+{"external_id":"pr-ah-low-sender","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"Larry","last_name":"Lowrisk"}}
+{"external_id":"pr-ah-receiver","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"Rita","last_name":"Receiver"}}

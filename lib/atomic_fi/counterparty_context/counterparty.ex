@@ -16,9 +16,9 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
 
   * `id` - UUID primary key
   * `account_holder_id` - FK to the internal AccountHolder transacting with this party
-  * `legal_entity_id` - FK to LegalEntity (all PII / identity for the external party)
+  * `legal_entity` - 1:1 identity record (LE carries the FK back via `legal_entities.counterparty_id`)
   * `status` - Relationship lifecycle: `active` | `suspended` | `blocked`
-  * `counterparty_number` - Opaque external SoE identifier (nullable)
+  * `external_id` - Opaque external SoE identifier (nullable)
   * `tenant_id` - FK to tenant for multi-tenancy isolation (RLS)
   * `inserted_at` - Timestamp when record was created
   * `updated_at` - Timestamp when record was last updated
@@ -44,11 +44,6 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
   )
 
   open_api_property(
-    schema: %Schema{type: :string, format: :uuid, nullable: true},
-    key: :legal_entity_id
-  )
-
-  open_api_property(
     schema: %OpenApiSpex.Reference{"$ref": "#/components/schemas/LegalEntityRequest"},
     key: :legal_entity,
     writeOnly: true
@@ -70,6 +65,11 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
 
   open_api_property(
     schema: %Schema{type: :string, nullable: true},
+    key: :external_id
+  )
+
+  open_api_property(
+    schema: %Schema{type: :string, readOnly: true},
     key: :counterparty_number
   )
 
@@ -104,34 +104,74 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
     key: :chain_screening
   )
 
+  # BeneficialOwners of this Counterparty (FinCEN CDD §1010.230 / Corporate
+  # Transparency Act). Read-only on the CP response; BO records are created
+  # via the dedicated POST /api/beneficial-owners route — never embedded in
+  # the CP POST body.
+  open_api_property(
+    schema: %Schema{
+      type: :array,
+      readOnly: true,
+      items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/BeneficialOwnerResponse"}
+    },
+    key: :beneficial_owners
+  )
+
   open_api_schema(
     title: "Counterparty",
     description:
       "External payer/payee (ISO 20022 <Dbtr>/<Cdtr>) that an AccountHolder transacts with. " <>
-        "All PII lives in the linked LegalEntity. " <>
-        "Pass either `legal_entity_id` (FK to an existing LegalEntity) or a nested `legal_entity` object to create one atomically.",
+        "All PII lives in the linked LegalEntity, created atomically via the nested " <>
+        "`legal_entity` object on POST. The LE link is immutable post-create " <>
+        "(LE carries the FK back, not CP). To replace LE PII, use " <>
+        "`PUT /api/counterparties/:id/legal-entity`.",
+    # `legal_entity` is required on POST but optional on PUT (cast_assoc is a
+    # no-op on update; the LE link is immutable post-create).
     required: [:account_holder_id, :status],
     properties: [
       :id,
       :account_holder_id,
-      :legal_entity_id,
       :legal_entity,
       :status,
+      :external_id,
       :counterparty_number,
       :enabled_regimes,
       :tenant_id,
       :inserted_at,
       :updated_at,
-      :chain_screening
+      :chain_screening,
+      :beneficial_owners
     ]
   )
 
   typed_schema "counterparties" do
     belongs_to :account_holder, AccountHolder
-    belongs_to :legal_entity, LegalEntity
+
+    # 1:1 identity. LE carries the FK back via `legal_entities.counterparty_id`.
+    # `where:` filter is required: CP-BO LEs (subject_type
+    # `:counterparty_beneficial_owner`) also stamp `counterparty_id` for
+    # the host-CP rollup, so without the filter Ecto would non-determi-
+    # nistically match the CP's own identity LE or one of its BO LEs.
+    has_one :legal_entity, LegalEntity,
+      foreign_key: :counterparty_id,
+      where: [subject_type: :counterparty]
+
+    # FinCEN CDD §1010.230 / Corporate Transparency Act beneficial owners
+    # of this Counterparty. Walked through the CP's BO-LE rows: an LE
+    # whose `subject_type = :counterparty_beneficial_owner` and whose
+    # `counterparty_id = cp.id` points (via `beneficial_owner_id`) at the
+    # BO row itself. AH-side BOs live on the AccountHolder schema and
+    # never bleed into CP-side compliance.
+    has_many :counterparty_beneficial_owner_legal_entities, LegalEntity,
+      foreign_key: :counterparty_id,
+      where: [subject_type: :counterparty_beneficial_owner]
+
+    has_many :beneficial_owners,
+      through: [:counterparty_beneficial_owner_legal_entities, :beneficial_owner]
 
     field :status, Ecto.Enum, values: [:active, :suspended, :blocked], default: :active
 
+    field :external_id, :string
     field :counterparty_number, :string
     field :enabled_regimes, {:array, :string}, default: []
 
@@ -152,22 +192,18 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
     counterparty
     |> cast(attrs, [
       :account_holder_id,
-      :legal_entity_id,
       :status,
+      :external_id,
       :counterparty_number,
       :enabled_regimes,
       :tenant_id
     ])
     |> maybe_cast_assoc_legal_entity(attrs)
     |> validate_required([:account_holder_id, :status, :tenant_id])
-    |> validate_legal_entity_present()
     |> cast_and_validate_enabled_regimes()
+    |> AtomicFi.Identifier.put_default(:counterparty_number, :cp)
     |> foreign_key_constraint(:account_holder_id)
-    |> foreign_key_constraint(:legal_entity_id)
     |> foreign_key_constraint(:tenant_id)
-    |> unique_constraint([:account_holder_id, :legal_entity_id],
-      name: :counterparties_account_holder_legal_entity_unique
-    )
   end
 
   # Parent is the linked AccountHolder. Repo lookup deferred via prepare_changes/2.
@@ -182,43 +218,38 @@ defmodule AtomicFi.CounterpartyContext.Counterparty do
   end
 
   defp parent_regimes(prepared) do
-    case Ecto.Changeset.get_field(prepared, :account_holder_id) do
-      nil -> AtomicFi.EnabledRegimes.default()
-      account_holder_id -> account_holder_regimes(prepared.repo, account_holder_id)
-    end
+    account_holder_id = Ecto.Changeset.get_field(prepared, :account_holder_id)
+
+    %AccountHolder{enabled_regimes: regimes} =
+      prepared.repo.get!(AccountHolder, account_holder_id, skip_multi_tenancy_check: true)
+
+    regimes
   end
 
-  defp account_holder_regimes(repo, account_holder_id) do
-    case repo.get(AccountHolder, account_holder_id, skip_multi_tenancy_check: true) do
-      nil -> AtomicFi.EnabledRegimes.default()
-      %{enabled_regimes: regimes} -> regimes
-    end
-  end
-
-  # Cast nested legal_entity only when the key is present in attrs (not a nil default).
-  defp maybe_cast_assoc_legal_entity(changeset, attrs) do
+  # cast_assoc nested legal_entity (required on insert, untouched on update —
+  # LE PII replacement goes via PUT /api/counterparties/:id/legal-entity).
+  # Captures the cast'd `account_holder_id` so the LE's per-parent changeset
+  # can put_change it onto the AH-rollup column.
+  defp maybe_cast_assoc_legal_entity(%Ecto.Changeset{data: %{id: nil}} = changeset, attrs) do
     case Map.fetch(attrs, :legal_entity) do
       {:ok, value} when not is_nil(value) ->
-        cast_assoc(changeset, :legal_entity, required: true)
+        account_holder_id = get_field(changeset, :account_holder_id)
+
+        cast_assoc(changeset, :legal_entity,
+          required: true,
+          with: fn le, le_attrs ->
+            LegalEntity.counterparty_changeset(le, le_attrs, account_holder_id)
+          end
+        )
 
       _ ->
-        changeset
+        add_error(
+          changeset,
+          :legal_entity,
+          "is required on create — provide a nested legal_entity object"
+        )
     end
   end
 
-  # Require either legal_entity_id (FK to existing) or a nested legal_entity change.
-  defp validate_legal_entity_present(changeset) do
-    legal_entity_id = get_field(changeset, :legal_entity_id)
-    has_nested = Map.has_key?(changeset.changes, :legal_entity)
-
-    if is_nil(legal_entity_id) and not has_nested do
-      add_error(
-        changeset,
-        :legal_entity_id,
-        "must provide either legal_entity_id or a nested legal_entity"
-      )
-    else
-      changeset
-    end
-  end
+  defp maybe_cast_assoc_legal_entity(%Ecto.Changeset{} = changeset, _attrs), do: changeset
 end

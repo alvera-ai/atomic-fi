@@ -1,0 +1,72 @@
+meta {
+  name: 003 — Create sender account holder (KYC approved)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("senderExternalId", `DEMI-AH-SENDER-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{senderExternalId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "chain_screening": false,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Alice",
+      "last_name": "Sender",
+      "date_of_birth": "1985-06-15",
+      "citizenship_country": "US",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("senderAhId", res.body.id);
+}
+
+docs {
+  Scenario #1 — de minimis ACH (PASS).
+
+  Cite: 31 CFR §1020.220 — CIP minimum-information thresholds.
+
+  Sets up a fully-onboarded individual (KYC approved, low risk) as the
+  payment sender. This is the verified happy-path party — no rule should
+  trip for transactions initiated by this account holder when the
+  counterparty side is also clean.
+
+  `chain_screening: false` skips the async Watchman re-screen; we want
+  the account holder to land immediately because all the verdict drama
+  is on the transaction call, not the onboarding call.
+}
+
+assert {
+  res.status: eq 201
+  res.body.id: matches ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+  res.body.kyc_status: eq approved
+  res.body.risk_level: eq low
+}

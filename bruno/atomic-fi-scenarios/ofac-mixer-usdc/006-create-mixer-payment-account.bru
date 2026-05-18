@@ -1,0 +1,54 @@
+meta {
+  name: 006 — Create receiver payment account (OFAC-sanctioned mixer wallet)
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/payment-accounts
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("mixerPaExternalId", `MIXER-PA-RCVR-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{mixerPaExternalId}}",
+    "account_type": "crypto_wallet",
+    "currency": "USD",
+    "wallet_address": "0x47ce0c6ed5b0ce3d3a51fdb1c52dc66a7c3c2936",
+    "wallet_chain": "ETH",
+    "account_holder_id": "{{senderAhId}}",
+    "counterparty_id": "{{mixerCpId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("mixerPaId", res.body.id);
+}
+
+docs {
+  Recipient wallet — address `0x47ce0c6ed5b0ce3d3a51fdb1c52dc66a7c3c2936`
+  is on OFAC's SDN-sanctioned ETH wallet list (Tornado Cash family).
+
+  Sender's AH owns the PA record (RLS); the counterparty link points to
+  the off-platform mixer party. AtomicFi creates the PA fine — the
+  block is on the *outbound transfer*, not on the wallet registration.
+}
+
+assert {
+  res.status: eq 201
+}

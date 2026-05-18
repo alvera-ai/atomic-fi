@@ -1,0 +1,30 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": { "x": 100, "y": 160 }
+    },
+    {
+      "id": "ctr_gate",
+      "type": "functionNode",
+      "name": "CTR Structuring Gate",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "source": "/**\n * BSA §5324 anti-structuring gate (31 USC §5324; 31 CFR §1020.320).\n *\n * Scenario #19 of guides/use-cases.md: 3× USD 9,500 transactions inside\n * 24h is the classic sub-CTR structuring pattern that triggers\n * SAR-eligible REVIEW. The corpus models the verdict as BLOCK with\n * rejected_rule='ctr_structuring' since the platform's Transaction\n * status enum has no `:review` state today — the rule still fires on\n * the right pattern, and the verdict surface can be relaxed to REVIEW\n * once Transaction gains that state.\n *\n * Reads `account_holder.recent_debits_24h[]` (synthesised by\n * AtomicFi.RuleEngine.Payload.from_transaction/2 via\n * TransactionContext.list_recent_debits_for_account_holder/2).\n * Counts prior debits in the sub-CTR band (USD 5,000–9,999) — the\n * exact signature §5324 targets. Transactions above $10,000 are CTR-\n * reportable (filed but not blocked); transactions below $5,000 don't\n * look like structuring. If two or more prior sub-CTR debits exist\n * within the 24h window, the third+ debit in that band is blocked.\n */\nexport const handler = async (input) => {\n  const debtor = input.debtor_payment_account;\n  if (!debtor) return { ledger_accounts: {} };\n\n  const SUB_CTR_MIN = 5000;\n  const SUB_CTR_MAX = 9999;\n\n  const txAmount = input.transaction && input.transaction.amount;\n  if (typeof txAmount !== 'number' || txAmount < SUB_CTR_MIN || txAmount > SUB_CTR_MAX) {\n    return { ledger_accounts: {} };\n  }\n\n  const ah = input.account_holder;\n  const prior = (ah && ah.recent_debits_24h) || [];\n  const subCtrCount = prior.filter(function (t) {\n    return (t.amount || 0) >= SUB_CTR_MIN && (t.amount || 0) <= SUB_CTR_MAX;\n  }).length;\n\n  if (subCtrCount < 2) return { ledger_accounts: {} };\n\n  const las = debtor.las || [];\n  const ledger_accounts = {};\n  for (const la of las) {\n    ledger_accounts[la.id] = {\n      daily_debit_cap: 0,\n      daily_credit_cap: 0,\n      reason: 'ctr_structuring',\n      block_reason: 'ctr_structuring',\n      is_blocked: true\n    };\n  }\n  return { ledger_accounts };\n};\n"
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": { "x": 700, "y": 160 }
+    }
+  ],
+  "edges": [
+    { "id": "edge_request_ctr", "type": "edge", "sourceId": "request", "targetId": "ctr_gate" },
+    { "id": "edge_ctr_response", "type": "edge", "sourceId": "ctr_gate", "targetId": "response" }
+  ]
+}

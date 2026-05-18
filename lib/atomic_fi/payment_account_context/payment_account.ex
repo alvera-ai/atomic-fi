@@ -51,7 +51,7 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
   * `bank_name` - Name of the account's bank
   * `card_pan` - Card PAN last-4 or token (PCI-DSS — never raw PAN)
   * `payment_account_number` - Opaque internal account number
-  * `payment_account_external_id` - Caller-supplied SoE upsert key (unique per tenant)
+  * `external_id` - Caller-supplied SoE upsert key (unique per tenant)
   * `tenant_id` - FK to Tenant for multi-tenancy isolation (RLS)
   * `inserted_at` - Timestamp when record was created
   * `updated_at` - Timestamp when record was last updated
@@ -194,7 +194,7 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
       nullable: true,
       description: "Caller-supplied SoE upsert key (unique per tenant when set)"
     },
-    key: :payment_account_external_id
+    key: :external_id
   )
 
   open_api_property(schema: %Schema{type: :string, format: :uuid}, key: :account_holder_id)
@@ -253,7 +253,7 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
       :wallet_address,
       :wallet_chain,
       :payment_account_number,
-      :payment_account_external_id,
+      :external_id,
       :account_holder_id,
       :legal_entity_id,
       :counterparty_id,
@@ -290,7 +290,7 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
 
     # Identifiers
     field :payment_account_number, :string
-    field :payment_account_external_id, :string
+    field :external_id, :string
 
     # Hierarchical enabled regimes — populated by parent (AH or CP) at create
     # via AtomicFi.EnabledRegimes; subset of parent.enabled_regimes.
@@ -327,7 +327,7 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
       :wallet_address,
       :wallet_chain,
       :payment_account_number,
-      :payment_account_external_id,
+      :external_id,
       :account_holder_id,
       :legal_entity_id,
       :counterparty_id,
@@ -339,12 +339,13 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
     |> validate_required([:account_type, :account_holder_id, :currency, :tenant_id])
     |> validate_length(:currency, is: 3)
     |> cast_and_validate_enabled_regimes()
+    |> AtomicFi.Identifier.put_default(:payment_account_number, :pa)
     |> foreign_key_constraint(:account_holder_id)
     |> foreign_key_constraint(:legal_entity_id)
     |> foreign_key_constraint(:counterparty_id)
     |> foreign_key_constraint(:ledger_account_id)
     |> foreign_key_constraint(:tenant_id)
-    |> unique_constraint([:payment_account_external_id, :tenant_id],
+    |> unique_constraint([:external_id, :tenant_id],
       name: :payment_accounts_external_id_tenant_unique,
       message: "has already been taken"
     )
@@ -364,12 +365,8 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
           counterparty_id -> {Counterparty, counterparty_id}
         end
 
-      parent_regimes =
-        case parent_id &&
-               prepared.repo.get(parent_module, parent_id, skip_multi_tenancy_check: true) do
-          %{enabled_regimes: regimes} -> regimes
-          _ -> AtomicFi.EnabledRegimes.default()
-        end
+      %{enabled_regimes: parent_regimes} =
+        prepared.repo.get!(parent_module, parent_id, skip_multi_tenancy_check: true)
 
       AtomicFi.EnabledRegimes.cast_and_validate(
         prepared,

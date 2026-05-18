@@ -1,0 +1,51 @@
+meta {
+  name: 010 — Investigator clears the screening as false positive
+  type: http
+  seq: 10
+}
+
+put {
+  url: {{baseUrl}}/api/compliance-screenings/{{flaggedScreeningId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "false_positive_qualifier": "manual_override",
+    "manual_review_required": false,
+    "reviewed_at": "2026-05-18T12:00:00Z",
+    "review_notes": "Investigator reviewed OFAC hit; matched name only — date of birth, citizenship, and address all differ from the SDN record. Clearing as manual_override per §501.806 (mistaken identity / due-diligence determination).",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Investigator has reviewed the SDN match (e.g., name overlap only, not
+  the same person — different DOB, address, citizenship). They clear
+  the screening with `false_positive_qualifier: manual_override` and
+  attach review notes that satisfy the §501.806 due-diligence record.
+
+  No business logic in the controller — this is a plain PUT against
+  the screening record. The rule engine reads
+  `false_positive_qualifier` from the payload on the next transaction
+  evaluation and skips that screening's matches.
+
+  This is the recorded compliance event that bridges BLOCK → PASS for
+  the same parties.
+}
+
+assert {
+  res.status: eq 200
+  res.body.false_positive_qualifier: eq manual_override
+  res.body.manual_review_required: eq false
+}

@@ -1,0 +1,64 @@
+meta {
+  name: 008 — Disclose a beneficial owner (CTA reporting)
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{baseUrl}}/api/beneficial-owners
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("boExternalId", `BIZ-BO-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{boExternalId}}",
+    "account_holder_id": "{{senderAhId}}",
+    "ownership_pct": 60.0,
+    "control_type": "shareholder",
+    "verification_status": "verified",
+    "chain_screening": false,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Olivia",
+      "last_name": "Owner",
+      "date_of_birth": "1975-03-22",
+      "citizenship_country": "US",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Customer discloses the beneficial owner — Olivia Owner holds 60% of
+  Shellco LLC as shareholder. This is the CTA-required filing that
+  takes the business AH from "non-compliant" to "compliant" for
+  outbound payments.
+
+  The platform stamps the BO with `account_holder_id` (the RLS
+  partition key — same AH the business sits under) and nests the BO's
+  own LegalEntity inline. After this POST, the `beneficial_owners[]`
+  payload field for the sender AH has length 1, and the rule's gate
+  opens.
+}
+
+assert {
+  res.status: eq 201
+  res.body.ownership_pct: eq 60
+  res.body.control_type: eq shareholder
+}

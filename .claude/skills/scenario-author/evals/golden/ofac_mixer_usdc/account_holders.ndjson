@@ -1,0 +1,3 @@
+{"account_holder_type":"individual","enabled_currencies":["USD"],"external_id":"saw-ah-sender","kyc_status":"approved","legal_entity":{"first_name":"Alice","last_name":"Sender","legal_entity_type":"individual"},"risk_level":"low","status":"pending"}
+{"account_holder_type":"individual","enabled_currencies":["USD"],"external_id":"saw-ah-clean","kyc_status":"approved","legal_entity":{"first_name":"Charlie","last_name":"Clean","legal_entity_type":"individual"},"risk_level":"low","status":"pending"}
+{"account_holder_type":"individual","enabled_currencies":["USD"],"external_id":"saw-ah-in-progress","kyc_status":"in_progress","legal_entity":{"first_name":"Patty","last_name":"Pending","legal_entity_type":"individual"},"risk_level":"low","status":"pending"}

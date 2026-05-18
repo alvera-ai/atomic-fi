@@ -1,0 +1,49 @@
+meta {
+  name: 008 — Approve sender KYC (completes BSA §326 verification)
+  type: http
+  seq: 8
+}
+
+put {
+  url: {{baseUrl}}/api/account-holders/{{senderAhId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "external_id": "{{senderExternalId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Compliance ops completes the identity verification offline (document
+  review, sanctions clearance, etc.) and flips the account holder's
+  KYC status to approved via a standard PUT.
+
+  This is the same PUT a compliance UI would issue — no special
+  "approve" endpoint; the gate is the field value, not a workflow
+  state machine. The audit history of who flipped what when is
+  carried by the standard updated_at + downstream change-event
+  stream.
+}
+
+assert {
+  res.status: eq 200
+  res.body.kyc_status: eq approved
+}

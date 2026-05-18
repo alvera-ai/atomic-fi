@@ -1,0 +1,63 @@
+meta {
+  name: 004 — Create receiver account holder (KYC approved)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("receiverExternalId", `DEMI-AH-RECEIVER-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{receiverExternalId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "chain_screening": false,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Bob",
+      "last_name": "Receiver",
+      "date_of_birth": "1982-09-22",
+      "citizenship_country": "US",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("receiverAhId", res.body.id);
+}
+
+docs {
+  Internal-transfer scenario — both parties are on-platform. The receiver
+  is a second, fully-verified account holder. No counterparty entity is
+  needed because the funds move between two payment accounts that the
+  platform itself owns (rather than out to an external party).
+}
+
+assert {
+  res.status: eq 201
+  res.body.id: matches ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+  res.body.kyc_status: eq approved
+}

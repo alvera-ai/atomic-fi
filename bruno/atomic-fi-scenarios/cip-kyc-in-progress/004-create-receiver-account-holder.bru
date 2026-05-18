@@ -1,0 +1,60 @@
+meta {
+  name: 004 — Create receiver account holder
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("receiverExternalId", `CIP-AH-RECEIVER-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{receiverExternalId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "chain_screening": false,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Dave",
+      "last_name": "Receiver",
+      "date_of_birth": "1980-11-04",
+      "citizenship_country": "US",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("receiverAhId", res.body.id);
+}
+
+docs {
+  Fully-onboarded receiver. Same shape as smoke-tests AH POSTs — only
+  the sender is in the in-progress state we want to probe.
+}
+
+assert {
+  res.status: eq 201
+  res.body.kyc_status: eq approved
+}

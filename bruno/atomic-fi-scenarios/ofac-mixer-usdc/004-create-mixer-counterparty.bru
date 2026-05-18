@@ -1,0 +1,51 @@
+meta {
+  name: 004 — Create counterparty (recipient party holding the mixer wallet)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/counterparties
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("cpExternalId", `MIXER-CP-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{cpExternalId}}",
+    "status": "active",
+    "account_holder_id": "{{senderAhId}}",
+    "chain_screening": false,
+    "tenant_id": "{{tenantId}}",
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Bob",
+      "last_name": "Mixer",
+      "date_of_birth": "1985-01-01",
+      "citizenship_country": "US",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    }
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("mixerCpId", res.body.id);
+}
+
+assert {
+  res.status: eq 201
+}

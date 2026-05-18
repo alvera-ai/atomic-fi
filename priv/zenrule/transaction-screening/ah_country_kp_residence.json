@@ -1,0 +1,30 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": { "x": 100, "y": 160 }
+    },
+    {
+      "id": "residence_gate",
+      "type": "functionNode",
+      "name": "Sender Residency Sanctioned",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "source": "/**\n * Sender-residency sanctioned gate (OFAC E.O. 13466 — DPRK, 31 CFR Part 510).\n *\n * Scenario #15 of guides/use-cases.md: an AccountHolder whose primary\n * residential address is in an OFAC comprehensive-sanctioned country\n * may not originate any transaction, regardless of counterparty.\n * The set covers the comprehensive-program subjects (DPRK, Iran,\n * Cuba, Syria) — not the partial-program subjects (e.g. Crimea\n * region within RU), which scenarios #14 and #16 handle separately.\n *\n * Walks the loaded entity tree:\n *   debtor_payment_account.account_holder.legal_entity.addresses[]\n * picks the row tagged `primary === true` with `address_types`\n * containing `'residential'`, and reads its `country` (ISO 3166-1\n * alpha-2). Falls back to the LE's `citizenship_country` when no\n * primary residential address is on file.\n *\n * When the resolved code is in the sanctioned set, emits a blocked\n * Control per LedgerAccount on the debtor side. cap=0 +\n * is_blocked=true converts to status='rejected' with\n * rejected_rule='ah_country_kp_residence' at limits-at-entry time.\n */\nexport const handler = async (input) => {\n  const debtor = input.debtor_payment_account;\n  if (!debtor) return { ledger_accounts: {} };\n\n  const ah = debtor.account_holder;\n  const le = ah && ah.legal_entity;\n  if (!le) return { ledger_accounts: {} };\n\n  const addresses = (le && le.addresses) || [];\n  const residential = addresses.find(function (a) {\n    return a && a.primary === true &&\n      Array.isArray(a.address_types) &&\n      a.address_types.indexOf('residential') !== -1;\n  });\n  const country = (residential && residential.country) || le.citizenship_country;\n  if (!country) return { ledger_accounts: {} };\n\n  const sanctioned = ['KP', 'IR', 'CU', 'SY'];\n  if (sanctioned.indexOf(country) === -1) return { ledger_accounts: {} };\n\n  const las = debtor.las || [];\n  const ledger_accounts = {};\n  for (const la of las) {\n    ledger_accounts[la.id] = {\n      daily_debit_cap: 0,\n      daily_credit_cap: 0,\n      reason: 'ah_country_kp_residence',\n      block_reason: 'ah_country_kp_residence',\n      is_blocked: true\n    };\n  }\n  return { ledger_accounts };\n};\n"
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": { "x": 700, "y": 160 }
+    }
+  ],
+  "edges": [
+    { "id": "edge_request_residence", "type": "edge", "sourceId": "request", "targetId": "residence_gate" },
+    { "id": "edge_residence_response", "type": "edge", "sourceId": "residence_gate", "targetId": "response" }
+  ]
+}

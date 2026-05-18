@@ -5,5 +5,5 @@ Mox.defmock(
 
 Mox.defmock(
   AtomicFi.RuleEngineMock,
-  for: AtomicFi.RuleEngine.Behaviour
+  for: AtomicFi.RuleEngine
 )

@@ -1,0 +1,53 @@
+meta {
+  name: 009 — Retry transaction (asserts PASS after move)
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/api/transactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "transaction_type": "internal_transfer",
+    "amount": 2500,
+    "currency": "USD",
+    "account_holder_id": "{{senderAhId}}",
+    "debtor_payment_account_id": "{{senderPaId}}",
+    "creditor_payment_account_id": "{{receiverPaId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Same payment intent. With the residence now US, the
+  `ah_country_kp_residence` rule no longer sees a sanctioned country
+  on the primary residential address and returns no-action. No other
+  rule trips. Transaction settles.
+
+  Expected:
+    - `status: accepted`
+    - `rejected_rule: null`
+
+  Catalog row #15's regulator-walkable narrative is the change-event
+  trail: the PUT at step 8 is what flipped the gate from BLOCK to
+  PASS, recorded with full before/after on the LE.
+}
+
+assert {
+  res.status: eq 201
+  res.body.status: eq accepted
+  res.body.rejected_rule: isNull
+}

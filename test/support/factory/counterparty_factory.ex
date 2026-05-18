@@ -1,6 +1,14 @@
 defmodule AtomicFi.Factory.CounterpartyFactory do
   @moduledoc """
   Factory for Counterparty context schemas.
+
+  Counterparty owns no FK to LegalEntity — LE carries the FK back via
+  `legal_entities.counterparty_id` (subject_type = :counterparty). This
+  factory only inserts the CP; no LE is cascaded. `legal_entity` is
+  initialised to `nil` so `cp.legal_entity` reads don't trip on the
+  `%Ecto.Association.NotLoaded{}` sentinel before hydration. Tests
+  that need the LE loaded call `with_hydrated_counterparty/1` from
+  `AtomicFi.Factory` after inserting the LE.
   """
 
   defmacro __using__(_opts) do
@@ -18,14 +26,9 @@ defmodule AtomicFi.Factory.CounterpartyFactory do
             insert(:account_holder, tenant_id: tenant_id).id
           end)
 
-        legal_entity_id =
-          Map.get_lazy(attrs, :legal_entity_id, fn ->
-            insert(:legal_entity, tenant_id: tenant_id).id
-          end)
-
         %Counterparty{
+          legal_entity: nil,
           account_holder_id: account_holder_id,
-          legal_entity_id: legal_entity_id,
           status: :active,
           tenant_id: tenant_id
         }

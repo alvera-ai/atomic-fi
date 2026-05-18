@@ -1,0 +1,30 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": { "x": 100, "y": 160 }
+    },
+    {
+      "id": "smurf_gate",
+      "type": "functionNode",
+      "name": "Smurfing Pattern Gate",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "source": "/**\n * BSA §5324 smurfing pattern gate (31 USC §5324; 31 CFR §1020.320).\n *\n * Scenario #20 of guides/use-cases.md: an AccountHolder originates\n * 6+ payments ≤ USD 3,000 to 6+ distinct creditor PAs inside 24h,\n * totalling > USD 10,000 — the classic smurfing typology (cash\n * structuring through multiple agents). SAR-eligible REVIEW. The\n * corpus models the verdict as BLOCK with rejected_rule=\n * 'smurfing_pattern_sar_eligible' until Transaction gains a :review\n * status; the rule's signature stays correct, only the verdict\n * surface relaxes once the enum widens.\n *\n * Distinct from #19 (ctr_structuring), which is the single-CP\n * sub-CTR-band pattern (USD 5,000-9,999 splits). Smurfing here is\n * many small payments to many distinct counterparties — a different\n * pattern under the same anti-structuring statute.\n *\n * Reads `account_holder.recent_debits_24h[]` (synthesised by\n * AtomicFi.RuleEngine.build_payload/2 via\n * TransactionContext.list_recent_debits_for_account_holder/2). Each\n * debit row is the public Transaction shape — `amount` and\n * `creditor_payment_account_id` are the fields this rule walks.\n *\n * The same rule fires on:\n *   - corpus/zen_rules/smurfing_pattern_sar_eligible/  (hand-authored\n *     6-payment fixture; the auditor-walkable golden)\n *   - sharded SAML-D bulk corpora under tmp/corpus/sharded/saml-d/\n *     (gitignored; SAML-D senders whose `Laundering_type='Smurfing'`\n *     rows produce the same shape collide naturally onto this rule).\n */\nexport const handler = async (input) => {\n  const SMURF_MAX = 3000;\n  const SMURF_THRESHOLD_TOTAL = 10000;\n  const SMURF_MIN_COUNT = 6;\n  const SMURF_MIN_DISTINCT_CP = 6;\n\n  const txAmount = (input.transaction && input.transaction.amount) || 0;\n  if (typeof txAmount !== 'number' || txAmount > SMURF_MAX) {\n    return { ledger_accounts: {} };\n  }\n\n  const ah = input.account_holder;\n  const prior = (ah && ah.recent_debits_24h) || [];\n\n  const smurfPrior = prior.filter(function (t) {\n    return typeof t.amount === 'number' && t.amount <= SMURF_MAX;\n  });\n\n  const totalCount = smurfPrior.length + 1;\n  if (totalCount < SMURF_MIN_COUNT) return { ledger_accounts: {} };\n\n  const total =\n    smurfPrior.reduce(function (s, t) { return s + (t.amount || 0); }, 0) +\n    txAmount;\n  if (total <= SMURF_THRESHOLD_TOTAL) return { ledger_accounts: {} };\n\n  const cps = new Set();\n  for (const t of smurfPrior) {\n    if (t.creditor_payment_account_id) cps.add(t.creditor_payment_account_id);\n  }\n  if (input.transaction && input.transaction.creditor_payment_account_id) {\n    cps.add(input.transaction.creditor_payment_account_id);\n  }\n  if (cps.size < SMURF_MIN_DISTINCT_CP) return { ledger_accounts: {} };\n\n  const debtor = input.debtor_payment_account;\n  if (!debtor) return { ledger_accounts: {} };\n\n  const las = debtor.las || [];\n  const ledger_accounts = {};\n  for (const la of las) {\n    ledger_accounts[la.id] = {\n      daily_debit_cap: 0,\n      daily_credit_cap: 0,\n      reason: 'smurfing_pattern_sar_eligible',\n      block_reason: 'smurfing_pattern_sar_eligible',\n      is_blocked: true\n    };\n  }\n  return { ledger_accounts };\n};\n"
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": { "x": 700, "y": 160 }
+    }
+  ],
+  "edges": [
+    { "id": "edge_request_smurf", "type": "edge", "sourceId": "request", "targetId": "smurf_gate" },
+    { "id": "edge_smurf_response", "type": "edge", "sourceId": "smurf_gate", "targetId": "response" }
+  ]
+}

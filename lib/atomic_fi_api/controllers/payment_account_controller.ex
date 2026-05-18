@@ -2,6 +2,7 @@ defmodule AtomicFiApi.PaymentAccountController do
   use AtomicFiApi.Controller
   use OpenApiSpex.ControllerSpecs
 
+  alias AtomicFi.OnboardingContext
   alias AtomicFi.OpenApiSchema
   alias AtomicFi.OpenApiSchema.PaymentAccountListResponse
   alias AtomicFi.OpenApiSchema.PaymentAccountRequest
@@ -195,6 +196,42 @@ defmodule AtomicFiApi.PaymentAccountController do
 
       {:error, changeset} ->
         {:error, changeset}
+    end
+  end
+
+  operation(:refresh,
+    summary: "Refresh payment account onboarding",
+    description: """
+    Manually re-runs the onboarding pipeline for an existing payment account.
+    Same `OnboardingContext.refresh/2` invoked by `AtomicFi.OnboardingWorker`
+    on the scheduled cadence.
+    """,
+    parameters: [
+      id: [
+        in: :path,
+        description: "Payment account ID",
+        schema: %Schema{type: :string, format: :uuid},
+        example: "123e4567-e89b-12d3-a456-426614174000"
+      ]
+    ],
+    responses: [
+      ok:
+        {"Refreshed payment account", "application/json",
+         %Reference{"$ref": "#/components/schemas/PaymentAccountResponse"}},
+      not_found: {"Not found", "application/json", OpenApiSchema.ErrorResponse}
+    ]
+  )
+
+  def refresh(conn, %{id: id}) do
+    session = conn.assigns.api_session
+    payment_account = PaymentAccountContext.get_payment_account!(session, id)
+
+    case OnboardingContext.refresh(session, payment_account) do
+      {:ok, payment_account} ->
+        ApiHelpers.json_response(conn, payment_account, PaymentAccountResponse)
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 end

@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "scenario-author eval rubric",
+  "description": "Three boolean gates per row, scored from the committed golden snapshot. Byte-stability across --concurrency 1 vs 8 is verified separately as a P9 quality-gate (mix corpus.validate), NOT here.",
+  "type": "object",
+  "required": ["row_number", "slug", "gates", "pass"],
+  "properties": {
+    "row_number": {
+      "type": "integer",
+      "description": "guides/use-cases.md row number"
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Slug used across priv/zenrule, corpus/zen_rules, and evals/golden"
+    },
+    "gates": {
+      "type": "object",
+      "required": ["rule_compiles", "corpus_validates", "human_edits_needed"],
+      "additionalProperties": false,
+      "properties": {
+        "rule_compiles": {
+          "type": "boolean",
+          "description": "golden/<slug>/rule.json exists and parses to the canonical 3-node JDM graph"
+        },
+        "corpus_validates": {
+          "type": "boolean",
+          "description": "golden/<slug>/proof.md exists and reports mismatch=0"
+        },
+        "human_edits_needed": {
+          "type": "boolean",
+          "description": "true when the skill output required hand-editing before the proof went green (sidecar .human_edits_needed flag in the golden dir)"
+        }
+      }
+    },
+    "pass": {
+      "type": "boolean",
+      "description": "rule_compiles && corpus_validates && !human_edits_needed"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Free-form notes from the runner (which gate failed and why)"
+    }
+  }
+}

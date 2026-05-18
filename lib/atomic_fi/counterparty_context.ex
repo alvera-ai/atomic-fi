@@ -18,7 +18,10 @@ defmodule AtomicFi.CounterpartyContext do
   alias AtomicFi.Repo
   alias AtomicFi.SessionContext.Session
 
-  @preloads [legal_entity: [:addresses, :phone_numbers, :identifications]]
+  @preloads [
+    legal_entity: [:addresses, :phone_numbers, :identifications],
+    beneficial_owners: [legal_entity: [:addresses, :phone_numbers, :identifications]]
+  ]
 
   @doc """
   Returns the list of counterparties with pagination and filtering.
@@ -66,6 +69,18 @@ defmodule AtomicFi.CounterpartyContext do
   end
 
   @doc """
+  Fetches a counterparty by caller-supplied SoE handle. Returns the
+  fully-preloaded struct or `nil`.
+  """
+  @spec get_counterparty_by_external_id(Session.t(), String.t()) :: Counterparty.t() | nil
+  def_with_rls_and_logging get_counterparty_by_external_id(session, external_id),
+    log_fields: [:external_id] do
+    Counterparty
+    |> preload_query()
+    |> Repo.get_by([external_id: external_id], session: session)
+  end
+
+  @doc """
   Creates a counterparty.
 
   ## Examples
@@ -93,19 +108,19 @@ defmodule AtomicFi.CounterpartyContext do
     end
   end
 
-  # Get-or-create: the SoE-supplied counterparty_number is the external idempotency key.
-  # When the client repeats a POST with the same counterparty_number, return the existing
-  # record (RLS scopes to the calling tenant via session). When no counterparty_number is
+  # Get-or-create: the SoE-supplied external_id is the external idempotency key.
+  # When the client repeats a POST with the same external_id, return the existing
+  # record (RLS scopes to the calling tenant via session). When no external_id is
   # given, fall through to normal insert (the (account_holder_id, legal_entity_id) unique
   # constraint still prevents accidental duplicates).
-  defp maybe_get_by_external_id(_session, %CounterpartyRequest{counterparty_number: nil}),
+  defp maybe_get_by_external_id(_session, %CounterpartyRequest{external_id: nil}),
     do: nil
 
-  defp maybe_get_by_external_id(session, %CounterpartyRequest{counterparty_number: number})
+  defp maybe_get_by_external_id(session, %CounterpartyRequest{external_id: number})
        when is_binary(number) and number != "" do
     Counterparty
     |> preload_query()
-    |> Ecto.Query.where(counterparty_number: ^number)
+    |> Ecto.Query.where(external_id: ^number)
     |> Repo.one(session: session)
   end
 
