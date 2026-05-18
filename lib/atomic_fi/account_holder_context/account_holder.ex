@@ -84,7 +84,7 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
     schema: %Schema{
       type: :string,
       nullable: true,
-      enum: ["low", "medium", "high", "very_high"]
+      enum: ["low", "medium", "high", "very_high", "prohibited"]
     },
     key: :risk_level
   )
@@ -190,7 +190,7 @@ defmodule AtomicFi.AccountHolderContext.AccountHolder do
       default: :not_started
 
     field :risk_level, Ecto.Enum,
-      values: [:low, :medium, :high, :very_high],
+      values: [:low, :medium, :high, :very_high, :prohibited],
       default: :low
 
     field :enabled_currencies, {:array, :string}, default: []

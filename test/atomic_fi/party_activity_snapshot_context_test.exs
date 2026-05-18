@@ -79,6 +79,25 @@ defmodule AtomicFi.PartyActivitySnapshotContextTest do
       assert snapshot.sar_indicator == false
     end
 
+    test "create_party_activity_snapshot/2 mirrors AH :prohibited risk_level (scenario #10)", %{
+      session: session,
+      account_holder: holder,
+      tenant: tenant
+    } do
+      request =
+        valid_request(holder, tenant, %{
+          risk_level_at_start: :high,
+          risk_level_at_end: :prohibited
+        })
+
+      assert {:ok,
+              %PartyActivitySnapshot{
+                risk_level_at_start: :high,
+                risk_level_at_end: :prohibited
+              }} =
+               PartyActivitySnapshotContext.create_party_activity_snapshot(session, request)
+    end
+
     test "create_party_activity_snapshot/2 rejects period_end before period_start", %{
       session: session,
       account_holder: holder,

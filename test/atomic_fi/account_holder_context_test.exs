@@ -145,6 +145,31 @@ defmodule AtomicFi.AccountHolderContextTest do
       assert updated.risk_level == :medium
     end
 
+    test "update_account_holder/3 accepts risk_level :prohibited (scenario #10)",
+         %{session: session} do
+      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+
+      insert(:legal_entity,
+        account_holder_id: account_holder.id,
+        tenant_id: session.tenant_id
+      )
+
+      account_holder = with_hydrated_account_holder(account_holder)
+
+      request = %AccountHolderRequest{
+        account_holder_type: account_holder.account_holder_type,
+        status: :active,
+        kyc_status: :approved,
+        risk_level: :prohibited,
+        enabled_currencies: ["USD"],
+        tenant_id: session.tenant_id,
+        chain_screening: false
+      }
+
+      assert {:ok, %AccountHolder{risk_level: :prohibited}} =
+               AccountHolderContext.update_account_holder(session, account_holder, request)
+    end
+
     test "update_account_holder/3 with invalid data returns error changeset", %{session: session} do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
