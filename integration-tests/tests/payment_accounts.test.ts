@@ -9,17 +9,13 @@ import { config } from '../src/env.ts'
 import {
   apiKeyHeaders,
   bearerHeaders,
+  createAccountHolder,
   postAdminSession,
   safeDelete,
   UUID_RE,
+  warmupBlocklistCache,
   type AnyJson,
 } from '../src/test-helpers.ts'
-
-async function postJson(path: string, headers: Record<string, string>, body: unknown): Promise<AnyJson> {
-  const res = await fetch(`${config.baseUrl}${path}`, { method: 'POST', headers, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(`${path} → ${res.status}: ${await res.text()}`)
-  return (await res.json()) as AnyJson
-}
 
 describe('payment_accounts — /api/payment-accounts', () => {
   let bearer: string
@@ -38,25 +34,9 @@ describe('payment_accounts — /api/payment-accounts', () => {
       prefix: 'rls-payment-accounts',
     })
 
-    const le = await postJson('/api/legal-entities', bearerHeaders(bearer), {
-      legal_entity_type: 'individual',
-      first_name: 'PAParent',
-      last_name: 'X',
-      date_of_birth: '1990-01-01',
-      citizenship_country: 'US',
-      politically_exposed_person: false,
-      tenant_id: primaryTenantId,
-    })
-    const ah = await postJson('/api/account-holders', bearerHeaders(bearer), {
-      account_holder_type: 'individual',
-      status: 'pending',
-      kyc_status: 'not_started',
-      risk_level: 'low',
-      enabled_currencies: ['USD'],
-      legal_entity_id: le.id,
-      tenant_id: primaryTenantId,
-    })
-    accountHolderId = ah.id as string
+    await warmupBlocklistCache(bearer)
+    const ah = await createAccountHolder(bearer, primaryTenantId)
+    accountHolderId = ah.id
   })
 
   afterAll(async () => {
@@ -70,6 +50,7 @@ describe('payment_accounts — /api/payment-accounts', () => {
       headers: bearerHeaders(bearer),
       body: JSON.stringify({
         account_type: 'bank_account',
+        currency: 'USD',
         account_holder_id: accountHolderId,
         tenant_id: primaryTenantId,
       }),
@@ -105,6 +86,7 @@ describe('payment_accounts — /api/payment-accounts', () => {
       headers: bearerHeaders(bearer),
       body: JSON.stringify({
         account_type: 'bank_account',
+        currency: 'USD',
         status: 'suspended',
         account_holder_id: accountHolderId,
         tenant_id: primaryTenantId,
@@ -153,17 +135,24 @@ describe('payment_accounts — /api/payment-accounts', () => {
     expect(res.status).toBe(404)
   })
 
-  it('DELETE /api/payment-accounts/:id → 204 + GET 404', async () => {
+  it('DELETE /api/payment-accounts/:id → 422 when ledger_accounts reference it', async () => {
+    // The PA write lifecycle materialises a ledger_accounts row with
+    // payment_account_id set (ON DELETE RESTRICT). DELETE surfaces that as
+    // a 422 via the PaymentAccountContext's foreign_key_constraint guard.
     const del = await fetch(`${config.baseUrl}/api/payment-accounts/${paymentAccountId}`, {
       method: 'DELETE',
       headers: bearerHeaders(bearer),
     })
-    expect(del.status).toBe(204)
+    expect(del.status, await del.clone().text()).toBe(422)
+
+    const body = (await del.json()) as { errors: { detail: string }[] }
+    expect(
+      body.errors.some((e) => e.detail.includes('exist for this payment account')),
+    ).toBe(true)
 
     const get = await fetch(`${config.baseUrl}/api/payment-accounts/${paymentAccountId}`, {
       headers: bearerHeaders(bearer),
     })
-    expect(get.status).toBe(404)
-    paymentAccountId = ''
+    expect(get.status).toBe(200)
   })
 })

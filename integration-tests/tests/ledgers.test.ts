@@ -2,9 +2,11 @@
  * ledgers — full CRUD + RLS for /api/ledgers.
  *
  * One ledger per (account_holder, currency). beforeAll provisions a fresh
- * legal_entity + account_holder. Update changes status (NOT currency, since
- * the unique index on (account_holder_id, currency) would conflict with any
- * other ledger on the same holder).
+ * AccountHolder, whose synchronous onboard pipeline auto-materialises a USD
+ * ledger. The CRUD tests operate on that auto-materialised row — POSTing a
+ * second ledger on the same (AH, currency) hits the unique index → 422.
+ * Update changes status (NOT currency, since the unique index on
+ * (account_holder_id, currency) would conflict).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
@@ -14,17 +16,13 @@ import { config } from '../src/env.ts'
 import {
   apiKeyHeaders,
   bearerHeaders,
+  createAccountHolder,
   postAdminSession,
   safeDelete,
   UUID_RE,
+  warmupBlocklistCache,
   type AnyJson,
 } from '../src/test-helpers.ts'
-
-async function postJson(path: string, headers: Record<string, string>, body: unknown): Promise<AnyJson> {
-  const res = await fetch(`${config.baseUrl}${path}`, { method: 'POST', headers, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(`${path} → ${res.status}: ${await res.text()}`)
-  return (await res.json()) as AnyJson
-}
 
 describe('ledgers — /api/ledgers', () => {
   let bearer: string
@@ -43,25 +41,9 @@ describe('ledgers — /api/ledgers', () => {
       prefix: 'rls-ledgers',
     })
 
-    const le = await postJson('/api/legal-entities', bearerHeaders(bearer), {
-      legal_entity_type: 'individual',
-      first_name: 'LedgerParent',
-      last_name: 'X',
-      date_of_birth: '1990-01-01',
-      citizenship_country: 'US',
-      politically_exposed_person: false,
-      tenant_id: primaryTenantId,
-    })
-    const ah = await postJson('/api/account-holders', bearerHeaders(bearer), {
-      account_holder_type: 'individual',
-      status: 'pending',
-      kyc_status: 'not_started',
-      risk_level: 'low',
-      enabled_currencies: ['USD'],
-      legal_entity_id: le.id,
-      tenant_id: primaryTenantId,
-    })
-    accountHolderId = ah.id as string
+    await warmupBlocklistCache(bearer)
+    const ah = await createAccountHolder(bearer, primaryTenantId)
+    accountHolderId = ah.id
   })
 
   afterAll(async () => {
@@ -69,8 +51,29 @@ describe('ledgers — /api/ledgers', () => {
     if (accountHolderId) await safeDelete(`/api/account-holders/${accountHolderId}`, bearerHeaders(bearer))
   })
 
-  it('POST /api/ledgers → 201', async () => {
-    const res = await fetch(`${config.baseUrl}/api/ledgers`, {
+  it('Onboarding auto-materialises a USD ledger; POST a duplicate → 422', async () => {
+    // The AH was POSTed in beforeAll via createAccountHolder, which runs the
+    // synchronous onboard pipeline. That pipeline materialises one ledger
+    // per (account_holder, enabled_currency). Discover it via the index —
+    // the GET /api/ledgers endpoint doesn't declare account_holder_id as a
+    // query parameter today (OpenApiSpex would reject it), so scan the most
+    // recent page client-side.
+    const list = await fetch(
+      `${config.baseUrl}/api/ledgers?page_size=100&order_by=inserted_at&order_directions=desc`,
+      { headers: bearerHeaders(bearer) },
+    )
+    expect(list.status).toBe(200)
+    const { data } = (await list.json()) as { data: AnyJson[] }
+    const autoMat = data.find(
+      (l) => l.currency === 'USD' && l.account_holder_id === accountHolderId,
+    )
+    expect(autoMat, 'onboarding should have created a USD ledger').toBeDefined()
+    expect((autoMat as AnyJson).id as string).toMatch(UUID_RE)
+    ledgerId = (autoMat as AnyJson).id as string
+
+    // Attempting to create a second ledger on the same (AH, currency)
+    // hits the unique index → 422 with "has already been taken".
+    const dup = await fetch(`${config.baseUrl}/api/ledgers`, {
       method: 'POST',
       headers: bearerHeaders(bearer),
       body: JSON.stringify({
@@ -80,15 +83,10 @@ describe('ledgers — /api/ledgers', () => {
         tenant_id: primaryTenantId,
       }),
     })
-    expect(res.status, await res.clone().text()).toBe(201)
-    const body = (await res.json()) as AnyJson
-    expect(body.id).toMatch(UUID_RE)
-    expect(body.currency).toBe('USD')
-    expect(body.account_holder_id).toBe(accountHolderId)
-    ledgerId = body.id as string
+    expect(dup.status).toBe(422)
   })
 
-  it('GET /api/ledgers → 200 contains created', async () => {
+  it('GET /api/ledgers → 200 contains the auto-materialised ledger', async () => {
     const res = await fetch(`${config.baseUrl}/api/ledgers?page_size=100&order_by=inserted_at&order_directions=desc`, { headers: bearerHeaders(bearer) })
     expect(res.status).toBe(200)
     const body = (await res.json()) as { data: AnyJson[] }
@@ -156,12 +154,17 @@ describe('ledgers — /api/ledgers', () => {
     expect(res.status).toBe(404)
   })
 
-  it('DELETE /api/ledgers/:id → 204 + GET 404', async () => {
+  it('DELETE /api/ledgers/:id → 204 when no LA tree has been materialised yet', async () => {
+    // An AH-only ledger (no Counterparty / PaymentAccount yet) has no
+    // ledger_accounts referencing it, so the restrict-FK path doesn't fire
+    // and DELETE succeeds. Once a CP or PA exists for this AH the auto-mat
+    // pipeline writes LAs and this DELETE would 422 — see ledger_accounts
+    // / payment_accounts test files for that branch.
     const del = await fetch(`${config.baseUrl}/api/ledgers/${ledgerId}`, {
       method: 'DELETE',
       headers: bearerHeaders(bearer),
     })
-    expect(del.status).toBe(204)
+    expect(del.status, await del.clone().text()).toBe(204)
 
     const get = await fetch(`${config.baseUrl}/api/ledgers/${ledgerId}`, { headers: bearerHeaders(bearer) })
     expect(get.status).toBe(404)

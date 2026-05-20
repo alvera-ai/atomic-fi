@@ -1,5 +1,9 @@
 /**
  * counterparties — full CRUD + RLS for /api/counterparties.
+ *
+ * Counterparty is created with a nested `legal_entity` object (cast_assoc).
+ * The LE link is immutable post-create — PII replacement goes through
+ * `PUT /api/counterparties/:id/legal-entity` (legal_entities.test.ts).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
@@ -9,23 +13,19 @@ import { config } from '../src/env.ts'
 import {
   apiKeyHeaders,
   bearerHeaders,
+  createAccountHolder,
+  defaultIndividualLegalEntity,
   postAdminSession,
   safeDelete,
   UUID_RE,
+  warmupBlocklistCache,
   type AnyJson,
 } from '../src/test-helpers.ts'
-
-async function postJson(path: string, headers: Record<string, string>, body: unknown): Promise<AnyJson> {
-  const res = await fetch(`${config.baseUrl}${path}`, { method: 'POST', headers, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(`${path} → ${res.status}: ${await res.text()}`)
-  return (await res.json()) as AnyJson
-}
 
 describe('counterparties — /api/counterparties', () => {
   let bearer: string
   let primaryTenantId: string
   let secondary: SecondaryTenant
-  let legalEntityId: string
   let accountHolderId: string
   let counterpartyId: string
 
@@ -39,30 +39,14 @@ describe('counterparties — /api/counterparties', () => {
       prefix: 'rls-counterparties',
     })
 
-    const le = await postJson('/api/legal-entities', bearerHeaders(bearer), {
-      legal_entity_type: 'individual',
-      first_name: 'CPParent',
-      last_name: 'X',
-      date_of_birth: '1990-01-01',
-      citizenship_country: 'US',
-      politically_exposed_person: false,
-      tenant_id: primaryTenantId,
-    })
-    legalEntityId = le.id as string
-    const ah = await postJson('/api/account-holders', bearerHeaders(bearer), {
-      account_holder_type: 'individual',
-      status: 'pending',
-      kyc_status: 'not_started',
-      risk_level: 'low',
-      enabled_currencies: ['USD'],
-      legal_entity_id: legalEntityId,
-      tenant_id: primaryTenantId,
-    })
-    accountHolderId = ah.id as string
+    await warmupBlocklistCache(bearer)
+    const ah = await createAccountHolder(bearer, primaryTenantId)
+    accountHolderId = ah.id
   })
 
   afterAll(async () => {
     if (counterpartyId) await safeDelete(`/api/counterparties/${counterpartyId}`, bearerHeaders(bearer))
+    if (accountHolderId) await safeDelete(`/api/account-holders/${accountHolderId}`, bearerHeaders(bearer))
   })
 
   it('POST /api/counterparties → 201', async () => {
@@ -71,9 +55,10 @@ describe('counterparties — /api/counterparties', () => {
       headers: bearerHeaders(bearer),
       body: JSON.stringify({
         status: 'active',
-        legal_entity_id: legalEntityId,
         account_holder_id: accountHolderId,
         tenant_id: primaryTenantId,
+        chain_screening: false,
+        legal_entity: defaultIndividualLegalEntity(primaryTenantId, 'CP'),
       }),
     })
     expect(res.status, await res.clone().text()).toBe(201)
@@ -107,7 +92,6 @@ describe('counterparties — /api/counterparties', () => {
       headers: bearerHeaders(bearer),
       body: JSON.stringify({
         status: 'suspended',
-        legal_entity_id: legalEntityId,
         account_holder_id: accountHolderId,
         tenant_id: primaryTenantId,
       }),
@@ -150,26 +134,12 @@ describe('counterparties — /api/counterparties', () => {
     expect(res.status, await res.clone().text()).toBe(201)
     const body = (await res.json()) as AnyJson
     expect(body.id).toMatch(UUID_RE)
-    expect(body.legal_entity_id).toMatch(UUID_RE)
     expect((body.legal_entity as AnyJson).first_name).toBe('NestedCP')
+    expect((body.legal_entity as AnyJson).subject_type).toBe('counterparty')
     await safeDelete(`/api/counterparties/${body.id}`, bearerHeaders(bearer))
   })
 
   it('POST /api/counterparties is get-or-create on external_id → 201 returns same id', async () => {
-    // Use a fresh LE so the (account_holder_id, legal_entity_id) pair is
-    // distinct from the one already taken by the earlier POST → 201 test
-    // (the unique constraint on that pair is orthogonal to get-or-create).
-    const freshLe = await postJson('/api/legal-entities', bearerHeaders(bearer), {
-      legal_entity_type: 'individual',
-      first_name: 'GOC',
-      last_name: 'Idempotent',
-      date_of_birth: '1990-02-02',
-      citizenship_country: 'US',
-      politically_exposed_person: false,
-      tenant_id: primaryTenantId,
-    })
-    const freshLeId = freshLe.id as string
-
     const number = `EXT-IDEMPOTENT-${Date.now()}`
     const post = (extra: Record<string, unknown>) =>
       fetch(`${config.baseUrl}/api/counterparties`, {
@@ -178,10 +148,10 @@ describe('counterparties — /api/counterparties', () => {
         body: JSON.stringify({
           status: 'active',
           account_holder_id: accountHolderId,
-          legal_entity_id: freshLeId,
           tenant_id: primaryTenantId,
           external_id: number,
           chain_screening: false,
+          legal_entity: defaultIndividualLegalEntity(primaryTenantId, 'GOC'),
           ...extra,
         }),
       })
@@ -192,7 +162,7 @@ describe('counterparties — /api/counterparties', () => {
 
     // Re-POST with same external_id but different status — returns
     // the original record unchanged (external SoE id wins; PUT for updates).
-    const res2 = await post({ status: 'suspended' })
+    const res2 = await post({ status: 'suspended', legal_entity: defaultIndividualLegalEntity(primaryTenantId, 'GOC2') })
     expect(res2.status).toBe(201)
     const body2 = (await res2.json()) as AnyJson
 
@@ -208,15 +178,16 @@ describe('counterparties — /api/counterparties', () => {
       method: 'POST',
       headers: bearerHeaders(bearer),
       body: JSON.stringify({
-        legal_entity_id: legalEntityId,
         account_holder_id: accountHolderId,
         tenant_id: primaryTenantId,
+        chain_screening: false,
+        legal_entity: defaultIndividualLegalEntity(primaryTenantId, 'CPMissing'),
       }),
     })
     expect(res.status).toBe(422)
   })
 
-  it('POST /api/counterparties → 422 when neither legal_entity_id nor nested legal_entity supplied', async () => {
+  it('POST /api/counterparties → 422 when nested legal_entity is missing', async () => {
     const res = await fetch(`${config.baseUrl}/api/counterparties`, {
       method: 'POST',
       headers: bearerHeaders(bearer),
@@ -249,17 +220,23 @@ describe('counterparties — /api/counterparties', () => {
     expect(res.status).toBe(404)
   })
 
-  it('DELETE /api/counterparties/:id → 204 + GET 404', async () => {
+  it('DELETE /api/counterparties/:id → 422 when ledger_accounts tree exists', async () => {
+    // CP onboarding materialises ledger_accounts.counterparty_id when the
+    // parent AH also has its tree materialised (it does — the AH was POSTed
+    // through the controller in beforeAll). ON DELETE RESTRICT surfaces as
+    // a changeset error → 422.
     const del = await fetch(`${config.baseUrl}/api/counterparties/${counterpartyId}`, {
       method: 'DELETE',
       headers: bearerHeaders(bearer),
     })
-    expect(del.status).toBe(204)
+    expect(del.status, await del.clone().text()).toBe(422)
+
+    const body = (await del.json()) as { errors: { detail: string }[] }
+    expect(body.errors.some((e) => e.detail.includes('exist for this counterparty'))).toBe(true)
 
     const get = await fetch(`${config.baseUrl}/api/counterparties/${counterpartyId}`, {
       headers: bearerHeaders(bearer),
     })
-    expect(get.status).toBe(404)
-    counterpartyId = ''
+    expect(get.status).toBe(200)
   })
 })

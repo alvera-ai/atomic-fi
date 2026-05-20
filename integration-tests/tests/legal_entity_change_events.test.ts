@@ -1,7 +1,10 @@
 /**
  * legal_entity_change_events — full CRUD + RLS for /api/legal-entity-change-events.
  *
- * Each event needs a parent legal_entity. We provision one in beforeAll.
+ * Each event needs a parent legal_entity. We provision one indirectly by
+ * creating an AccountHolder (whose nested cast_assoc owns the LE row) —
+ * LegalEntity has no standalone REST surface anymore.
+ *
  * Cleanup is best-effort; deletion of a legal_entity that has been touched
  * by change events is currently blocked by #17, so the parent entity
  * intentionally leaks across runs (per-runId scoping keeps it harmless).
@@ -14,9 +17,11 @@ import { config } from '../src/env.ts'
 import {
   apiKeyHeaders,
   bearerHeaders,
+  createAccountHolder,
   postAdminSession,
   safeDelete,
   UUID_RE,
+  warmupBlocklistCache,
   type AnyJson,
 } from '../src/test-helpers.ts'
 
@@ -37,23 +42,9 @@ describe('legal_entity_change_events — /api/legal-entity-change-events', () =>
       prefix: 'rls-le-events',
     })
 
-    const leRes = await fetch(`${config.baseUrl}/api/legal-entities`, {
-      method: 'POST',
-      headers: bearerHeaders(bearer),
-      body: JSON.stringify({
-        legal_entity_type: 'individual',
-        first_name: 'EventParent',
-        last_name: 'X',
-        date_of_birth: '1990-01-01',
-        citizenship_country: 'US',
-        politically_exposed_person: false,
-        tenant_id: primaryTenantId,
-      }),
-    })
-    if (!leRes.ok) {
-      throw new Error(`legal_entity beforeAll: ${leRes.status} ${await leRes.text()}`)
-    }
-    legalEntityId = ((await leRes.json()) as { id: string }).id
+    await warmupBlocklistCache(bearer)
+    const ah = await createAccountHolder(bearer, primaryTenantId)
+    legalEntityId = ah.legalEntityId
   })
 
   afterAll(async () => {
