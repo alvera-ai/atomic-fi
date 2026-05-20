@@ -140,6 +140,12 @@ defmodule AtomicFiApi.ApiSpec do
           "LedgerAccountRequest" => OpenApiSchema.LedgerAccountRequest.schema(),
           "LedgerAccountResponse" => OpenApiSchema.LedgerAccountResponse.schema(),
           "LedgerAccountListResponse" => OpenApiSchema.LedgerAccountListResponse.schema(),
+          # Embedded edge schema for LedgerAccount.linked_ledger_accounts[].
+          # Read-only — populated by the descendant_id propagation trigger; no
+          # request shape is ever consumed, but ExOpenApiUtils still emits a
+          # Request variant for symmetry with every other nested schema.
+          "LinkedLedgerAccountRequest" => OpenApiSchema.LinkedLedgerAccountRequest.schema(),
+          "LinkedLedgerAccountResponse" => OpenApiSchema.LinkedLedgerAccountResponse.schema(),
           # Request/Response schemas for LedgerEntry
           "LedgerEntryRequest" => OpenApiSchema.LedgerEntryRequest.schema(),
           "LedgerEntryResponse" => OpenApiSchema.LedgerEntryResponse.schema(),
