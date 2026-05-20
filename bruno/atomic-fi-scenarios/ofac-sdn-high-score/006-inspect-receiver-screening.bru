@@ -5,7 +5,7 @@ meta {
 }
 
 get {
-  url: {{baseUrl}}/api/compliance-screenings?screened_entity_type=legal_entity&screening_type=sanctions
+  url: {{baseUrl}}/api/compliance-screenings?order_by=inserted_at&order_directions=desc&page_size=100
   body: none
   auth: bearer
 }
@@ -19,12 +19,23 @@ headers {
 }
 
 script:post-response {
-  const items = res.body.items || res.body;
-  const flagged = items.find(s => (s.sanctions_matches || []).length > 0);
+  const items = res.body.data || res.body.items || res.body;
+  const receiverLeId = bru.getEnvVar("receiverLegalEntityId");
+  const flagged = items.find(s =>
+    s.legal_entity_id === receiverLeId &&
+    s.screening_type === "sanctions" &&
+    (s.sanctions_matches || []).length > 0
+  );
   if (!flagged) {
-    throw new Error("Expected at least one sanctions screening with sanctions_matches[] populated.");
+    throw new Error(`Expected a sanctions screening for legal_entity_id=${receiverLeId} with sanctions_matches[] populated. Got ${items.length} screenings.`);
   }
   bru.setEnvVar("flaggedScreeningId", flagged.id);
+  // Stash fields required for the PUT full-replacement in step 010.
+  bru.setEnvVar("flaggedScope", flagged.scope);
+  bru.setEnvVar("flaggedScreeningType", flagged.screening_type);
+  bru.setEnvVar("flaggedScreeningStatus", flagged.screening_status);
+  bru.setEnvVar("flaggedScreenedEntityType", flagged.screened_entity_type);
+  bru.setEnvVar("flaggedScreenedEntityName", flagged.screened_entity_name);
 }
 
 docs {

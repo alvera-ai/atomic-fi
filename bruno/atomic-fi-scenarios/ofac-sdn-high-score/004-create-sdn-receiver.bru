@@ -47,6 +47,7 @@ body:json {
 
 script:post-response {
   bru.setEnvVar("receiverAhId", res.body.id);
+  bru.setEnvVar("receiverLegalEntityId", res.body.legal_entity.id);
 }
 
 docs {

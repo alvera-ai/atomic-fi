@@ -19,11 +19,15 @@ headers {
   accept: application/json
 }
 
+script:pre-request {
+  bru.setVar("blocklistTerm", `Smurf-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
 body:json {
   {
     "scope": "last_name",
     "entry_type": "exact",
-    "term": "Smurf",
+    "term": "{{blocklistTerm}}",
     "reason": "Internal compliance ops flagged this surname as part of an ongoing investigation. Per FFIEC BSA/AML Examination Manual, banks may maintain internal lists in addition to OFAC SDN.",
     "active": true,
     "tenant_id": "{{tenantId}}"
@@ -54,5 +58,5 @@ docs {
 assert {
   res.status: eq 201
   res.body.scope: eq last_name
-  res.body.term: eq Smurf
+  res.body.term: eq {{blocklistTerm}}
 }
