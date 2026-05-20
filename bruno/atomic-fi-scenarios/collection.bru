@@ -14,15 +14,115 @@ docs {
     or auditor can request "scenario §2.3.1 (OFAC SDN exact match)" and receive exactly
     one piece of executable evidence with one assertion path.
 
-  ## What's here today
+  ## Scenario catalog
 
-  | Folder | Purpose | Count |
-  | --- | --- | --- |
-  | `smoke-tests/` | Baseline data-seeding smoke. Auth → BlocklistCache warmup → 2 AccountHolders → 5 Counterparties → 20 Transactions. Idempotent re-runs (external_id is the external SoE id). | 29 requests |
+  Eleven folders live in this collection: one baseline smoke plus ten regulatory
+  scenarios. Each scenario folder is a self-contained, regulator-walkable narrative
+  with its own `001-auth.bru` + `002-warmup.bru` prelude, so it can be run in
+  isolation (`bru run <folder> --env local`) and re-run idempotently without
+  leaning on any other folder's state.
 
-  Future folders mirror the regulatory regimes in `guides/use-cases.md` (`01-cip/`,
-  `02-ofac-sanctions/`, `03-edd/`, `04-cta-ubo/`, `05-aml-velocity/`, etc.), one `.bru`
-  file per scenario.
+  | Folder | Catalog # | Regulation cited | Lifecycle | Count |
+  | --- | --- | --- | --- | --- |
+  | `smoke-tests/` | — | baseline data seed | all pass | 29 |
+  | `de-minimis-ach/` | #1 | 31 CFR §1020.220 (CIP minimum thresholds) | PASS | 7 |
+  | `cip-kyc-in-progress/` | #6 | BSA §326 / 31 CFR §1020.220 (CIP identity verification) | BLOCK → PUT `kyc_status:approved` → PASS | 9 |
+  | `prohibited-risk-freeze/` | #10 | 31 CFR §1010.230 (CDD) + internal/lawful-order freeze | BLOCK (`risk_level: prohibited`) | 7 |
+  | `ofac-sdn-high-score/` | #11 | 31 CFR §501.404 (OFAC SDN screening) | BLOCK → mark false-positive → PASS | 11 |
+  | `ah-country-kp-residence/` | #15 | OFAC E.O. 13466 (comprehensive DPRK sanctions) | BLOCK → PUT residence → PASS | 9 |
+  | `ctr-sub-threshold-structuring/` | #19 | 31 USC §5324 + 31 CFR §1020.320 (CTR/structuring) | PASS × 2 → BLOCK on velocity | 9 |
+  | `smurfing-pattern-sar-eligible/` | #20 | 31 USC §5324 + 31 CFR §1020.320 (smurfing typology) | PASS × 5 → BLOCK (SAR eligible) | 22 |
+  | `business-ah-zero-bos/` | #27 | Corporate Transparency Act / 31 CFR §1010.380 (FinCEN CDD UBO) | BLOCK → POST beneficial owner → PASS | 9 |
+  | `ofac-mixer-usdc/` | #34 | 31 CFR §501.404 + GENIUS Act §4(a)(5) (mixer wallet) | BLOCK on recipient wallet | 7 |
+  | `internal-blocklist-lastname/` | #41 | FFIEC BSA/AML Manual (internal-list screening) | seed entry → refresh cache → BLOCK | 10 |
+
+  ## Scenario detail
+
+  ### `smoke-tests/` — baseline data seed (29 requests)
+  Not a regulatory scenario; the green smoke that proves the harness is healthy
+  before any compliance assertions run. Auth → BlocklistCache warmup → 2 AccountHolders
+  (nested LegalEntity, KYC-approved, low-risk, US individual) → 5 Counterparties
+  (~75% individual / 25% business, mostly US with occasional GB / DE / FR / BR / MX) →
+  20 Transactions (random AH × random CP, $5–$5000). `chain_screening: false`
+  throughout so the smoke runs even when Watchman is down. Idempotent on
+  `external_entry_id`. End state: 2 AHs, 5 CPs, 20 TXs in the local DB.
+
+  ### `de-minimis-ach/` — scenario #1, de minimis ACH (PASS)
+  31 CFR §1020.220 — CIP minimum-information thresholds. The verified happy-path:
+  fully-onboarded individual (KYC approved, low risk) sends a small ACH to a clean
+  recipient. No rule should trip. This is the regression anchor — if `de-minimis-ach`
+  ever flips to BLOCK, something in the rule engine has drifted.
+
+  ### `cip-kyc-in-progress/` — scenario #6, CIP KYC gate (BLOCK → PASS)
+  BSA §326 (31 CFR §1020.220) — banks must verify customer identity before
+  permitting account activity. Onboards the sender with `kyc_status: in_progress`
+  (identified but not verified). The transaction trips the `cip_kyc_not_approved`
+  rule. PUT the AH to `kyc_status: approved` and the retry passes — regulator-walkable
+  evidence of the gate opening only after the BSA §326 check completes.
+
+  ### `prohibited-risk-freeze/` — scenario #10, prohibited risk freeze (BLOCK)
+  31 CFR §1010.230 (CDD) plus lawful-order / internal-compliance context. The AH
+  is fully identified but compliance has classified them `risk_level: prohibited` —
+  the lever a bank pulls when an account must stay on-platform (audit / investigation)
+  but no funds may move. The `prohibited_risk_freeze` rule reads
+  `account_holder.risk_level` and emits BLOCK regardless of amount, counterparty,
+  or any other signal.
+
+  ### `ofac-sdn-high-score/` — scenario #11, OFAC SDN exact hit (BLOCK → PASS)
+  31 CFR §501.404 — every party to a US-jurisdiction transaction must be screened
+  against the OFAC SDN list before settlement. The receiver matches the live
+  moov/watchman :8084 SDN feed with a high score. The transaction is BLOCKed.
+  An ops user marks the screening `false_positive: true` via the compliance API;
+  the retry passes. Demonstrates the full SDN review-and-override lifecycle.
+
+  ### `ah-country-kp-residence/` — scenario #15, sanctioned residence (BLOCK → PASS)
+  OFAC E.O. 13466 — comprehensive DPRK sanctions; all transactions involving
+  KP-resident parties are blocked absent a specific licence. The platform does
+  not refuse onboarding (a sanctioned resident may legitimately need a US bank
+  account to receive remittances), but every outbound transaction is blocked
+  until the residence record changes. The `ah_country_kp_residence` rule walks
+  the AH's LegalEntity addresses, finds the primary residential one, and emits
+  BLOCK whenever `country ∈ {KP, IR, CU, SY}`. PUT the address to a non-sanctioned
+  country and the retry passes.
+
+  ### `ctr-sub-threshold-structuring/` — scenario #19, structuring (PASS×2 → BLOCK)
+  31 USC §5324 (anti-structuring statute) + 31 CFR §1020.320 (CTR $10,000
+  threshold). The structuring rule does NOT look at risk class — anyone can
+  structure; the signal is the velocity pattern across recent debits. Three
+  rapid-fire debits each just under the CTR threshold; the third trips the
+  `ctr_sub_threshold_structuring` rule and is held SAR-eligible.
+
+  ### `smurfing-pattern-sar-eligible/` — scenario #20, smurfing (PASS×5 → BLOCK)
+  31 USC §5324 + 31 CFR §1020.320 — the textbook smurfing typology. One sender,
+  many small debits to many distinct recipients inside a 24-hour window — a single
+  party fanning out cash through multiple agents to disguise the total. The first
+  five debits clear, the sixth trips the smurfing detector. The longest scenario
+  in the collection (22 requests) precisely because the typology requires the
+  fan-out to be visible in the ledger before it can be detected.
+
+  ### `business-ah-zero-bos/` — scenario #27, business with no UBOs (BLOCK → PASS)
+  Corporate Transparency Act + 31 CFR §1010.380 (FinCEN CDD rule). The CTA
+  requires US legal entities to report every UBO with ≥25% ownership OR
+  substantial control. The business AH onboards fine (the platform doesn't
+  refuse to open the account), but no outbound payment can settle until at
+  least one BO is on file. POST a beneficial owner (60% shareholder, nested
+  LegalEntity) and the retry passes — the gate opens.
+
+  ### `ofac-mixer-usdc/` — scenario #34, mixer wallet (BLOCK)
+  31 CFR §501.404 + GENIUS Act §4(a)(5) — stablecoin issuers must screen
+  recipient wallets against OFAC's sanctioned addresses (Tornado Cash and
+  similar mixers). Block fires on the recipient wallet, not the sender. The
+  sender is a clean, fully-onboarded individual; the verdict comes entirely
+  from the counterparty side.
+
+  ### `internal-blocklist-lastname/` — scenario #41, tenant blocklist (BLOCK)
+  FFIEC BSA/AML Examination Manual — internal-list screening obligations
+  beyond OFAC SDN. The compliance ops surface for parties the bank itself has
+  reason to watch: typos surfaced in investigations, names from law-enforcement
+  letters, internal close-out lists. POST a blocklist entry
+  (`scope: last_name`, `term: "Smurf"`) → trigger a synchronous
+  `BlocklistCache` refresh (Quantum normally does this hourly) → create the
+  receiver → the transaction trips the blocklist rule.
 
   ## Quick start
 
@@ -41,13 +141,20 @@ docs {
      cp environments/local.example.bru environments/local.bru
      ```
      Then edit `local.bru` with the values from `priv/repo/.bootstrap_creds.json`.
-  5. **Run the smoke** — either click the Runner button in the Bruno UI, or from CLI:
+  5. **Run a scenario** — either click the Runner button in the Bruno UI, or from CLI.
+     The smoke is the fastest green:
      ```
      cd bruno/atomic-fi-scenarios
      bru run smoke-tests --env local
      ```
+     Any scenario folder runs the same way (each ships its own auth + warmup):
+     ```
+     bru run ofac-sdn-high-score --env local
+     bru run cip-kyc-in-progress --env local
+     ```
+     Recursive Run from the collection root walks every folder in order.
 
-  Expected result: **29/29 requests pass, 66/66 assertions green** in roughly 4 seconds.
+  Expected smoke result: **29/29 requests pass, 66/66 assertions green** in roughly 4 seconds.
 
   ## Authentication
 

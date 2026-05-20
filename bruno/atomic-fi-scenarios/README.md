@@ -1,23 +1,33 @@
 # atomic-fi-scenarios (Bruno collection)
 
-The single Bruno collection for every atomic-fi scenario — one folder per scenario group. Today contains **`smoke-tests/`** (the click-to-run smoke that also leaves enough realistic data behind for a UI demo). Future folders (`01-aml/`, `02-ofac-sanctions/`, `03-fraud/`, etc.) will mirror the regulatory regimes in [`guides/use-cases.md`](../../guides/use-cases.md), one .bru file per scenario, all driven by Bruno's "Recursive Run" from the collection root.
+The single Bruno collection for every atomic-fi scenario — one folder per scenario, one `.bru` file per HTTP request. Today contains **one baseline smoke + ten regulatory scenarios** drawn from [`guides/use-cases.md`](../../guides/use-cases.md). Each scenario folder is self-contained (its own auth + warmup prelude) so it can be run on its own, or you can Recursive-Run the whole collection from the root for a full demo.
 
 ## Layout
 
 ```
 bruno/atomic-fi-scenarios/
 ├── bruno.json
-├── README.md  ← this file
+├── collection.bru               ← collection-level docs + Scenario catalog
+├── README.md                    ← this file
 ├── environments/
-│   ├── local.example.bru   ← committed template
-│   └── local.bru           ← gitignored, you fill in
-└── smoke-tests/         ← 29 requests; one Recursive Run = full smoke
-    ├── 001-auth.bru
-    ├── 002-warmup.bru
-    ├── 003-ah.bru          (×2)
-    ├── 005-cp.bru          (×5)
-    └── 010-tx.bru          (×20)
+│   ├── local.example.bru        ← committed template
+│   └── local.bru                ← gitignored, you fill in
+│
+├── smoke-tests/                 ← 29 reqs — baseline data seed (no regulation tested)
+│
+├── de-minimis-ach/              ← 7  reqs — §1 CIP min-info — PASS
+├── cip-kyc-in-progress/         ← 9  reqs — §6 BSA §326 CIP gate — BLOCK→PASS
+├── prohibited-risk-freeze/      ← 7  reqs — §10 CDD risk-class freeze — BLOCK
+├── ofac-sdn-high-score/         ← 11 reqs — §11 OFAC SDN — BLOCK→false-positive→PASS
+├── ah-country-kp-residence/     ← 9  reqs — §15 OFAC E.O. 13466 (DPRK) — BLOCK→PASS
+├── ctr-sub-threshold-structuring/ ← 9 reqs — §19 31 USC §5324 — PASS×2→BLOCK
+├── smurfing-pattern-sar-eligible/ ← 22 reqs — §20 smurfing typology — PASS×5→BLOCK
+├── business-ah-zero-bos/        ← 9  reqs — §27 CTA / FinCEN CDD UBO — BLOCK→PASS
+├── ofac-mixer-usdc/             ← 7  reqs — §34 OFAC mixer + GENIUS Act — BLOCK
+└── internal-blocklist-lastname/ ← 10 reqs — §41 FFIEC internal-list — BLOCK
 ```
+
+See `collection.bru` ("Scenario detail" section) or the Bruno Overview tab for the regulatory narrative behind each folder.
 
 ## One-time setup
 
@@ -32,13 +42,25 @@ bruno/atomic-fi-scenarios/
 4. In Bruno: **File → Open Collection** → select `bruno/atomic-fi-scenarios/`
 5. Top-right environment dropdown → select **local**
 
-## Run the smoke (single click)
+## Run a scenario (single click)
 
-1. Click on the **`smoke-tests`** folder in the sidebar
-2. Switch to the **Runner** tab in the main panel
-3. Click **Recursive Run** (recurses through any subfolders that may exist later)
+1. Click on any scenario folder in the sidebar (e.g. **`smoke-tests`**, **`ofac-sdn-high-score`**, **`cip-kyc-in-progress`**).
+2. Switch to the **Runner** tab in the main panel.
+3. Click **Recursive Run**.
 
-29 requests fire in sequence (`001-auth.bru` → `029-tx.bru`), ~10 seconds wall time. Result panel shows green per request. End state: **2 account holders, 5 counterparties, 20 transactions** in the local DB.
+Every scenario folder is self-contained — it begins with its own `001-auth.bru` + `002-warmup.bru`, so any folder can be run on its own, in any order, idempotently. Recursive-Run from the collection root walks every folder.
+
+CLI form:
+
+```bash
+cd bruno/atomic-fi-scenarios
+bru run smoke-tests           --env local   # baseline seed
+bru run ofac-sdn-high-score   --env local   # OFAC SDN BLOCK → false-positive → PASS
+bru run cip-kyc-in-progress   --env local   # BSA §326 BLOCK → kyc approved → PASS
+# …etc, one per folder
+```
+
+Smoke end-state: **2 account holders, 5 counterparties, 20 transactions** in the local DB, ~10 seconds wall time. Regulatory scenarios leave their own AHs / CPs / TXs behind with the documented verdicts attached.
 
 ## What each smoke request does
 
@@ -62,29 +84,36 @@ Same collection serves three audiences without fragmenting:
 
 A `mix` task would be 5× faster but invisible. Bruno is the slower-but-watchable path; raw speed is Block 2's job (k6 / YCSB benchmark — see [#25](https://github.com/alvera-ai/atomic-fi/issues/25)).
 
-## Future folders (see [#27](https://github.com/alvera-ai/atomic-fi/issues/27))
+## Scenario catalog (regulation tested)
 
-As scenarios from [`guides/use-cases.md`](../../guides/use-cases.md) are wired up, each regulatory regime gets its own folder under this collection:
+| Folder | Catalog # | Regulation | Lifecycle |
+|---|---|---|---|
+| `smoke-tests/` | — | baseline data seed (no regulation tested) | all pass |
+| `de-minimis-ach/` | #1 | 31 CFR §1020.220 — CIP minimum thresholds | PASS |
+| `cip-kyc-in-progress/` | #6 | BSA §326 / 31 CFR §1020.220 — CIP identity verification | BLOCK → PUT `kyc_status:approved` → PASS |
+| `prohibited-risk-freeze/` | #10 | 31 CFR §1010.230 (CDD) + lawful-order freeze | BLOCK (`risk_level: prohibited`) |
+| `ofac-sdn-high-score/` | #11 | 31 CFR §501.404 — OFAC SDN screening | BLOCK → mark false-positive → PASS |
+| `ah-country-kp-residence/` | #15 | OFAC E.O. 13466 — comprehensive DPRK sanctions | BLOCK → PUT residence → PASS |
+| `ctr-sub-threshold-structuring/` | #19 | 31 USC §5324 + 31 CFR §1020.320 — structuring | PASS × 2 → BLOCK on velocity |
+| `smurfing-pattern-sar-eligible/` | #20 | 31 USC §5324 + 31 CFR §1020.320 — smurfing typology | PASS × 5 → BLOCK (SAR eligible) |
+| `business-ah-zero-bos/` | #27 | Corporate Transparency Act / 31 CFR §1010.380 — FinCEN CDD UBO | BLOCK → POST beneficial owner → PASS |
+| `ofac-mixer-usdc/` | #34 | 31 CFR §501.404 + GENIUS Act §4(a)(5) — mixer wallet | BLOCK on recipient wallet |
+| `internal-blocklist-lastname/` | #41 | FFIEC BSA/AML Manual — internal-list screening | seed entry → refresh cache → BLOCK |
 
-```
-smoke-tests/                          ← exists today
-01-aml-cip/                              ← future (BSA §326 — scenarios 6-10)
-02-ofac-sanctions/                       ← future (OFAC SDN + 50% rule + bands)
-03-edd-geo-corridor/                     ← future
-04-structuring-velocity/                 ← future (BSA §5324)
-05-cta-beneficial-ownership/             ← future
-06-genius-act-stablecoin/                ← future
-07-blocklist/                            ← future
-08-pep-adverse-media/                    ← future
-09-custom-watchlist/                     ← future
-10-fail-closed/                          ← future
-11-continuing-sar/                       ← future
-12-fraud-account-event-velocity/         ← future
-13-disposition-evidence/                 ← future
-14-positive-controls/                    ← future
-```
+Each folder asserts the verdict the catalog promises (`PASS` / `REVIEW` / `BLOCK` / `FREEZE`) by inspecting `GET /api/transactions/:id` status + `GET /api/compliance-screenings/...` rule_id and verdict. Recursive Run on the collection root walks every folder in order; each folder also runs standalone via `bru run <folder> --env local`. Full regulatory narrative per scenario lives in `collection.bru` (Bruno Overview tab → "Scenario detail").
 
-Recursive Run on the collection root walks every folder in order. Each scenario folder asserts the verdict the catalog promises (`PASS` / `REVIEW` / `BLOCK` / `FREEZE`) by inspecting `GET /api/transactions/:id` status + `GET /api/compliance-screenings?transaction_id=:id` rule_id and verdict.
+## Future scenarios (see [#27](https://github.com/alvera-ai/atomic-fi/issues/27))
+
+Catalog scenarios not yet wired up — wishlist drawn from [`guides/use-cases.md`](../../guides/use-cases.md):
+
+- PEP / adverse-media screening
+- Custom per-tenant watchlists
+- Fail-closed behaviour (Watchman / Postgres unavailable)
+- Continuing SAR (90-day re-file cadence)
+- Fraud / account-event velocity
+- Disposition evidence retention
+- Positive-controls (allow-list overrides)
+- OFAC 50%-rule / sanctioned-band derivation
 
 ## Troubleshooting
 
