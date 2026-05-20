@@ -1,7 +1,6 @@
 {
   "mappings": [
     {
-      "id": "atomic-fi-openai-chat-completions-stub",
       "request": {
         "urlPath": "/openai/v1/chat/completions",
         "method": "POST"
