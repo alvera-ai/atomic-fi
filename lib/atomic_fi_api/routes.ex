@@ -84,6 +84,21 @@ defmodule AtomicFiApi.Routes do
              ComplianceScreeningController,
              :screen_payment_account
 
+        # Stateful sync screening — load entity by :id (with preloaded
+        # legal_entity), run full OnboardingContext.refresh (screen + engine
+        # + apply controls), return the persisted screening rows as an array.
+        post "/compliance-screenings/account-holders/:id/screen",
+             ComplianceScreeningController,
+             :screen_account_holder_by_id
+
+        post "/compliance-screenings/beneficial-owners/:id/screen",
+             ComplianceScreeningController,
+             :screen_beneficial_owner_by_id
+
+        post "/compliance-screenings/counterparties/:id/screen",
+             ComplianceScreeningController,
+             :screen_counterparty_by_id
+
         # Legal entities have no standalone REST surface — they are managed
         # via cast_assoc on parent POSTs and nested PUT routes on the parent
         # controller (AH / CP / BO). See architecture notes.

@@ -182,8 +182,8 @@ defmodule AtomicFiApi.ComplianceScreeningController do
 
   @screening_responses [
     ok:
-      {"Unsaved ComplianceScreening (preview result)", "application/json",
-       %Reference{"$ref": "#/components/schemas/ComplianceScreeningResponse"}},
+      {"Compliance screenings (paginated list response)", "application/json",
+       %Reference{"$ref": "#/components/schemas/ComplianceScreeningListResponse"}},
     unprocessable_entity:
       {"Validation errors", "application/json",
        %Reference{"$ref": "#/components/schemas/ChangesetErrors"}},
@@ -208,8 +208,11 @@ defmodule AtomicFiApi.ComplianceScreeningController do
         _params
       ) do
     case ComplianceScreeningContext.screen_account_holder(conn.assigns.api_session, request) do
-      {:ok, screening} -> ApiHelpers.json_response(conn, screening, ComplianceScreeningResponse)
-      {:error, reason} -> screening_error(conn, reason)
+      {:ok, {rows, meta}} ->
+        ApiHelpers.json_paginated_response(conn, rows, meta, ComplianceScreeningListResponse)
+
+      {:error, reason} ->
+        screening_error(conn, reason)
     end
   end
 
@@ -229,8 +232,11 @@ defmodule AtomicFiApi.ComplianceScreeningController do
         _params
       ) do
     case ComplianceScreeningContext.screen_beneficial_owner(conn.assigns.api_session, request) do
-      {:ok, screening} -> ApiHelpers.json_response(conn, screening, ComplianceScreeningResponse)
-      {:error, reason} -> screening_error(conn, reason)
+      {:ok, {rows, meta}} ->
+        ApiHelpers.json_paginated_response(conn, rows, meta, ComplianceScreeningListResponse)
+
+      {:error, reason} ->
+        screening_error(conn, reason)
     end
   end
 
@@ -249,8 +255,11 @@ defmodule AtomicFiApi.ComplianceScreeningController do
         _params
       ) do
     case ComplianceScreeningContext.screen_counterparty(conn.assigns.api_session, request) do
-      {:ok, screening} -> ApiHelpers.json_response(conn, screening, ComplianceScreeningResponse)
-      {:error, reason} -> screening_error(conn, reason)
+      {:ok, {rows, meta}} ->
+        ApiHelpers.json_paginated_response(conn, rows, meta, ComplianceScreeningListResponse)
+
+      {:error, reason} ->
+        screening_error(conn, reason)
     end
   end
 
@@ -271,8 +280,83 @@ defmodule AtomicFiApi.ComplianceScreeningController do
         _params
       ) do
     case ComplianceScreeningContext.screen_payment_account(conn.assigns.api_session, request) do
-      {:ok, screening} -> ApiHelpers.json_response(conn, screening, ComplianceScreeningResponse)
-      {:error, reason} -> screening_error(conn, reason)
+      {:ok, {rows, meta}} ->
+        ApiHelpers.json_paginated_response(conn, rows, meta, ComplianceScreeningListResponse)
+
+      {:error, reason} ->
+        screening_error(conn, reason)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Stateful sync screening — load entity by :id (preloads legal_entity),
+  # run full `OnboardingContext.refresh/2` (screen + engine + apply controls),
+  # return the persisted screening rows in `{data, meta}` envelope.
+  # ---------------------------------------------------------------------------
+
+  operation(:screen_account_holder_by_id,
+    summary: "Sync re-screen an account holder by id (stateful, persists)",
+    description:
+      "Loads the AccountHolder, runs the full onboarding refresh pipeline " <>
+        "(screen + RuleEngine + apply controls), persists the new screening row(s), " <>
+        "and returns them in a paginated list envelope.",
+    parameters: [
+      id: [in: :path, description: "Entity ID", schema: %Schema{type: :string, format: :uuid}]
+    ],
+    responses: @screening_responses
+  )
+
+  def screen_account_holder_by_id(conn, %{id: id}) do
+    case ComplianceScreeningContext.screen_account_holder_by_id(conn.assigns.api_session, id) do
+      {:ok, {rows, meta}} ->
+        ApiHelpers.json_paginated_response(conn, rows, meta, ComplianceScreeningListResponse)
+
+      {:error, reason} ->
+        screening_error(conn, reason)
+    end
+  end
+
+  operation(:screen_beneficial_owner_by_id,
+    summary: "Sync re-screen a beneficial owner by id (stateful, persists)",
+    description:
+      "Loads the BeneficialOwner, runs the full onboarding refresh pipeline " <>
+        "via its parent AccountHolder, persists the new screening row(s), and " <>
+        "returns them in a paginated list envelope.",
+    parameters: [
+      id: [in: :path, description: "Entity ID", schema: %Schema{type: :string, format: :uuid}]
+    ],
+    responses: @screening_responses
+  )
+
+  def screen_beneficial_owner_by_id(conn, %{id: id}) do
+    case ComplianceScreeningContext.screen_beneficial_owner_by_id(conn.assigns.api_session, id) do
+      {:ok, {rows, meta}} ->
+        ApiHelpers.json_paginated_response(conn, rows, meta, ComplianceScreeningListResponse)
+
+      {:error, reason} ->
+        screening_error(conn, reason)
+    end
+  end
+
+  operation(:screen_counterparty_by_id,
+    summary: "Sync re-screen a counterparty by id (stateful, persists)",
+    description:
+      "Loads the Counterparty, runs the full onboarding refresh pipeline, " <>
+        "persists the new screening row(s), and returns them in a paginated " <>
+        "list envelope.",
+    parameters: [
+      id: [in: :path, description: "Entity ID", schema: %Schema{type: :string, format: :uuid}]
+    ],
+    responses: @screening_responses
+  )
+
+  def screen_counterparty_by_id(conn, %{id: id}) do
+    case ComplianceScreeningContext.screen_counterparty_by_id(conn.assigns.api_session, id) do
+      {:ok, {rows, meta}} ->
+        ApiHelpers.json_paginated_response(conn, rows, meta, ComplianceScreeningListResponse)
+
+      {:error, reason} ->
+        screening_error(conn, reason)
     end
   end
 
