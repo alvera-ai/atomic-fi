@@ -144,6 +144,12 @@ defmodule AtomicFiApi.ApiSpec do
           "LedgerEntryRequest" => OpenApiSchema.LedgerEntryRequest.schema(),
           "LedgerEntryResponse" => OpenApiSchema.LedgerEntryResponse.schema(),
           "LedgerEntryListResponse" => OpenApiSchema.LedgerEntryListResponse.schema(),
+          # Embedded ControlLimit — one row inside `limits_at_entry[]` on
+          # LedgerEntry. Request/Response split mirrors how every other nested
+          # schema in the project works (cf. LegalEntityRequest /
+          # LegalEntityResponse on AH / CP / BO).
+          "ControlLimitRequest" => OpenApiSchema.ControlLimitRequest.schema(),
+          "ControlLimitResponse" => OpenApiSchema.ControlLimitResponse.schema(),
           # Response schemas for LedgerAccountBalance (read-only — trigger-maintained)
           "LedgerAccountBalanceResponse" => OpenApiSchema.LedgerAccountBalanceResponse.schema(),
           "LedgerAccountBalanceListResponse" =>

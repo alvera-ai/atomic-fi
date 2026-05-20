@@ -439,6 +439,47 @@ defmodule AtomicFiApi.CounterpartyControllerTest do
       assert json_response(conn2, 404)
     end
 
+    test "renders 422 when counterparty has dependent ledger rows", %{
+      conn: conn,
+      platform_tenant: platform_tenant
+    } do
+      # The CP write lifecycle only materialises ledger_accounts when the
+      # parent AH has its own LA tree. Create both through the controller
+      # so both onboarding pipelines run, then DELETE should 422.
+      ah_attrs = %{
+        account_holder_type: "individual",
+        status: "pending",
+        kyc_status: "not_started",
+        risk_level: "low",
+        enabled_currencies: ["USD"],
+        tenant_id: platform_tenant.id,
+        legal_entity: %{
+          legal_entity_type: "individual",
+          first_name: "ForCpDelete",
+          last_name: "Test",
+          citizenship_country: "US",
+          politically_exposed_person: false,
+          tenant_id: platform_tenant.id
+        }
+      }
+
+      ah_conn = post(conn, ~p"/api/account-holders", ah_attrs)
+      %{"id" => ah_id} = json_response(ah_conn, 201)
+
+      cp_conn = post(conn, ~p"/api/counterparties", create_attrs(platform_tenant.id, ah_id))
+      %{"id" => cp_id} = json_response(cp_conn, 201)
+
+      delete_conn = delete(conn, ~p"/api/counterparties/#{cp_id}")
+      response = json_response(delete_conn, 422)
+
+      assert %{"errors" => errors} = response
+      assert is_list(errors)
+
+      assert Enum.any?(errors, fn err ->
+               String.contains?(err["detail"] || "", "exist for this counterparty")
+             end)
+    end
+
     test "returns 401 without API key", %{counterparty: counterparty} do
       conn =
         build_conn()

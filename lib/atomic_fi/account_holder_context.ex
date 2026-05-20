@@ -274,7 +274,43 @@ defmodule AtomicFi.AccountHolderContext do
           {:ok, AccountHolder.t()} | {:error, Ecto.Changeset.t()}
   def_with_rls_and_logging delete_account_holder(session, %AccountHolder{} = account_holder),
     log_fields: [:account_holder] do
-    Repo.delete(account_holder, session: session)
+    # The AH lifecycle (synchronous onboard on create) materialises rows in
+    # ledgers / ledger_accounts / ledger_entries / payment_accounts /
+    # transactions / risk_classifications / party_activity_snapshots, all of
+    # which FK back with ON DELETE RESTRICT. Convert each Postgres FK
+    # violation into a changeset error so the controller renders 422 via the
+    # standard FallbackController rather than crashing with ConstraintError.
+    account_holder
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :ledgers_account_holder_id_fkey,
+      message: "ledgers exist for this account holder"
+    )
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :ledger_accounts_account_holder_id_fkey,
+      message: "ledger accounts exist for this account holder"
+    )
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :ledger_entries_account_holder_id_fkey,
+      message: "ledger entries exist for this account holder"
+    )
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :transactions_account_holder_id_fkey,
+      message: "transactions exist for this account holder"
+    )
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :payment_accounts_account_holder_id_fkey,
+      message: "payment accounts exist for this account holder"
+    )
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :risk_classifications_account_holder_id_fkey,
+      message: "risk classifications exist for this account holder"
+    )
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :party_activity_snapshots_account_holder_id_fkey,
+      message: "party activity snapshots exist for this account holder"
+    )
+    |> Repo.delete(session: session)
   end
 
   @doc """

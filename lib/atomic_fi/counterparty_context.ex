@@ -223,7 +223,29 @@ defmodule AtomicFi.CounterpartyContext do
           {:ok, Counterparty.t()} | {:error, Ecto.Changeset.t()}
   def_with_rls_and_logging delete_counterparty(session, %Counterparty{} = counterparty),
     log_fields: [:counterparty] do
-    Repo.delete(counterparty, session: session)
+    # CP write lifecycle materialises ledger_accounts (counterparty_id) and is
+    # referenced by payment_accounts and transactions (debtor/creditor) — all
+    # ON DELETE RESTRICT. Convert FK violations into changeset errors so the
+    # controller renders 422 instead of crashing with ConstraintError.
+    counterparty
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :ledger_accounts_counterparty_id_fkey,
+      message: "ledger accounts exist for this counterparty"
+    )
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :payment_accounts_counterparty_id_fkey,
+      message: "payment accounts exist for this counterparty"
+    )
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :transactions_debtor_counterparty_id_fkey,
+      message: "debtor transactions exist for this counterparty"
+    )
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :transactions_creditor_counterparty_id_fkey,
+      message: "creditor transactions exist for this counterparty"
+    )
+    |> Repo.delete(session: session)
   end
 
   @doc """

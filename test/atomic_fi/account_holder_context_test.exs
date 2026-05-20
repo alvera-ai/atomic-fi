@@ -372,7 +372,7 @@ defmodule AtomicFi.AccountHolderContextTest do
       assert length(LedgerAccountContext.list_for_entity(session, updated)) == before_count
     end
 
-    test "delete_account_holder/2 is restricted by FK when LA tree exists",
+    test "delete_account_holder/2 returns {:error, changeset} when LA tree exists",
          %{session: session} do
       legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
 
@@ -382,11 +382,19 @@ defmodule AtomicFi.AccountHolderContextTest do
           ah_request(session, legal_entity.id, ["USD"], ["ach"])
         )
 
-      # AH has a materialised LA tree — Repo.delete should hit
-      # `ledger_accounts.account_holder_id` ON DELETE RESTRICT.
-      assert_raise Ecto.ConstraintError, fn ->
-        AccountHolderContext.delete_account_holder(session, ah)
-      end
+      # AH has a materialised LA tree — `ledger_accounts.account_holder_id`
+      # is ON DELETE RESTRICT. The context attaches a foreign_key_constraint
+      # so the Postgres violation surfaces as a changeset error (caller can
+      # render 422) instead of an unhandled Ecto.ConstraintError.
+      assert {:error, %Ecto.Changeset{errors: errors, valid?: false}} =
+               AccountHolderContext.delete_account_holder(session, ah)
+
+      assert {:id, {message, [constraint: :foreign, constraint_name: _]}} =
+               List.keyfind(errors, :id, 0)
+
+      # Postgres surfaces whichever restrict-FK it checks first; any of the
+      # AH child-table guards is an acceptable signal.
+      assert message =~ "exist for this account holder"
     end
   end
 end

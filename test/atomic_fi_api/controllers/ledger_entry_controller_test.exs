@@ -135,4 +135,108 @@ defmodule AtomicFiApi.LedgerEntryControllerTest do
       assert json_response(conn, 404)
     end
   end
+
+  describe "limits_at_entry rendering (via ControlLimit ExOpenApiUtils integration)" do
+    alias AtomicFi.LedgerAccountContext.ControlLimit
+    alias AtomicFi.LedgerEntryContext
+    alias AtomicFi.OpenApiSchema.LedgerEntryRequest
+
+    test "show renders a non-empty limits_at_entry[] as ControlLimitResponse rows", %{
+      conn: conn,
+      platform_tenant: tenant,
+      session: session
+    } do
+      account = insert(:ledger_account, tenant_id: tenant.id)
+
+      req = %LedgerEntryRequest{
+        account_holder_id: account.account_holder_id,
+        ledger_account_id: account.id,
+        currency: "USD",
+        amount: 10_000,
+        entry_type: :credit,
+        status: :pending,
+        tenant_id: tenant.id,
+        limits_at_entry: [
+          %ControlLimit{period: "daily", direction: "debit", cap: 1_000, rule: "test_rule"},
+          %ControlLimit{period: "weekly", direction: "credit", cap: nil, rule: "test_rule_2"}
+        ]
+      }
+
+      {:ok, le} = LedgerEntryContext.create_ledger_entry(session, req)
+
+      conn = get(conn, ~p"/api/ledger-entries/#{le.id}")
+      response = json_response(conn, 200)
+
+      assert_schema(response, "LedgerEntryResponse", ApiSpec.spec())
+
+      assert [first, second] = response["limits_at_entry"]
+      assert first["period"] == "daily"
+      assert first["direction"] == "debit"
+      assert first["cap"] == 1_000
+      assert first["rule"] == "test_rule"
+      assert second["cap"] == nil
+    end
+
+    test "index validates against LedgerEntryListResponse when limits_at_entry is populated",
+         %{conn: conn, platform_tenant: tenant, session: session} do
+      account = insert(:ledger_account, tenant_id: tenant.id)
+
+      req = %LedgerEntryRequest{
+        account_holder_id: account.account_holder_id,
+        ledger_account_id: account.id,
+        currency: "USD",
+        amount: 5_000,
+        entry_type: :credit,
+        status: :pending,
+        tenant_id: tenant.id,
+        limits_at_entry: [
+          %ControlLimit{period: "monthly", direction: "credit", cap: 5_000, rule: "r"}
+        ]
+      }
+
+      {:ok, _le} = LedgerEntryContext.create_ledger_entry(session, req)
+
+      conn = get(conn, ~p"/api/ledger-entries")
+      response = json_response(conn, 200)
+
+      assert_schema(response, "LedgerEntryListResponse", ApiSpec.spec())
+    end
+  end
+
+  describe "OpenAPI spec exposes ControlLimit schemas" do
+    test "ControlLimitRequest + ControlLimitResponse are registered", %{conn: conn} do
+      response = json_response(get(conn, ~p"/api/openapi"), 200)
+      schemas = response["components"]["schemas"]
+
+      assert schemas["ControlLimitRequest"]
+      assert schemas["ControlLimitResponse"]
+
+      # Required fields surface in both
+      for variant <- ["ControlLimitRequest", "ControlLimitResponse"] do
+        props = schemas[variant]["properties"]
+        assert props["period"]["enum"] == ["daily", "weekly", "monthly", "yearly"]
+        assert props["direction"]["enum"] == ["debit", "credit"]
+      end
+    end
+
+    test "LedgerEntryResponse.limits_at_entry items $ref ControlLimitResponse", %{
+      conn: conn
+    } do
+      response = json_response(get(conn, ~p"/api/openapi"), 200)
+      ler = response["components"]["schemas"]["LedgerEntryResponse"]
+      items = get_in(ler, ["properties", "limits_at_entry", "items"]) || %{}
+
+      assert items["$ref"] == "#/components/schemas/ControlLimitResponse"
+    end
+
+    test "LedgerEntryRequest.limits_at_entry items $ref ControlLimitRequest", %{
+      conn: conn
+    } do
+      response = json_response(get(conn, ~p"/api/openapi"), 200)
+      ler = response["components"]["schemas"]["LedgerEntryRequest"]
+      items = get_in(ler, ["properties", "limits_at_entry", "items"]) || %{}
+
+      assert items["$ref"] == "#/components/schemas/ControlLimitRequest"
+    end
+  end
 end
