@@ -245,8 +245,7 @@ jobs:
         # The committed local.example.bru carries the deterministic dev
         # creds that the seed migrations install; copying it gives us a
         # valid local.bru without secrets.
-        run: cp bruno/atomic-fi-scenarios/environments/local.example.bru \
-                bruno/atomic-fi-scenarios/environments/local.bru
+        run: cp bruno/atomic-fi-scenarios/environments/local.example.bru bruno/atomic-fi-scenarios/environments/local.bru
 
       - name: Run Bruno scenario collections
         # One scenario folder at a time, in order. Each folder ships its
