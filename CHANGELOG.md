@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.0](https://github.com/alvera-ai/atomic-fi/compare/v1.5.0...v1.6.0) (2026-05-20)
+
+
+### Features
+
+* **compliance-screening:** stateful sync screen-by-id endpoints + Flop-shaped responses ([7a3b878](https://github.com/alvera-ai/atomic-fi/commit/7a3b8781a504bb49194df4945c7d1c59d4e89eb4))
+* **delete:** 422 instead of 5xx on FK :restrict + ControlLimit ExOpenApiUtils ([c241219](https://github.com/alvera-ai/atomic-fi/commit/c241219a1ef00021eb77a893b4c46cb7977f8d4c))
+
+
+### Bug Fixes
+
+* **openapi:** register LinkedLedgerAccount{Request,Response} ([9345d61](https://github.com/alvera-ai/atomic-fi/commit/9345d61bcf420ee36779c11b80ac6cd6f23ec901)), closes [#44](https://github.com/alvera-ai/atomic-fi/issues/44)
+
 ## [1.5.0](https://github.com/alvera-ai/atomic-fi/compare/v1.4.0...v1.5.0) (2026-05-18)
 
 
