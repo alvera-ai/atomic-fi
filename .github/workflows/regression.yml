@@ -168,12 +168,15 @@ jobs:
       - name: Compile
         run: mix compile
 
-      - name: Create + migrate dev DB
-        # seed_migrations/ run as part of `mix ecto.migrate` and create the
-        # bootstrap platform tenant + admin user + root API key.
-        run: |
-          mix ecto.create
-          mix ecto.migrate
+      - name: Reset dev DB (schema + seed_migrations)
+        # `mix ecto.reset` runs ecto.drop + ecto.create.enhanced +
+        # ecto.migrate.enhanced; the enhanced migrate task honours the
+        # `:atomic_fi, :migration_paths` config so both
+        # `priv/repo/migrations/` and `priv/repo/seed_migrations/` run.
+        # Vanilla `mix ecto.migrate` only walks `priv/repo/migrations/`
+        # and so never installs the bootstrap system tenant + admin user
+        # + root API key that the vitest harness needs.
+        run: mix ecto.reset
 
       - name: Dump bootstrap creds for the vitest harness
         # Writes priv/repo/.bootstrap_creds.json — read by
