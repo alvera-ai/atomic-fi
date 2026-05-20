@@ -118,23 +118,31 @@ defmodule AtomicFi.LedgerEntryContext.LedgerEntry do
     key: :external_entry_id
   )
 
+  # `limits_at_entry` is bidirectional but its item shape splits Request /
+  # Response like every other nested schema in the project. For *array*
+  # fields, ExOpenApiUtils consumes `readOnly` / `writeOnly` from inside
+  # the schema map (the keyword-arg form only works for single $ref's, cf.
+  # AH `legal_entity`). Twin entries — writeOnly → ControlLimitRequest,
+  # readOnly → ControlLimitResponse.
   open_api_property(
     schema: %Schema{
       type: :array,
       nullable: true,
-      items: %Schema{
-        type: :object,
-        properties: %{
-          period: %Schema{type: :string, enum: ["daily", "weekly", "monthly", "yearly"]},
-          direction: %Schema{type: :string, enum: ["debit", "credit"]},
-          cap: %Schema{
-            type: :integer,
-            nullable: true,
-            description: "Minor units; null = unconstrained"
-          },
-          rule: %Schema{type: :string, nullable: true}
-        }
-      },
+      writeOnly: true,
+      items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/ControlLimitRequest"},
+      description:
+        "Control limits (rule engine output) for this entry's leaf account. The trigger fans " <>
+          "these into ledger_account_balances.last_*_limit on every ancestor."
+    },
+    key: :limits_at_entry
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :array,
+      nullable: true,
+      readOnly: true,
+      items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/ControlLimitResponse"},
       description:
         "Control limits (rule engine output) for this entry's leaf account. The trigger fans " <>
           "these into ledger_account_balances.last_*_limit on every ancestor."

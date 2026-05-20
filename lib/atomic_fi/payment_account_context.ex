@@ -204,7 +204,29 @@ defmodule AtomicFi.PaymentAccountContext do
           {:ok, PaymentAccount.t()} | {:error, Ecto.Changeset.t()}
   def_with_rls_and_logging delete_payment_account(session, %PaymentAccount{} = payment_account),
     log_fields: [:payment_account] do
-    Repo.delete(payment_account, session: session)
+    # PA is referenced by ledger_accounts.payment_account_id, transactions
+    # (debtor/creditor) and account_activity_snapshots, all ON DELETE RESTRICT.
+    # Convert each FK violation into a changeset error so the controller
+    # renders 422 instead of crashing with Ecto.ConstraintError.
+    payment_account
+    |> Ecto.Changeset.change()
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :ledger_accounts_payment_account_id_fkey,
+      message: "ledger accounts exist for this payment account"
+    )
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :transactions_debtor_payment_account_id_fkey,
+      message: "debtor transactions exist for this payment account"
+    )
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :transactions_creditor_payment_account_id_fkey,
+      message: "creditor transactions exist for this payment account"
+    )
+    |> Ecto.Changeset.foreign_key_constraint(:id,
+      name: :account_activity_snapshots_payment_account_id_fkey,
+      message: "account activity snapshots exist for this payment account"
+    )
+    |> Repo.delete(session: session)
   end
 
   @doc """

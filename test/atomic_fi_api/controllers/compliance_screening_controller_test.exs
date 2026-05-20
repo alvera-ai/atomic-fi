@@ -98,6 +98,14 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
     }
   end
 
+  defp legal_entity_body(%{legal_entity_type: :business} = le, tenant_id) do
+    %{
+      tenant_id: tenant_id,
+      legal_entity_type: "business",
+      business_name: le.business_name
+    }
+  end
+
   defp ah_with_le(session, tenant_id, le_attrs) do
     ah = insert(:account_holder, tenant_id: tenant_id)
 
@@ -172,12 +180,16 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
     AtomicFi.CounterpartyContext.get_counterparty!(session, cp.id)
   end
 
-  defp legal_entity_body(%{legal_entity_type: :business} = le, tenant_id) do
-    %{
-      tenant_id: tenant_id,
-      legal_entity_type: "business",
-      business_name: le.business_name
-    }
+  # Stateless preview + stateful sync endpoints both return the project's
+  # standard `{data: [...], meta: {...}}` paginated envelope (validated against
+  # `ComplianceScreeningListResponse`). The preview path produces exactly one
+  # row; assert that shape and return it so call sites read the single
+  # screening directly.
+  defp assert_single_screening!(response, api_spec) do
+    assert_schema(response, "ComplianceScreeningListResponse", api_spec)
+    assert %{"data" => [screening], "meta" => meta} = response
+    assert meta["total_count"] == 1
+    screening
   end
 
   # ---------------------------------------------------------------------------
@@ -441,9 +453,8 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-account-holder", body)
       response = json_response(conn, 200)
+      screening = assert_single_screening!(response, ApiSpec.spec())
 
-      screening = response
-      refute is_list(response)
       assert screening["scope"] == "account_holder"
       assert screening["screening_type"] == "sanctions"
       assert screening["screened_entity_name"] == "Alice Smith"
@@ -464,9 +475,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-account-holder", body)
       response = json_response(conn, 200)
-
-      screening = response
-      refute is_list(response)
+      screening = assert_single_screening!(response, ApiSpec.spec())
       assert screening["screening_status"] == "pending"
     end
 
@@ -483,9 +492,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-account-holder", body)
       response = json_response(conn, 200)
-
-      screening = response
-      refute is_list(response)
+      screening = assert_single_screening!(response, ApiSpec.spec())
       assert screening["screening_status"] == "pending"
       assert screening["screened_entity_type"] == "company"
     end
@@ -502,9 +509,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-account-holder", body)
       response = json_response(conn, 200)
-
-      screening = response
-      refute is_list(response)
+      screening = assert_single_screening!(response, ApiSpec.spec())
       assert screening["screening_status"] == "pending"
       assert screening["match_count"] > 0
     end
@@ -548,9 +553,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-beneficial-owner", body)
       response = json_response(conn, 200)
-
-      screening = response
-      refute is_list(response)
+      screening = assert_single_screening!(response, ApiSpec.spec())
       assert screening["scope"] == "beneficial_owner"
       assert screening["screened_entity_name"] == "Clara Bennet"
       assert screening["screening_status"] == "pending"
@@ -574,9 +577,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-beneficial-owner", body)
       response = json_response(conn, 200)
-
-      screening = response
-      refute is_list(response)
+      screening = assert_single_screening!(response, ApiSpec.spec())
       assert screening["screening_status"] == "pending"
     end
 
@@ -618,11 +619,11 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-counterparty", body)
       response = json_response(conn, 200)
+      screening = assert_single_screening!(response, ApiSpec.spec())
 
-      assert_schema(response, "ComplianceScreeningResponse", ApiSpec.spec())
-      assert response["scope"] == "counterparty"
-      assert response["screened_entity_name"] == "Maria Garcia"
-      assert response["screening_status"] == "pending"
+      assert screening["scope"] == "counterparty"
+      assert screening["screened_entity_name"] == "Maria Garcia"
+      assert screening["screening_status"] == "pending"
     end
 
     test "screens blocklisted counterparty business and returns blocked", %{
@@ -640,9 +641,7 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-counterparty", body)
       response = json_response(conn, 200)
-
-      screening = response
-      refute is_list(response)
+      screening = assert_single_screening!(response, ApiSpec.spec())
       assert screening["screening_status"] == "pending"
       assert screening["scope"] == "counterparty"
     end
@@ -678,12 +677,12 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-payment-account", body)
       response = json_response(conn, 200)
+      screening = assert_single_screening!(response, ApiSpec.spec())
 
-      assert_schema(response, "ComplianceScreeningResponse", ApiSpec.spec())
-      assert response["scope"] == "payment_account"
-      assert response["screening_status"] == "pending"
-      assert response["screened_entity_type"] == "payment_account"
-      assert response["screened_entity_name"] == "non-crypto-payment-account-bypass"
+      assert screening["scope"] == "payment_account"
+      assert screening["screening_status"] == "pending"
+      assert screening["screened_entity_type"] == "payment_account"
+      assert screening["screened_entity_name"] == "non-crypto-payment-account-bypass"
     end
 
     test "crypto PA with wallet_address triggers Watchman crypto screen", %{
@@ -701,10 +700,10 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
       conn = post(conn, ~p"/api/compliance-screenings/screen-payment-account", body)
       response = json_response(conn, 200)
+      screening = assert_single_screening!(response, ApiSpec.spec())
 
-      assert_schema(response, "ComplianceScreeningResponse", ApiSpec.spec())
-      assert response["scope"] == "payment_account"
-      assert response["screening_status"] == "pending"
+      assert screening["scope"] == "payment_account"
+      assert screening["screening_status"] == "pending"
     end
 
     test "returns 401 without API key", %{account_holder: account_holder} do
@@ -729,6 +728,149 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
   # OpenAPI spec validation
   # ---------------------------------------------------------------------------
 
+  # ---------------------------------------------------------------------------
+  # Stateful sync screening endpoints (persist via OnboardingContext.refresh)
+  # ---------------------------------------------------------------------------
+
+  describe "screen_account_holder_by_id (POST /api/compliance-screenings/account-holders/:id/screen)" do
+    setup do
+      init_blocklist_cache()
+    end
+
+    test "persists a new screening row and returns it in the paginated envelope",
+         %{conn: conn, account_holder: account_holder} do
+      conn =
+        post(conn, ~p"/api/compliance-screenings/account-holders/#{account_holder.id}/screen")
+
+      response = json_response(conn, 200)
+      screening = assert_single_screening!(response, ApiSpec.spec())
+
+      assert screening["scope"] == "account_holder"
+      assert screening["screening_type"] == "sanctions"
+      assert screening["legal_entity_id"] == account_holder.legal_entity.id
+      assert is_binary(screening["id"])
+      assert screening["tenant_id"] == account_holder.tenant_id
+    end
+
+    test "returns 404 when account holder does not exist", %{conn: conn} do
+      conn =
+        post(
+          conn,
+          ~p"/api/compliance-screenings/account-holders/#{Ecto.UUID.generate()}/screen"
+        )
+
+      assert json_response(conn, 404)
+    end
+
+    test "returns 401 without API key", %{account_holder: account_holder} do
+      conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/compliance-screenings/account-holders/#{account_holder.id}/screen")
+
+      assert json_response(conn, 401)
+    end
+  end
+
+  describe "screen_beneficial_owner_by_id (POST /api/compliance-screenings/beneficial-owners/:id/screen)" do
+    setup do
+      init_blocklist_cache()
+    end
+
+    test "persists a new screening row and returns it in the paginated envelope",
+         %{
+           conn: conn,
+           session: session,
+           account_holder: account_holder,
+           platform_tenant: platform_tenant
+         } do
+      beneficial_owner =
+        bo_with_le(session, platform_tenant.id, account_holder.id,
+          first_name: "Clara",
+          last_name: "Bennet"
+        )
+
+      conn =
+        post(
+          conn,
+          ~p"/api/compliance-screenings/beneficial-owners/#{beneficial_owner.id}/screen"
+        )
+
+      response = json_response(conn, 200)
+      screening = assert_single_screening!(response, ApiSpec.spec())
+
+      assert screening["scope"] == "beneficial_owner"
+      assert screening["legal_entity_id"] == beneficial_owner.legal_entity.id
+      assert is_binary(screening["id"])
+    end
+
+    test "returns 404 when beneficial owner does not exist", %{conn: conn} do
+      conn =
+        post(
+          conn,
+          ~p"/api/compliance-screenings/beneficial-owners/#{Ecto.UUID.generate()}/screen"
+        )
+
+      assert json_response(conn, 404)
+    end
+
+    test "returns 401 without API key", %{
+      session: session,
+      account_holder: account_holder,
+      platform_tenant: platform_tenant
+    } do
+      bo = bo_with_le(session, platform_tenant.id, account_holder.id, [])
+
+      conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/compliance-screenings/beneficial-owners/#{bo.id}/screen")
+
+      assert json_response(conn, 401)
+    end
+  end
+
+  describe "screen_counterparty_by_id (POST /api/compliance-screenings/counterparties/:id/screen)" do
+    setup do
+      init_blocklist_cache()
+    end
+
+    test "persists a new screening row and returns it in the paginated envelope",
+         %{conn: conn, counterparty: counterparty} do
+      conn =
+        post(conn, ~p"/api/compliance-screenings/counterparties/#{counterparty.id}/screen")
+
+      response = json_response(conn, 200)
+      screening = assert_single_screening!(response, ApiSpec.spec())
+
+      assert screening["scope"] == "counterparty"
+      assert screening["legal_entity_id"] == counterparty.legal_entity.id
+      assert is_binary(screening["id"])
+    end
+
+    test "returns 404 when counterparty does not exist", %{conn: conn} do
+      conn =
+        post(
+          conn,
+          ~p"/api/compliance-screenings/counterparties/#{Ecto.UUID.generate()}/screen"
+        )
+
+      assert json_response(conn, 404)
+    end
+
+    test "returns 401 without API key", %{counterparty: counterparty} do
+      conn =
+        build_conn()
+        |> put_req_header("accept", "application/json")
+        |> put_req_header("content-type", "application/json")
+        |> post(~p"/api/compliance-screenings/counterparties/#{counterparty.id}/screen")
+
+      assert json_response(conn, 401)
+    end
+  end
+
   describe "OpenAPI spec validation" do
     test "OpenAPI spec includes compliance screening endpoints", %{conn: conn} do
       conn = get(conn, ~p"/api/openapi")
@@ -748,6 +890,9 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       assert paths["/api/compliance-screenings/screen-beneficial-owner"]["post"]
       assert paths["/api/compliance-screenings/screen-counterparty"]
       assert paths["/api/compliance-screenings/screen-counterparty"]["post"]
+      assert paths["/api/compliance-screenings/account-holders/{id}/screen"]["post"]
+      assert paths["/api/compliance-screenings/beneficial-owners/{id}/screen"]["post"]
+      assert paths["/api/compliance-screenings/counterparties/{id}/screen"]["post"]
     end
 
     test "OpenAPI spec includes ComplianceScreening schemas", %{conn: conn} do

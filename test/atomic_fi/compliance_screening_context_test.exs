@@ -556,7 +556,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
         }
       }
 
-      assert {:ok, %ComplianceScreening{} = screening} =
+      assert {:ok, {[%ComplianceScreening{} = screening], %Flop.Meta{total_count: 1}}} =
                ComplianceScreeningContext.screen_account_holder(session, request)
 
       assert is_nil(screening.id)
@@ -584,7 +584,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
         }
       }
 
-      assert {:ok, %ComplianceScreening{} = screening} =
+      assert {:ok, {[%ComplianceScreening{} = screening], %Flop.Meta{}}} =
                ComplianceScreeningContext.screen_account_holder(session, request)
 
       assert screening.screening_status == :pending
@@ -606,7 +606,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
         }
       }
 
-      assert {:ok, screening} =
+      assert {:ok, {[screening], %Flop.Meta{}}} =
                ComplianceScreeningContext.screen_account_holder(session, request)
 
       assert screening.screened_entity_type == :company
@@ -627,7 +627,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
         }
       }
 
-      assert {:ok, screening} =
+      assert {:ok, {[screening], %Flop.Meta{}}} =
                ComplianceScreeningContext.screen_account_holder(session, request)
 
       assert screening.match_count > 0
@@ -651,7 +651,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
         }
       }
 
-      assert {:ok, %ComplianceScreening{} = screening} =
+      assert {:ok, {[%ComplianceScreening{} = screening], %Flop.Meta{}}} =
                ComplianceScreeningContext.screen_beneficial_owner(session, request)
 
       assert is_nil(screening.id)
@@ -676,7 +676,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
         }
       }
 
-      assert {:ok, %ComplianceScreening{} = screening} =
+      assert {:ok, {[%ComplianceScreening{} = screening], %Flop.Meta{}}} =
                ComplianceScreeningContext.screen_counterparty(session, request)
 
       assert is_nil(screening.id)
@@ -698,7 +698,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
         }
       }
 
-      assert {:ok, screening} =
+      assert {:ok, {[screening], %Flop.Meta{}}} =
                ComplianceScreeningContext.screen_counterparty(session, request)
 
       assert screening.scope == :counterparty
@@ -717,7 +717,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
         account_holder_id: Ecto.UUID.generate()
       }
 
-      assert {:ok, %ComplianceScreening{} = screening} =
+      assert {:ok, {[%ComplianceScreening{} = screening], %Flop.Meta{}}} =
                ComplianceScreeningContext.screen_payment_account(session, request)
 
       assert screening.scope == :payment_account
@@ -738,7 +738,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
         account_holder_id: Ecto.UUID.generate()
       }
 
-      assert {:ok, %ComplianceScreening{} = screening} =
+      assert {:ok, {[%ComplianceScreening{} = screening], %Flop.Meta{}}} =
                ComplianceScreeningContext.screen_payment_account(session, request)
 
       assert screening.scope == :payment_account
@@ -761,7 +761,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
         }
       }
 
-      {:ok, unsaved} = ComplianceScreeningContext.screen_account_holder(session, request)
+      {:ok, {[unsaved], _}} = ComplianceScreeningContext.screen_account_holder(session, request)
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
       le = legal_entity_for!(account_holder)
 
@@ -806,7 +806,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
         }
       }
 
-      {:ok, unsaved} = ComplianceScreeningContext.screen_counterparty(session, request)
+      {:ok, {[unsaved], _}} = ComplianceScreeningContext.screen_counterparty(session, request)
 
       assert {:ok, %ComplianceScreening{} = persisted} =
                ComplianceScreeningContext.record_screening(session, unsaved, %{
@@ -850,7 +850,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
         }
       }
 
-      {:ok, unsaved} = ComplianceScreeningContext.screen_beneficial_owner(session, request)
+      {:ok, {[unsaved], _}} = ComplianceScreeningContext.screen_beneficial_owner(session, request)
 
       assert {:ok, %ComplianceScreening{} = persisted} =
                ComplianceScreeningContext.record_screening(session, unsaved, %{
@@ -882,7 +882,7 @@ defmodule AtomicFi.ComplianceScreeningContextTest do
         account_holder_id: account_holder.id
       }
 
-      {:ok, unsaved} = ComplianceScreeningContext.screen_payment_account(session, request)
+      {:ok, {[unsaved], _}} = ComplianceScreeningContext.screen_payment_account(session, request)
 
       assert {:ok, %ComplianceScreening{} = persisted} =
                ComplianceScreeningContext.record_screening(session, unsaved, %{

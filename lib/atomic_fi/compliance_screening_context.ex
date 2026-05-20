@@ -31,7 +31,9 @@ defmodule AtomicFi.ComplianceScreeningContext do
   import Ecto.Query, warn: false
   use AtomicFi.LoggerMacro
 
+  alias AtomicFi.AccountHolderContext
   alias AtomicFi.AccountHolderContext.AccountHolder
+  alias AtomicFi.BeneficialOwnerContext
   alias AtomicFi.BeneficialOwnerContext.BeneficialOwner
 
   # Preload child matches on every getter so callers (controllers,
@@ -44,8 +46,10 @@ defmodule AtomicFi.ComplianceScreeningContext do
   alias AtomicFi.ComplianceScreeningContext.BlocklistMatch
   alias AtomicFi.ComplianceScreeningContext.ComplianceScreening
   alias AtomicFi.ComplianceScreeningContext.SanctionsMatch
+  alias AtomicFi.CounterpartyContext
   alias AtomicFi.CounterpartyContext.Counterparty
   alias AtomicFi.LegalEntityContext.LegalEntity
+  alias AtomicFi.OnboardingContext
   alias AtomicFi.OpenApiSchema.AccountHolderRequest
   alias AtomicFi.OpenApiSchema.BeneficialOwnerRequest
   alias AtomicFi.OpenApiSchema.CounterpartyRequest
@@ -128,6 +132,31 @@ defmodule AtomicFi.ComplianceScreeningContext do
     from(cs in ComplianceScreening, where: cs.payment_account_id == ^pa_id)
     |> Ecto.Query.preload(^@preloads)
     |> Repo.all(session: session)
+  end
+
+  @doc """
+  List `%ComplianceScreening{}` rows for `legal_entity_id` inserted at or
+  after `cutoff`. Used by the stateful re-screen actions to surface only the
+  screenings created during the just-completed `OnboardingContext.refresh/2`.
+  """
+  @spec list_for_legal_entity_since(Session.t(), Ecto.UUID.t(), DateTime.t(), map()) ::
+          {:ok, {[ComplianceScreening.t()], Flop.Meta.t()}} | {:error, Flop.Meta.t()}
+  def_with_rls_and_logging list_for_legal_entity_since(
+                             session,
+                             legal_entity_id,
+                             cutoff,
+                             flop_params \\ %{}
+                           ),
+                           log_fields: [:legal_entity_id] do
+    from(cs in ComplianceScreening,
+      where: cs.legal_entity_id == ^legal_entity_id and cs.inserted_at >= ^cutoff
+    )
+    |> Ecto.Query.preload(^@preloads)
+    |> Flop.validate_and_run(flop_params,
+      for: ComplianceScreening,
+      repo: Repo,
+      query_opts: [session: session]
+    )
   end
 
   @doc """
@@ -313,43 +342,53 @@ defmodule AtomicFi.ComplianceScreeningContext do
   # ---------------------------------------------------------------------------
 
   @doc """
-  Preview-screen an account holder request (stateless). Returns the unsaved
-  `%ComplianceScreening{}` struct with nested matches.
+  Preview-screen an account holder request (stateless). Returns an unsaved
+  `%ComplianceScreening{}` wrapped in a Flop-shaped tuple so the controller
+  layer can render it uniformly via `json_paginated_response/4`.
   """
   @spec screen_account_holder(Session.t(), AccountHolderRequest.t()) ::
-          {:ok, ComplianceScreening.t()} | {:error, term()}
+          {:ok, {[ComplianceScreening.t()], Flop.Meta.t()}} | {:error, term()}
   def_with_rls_and_logging screen_account_holder(session, %AccountHolderRequest{} = request),
     log_fields: [] do
-    ScreeningEngine.screen_account_holder(
-      session,
-      account_holder_from_request(request, session.tenant_id)
-    )
+    with {:ok, screening} <-
+           ScreeningEngine.screen_account_holder(
+             session,
+             account_holder_from_request(request, session.tenant_id)
+           ) do
+      wrap_single(screening)
+    end
   end
 
   @doc """
   Preview-screen a beneficial owner request (stateless).
   """
   @spec screen_beneficial_owner(Session.t(), BeneficialOwnerRequest.t()) ::
-          {:ok, ComplianceScreening.t()} | {:error, term()}
+          {:ok, {[ComplianceScreening.t()], Flop.Meta.t()}} | {:error, term()}
   def_with_rls_and_logging screen_beneficial_owner(session, %BeneficialOwnerRequest{} = request),
     log_fields: [] do
-    ScreeningEngine.screen_beneficial_owner(
-      session,
-      beneficial_owner_from_request(request, session.tenant_id)
-    )
+    with {:ok, screening} <-
+           ScreeningEngine.screen_beneficial_owner(
+             session,
+             beneficial_owner_from_request(request, session.tenant_id)
+           ) do
+      wrap_single(screening)
+    end
   end
 
   @doc """
   Preview-screen a counterparty request (stateless).
   """
   @spec screen_counterparty(Session.t(), CounterpartyRequest.t()) ::
-          {:ok, ComplianceScreening.t()} | {:error, term()}
+          {:ok, {[ComplianceScreening.t()], Flop.Meta.t()}} | {:error, term()}
   def_with_rls_and_logging screen_counterparty(session, %CounterpartyRequest{} = request),
     log_fields: [] do
-    ScreeningEngine.screen_counterparty(
-      session,
-      counterparty_from_request(request, session.tenant_id)
-    )
+    with {:ok, screening} <-
+           ScreeningEngine.screen_counterparty(
+             session,
+             counterparty_from_request(request, session.tenant_id)
+           ) do
+      wrap_single(screening)
+    end
   end
 
   @doc """
@@ -357,13 +396,89 @@ defmodule AtomicFi.ComplianceScreeningContext do
   `account_type: :crypto_wallet`; other rails return a `:pending` no-screen.
   """
   @spec screen_payment_account(Session.t(), PaymentAccountRequest.t()) ::
-          {:ok, ComplianceScreening.t()} | {:error, term()}
+          {:ok, {[ComplianceScreening.t()], Flop.Meta.t()}} | {:error, term()}
   def_with_rls_and_logging screen_payment_account(session, %PaymentAccountRequest{} = request),
     log_fields: [] do
-    ScreeningEngine.screen_payment_account(
-      session,
-      payment_account_from_request(request, session.tenant_id)
-    )
+    with {:ok, screening} <-
+           ScreeningEngine.screen_payment_account(
+             session,
+             payment_account_from_request(request, session.tenant_id)
+           ) do
+      wrap_single(screening)
+    end
+  end
+
+  # The preview path returns an in-memory single `%ComplianceScreening{}`.
+  # Wrap it in the same `{:ok, {rows, %Flop.Meta{}}}` shape Flop produces so
+  # both flavors (stateless preview, stateful sync) feed `json_paginated_response`
+  # uniformly. Schema is intentionally left as the bare `ComplianceScreening`
+  # module so future filter/sort introspection works against the same struct.
+  defp wrap_single(%ComplianceScreening{} = screening) do
+    meta = %Flop.Meta{
+      flop: %Flop{},
+      schema: ComplianceScreening,
+      current_page: 1,
+      page_size: 1,
+      total_count: 1,
+      total_pages: 1,
+      has_next_page?: false,
+      has_previous_page?: false
+    }
+
+    {:ok, {[screening], meta}}
+  end
+
+  # ---------------------------------------------------------------------------
+  # Stateful sync screening — loads entity by id (with preloaded legal_entity),
+  # runs full `OnboardingContext.refresh/2` (screen + engine + apply controls),
+  # then returns the screening rows persisted during this call.
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Stateful sync re-screen of an existing AccountHolder by id. Loads the AH
+  (preloads legal_entity), runs the full onboarding refresh pipeline, returns
+  the persisted `%ComplianceScreening{}` rows created during this call.
+  """
+  @spec screen_account_holder_by_id(Session.t(), Ecto.UUID.t()) ::
+          {:ok, {[ComplianceScreening.t()], Flop.Meta.t()}} | {:error, term()}
+  def_with_rls_and_logging screen_account_holder_by_id(session, account_holder_id),
+    log_fields: [:account_holder_id] do
+    ah = AccountHolderContext.get_account_holder!(session, account_holder_id)
+    refresh_and_collect(session, ah, ah.legal_entity.id)
+  end
+
+  @doc """
+  Stateful sync re-screen of an existing BeneficialOwner by id.
+  """
+  @spec screen_beneficial_owner_by_id(Session.t(), Ecto.UUID.t()) ::
+          {:ok, {[ComplianceScreening.t()], Flop.Meta.t()}} | {:error, term()}
+  def_with_rls_and_logging screen_beneficial_owner_by_id(session, beneficial_owner_id),
+    log_fields: [:beneficial_owner_id] do
+    bo = BeneficialOwnerContext.get_beneficial_owner!(session, beneficial_owner_id)
+    refresh_and_collect(session, bo, bo.legal_entity.id)
+  end
+
+  @doc """
+  Stateful sync re-screen of an existing Counterparty by id.
+  """
+  @spec screen_counterparty_by_id(Session.t(), Ecto.UUID.t()) ::
+          {:ok, {[ComplianceScreening.t()], Flop.Meta.t()}} | {:error, term()}
+  def_with_rls_and_logging screen_counterparty_by_id(session, counterparty_id),
+    log_fields: [:counterparty_id] do
+    cp = CounterpartyContext.get_counterparty!(session, counterparty_id)
+    refresh_and_collect(session, cp, cp.legal_entity.id)
+  end
+
+  # Captures a `before` cutoff, invokes refresh, returns all screenings for
+  # this LE inserted at or after the cutoff. `OnboardingContext.refresh/2`
+  # persists exactly one screening per entity per call, so the result is a
+  # 1-element list today; the array shape is preserved for future fan-out.
+  defp refresh_and_collect(session, entity, legal_entity_id) do
+    cutoff = DateTime.utc_now()
+
+    with {:ok, _entity} <- OnboardingContext.refresh(session, entity) do
+      list_for_legal_entity_since(session, legal_entity_id, cutoff)
+    end
   end
 
   # ---------------------------------------------------------------------------

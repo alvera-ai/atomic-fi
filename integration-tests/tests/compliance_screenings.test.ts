@@ -1,14 +1,18 @@
 /**
- * compliance_screenings — index + show + 3 screening action endpoints.
+ * compliance_screenings — index + show + 3 stateful sync screen-by-id endpoints.
  *
- * The `/api/compliance-screenings/screen-{account-holder,beneficial-owner,
- * counterparty}` endpoints invoke the real Watchman dev container. We
- * provision a legal_entity + account_holder + beneficial_owner + counterparty
- * in beforeAll, then exercise each screening action.
+ * The `/api/compliance-screenings/{account-holders|beneficial-owners|
+ * counterparties}/:id/screen` endpoints invoke the full OnboardingContext
+ * refresh pipeline (Watchman + RuleEngine + apply controls) and persist the
+ * resulting screening row. We provision an AH (with nested LE), a BO, and a
+ * CP in beforeAll, then exercise each by-id screen action.
  *
  * Watchman returns one of: pass | potential_match | blocked. We accept all
  * three so the spec stays green regardless of the custom screening list's
  * current contents.
+ *
+ * All seven screen endpoints (stateless preview + stateful sync) return the
+ * project-standard `{data: [...], meta: {...}}` paginated envelope.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
 
@@ -18,25 +22,25 @@ import { config } from '../src/env.ts'
 import {
   apiKeyHeaders,
   bearerHeaders,
+  createAccountHolder,
+  createBeneficialOwner,
+  createCounterparty,
   postAdminSession,
   UUID_RE,
   type AnyJson,
 } from '../src/test-helpers.ts'
 
-async function postJson(path: string, headers: Record<string, string>, body: unknown): Promise<AnyJson> {
-  const res = await fetch(`${config.baseUrl}${path}`, { method: 'POST', headers, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(`${path} → ${res.status}: ${await res.text()}`)
-  return (await res.json()) as AnyJson
-}
-
-const VALID_STATUSES = ['pass', 'potential_match', 'blocked']
+// `screening_status` is the workflow state of the persisted row (pending
+// until manual review). Watchman's match outcome lives in
+// `sanctions_screening_status`. The by-id endpoints persist immediately so
+// every fresh result sits at `pending`.
+const VALID_STATUSES = ['pending', 'pass', 'potential_match', 'blocked']
 
 describe('compliance_screenings — /api/compliance-screenings', () => {
   let bearer: string
   let primaryTenantId: string
   let secondary: SecondaryTenant
   let accountHolderId: string
-  let legalEntityId: string
   let beneficialOwnerId: string
   let counterpartyId: string
   let firstScreeningId: string
@@ -51,48 +55,9 @@ describe('compliance_screenings — /api/compliance-screenings', () => {
       prefix: 'rls-screenings',
     })
 
-    const le = await postJson('/api/legal-entities', bearerHeaders(bearer), {
-      legal_entity_type: 'individual',
-      first_name: 'Alice',
-      last_name: 'Smith',
-      date_of_birth: '1990-01-01',
-      citizenship_country: 'US',
-      politically_exposed_person: false,
-      tenant_id: primaryTenantId,
-    })
-    legalEntityId = le.id as string
-    const ah = await postJson('/api/account-holders', bearerHeaders(bearer), {
-      account_holder_type: 'individual',
-      status: 'pending',
-      kyc_status: 'not_started',
-      risk_level: 'low',
-      enabled_currencies: ['USD'],
-      legal_entity_id: legalEntityId,
-      tenant_id: primaryTenantId,
-    })
-    accountHolderId = ah.id as string
-
-    const bo = await postJson('/api/beneficial-owners', bearerHeaders(bearer), {
-      control_type: 'shareholder',
-      ownership_pct: 25.0,
-      verification_status: 'pending',
-      legal_entity_id: legalEntityId,
-      account_holder_id: accountHolderId,
-      tenant_id: primaryTenantId,
-    })
-    beneficialOwnerId = bo.id as string
-
-    const cp = await postJson('/api/counterparties', bearerHeaders(bearer), {
-      status: 'active',
-      legal_entity_id: legalEntityId,
-      account_holder_id: accountHolderId,
-      tenant_id: primaryTenantId,
-    })
-    counterpartyId = cp.id as string
-
-    // Initialize the per-tenant blocklist cache; screening endpoints require
-    // it (otherwise they raise "BlocklistCache not initialized" — by design,
-    // to prevent allowing blocked entities through due to an empty cache).
+    // Initialize the per-tenant blocklist cache BEFORE any AH/CP/BO create.
+    // AH/CP/BO POST runs OnboardingContext.onboard synchronously, which
+    // requires the cache initialized (fail-closed by design).
     const refresh = await fetch(`${config.baseUrl}/api/tenants/refresh-blocklist-cache`, {
       method: 'POST',
       headers: bearerHeaders(bearer),
@@ -100,56 +65,55 @@ describe('compliance_screenings — /api/compliance-screenings', () => {
     if (!refresh.ok) {
       throw new Error(`refresh-blocklist-cache → ${refresh.status}: ${await refresh.text()}`)
     }
+
+    const ah = await createAccountHolder(bearer, primaryTenantId)
+    accountHolderId = ah.id
+
+    const bo = await createBeneficialOwner(bearer, primaryTenantId, accountHolderId)
+    beneficialOwnerId = bo.id
+
+    const cp = await createCounterparty(bearer, primaryTenantId, accountHolderId)
+    counterpartyId = cp.id
   })
 
-  it('POST /api/compliance-screenings/screen-account-holder → 200 with screening row', async (ctx) => {
-    const res = await fetch(`${config.baseUrl}/api/compliance-screenings/screen-account-holder`, {
-      method: 'POST',
-      headers: bearerHeaders(bearer),
-      body: JSON.stringify({ account_holder_id: accountHolderId }),
-    })
+  it('POST /api/compliance-screenings/account-holders/:id/screen → 200 (stateful, persists)', async () => {
+    const res = await fetch(
+      `${config.baseUrl}/api/compliance-screenings/account-holders/${accountHolderId}/screen`,
+      { method: 'POST', headers: bearerHeaders(bearer) },
+    )
     expect(res.status, await res.clone().text()).toBe(200)
-    const body = (await res.json()) as AnyJson[]
-    expect(Array.isArray(body)).toBe(true)
-    expect(body.length).toBeGreaterThanOrEqual(1)
-    const [first] = body
+    const body = (await res.json()) as { data: AnyJson[]; meta: AnyJson }
+    expect(body.data.length).toBeGreaterThanOrEqual(1)
+    const [first] = body.data
     expect(first.id).toMatch(UUID_RE)
     expect(first.scope).toBe('account_holder')
     expect(first.screening_type).toBe('sanctions')
-    expect(VALID_STATUSES).toContain(first.screening_status)
+    expect(VALID_STATUSES).toContain(first.screening_status as string)
     firstScreeningId = first.id as string
   })
 
-  it('POST /api/compliance-screenings/screen-beneficial-owner → 200', async (ctx) => {
-    const res = await fetch(`${config.baseUrl}/api/compliance-screenings/screen-beneficial-owner`, {
-      method: 'POST',
-      headers: bearerHeaders(bearer),
-      body: JSON.stringify({
-        account_holder_id: accountHolderId,
-        beneficial_owner_id: beneficialOwnerId,
-      }),
-    })
+  it('POST /api/compliance-screenings/beneficial-owners/:id/screen → 200', async () => {
+    const res = await fetch(
+      `${config.baseUrl}/api/compliance-screenings/beneficial-owners/${beneficialOwnerId}/screen`,
+      { method: 'POST', headers: bearerHeaders(bearer) },
+    )
     expect(res.status, await res.clone().text()).toBe(200)
-    const body = (await res.json()) as AnyJson[]
-    expect(body.length).toBeGreaterThanOrEqual(1)
-    expect(body[0].scope).toBe('beneficial_owner')
-    expect(VALID_STATUSES).toContain(body[0].screening_status)
+    const body = (await res.json()) as { data: AnyJson[]; meta: AnyJson }
+    expect(body.data.length).toBeGreaterThanOrEqual(1)
+    expect(body.data[0].scope).toBe('beneficial_owner')
+    expect(VALID_STATUSES).toContain(body.data[0].screening_status as string)
   })
 
-  it('POST /api/compliance-screenings/screen-counterparty → 200', async (ctx) => {
-    const res = await fetch(`${config.baseUrl}/api/compliance-screenings/screen-counterparty`, {
-      method: 'POST',
-      headers: bearerHeaders(bearer),
-      body: JSON.stringify({
-        account_holder_id: accountHolderId,
-        counterparty_id: counterpartyId,
-      }),
-    })
+  it('POST /api/compliance-screenings/counterparties/:id/screen → 200', async () => {
+    const res = await fetch(
+      `${config.baseUrl}/api/compliance-screenings/counterparties/${counterpartyId}/screen`,
+      { method: 'POST', headers: bearerHeaders(bearer) },
+    )
     expect(res.status, await res.clone().text()).toBe(200)
-    const body = (await res.json()) as AnyJson[]
-    expect(body.length).toBeGreaterThanOrEqual(1)
-    expect(body[0].scope).toBe('counterparty')
-    expect(VALID_STATUSES).toContain(body[0].screening_status)
+    const body = (await res.json()) as { data: AnyJson[]; meta: AnyJson }
+    expect(body.data.length).toBeGreaterThanOrEqual(1)
+    expect(body.data[0].scope).toBe('counterparty')
+    expect(VALID_STATUSES).toContain(body.data[0].screening_status as string)
   })
 
   it('GET /api/compliance-screenings → 200 contains the prior screening', async (ctx) => {

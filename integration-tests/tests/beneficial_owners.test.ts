@@ -1,10 +1,9 @@
 /**
  * beneficial_owners — full CRUD + RLS for /api/beneficial-owners.
  *
- * A beneficial_owner needs both a legal_entity and an account_holder. We
- * provision both in beforeAll. Cleanup is best-effort and may leak
- * legal_entity / account_holder rows since #17 currently blocks deleting
- * legal_entities that have been touched.
+ * BO is created with a nested `legal_entity` object (cast_assoc). The LE
+ * link is immutable post-create — PII replacement goes through
+ * `PUT /api/beneficial-owners/:id/legal-entity`.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
@@ -14,29 +13,18 @@ import { config } from '../src/env.ts'
 import {
   apiKeyHeaders,
   bearerHeaders,
+  createAccountHolder,
+  defaultIndividualLegalEntity,
   postAdminSession,
   safeDelete,
   UUID_RE,
   type AnyJson,
 } from '../src/test-helpers.ts'
 
-async function postJson(path: string, headers: Record<string, string>, body: unknown): Promise<AnyJson> {
-  const res = await fetch(`${config.baseUrl}${path}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    throw new Error(`${path} → ${res.status}: ${await res.text()}`)
-  }
-  return (await res.json()) as AnyJson
-}
-
 describe('beneficial_owners — /api/beneficial-owners', () => {
   let bearer: string
   let primaryTenantId: string
   let secondary: SecondaryTenant
-  let legalEntityId: string
   let accountHolderId: string
   let ownerId: string
 
@@ -50,27 +38,8 @@ describe('beneficial_owners — /api/beneficial-owners', () => {
       prefix: 'rls-beneficial-owners',
     })
 
-    const le = await postJson('/api/legal-entities', bearerHeaders(bearer), {
-      legal_entity_type: 'individual',
-      first_name: 'BOParent',
-      last_name: 'X',
-      date_of_birth: '1990-01-01',
-      citizenship_country: 'US',
-      politically_exposed_person: false,
-      tenant_id: primaryTenantId,
-    })
-    legalEntityId = le.id as string
-
-    const ah = await postJson('/api/account-holders', bearerHeaders(bearer), {
-      account_holder_type: 'individual',
-      status: 'pending',
-      kyc_status: 'not_started',
-      risk_level: 'low',
-      enabled_currencies: ['USD'],
-      legal_entity_id: legalEntityId,
-      tenant_id: primaryTenantId,
-    })
-    accountHolderId = ah.id as string
+    const ah = await createAccountHolder(bearer, primaryTenantId)
+    accountHolderId = ah.id
   })
 
   afterAll(async () => {
@@ -86,9 +55,9 @@ describe('beneficial_owners — /api/beneficial-owners', () => {
         control_type: 'shareholder',
         ownership_pct: 25.0,
         verification_status: 'pending',
-        legal_entity_id: legalEntityId,
         account_holder_id: accountHolderId,
         tenant_id: primaryTenantId,
+        legal_entity: defaultIndividualLegalEntity(primaryTenantId, 'BO'),
       }),
     })
     expect(res.status, await res.clone().text()).toBe(201)
@@ -125,7 +94,6 @@ describe('beneficial_owners — /api/beneficial-owners', () => {
         control_type: 'director',
         ownership_pct: 51.0,
         verification_status: 'verified',
-        legal_entity_id: legalEntityId,
         account_holder_id: accountHolderId,
         tenant_id: primaryTenantId,
       }),
@@ -152,9 +120,9 @@ describe('beneficial_owners — /api/beneficial-owners', () => {
       headers: bearerHeaders(bearer),
       body: JSON.stringify({
         ownership_pct: 10,
-        legal_entity_id: legalEntityId,
         account_holder_id: accountHolderId,
         tenant_id: primaryTenantId,
+        legal_entity: defaultIndividualLegalEntity(primaryTenantId, 'BOMissing'),
       }),
     })
     expect(res.status).toBe(422)

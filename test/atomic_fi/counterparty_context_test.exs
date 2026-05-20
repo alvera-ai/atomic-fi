@@ -362,7 +362,7 @@ defmodule AtomicFi.CounterpartyContextTest do
       assert length(LedgerAccountContext.list_for_entity(session, updated)) == before_count
     end
 
-    test "delete_counterparty/2 is restricted by FK when LA tree exists",
+    test "delete_counterparty/2 returns {:error, changeset} when LA tree exists",
          %{session: session} do
       ah = create_ah(session, ["USD"], ["ach"])
 
@@ -376,9 +376,16 @@ defmodule AtomicFi.CounterpartyContextTest do
           legal_entity: cp_le_request(session)
         })
 
-      assert_raise Ecto.ConstraintError, fn ->
-        CounterpartyContext.delete_counterparty(session, cp)
-      end
+      # CP write lifecycle materialises ledger_accounts — ON DELETE RESTRICT
+      # is converted to a changeset error in the context so the controller
+      # renders 422 instead of crashing.
+      assert {:error, %Ecto.Changeset{errors: errors, valid?: false}} =
+               CounterpartyContext.delete_counterparty(session, cp)
+
+      assert {:id, {message, [constraint: :foreign, constraint_name: _]}} =
+               List.keyfind(errors, :id, 0)
+
+      assert message =~ "exist for this counterparty"
     end
   end
 end

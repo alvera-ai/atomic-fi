@@ -12,9 +12,11 @@ import { config } from '../src/env.ts'
 import {
   apiKeyHeaders,
   bearerHeaders,
+  createAccountHolder,
   postAdminSession,
   safeDelete,
   UUID_RE,
+  warmupBlocklistCache,
   type AnyJson,
 } from '../src/test-helpers.ts'
 
@@ -42,40 +44,24 @@ describe('ledger_entries — /api/ledger-entries', () => {
       prefix: 'rls-ledger-entries',
     })
 
-    const le = await postJson('/api/legal-entities', bearerHeaders(bearer), {
-      legal_entity_type: 'individual',
-      first_name: 'LEParent',
-      last_name: 'X',
-      date_of_birth: '1990-01-01',
-      citizenship_country: 'US',
-      politically_exposed_person: false,
-      tenant_id: primaryTenantId,
-    })
-    const ah = await postJson('/api/account-holders', bearerHeaders(bearer), {
-      account_holder_type: 'individual',
-      status: 'pending',
-      kyc_status: 'not_started',
-      risk_level: 'low',
-      enabled_currencies: ['USD'],
-      legal_entity_id: le.id,
-      tenant_id: primaryTenantId,
-    })
-    accountHolderId = ah.id as string
-    const ledger = await postJson('/api/ledgers', bearerHeaders(bearer), {
-      account_holder_id: accountHolderId,
-      currency: 'USD',
-      status: 'active',
-      tenant_id: primaryTenantId,
-    })
-    const acct = await postJson('/api/ledger-accounts', bearerHeaders(bearer), {
-      account_holder_id: accountHolderId,
-      ledger_id: ledger.id,
-      currency: 'USD',
-      account_type: 'asset',
-      status: 'active',
-      tenant_id: primaryTenantId,
-    })
-    ledgerAccountId = acct.id as string
+    await warmupBlocklistCache(bearer)
+    const ah = await createAccountHolder(bearer, primaryTenantId)
+    accountHolderId = ah.id
+
+    // AH onboarding auto-materialises a USD Ledger + an account_holder_root
+    // LedgerAccount. Discover the LA via the index; we'll post entries
+    // against it (no need to POST a duplicate ledger/LA).
+    const list = await fetch(
+      `${config.baseUrl}/api/ledger-accounts?page_size=100&order_by=inserted_at&order_directions=desc`,
+      { headers: bearerHeaders(bearer) },
+    )
+    if (!list.ok) throw new Error(`GET /api/ledger-accounts → ${list.status}: ${await list.text()}`)
+    const { data } = (await list.json()) as { data: AnyJson[] }
+    const autoMat = data.find(
+      (la) => la.account_holder_id === accountHolderId && la.la_type === 'account_holder_root',
+    )
+    if (!autoMat) throw new Error('expected onboarding to materialise an account_holder_root LA')
+    ledgerAccountId = autoMat.id as string
   })
 
   afterAll(async () => {

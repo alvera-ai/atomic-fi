@@ -50,6 +50,30 @@ defmodule AtomicFi.LedgerAccountContext.ControlLimitTest do
     end
   end
 
+  describe "JSON rendering via ExOpenApiUtils.Mapper" do
+    test "Mapper.to_map/1 returns a plain map (no Jason.Encoder dependency)" do
+      limit = %ControlLimit{
+        period: "daily",
+        direction: "debit",
+        cap: 1_000,
+        rule: "test_rule"
+      }
+
+      result = ExOpenApiUtils.Mapper.to_map(limit)
+
+      assert is_map(result)
+      refute is_struct(result)
+
+      assert result[:period] == "daily" or result["period"] == "daily"
+
+      # And it Jason-encodes cleanly. Before ControlLimit used AtomicFi.Schema
+      # this raised Protocol.UndefinedError, breaking every LedgerEntry index
+      # response that carried a non-empty limits_at_entry[].
+      assert {:ok, json} = Jason.encode(result)
+      assert is_binary(json)
+    end
+  end
+
   describe "LedgerAccount introspection helpers" do
     test "root_regime/0 returns the sentinel regime" do
       assert is_binary(LedgerAccount.root_regime())

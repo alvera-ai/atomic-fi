@@ -1,0 +1,308 @@
+name: Regression (vitest + bruno)
+
+# E2E regression suite — runs the real Phoenix server against the same
+# backing services as the unit tests, then drives it from two HTTP
+# clients in order:
+#
+#   1. vitest integration tests (integration-tests/) — the strict-contract
+#      layer (full OpenAPI assert_schema per response).
+#   2. Bruno scenario collection (bruno/atomic-fi-scenarios/) — the
+#      regulator-walkable layer (one scenario per regulation, with
+#      lifecycle assertions on PASS / BLOCK / FREEZE verdicts).
+#
+# Runs in parallel to the existing `test` workflow (separate file →
+# independent dispatch in Actions). Unit tests gate fast; regression
+# is the slower, broader signal.
+
+on:
+  pull_request:
+    branches: [main, develop]
+
+# One regression run per branch. The pipeline is expensive (real Phoenix
+# + 5 service containers + full vitest + 11 Bruno scenario folders) and
+# the only meaningful signal is the run for the latest commit on the
+# branch — so cancel any in-flight run when a new commit lands.
+concurrency:
+  group: regression-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MIX_ENV: dev
+  ELIXIR_VERSION: "1.18.3"
+  OTP_VERSION: "27.2"
+  NODE_VERSION: "22"
+  PNPM_VERSION: "9.15.0"
+
+jobs:
+  regression:
+    name: vitest → bruno (live Phoenix on :4100)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: atomic_fi_dev
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      watchman:
+        image: ghcr.io/alvera-ai/watchman:latest
+        ports:
+          - 8084:8084
+          - 9094:9094
+
+      zenrule:
+        image: gorules/agent:latest
+        env:
+          PROVIDER__TYPE: Filesystem
+        ports:
+          - 8090:8080
+
+      # OpenAI-compatible mock for Lotus.AI / ReqLLM. Lotus is configured
+      # below to point at /openai/v1/<...> on this instance, so any
+      # generate_text/generate_object call lands here instead of the
+      # live OpenAI / Gemini endpoint. Mappings live under
+      # priv/wiremock/openai/mappings/ and are copied in after start.
+      wiremock:
+        image: wiremock/wiremock:3.10.0
+        ports:
+          - 8085:8080
+        options: --name wiremock
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Seed ZenRule rule corpus into the service container
+        # Same pattern as test.yml: zenrule's filesystem provider starts
+        # against an empty volume; we docker cp the rules in, restart,
+        # and wait for the de_minimis project to evaluate cleanly before
+        # moving on.
+        run: |
+          docker cp priv/zenrule/. ${{ job.services.zenrule.id }}:/home/nonroot/data/
+          docker restart ${{ job.services.zenrule.id }}
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+            if curl -sf -X POST "http://localhost:8090/api/projects/transaction-screening/evaluate/de_minimis.json" \
+                 -H 'Content-Type: application/json' -d '{"context":{}}' >/dev/null 2>&1; then
+              echo "ZenRule up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "ZenRule did not come up; last logs:"
+          docker logs ${{ job.services.zenrule.id }}
+          exit 1
+
+      - name: Seed WireMock mappings (OpenAI-compatible stub for Lotus.AI)
+        run: |
+          docker cp priv/wiremock/openai/mappings/. wiremock:/home/wiremock/mappings/
+          docker restart wiremock
+          for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
+            if curl -sf "http://localhost:8085/__admin/mappings" >/dev/null 2>&1; then
+              echo "WireMock up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "WireMock did not come up; last logs:"
+          docker logs wiremock
+          exit 1
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          otp-version: ${{ env.OTP_VERSION }}
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Restore Elixir deps cache
+        # Separate key from the `test` job so the dev/test build artifacts
+        # don't fight each other (MIX_ENV differs).
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-mix-regression-${{ hashFiles('**/mix.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-mix-regression-
+
+      - name: Install Elixir deps
+        run: mix deps.get
+
+      - name: Write minimal config/dev.secret.exs
+        # The repo's dev.secret.exs is gitignored. For CI, write a minimal
+        # one that:
+        #   - enables Lotus.AI but
+        #   - points it at the WireMock service via an inline ReqLLM model
+        #     spec (provider + id + base_url). ReqLLM accepts a plain map
+        #     as a model_input and bakes base_url into the request, so no
+        #     upstream Lotus patch is needed.
+        # The /openai path segment is intentional — leaves room for
+        # /anthropic, /google, etc. mappings later.
+        run: |
+          cat > config/dev.secret.exs <<'EOF'
+          import Config
+
+          config :lotus, :ai,
+            enabled: true,
+            api_key: "wiremock",
+            model: %{
+              provider: :openai,
+              id: "mock",
+              base_url: "http://localhost:8085/openai/v1"
+            }
+          EOF
+
+      - name: Compile
+        run: mix compile
+
+      - name: Reset dev DB (schema + seed_migrations)
+        # `mix ecto.reset` runs ecto.drop + ecto.create.enhanced +
+        # ecto.migrate.enhanced; the enhanced migrate task honours the
+        # `:atomic_fi, :migration_paths` config so both
+        # `priv/repo/migrations/` and `priv/repo/seed_migrations/` run.
+        # Vanilla `mix ecto.migrate` only walks `priv/repo/migrations/`
+        # and so never installs the bootstrap system tenant + admin user
+        # + root API key that the vitest harness needs.
+        run: mix ecto.reset
+
+      - name: Dump bootstrap creds for the vitest harness
+        # Writes priv/repo/.bootstrap_creds.json — read by
+        # integration-tests/src/env.ts when TARGET_ENV=local.
+        run: mix atomic_fi.dump_bootstrap_creds
+
+      - name: Install pnpm workspace deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the SDK workspace package
+        # @atomic-fi/sdk is a workspace dep of integration-tests; vitest
+        # imports the built dist/ artefacts, so a freshly checked-out
+        # tree needs an explicit build before vitest can resolve them.
+        # (Local dev usually runs `pnpm sdk:build` once after clone;
+        # CI has no persistent state so it has to run every time.)
+        run: pnpm sdk:build
+
+      - name: Install Bruno CLI
+        run: npm install -g @usebruno/cli
+
+      - name: Start Phoenix in the background
+        # Background the server, stash the PID for cleanup, and poll the
+        # OpenAPI endpoint until it answers. /api/openapi is the same
+        # smoke target the Bruno collection uses.
+        run: |
+          mix phx.server > phoenix.log 2>&1 &
+          echo $! > .phx.pid
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:4100/api/openapi >/dev/null 2>&1; then
+              echo "Phoenix up after ${i} attempts"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Phoenix did not come up; tail of phoenix.log:"
+          tail -n 200 phoenix.log
+          kill $(cat .phx.pid) 2>/dev/null || true
+          exit 1
+        env:
+          PHX_HOST: localhost
+          PORT: "4100"
+
+      - name: Bootstrap vitest runId
+        # vitest-state/current-runid is the harness pointer file each spec
+        # uses to scope its per-runId state slice. Local dev creates this
+        # once via `pnpm state:create` and reuses it across reruns; CI has
+        # no persistent state so it has to bootstrap every run.
+        run: pnpm --filter atomic-fi-integration-tests state:create
+
+      - name: Run vitest integration suite
+        # TARGET_ENV=local makes env.ts read priv/repo/.bootstrap_creds.json
+        # rather than .env.local.
+        run: pnpm --filter atomic-fi-integration-tests test
+        env:
+          TARGET_ENV: local
+
+      - name: Seed Bruno local env
+        # The committed local.example.bru carries the deterministic dev
+        # creds that the seed migrations install; copying it gives us a
+        # valid local.bru without secrets.
+        run: cp bruno/atomic-fi-scenarios/environments/local.example.bru bruno/atomic-fi-scenarios/environments/local.bru
+
+      - name: Run Bruno scenario collections
+        # One scenario folder at a time, in order. Each folder ships its
+        # own 001-auth + 002-warmup prelude, so failures are localised
+        # to the regulation being exercised. set -e + the per-folder
+        # ::group:: gives a readable summary in the Actions log.
+        working-directory: bruno/atomic-fi-scenarios
+        run: |
+          set -e
+          for folder in \
+            smoke-tests \
+            de-minimis-ach \
+            cip-kyc-in-progress \
+            prohibited-risk-freeze \
+            ofac-sdn-high-score \
+            ah-country-kp-residence \
+            ctr-sub-threshold-structuring \
+            smurfing-pattern-sar-eligible \
+            business-ah-zero-bos \
+            ofac-mixer-usdc \
+            internal-blocklist-lastname
+          do
+            echo "::group::bru run ${folder}"
+            bru run "${folder}" --env local
+            echo "::endgroup::"
+          done
+
+      - name: Phoenix log (on failure)
+        if: failure()
+        run: |
+          if [ -f phoenix.log ]; then
+            echo "::group::phoenix.log (tail 500)"
+            tail -n 500 phoenix.log
+            echo "::endgroup::"
+          else
+            echo "no phoenix.log captured"
+          fi
+
+      - name: WireMock request journal (on failure)
+        if: failure()
+        run: |
+          curl -sf http://localhost:8085/__admin/requests 2>/dev/null \
+            | head -c 50000 || echo "no wiremock journal"
+
+      - name: Stop Phoenix
+        if: always()
+        run: |
+          if [ -f .phx.pid ]; then
+            kill $(cat .phx.pid) 2>/dev/null || true
+          fi
+
+      - name: Regression summary
+        if: always()
+        run: |
+          echo "## Regression Results" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ vitest + bruno collections green against live Phoenix" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ regression failed — see job logs + phoenix.log artifact" >> $GITHUB_STEP_SUMMARY
+          fi

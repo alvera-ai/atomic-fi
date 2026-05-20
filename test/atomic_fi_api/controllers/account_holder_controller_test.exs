@@ -412,6 +412,31 @@ defmodule AtomicFiApi.AccountHolderControllerTest do
       assert json_response(conn2, 404)
     end
 
+    test "renders 422 when account holder has dependent ledger rows", %{
+      conn: conn,
+      platform_tenant: platform_tenant
+    } do
+      # POST through the controller so the synchronous onboard pipeline runs
+      # and materialises the ledger tree. Now the AH has child rows in
+      # ledgers / ledger_accounts with ON DELETE RESTRICT → context returns
+      # {:error, changeset} → FallbackController renders 422.
+      post_conn = post(conn, ~p"/api/account-holders", create_attrs(platform_tenant.id))
+      %{"id" => ah_id} = json_response(post_conn, 201)
+
+      delete_conn = delete(conn, ~p"/api/account-holders/#{ah_id}")
+      response = json_response(delete_conn, 422)
+
+      assert %{"errors" => errors} = response
+      assert is_list(errors)
+
+      assert Enum.any?(errors, fn err ->
+               String.contains?(
+                 err["detail"] || "",
+                 "exist for this account holder"
+               )
+             end)
+    end
+
     test "returns 401 without API key", %{account_holder: account_holder} do
       conn =
         build_conn()

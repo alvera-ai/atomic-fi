@@ -464,7 +464,7 @@ defmodule AtomicFi.PaymentAccountContextTest do
       assert length(LedgerAccountContext.list_for_entity(session, updated)) == before_count
     end
 
-    test "delete_payment_account/2 is restricted by FK when LA tree exists",
+    test "delete_payment_account/2 returns {:error, changeset} when LA tree exists",
          %{session: session} do
       ah = create_ah(session, ["USD"], ["ach"])
 
@@ -477,9 +477,17 @@ defmodule AtomicFi.PaymentAccountContextTest do
           tenant_id: session.tenant_id
         })
 
-      assert_raise Ecto.ConstraintError, fn ->
-        PaymentAccountContext.delete_payment_account(session, pa)
-      end
+      # PA write lifecycle materialises a ledger_account row with
+      # payment_account_id (ON DELETE RESTRICT). Context's
+      # foreign_key_constraint guard converts the violation into a
+      # changeset error so the controller renders 422.
+      assert {:error, %Ecto.Changeset{errors: errors, valid?: false}} =
+               PaymentAccountContext.delete_payment_account(session, pa)
+
+      assert {:id, {message, [constraint: :foreign, constraint_name: _]}} =
+               List.keyfind(errors, :id, 0)
+
+      assert message =~ "exist for this payment account"
     end
   end
 end

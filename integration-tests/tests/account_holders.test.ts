@@ -1,5 +1,10 @@
 /**
  * account_holders — full CRUD + RLS for /api/account-holders.
+ *
+ * LegalEntity is created atomically via the nested `legal_entity` object on
+ * POST. The LE link is immutable post-create — replacing the AH's PII goes
+ * through the dedicated `PUT /api/account-holders/:id/legal-entity` route
+ * (covered in legal_entities.test.ts).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
@@ -9,9 +14,11 @@ import { config } from '../src/env.ts'
 import {
   apiKeyHeaders,
   bearerHeaders,
+  defaultIndividualLegalEntity,
   postAdminSession,
   safeDelete,
   UUID_RE,
+  warmupBlocklistCache,
   type AnyJson,
 } from '../src/test-helpers.ts'
 
@@ -19,7 +26,6 @@ describe('account_holders — /api/account-holders', () => {
   let bearer: string
   let primaryTenantId: string
   let secondary: SecondaryTenant
-  let legalEntityId: string
   let holderId: string
 
   beforeAll(async () => {
@@ -31,21 +37,7 @@ describe('account_holders — /api/account-holders', () => {
       platformAdminApiKey: config.platformAdminApiKey,
       prefix: 'rls-account-holders',
     })
-
-    const leRes = await fetch(`${config.baseUrl}/api/legal-entities`, {
-      method: 'POST',
-      headers: bearerHeaders(bearer),
-      body: JSON.stringify({
-        legal_entity_type: 'individual',
-        first_name: 'AHParent',
-        last_name: 'X',
-        date_of_birth: '1990-01-01',
-        citizenship_country: 'US',
-        politically_exposed_person: false,
-        tenant_id: primaryTenantId,
-      }),
-    })
-    legalEntityId = ((await leRes.json()) as { id: string }).id
+    await warmupBlocklistCache(bearer)
   })
 
   afterAll(async () => {
@@ -62,7 +54,8 @@ describe('account_holders — /api/account-holders', () => {
         kyc_status: 'not_started',
         risk_level: 'low',
         enabled_currencies: ['USD'],
-        legal_entity_id: legalEntityId,
+        chain_screening: false,
+        legal_entity: defaultIndividualLegalEntity(primaryTenantId, 'AH'),
         tenant_id: primaryTenantId,
       }),
     })
@@ -102,7 +95,6 @@ describe('account_holders — /api/account-holders', () => {
         kyc_status: 'approved',
         risk_level: 'medium',
         enabled_currencies: ['USD', 'EUR'],
-        legal_entity_id: legalEntityId,
         tenant_id: primaryTenantId,
       }),
     })
@@ -129,7 +121,8 @@ describe('account_holders — /api/account-holders', () => {
       body: JSON.stringify({
         status: 'pending',
         kyc_status: 'not_started',
-        legal_entity_id: legalEntityId,
+        chain_screening: false,
+        legal_entity: defaultIndividualLegalEntity(primaryTenantId, 'AH-Missing'),
         tenant_id: primaryTenantId,
       }),
     })
@@ -155,17 +148,23 @@ describe('account_holders — /api/account-holders', () => {
     expect(res.status).toBe(404)
   })
 
-  it('DELETE /api/account-holders/:id → 204 + GET 404', async () => {
+  it('DELETE /api/account-holders/:id → 422 when ledger tree exists', async () => {
+    // POST through the controller triggers the synchronous onboard pipeline
+    // which materialises ledgers / ledger_accounts. Those FKs are
+    // ON DELETE RESTRICT, surfaced as a changeset error → 422.
     const del = await fetch(`${config.baseUrl}/api/account-holders/${holderId}`, {
       method: 'DELETE',
       headers: bearerHeaders(bearer),
     })
-    expect(del.status).toBe(204)
+    expect(del.status, await del.clone().text()).toBe(422)
 
+    const body = (await del.json()) as { errors: { detail: string }[] }
+    expect(body.errors.some((e) => e.detail.includes('exist for this account holder'))).toBe(true)
+
+    // AH is still queryable — DELETE didn't take effect.
     const get = await fetch(`${config.baseUrl}/api/account-holders/${holderId}`, {
       headers: bearerHeaders(bearer),
     })
-    expect(get.status).toBe(404)
-    holderId = ''
+    expect(get.status).toBe(200)
   })
 })

@@ -140,10 +140,22 @@ defmodule AtomicFiApi.ApiSpec do
           "LedgerAccountRequest" => OpenApiSchema.LedgerAccountRequest.schema(),
           "LedgerAccountResponse" => OpenApiSchema.LedgerAccountResponse.schema(),
           "LedgerAccountListResponse" => OpenApiSchema.LedgerAccountListResponse.schema(),
+          # Embedded edge schema for LedgerAccount.linked_ledger_accounts[].
+          # Read-only — populated by the descendant_id propagation trigger; no
+          # request shape is ever consumed, but ExOpenApiUtils still emits a
+          # Request variant for symmetry with every other nested schema.
+          "LinkedLedgerAccountRequest" => OpenApiSchema.LinkedLedgerAccountRequest.schema(),
+          "LinkedLedgerAccountResponse" => OpenApiSchema.LinkedLedgerAccountResponse.schema(),
           # Request/Response schemas for LedgerEntry
           "LedgerEntryRequest" => OpenApiSchema.LedgerEntryRequest.schema(),
           "LedgerEntryResponse" => OpenApiSchema.LedgerEntryResponse.schema(),
           "LedgerEntryListResponse" => OpenApiSchema.LedgerEntryListResponse.schema(),
+          # Embedded ControlLimit — one row inside `limits_at_entry[]` on
+          # LedgerEntry. Request/Response split mirrors how every other nested
+          # schema in the project works (cf. LegalEntityRequest /
+          # LegalEntityResponse on AH / CP / BO).
+          "ControlLimitRequest" => OpenApiSchema.ControlLimitRequest.schema(),
+          "ControlLimitResponse" => OpenApiSchema.ControlLimitResponse.schema(),
           # Response schemas for LedgerAccountBalance (read-only — trigger-maintained)
           "LedgerAccountBalanceResponse" => OpenApiSchema.LedgerAccountBalanceResponse.schema(),
           "LedgerAccountBalanceListResponse" =>

@@ -13,17 +13,13 @@ import { config } from '../src/env.ts'
 import {
   apiKeyHeaders,
   bearerHeaders,
+  createAccountHolder,
   postAdminSession,
   safeDelete,
   UUID_RE,
+  warmupBlocklistCache,
   type AnyJson,
 } from '../src/test-helpers.ts'
-
-async function postJson(path: string, headers: Record<string, string>, body: unknown): Promise<AnyJson> {
-  const res = await fetch(`${config.baseUrl}${path}`, { method: 'POST', headers, body: JSON.stringify(body) })
-  if (!res.ok) throw new Error(`${path} → ${res.status}: ${await res.text()}`)
-  return (await res.json()) as AnyJson
-}
 
 describe('ledger_accounts — /api/ledger-accounts', () => {
   let bearer: string
@@ -43,32 +39,23 @@ describe('ledger_accounts — /api/ledger-accounts', () => {
       prefix: 'rls-ledger-accounts',
     })
 
-    const le = await postJson('/api/legal-entities', bearerHeaders(bearer), {
-      legal_entity_type: 'individual',
-      first_name: 'LAParent',
-      last_name: 'X',
-      date_of_birth: '1990-01-01',
-      citizenship_country: 'US',
-      politically_exposed_person: false,
-      tenant_id: primaryTenantId,
-    })
-    const ah = await postJson('/api/account-holders', bearerHeaders(bearer), {
-      account_holder_type: 'individual',
-      status: 'pending',
-      kyc_status: 'not_started',
-      risk_level: 'low',
-      enabled_currencies: ['USD'],
-      legal_entity_id: le.id,
-      tenant_id: primaryTenantId,
-    })
-    accountHolderId = ah.id as string
-    const ledger = await postJson('/api/ledgers', bearerHeaders(bearer), {
-      account_holder_id: accountHolderId,
-      currency: 'USD',
-      status: 'active',
-      tenant_id: primaryTenantId,
-    })
-    ledgerId = ledger.id as string
+    await warmupBlocklistCache(bearer)
+    const ah = await createAccountHolder(bearer, primaryTenantId)
+    accountHolderId = ah.id
+
+    // AH onboarding auto-materialises a USD ledger; discover it via the
+    // index (account_holder_id isn't a declared query param on the GET).
+    const list = await fetch(
+      `${config.baseUrl}/api/ledgers?page_size=100&order_by=inserted_at&order_directions=desc`,
+      { headers: bearerHeaders(bearer) },
+    )
+    if (!list.ok) throw new Error(`GET /api/ledgers → ${list.status}: ${await list.text()}`)
+    const { data } = (await list.json()) as { data: AnyJson[] }
+    const autoMat = data.find(
+      (l) => l.currency === 'USD' && l.account_holder_id === accountHolderId,
+    )
+    if (!autoMat) throw new Error('expected onboarding to auto-materialise a USD ledger')
+    ledgerId = autoMat.id as string
   })
 
   afterAll(async () => {
@@ -77,25 +64,41 @@ describe('ledger_accounts — /api/ledger-accounts', () => {
     if (accountHolderId) await safeDelete(`/api/account-holders/${accountHolderId}`, bearerHeaders(bearer))
   })
 
-  it('POST /api/ledger-accounts → 201', async () => {
-    const res = await fetch(`${config.baseUrl}/api/ledger-accounts`, {
+  it('Onboarding auto-materialises root LAs; POST a duplicate → 422', async () => {
+    // AH onboarding (via `ensure_linked_ledger_accounts`) materialises an
+    // `account_holder_root` row per ledger plus one
+    // `account_holder_regime_root` per enabled regime. The CRUD tests below
+    // operate on that auto-mat tree — POSTing a row with the same
+    // (ledger_id, regime, payment_account_id, counterparty_id) tuple hits
+    // the partial unique index → 422 "has already been taken".
+    const list = await fetch(
+      `${config.baseUrl}/api/ledger-accounts?page_size=100&order_by=inserted_at&order_directions=desc`,
+      { headers: bearerHeaders(bearer) },
+    )
+    expect(list.status).toBe(200)
+    const { data } = (await list.json()) as { data: AnyJson[] }
+    const autoMat = data.find(
+      (la) => la.ledger_id === ledgerId && la.la_type === 'account_holder_root',
+    )
+    expect(autoMat, 'onboarding should materialise an account_holder_root LA').toBeDefined()
+    accountId = (autoMat as AnyJson).id as string
+    expect(accountId).toMatch(UUID_RE)
+
+    // Duplicate POST on the same (ledger, regime, no-pa, no-cp) tuple → 422.
+    const dup = await fetch(`${config.baseUrl}/api/ledger-accounts`, {
       method: 'POST',
       headers: bearerHeaders(bearer),
       body: JSON.stringify({
         account_holder_id: accountHolderId,
         ledger_id: ledgerId,
         currency: 'USD',
-        account_type: 'asset',
+        regime: 'root',
+        la_type: 'account_holder_root',
         status: 'active',
         tenant_id: primaryTenantId,
       }),
     })
-    expect(res.status, await res.clone().text()).toBe(201)
-    const body = (await res.json()) as AnyJson
-    expect(body.id).toMatch(UUID_RE)
-    expect(body.account_type).toBe('asset')
-    expect(body.ledger_id).toBe(ledgerId)
-    accountId = body.id as string
+    expect(dup.status).toBe(422)
   })
 
   it('GET /api/ledger-accounts → 200 contains created', async () => {
@@ -124,7 +127,8 @@ describe('ledger_accounts — /api/ledger-accounts', () => {
         account_holder_id: accountHolderId,
         ledger_id: ledgerId,
         currency: 'USD',
-        account_type: 'asset',
+        regime: 'root',
+        la_type: 'account_holder_root',
         status: 'closed',
         tenant_id: primaryTenantId,
       }),
@@ -151,7 +155,8 @@ describe('ledger_accounts — /api/ledger-accounts', () => {
       body: JSON.stringify({
         account_holder_id: accountHolderId,
         ledger_id: ledgerId,
-        account_type: 'asset',
+        regime: 'ach',
+        la_type: 'account_holder_regime_root',
         status: 'active',
         tenant_id: primaryTenantId,
       }),

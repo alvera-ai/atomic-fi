@@ -396,6 +396,32 @@ defmodule AtomicFiApi.PaymentAccountControllerTest do
       assert json_response(conn2, 404)
     end
 
+    test "renders 422 when payment account has dependent ledger_accounts", %{
+      conn: conn,
+      platform_tenant: platform_tenant,
+      account_holder: account_holder
+    } do
+      # POSTing a PA through the controller runs the PA write lifecycle
+      # which materialises a ledger_accounts row referencing
+      # payment_account_id (ON DELETE RESTRICT). The context's
+      # foreign_key_constraint guard converts the FK violation into a
+      # changeset error → 422. The shared setup hook already seeded a USD
+      # Ledger for `account_holder`, which the PA lifecycle requires.
+      post_conn =
+        post(conn, ~p"/api/payment-accounts", create_attrs(platform_tenant.id, account_holder.id))
+
+      %{"id" => pa_id} = json_response(post_conn, 201)
+
+      delete_conn = delete(conn, ~p"/api/payment-accounts/#{pa_id}")
+      response = json_response(delete_conn, 422)
+
+      assert %{"errors" => errors} = response
+
+      assert Enum.any?(errors, fn err ->
+               String.contains?(err["detail"] || "", "exist for this payment account")
+             end)
+    end
+
     test "returns 401 without API key", %{payment_account: payment_account} do
       conn =
         build_conn()
