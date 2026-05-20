@@ -18,6 +18,14 @@ on:
   pull_request:
     branches: [main, develop]
 
+# One regression run per branch. The pipeline is expensive (real Phoenix
+# + 5 service containers + full vitest + 11 Bruno scenario folders) and
+# the only meaningful signal is the run for the latest commit on the
+# branch — so cancel any in-flight run when a new commit lands.
+concurrency:
+  group: regression-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   MIX_ENV: dev
   ELIXIR_VERSION: "1.18.3"
@@ -184,13 +192,15 @@ jobs:
         run: mix atomic_fi.dump_bootstrap_creds
 
       - name: Install pnpm workspace deps
-        # `--no-frozen-lockfile` because the committed lockfile drifts
-        # against package.json's `patchedDependencies` block (jdm-editor
-        # patch). The drift is harmless — pnpm just regenerates the
-        # missing section on install — but `--frozen-lockfile` treats
-        # it as a hard error. Once the lockfile is re-committed in step
-        # with package.json this can flip back to `--frozen-lockfile`.
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the SDK workspace package
+        # @atomic-fi/sdk is a workspace dep of integration-tests; vitest
+        # imports the built dist/ artefacts, so a freshly checked-out
+        # tree needs an explicit build before vitest can resolve them.
+        # (Local dev usually runs `pnpm sdk:build` once after clone;
+        # CI has no persistent state so it has to run every time.)
+        run: pnpm sdk:build
 
       - name: Install Bruno CLI
         run: npm install -g @usebruno/cli
@@ -216,6 +226,13 @@ jobs:
         env:
           PHX_HOST: localhost
           PORT: "4100"
+
+      - name: Bootstrap vitest runId
+        # vitest-state/current-runid is the harness pointer file each spec
+        # uses to scope its per-runId state slice. Local dev creates this
+        # once via `pnpm state:create` and reuses it across reruns; CI has
+        # no persistent state so it has to bootstrap every run.
+        run: pnpm --filter atomic-fi-integration-tests state:create
 
       - name: Run vitest integration suite
         # TARGET_ENV=local makes env.ts read priv/repo/.bootstrap_creds.json
