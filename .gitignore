@@ -62,3 +62,10 @@ node_modules/
 # macOS Finder metadata.
 **/.DS_Store
 
+# Example-app Vite build output — produced by `make server` watchers
+# into priv/static/demo/<app>/, served by Plug.Static. Each example
+# app's source lives under example-apps/<app>/; the dist is throwaway.
+/priv/static/demo/onboarding-flow/
+/priv/static/demo/atomic-fi-jdm-editor/
+/priv/static/demo/lotus-embed/
+
