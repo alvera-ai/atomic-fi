@@ -520,10 +520,6 @@ importers:
         version: 2.1.9(@types/node@22.19.17)(jsdom@20.0.3)(lightningcss@1.32.0)
 
   packages/sdk:
-    dependencies:
-      '@hey-api/client-fetch':
-        specifier: ^0.7.3
-        version: 0.7.3
     devDependencies:
       '@hey-api/openapi-ts':
         specifier: ^0.97.0
@@ -1378,10 +1374,6 @@ packages:
     peerDependencies:
       react: ^18 || ^19 || ^19.0.0-rc
       react-dom: ^18 || ^19 || ^19.0.0-rc
-
-  '@hey-api/client-fetch@0.7.3':
-    resolution: {integrity: sha512-nysIXMag9nr5ENy+47G0AYsegdT7vT6S4KLfY7NVgM6HsyZ0DrhCZvz5nP70M16x9i860SrnXhjpcuHx0g5sDQ==}
-    deprecated: Starting with v0.73.0, this package is bundled directly inside @hey-api/openapi-ts.
 
   '@hey-api/codegen-core@0.8.1':
     resolution: {integrity: sha512-Iciv2vUCJTW9lWM/ROvyZLblmcbYJHPuXfzb1SzeDVVn4xEXu2ilLU1pq3fn+09FZ/Y0P7VyvRE47UDU6om8xA==}
@@ -8843,8 +8835,6 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
       use-sync-external-store: 1.6.0(react@18.3.1)
-
-  '@hey-api/client-fetch@0.7.3': {}
 
   '@hey-api/codegen-core@0.8.1':
     dependencies:

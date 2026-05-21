@@ -18,9 +18,6 @@
     "version:check": "tsx scripts/sync-version.ts --check",
     "check": "pnpm version:check && tsc --noEmit"
   },
-  "dependencies": {
-    "@hey-api/client-fetch": "^0.7.3"
-  },
   "devDependencies": {
     "@hey-api/openapi-ts": "^0.97.0",
     "@types/node": "^22.10.0",
