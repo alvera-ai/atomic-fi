@@ -31,6 +31,13 @@ config :atomic_fi, :document_parser,
   vision_model_id: "llama3.2-vision:11b",
   base_url: "http://localhost:11434/v1"
 
+# AtomicFiWeb.Copilotkit defaults — same Ollama transport (ReqLLM
+# OpenAI-compat path), different model. The JDM copilot wants a
+# reasoning model, not a vision one.
+config :atomic_fi, :copilotkit,
+  reasoning_model_id: "qwen2.5:7b",
+  base_url: "http://localhost:11434/v1"
+
 # Configures the endpoint
 config :atomic_fi, AtomicFiWeb.Endpoint,
   url: [host: "localhost"],

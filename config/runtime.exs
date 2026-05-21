@@ -39,6 +39,21 @@ if parser_overrides != [] do
   config :atomic_fi, :document_parser, parser_overrides
 end
 
+# AtomicFiWeb.Copilotkit env overrides — same pattern as the parser
+# above. The JDM copilot model swap is OLLAMA_REASONING_MODEL.
+copilot_overrides =
+  Enum.reject(
+    [
+      reasoning_model_id: System.get_env("OLLAMA_REASONING_MODEL"),
+      base_url: System.get_env("LITER_LLM_BASE_URL")
+    ],
+    fn {_k, v} -> v in [nil, ""] end
+  )
+
+if copilot_overrides != [] do
+  config :atomic_fi, :copilotkit, copilot_overrides
+end
+
 if config_env() == :prod do
   # Watchman sanctions screening service
   watchman_url =

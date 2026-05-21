@@ -59,6 +59,18 @@ defmodule AtomicFiWeb.Router do
     use AtomicFiApi.Routes
   end
 
+  # CopilotKit Runtime Protocol passthrough.
+  #
+  # Not modeled in OpenApiSpex — CopilotKit's GraphQL schema is the
+  # spec. Industry default for protocol passthroughs (GitHub /graphql,
+  # Stripe webhook receivers, Apollo, AWS Lambda Proxy) is to leave the
+  # endpoint out of one's own REST spec. Lives in `atomic_fi_web`, not
+  # `atomic_fi_api`. See AtomicFiWeb.CopilotkitController moduledoc.
+  scope "/api", AtomicFiWeb do
+    pipe_through :api
+    post "/copilotkit", CopilotkitController, :create
+  end
+
   # Lotus dashboard — authenticated via embed token in query param
   scope "/" do
     pipe_through :lotus_embed
