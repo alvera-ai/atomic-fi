@@ -129,7 +129,10 @@ defmodule AtomicFi.MixProject do
       # HTTP client
       {:req, "~> 0.5"},
 
-      # Lotus — embeddable SQL editor & dashboard (LiveView)
+      # Lotus — embeddable SQL editor & dashboard (LiveView).
+      # Brings `:req_llm` transitively; AtomicFi.DocumentParser and
+      # AtomicFiWeb.Copilotkit both drive Ollama through req_llm,
+      # so no separate LLM client dep is needed.
       {:lotus_web, "~> 0.14.5"},
 
       # Money / currency arithmetic
