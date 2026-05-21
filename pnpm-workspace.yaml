@@ -4,3 +4,4 @@ packages:
   - 'atomic-fi-web'
   - 'example-apps/atomic-fi-jdm-editor'
   - 'example-apps/onboarding-flow'
+  - 'example-apps/lotus-embed'
