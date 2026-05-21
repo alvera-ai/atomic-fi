@@ -23,6 +23,7 @@ import { DecisionSimplePage } from './pages/decision-simple.tsx';
 import { NotFoundPage } from './pages/not-found';
 import { RulesIndexPage } from './pages/rules-index.tsx';
 import { ThemeContextProvider } from './context/theme.provider.tsx';
+import { CopilotProvider } from './copilot/copilot-provider';
 
 await zenWasm.default(zenWasmUrl);
 
@@ -37,7 +38,11 @@ const router = createBrowserRouter([
   },
   {
     path: '/rules/:ruleType/:name',
-    element: <DecisionSimplePage />,
+    element: (
+      <CopilotProvider>
+        <DecisionSimplePage />
+      </CopilotProvider>
+    ),
   },
   {
     path: '*',
