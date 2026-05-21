@@ -9,7 +9,13 @@
 #     mix test --only use_cases
 #
 # (or:  mix test --include use_cases  to add them alongside the unit suite)
-ExUnit.start(exclude: [:use_cases])
+# Tests in test/atomic_fi/document_parser_test.exs and its controller
+# counterpart hit a live Ollama vision model. They require:
+#   * `ollama serve` running on http://localhost:11434
+#   * `ollama pull llama3.2-vision:11b` (multi-GB model)
+# So they're tagged :ollama and excluded by default. Run with:
+#   mix test --only ollama
+ExUnit.start(exclude: [:use_cases, :ollama])
 
 # Sweep any test_*.json rules left in priv/zenrule by crashed test runs.
 AtomicFi.RulesTestHelper.cleanup_orphaned_test_rules()

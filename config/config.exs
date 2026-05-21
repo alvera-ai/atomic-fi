@@ -22,6 +22,15 @@ config :atomic_fi,
     }
   ]
 
+# AtomicFi.DocumentParser defaults — Ollama via ReqLLM's OpenAI-compat
+# path. Production deployments can switch the provider by overriding
+# `vision_model_id` + `base_url` (set in config/runtime.exs from
+# OLLAMA_VISION_MODEL / LITER_LLM_BASE_URL env vars, or replace with
+# `google:gemini-1.5-pro` / `anthropic:claude-...` for cloud models).
+config :atomic_fi, :document_parser,
+  vision_model_id: "llama3.2-vision:11b",
+  base_url: "http://localhost:11434/v1"
+
 # Configures the endpoint
 config :atomic_fi, AtomicFiWeb.Endpoint,
   url: [host: "localhost"],
