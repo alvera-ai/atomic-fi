@@ -380,38 +380,56 @@ The cookbook MDX (planned) is the third generated artifact — produced by `vite
 
 ### Prerequisites
 
-- **Erlang**: 27.3.3
-- **Elixir**: 1.18.3-otp-27
+- **Erlang**: 27.3.3 / **Elixir**: 1.18.3-otp-27 (see `.tool-versions`)
 - **PostgreSQL**: 17.2
-- **Watchman** (sanctions screening): `make run-watchman` (pulls `moov/watchman:v0.61.1`)
+- **Docker**: backing services (ZenRule + Watchman)
+- **Ollama**: native daemon for local AI (no API keys required)
+  - `brew install ollama && ollama serve`
+  - `ollama pull llama3.2-vision:11b`   (document parser at `/api/parse`)
+  - `ollama pull qwen2.5:7b`           (JDM copilot at `/api/copilotkit`)
+- **poppler**: PDF rasterization for the document parser
+  - `brew install poppler`   (macOS) / `apt-get install poppler-utils` (Linux)
+- **pnpm**: example-app builds (auto-run by `make server` as Phoenix
+  watchers — install via `corepack enable` or `brew install pnpm`)
 
-See `.tool-versions` for exact versions.
+**No Rust toolchain required.** The LLM transport (ReqLLM) is pure
+Elixir; the future ZenRule NIF (ADR-001 §Decision 3) will ship as
+a precompiled binary too.
 
 ### Setup
 
 ```bash
-# Install dependencies
+# Install Elixir + JS deps
 mix deps.get
+pnpm install
+
+# Start backing services (ZenRule + Watchman) — once per boot
+make run-backing-services
 
 # Create DB, run migrations, seed
 mix ecto.setup
 
-# Start Watchman (sanctions screening + custom watchlist)
-make run-watchman
-
-# Ingest the custom watchlist into Watchman
-curl -X POST http://localhost:8084/v2/ingest/custom_watchlist \
-  -H "Content-Type: application/octet-stream" \
-  --data-binary @custom-watchlist.jsonl
-
-# Start server
-mix phx.server
+# Start everything: Phoenix + example-app build watchers
+make server
 ```
 
 **Visit:**
 
+- **Home (demo list)**: http://localhost:4100/
 - **API Docs**: http://localhost:4100/api/docs
 - **OpenAPI Spec**: http://localhost:4100/api/openapi
+
+### Demos (`/`)
+
+The home page links each example app. Each one is a standalone Vite
+build under `example-apps/<app>/`, rebuilt on file change by Phoenix's
+`:watchers` and served by Plug.Static under `/demo/<app>/`:
+
+| Path                                | What |
+|-------------------------------------|------|
+| `/demo/onboarding-flow/`            | Document extraction (`POST /api/parse`) |
+| `/demo/atomic-fi-jdm-editor/`       | JDM editor + CopilotKit (`POST /api/copilotkit`) |
+| `/demo/lotus-embed/`                | Lotus SQL editor + dashboard embed |
 
 ### Verify Watchman
 

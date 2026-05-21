@@ -236,7 +236,7 @@ up: run-backing-services
 	@echo "🛠  Setting up database..."
 	@mix ecto.setup
 	@$(MAKE) seed
-	@echo "✅ Stack ready. Run 'make server' (atomic-fi API) and 'make sight' (atomic-sight UI) in separate terminals."
+	@echo "✅ Stack ready. Run 'make server' — Phoenix + example-app build watchers run together."
 
 down: stop-backing-services
 
@@ -248,10 +248,6 @@ seed:
 	fi
 	@mix bench.seed
 
-sight:
-	@echo "🎨 Starting atomic-sight-insight dev server..."
-	@cd packages/atomic-sight-insight && pnpm dev
-
 test-integration:
 	@echo "🧪 Running vitest integration suite..."
 	@cd integration-tests && pnpm test
@@ -259,20 +255,6 @@ test-integration:
 test-playwright:
 	@echo "🎭 Running playwright e2e suite..."
 	@cd playwright-e2e && pnpm test
-
-DOC_AGENT_DIR := example-apps/document-agent-server
-
-ai-doc.install:
-	@echo "Installing document-agent dependencies..."
-	@$(MAKE) -C $(DOC_AGENT_DIR) install
-
-ai-doc.server:
-	@echo "Starting document-agent API server..."
-	@$(MAKE) -C $(DOC_AGENT_DIR) server
-
-ai-doc.check:
-	@echo "Running document-agent quality suite..."
-	@$(MAKE) -C $(DOC_AGENT_DIR) check
 
 help:
 	@echo "Payments Compliance Platform - Available Commands"
@@ -291,16 +273,10 @@ help:
 	@echo "  make run-watchman            - Start Watchman standalone"
 	@echo "  make stop-watchman           - Stop Watchman"
 	@echo ""
-	@echo "Document Agent (AI Doc Processing):"
-	@echo "  make ai-doc.install          - Install document-agent deps"
-	@echo "  make ai-doc.server           - Start document-agent API (port 8100)"
-	@echo "  make ai-doc.check            - Run full quality suite (lint/types/test/audit)"
-	@echo ""
 	@echo "One-shot:"
-	@echo "  make up                      - Backing services + db + seed (then run 'make server' and 'make sight')"
+	@echo "  make up                      - Backing services + db + seed (then run 'make server')"
 	@echo "  make down                    - Stop backing services"
 	@echo "  make seed                    - (Re)seed db from priv/corpus/out, generating corpus if missing"
-	@echo "  make sight                   - Start atomic-sight-insight Vite dev server"
 	@echo "  make test-integration        - Run vitest integration suite"
 	@echo "  make test-playwright         - Run playwright e2e suite"
 	@echo ""
