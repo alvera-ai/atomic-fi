@@ -85,26 +85,55 @@ interface ExtractionResponse {
   results: ExtractionResult[];
 }
 
+// Encode a File as base64. We use FileReader → readAsDataURL → strip
+// the `data:<mime>;base64,` prefix; this avoids fragile chunking for
+// large files and works in every browser.
+async function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const comma = result.indexOf(",");
+      resolve(comma >= 0 ? result.slice(comma + 1) : result);
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 export async function extractDocuments(
   files: File[],
   docTypes: DocumentType[],
 ): Promise<ExtractionResponse> {
-  const formData = new FormData();
-  const metadata = docTypes.map((dt) => {
-    const serverType = DOC_TYPE_MAP[dt];
-    const custom = CUSTOM_SCHEMAS[dt];
-    if (serverType === "custom" && custom) {
-      return { document_type: "custom", output_schema: custom.schema, prompt: custom.prompt };
-    }
-    return { document_type: serverType };
+  // Replaces the old multipart POST /extract (Python document-agent-server)
+  // with the JSON+base64 POST /api/parse contract — same response shape, new
+  // request envelope. See AtomicFi.OpenApiSchema.ParseRequest for the
+  // OpenAPI spec.
+  const payload = {
+    files: await Promise.all(
+      files.map(async (file, i) => {
+        const serverType = DOC_TYPE_MAP[docTypes[i]];
+        const custom = CUSTOM_SCHEMAS[docTypes[i]];
+        const base: Record<string, unknown> = {
+          name: file.name,
+          content_type: file.type || "application/octet-stream",
+          document_type: serverType,
+          data_base64: await fileToBase64(file),
+        };
+        if (serverType === "custom" && custom) {
+          base.output_schema = custom.schema;
+          base.prompt = custom.prompt;
+        }
+        return base;
+      }),
+    ),
+  };
+
+  const res = await fetch("/api/parse", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
   });
-
-  for (const file of files) {
-    formData.append("files", file);
-  }
-  formData.append("metadata", JSON.stringify(metadata));
-
-  const res = await fetch("/extract", { method: "POST", body: formData });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Extraction failed (${res.status}): ${text}`);
