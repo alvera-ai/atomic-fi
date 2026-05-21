@@ -52,18 +52,6 @@ export function StepReview() {
     (step) => !application.completed_steps.includes(step.id) && step.id !== 10,
   );
 
-  const apiConfigured = !!(import.meta.env.VITE_API_KEY && import.meta.env.VITE_TENANT_ID);
-
-  const markSubmitted = () => {
-    const updatedApp = {
-      ...application,
-      status: "SUBMITTED" as const,
-      updated_at: new Date().toISOString(),
-    };
-    saveApplication(updatedApp);
-    return updatedApp;
-  };
-
   const handleSubmit = async () => {
     if (incompleteSteps.length > 0) {
       toast.error("Please complete all steps before submitting");
@@ -79,14 +67,6 @@ export function StepReview() {
     }
 
     setSubmitting(true);
-
-    if (!apiConfigured) {
-      markSubmitted();
-      toast.success("Application submitted (localStorage only — API not configured)");
-      navigate(`/status/${applicationId}`);
-      setSubmitting(false);
-      return;
-    }
 
     try {
       const result = await submitOnboarding(application);
@@ -115,18 +95,6 @@ export function StepReview() {
         <h1 className="text-2xl font-bold text-foreground">Review & submit</h1>
         <p className="text-muted-foreground mt-1">Review your application before submitting.</p>
       </div>
-
-      {!apiConfigured && (
-        <Card className="border-amber-500/50 bg-amber-500/5">
-          <CardContent className="pt-4">
-            <p className="text-sm text-amber-700 dark:text-amber-400">
-              API not configured. Set <code className="font-mono text-xs">VITE_API_KEY</code> and{" "}
-              <code className="font-mono text-xs">VITE_TENANT_ID</code> in{" "}
-              <code className="font-mono text-xs">.env.local</code> to submit to the backend.
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Steps completion status */}
       <Card>

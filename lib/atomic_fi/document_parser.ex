@@ -130,9 +130,11 @@ defmodule AtomicFi.DocumentParser do
   end
 
   defp generate_opts(opts) do
+    config = Application.fetch_env!(:atomic_fi, :document_parser)
+
     Keyword.merge(
-      [temperature: 0.0],
-      Keyword.take(opts, [:temperature, :max_tokens, :provider_options])
+      [temperature: 0.0, api_key: Keyword.fetch!(config, :api_key)],
+      Keyword.take(opts, [:temperature, :max_tokens, :provider_options, :api_key])
     )
   end
 

@@ -52,6 +52,14 @@ defmodule AtomicFiWeb.Router do
 
     # Scalar API documentation UI (HTML/JS from CDN)
     get "/api/docs", ScalarController, :index
+
+    # Example-app SPA fallback. Plug.Static (endpoint) serves the built
+    # assets under /demo/<app>/assets/*; these two routes serve the
+    # app's index.html for the bare app root and any client-side route
+    # so the SPA's React Router (basename = /demo/<app>/) resolves it.
+    # Plug.Static runs first, so only non-file paths reach here.
+    get "/demo/:app", PageController, :demo_app
+    get "/demo/:app/*path", PageController, :demo_app
   end
 
   # Delegate API routes (uses routes.ex macro)

@@ -59,6 +59,10 @@ node_modules/
 # Dev secrets (API keys) — never commit.
 /config/dev.secret.exs
 
+# Local test overrides (LLM transport → Ollama). No secrets, but
+# per-developer — not committed.
+/config/test.secret.exs
+
 # macOS Finder metadata.
 **/.DS_Store
 
@@ -72,4 +76,8 @@ node_modules/
 # Example-app local dev secrets (Vite reads .env files).
 /example-apps/*/.env
 /example-apps/*/.env.local
+
+# Playwright run artefacts (screenshots, traces) — regenerated per run.
+/example-apps/*/test-results/
+/example-apps/*/playwright-report/
 

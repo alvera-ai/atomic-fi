@@ -21,7 +21,10 @@ import StatusPage from "@/features/ops/pages/Status";
 
 export function AppRoutes() {
   return (
-    <BrowserRouter>
+    // basename = the Vite `base` ("/demo/onboarding-flow/" in this repo,
+    // "/" elsewhere). Phoenix serves the app under that prefix via
+    // Plug.Static, so the router must strip it before matching routes.
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Routes>
         <Route path="/" element={<Navigate to="/start" replace />} />
 

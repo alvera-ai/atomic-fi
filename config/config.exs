@@ -29,7 +29,10 @@ config :atomic_fi,
 # `google:gemini-1.5-pro` / `anthropic:claude-...` for cloud models).
 config :atomic_fi, :document_parser,
   vision_model_id: "llama3.2-vision:11b",
-  base_url: "http://localhost:11434/v1"
+  base_url: "http://localhost:11434/v1",
+  # ReqLLM's OpenAI provider requires a credential even though Ollama
+  # ignores it. A cloud deployment overrides this with a real key.
+  api_key: "ollama"
 
 # AtomicFiWeb.Copilotkit defaults — same Ollama transport (ReqLLM
 # OpenAI-compat path), different model. The JDM copilot wants a
@@ -37,6 +40,13 @@ config :atomic_fi, :document_parser,
 config :atomic_fi, :copilotkit,
   reasoning_model_id: "qwen2.5:7b",
   base_url: "http://localhost:11434/v1"
+
+# ReqLLM HTTP receive timeouts. Local Ollama models — vision extraction
+# especially — are far slower than cloud APIs; ReqLLM's 30s/120s defaults
+# time out mid-generation. 5 minutes is a generous ceiling for both.
+config :req_llm,
+  receive_timeout: :timer.minutes(5),
+  image_receive_timeout: :timer.minutes(5)
 
 # Configures the endpoint
 config :atomic_fi, AtomicFiWeb.Endpoint,

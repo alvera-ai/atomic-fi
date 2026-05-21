@@ -27,7 +27,9 @@ defmodule AtomicFiApi.ParseController do
   tags(["Documents"])
 
   @max_concurrency 4
-  @per_file_timeout :timer.seconds(120)
+  # Local vision models (Ollama) are slow at JSON-schema-constrained
+  # extraction; a single file can take a few minutes on modest hardware.
+  @per_file_timeout :timer.minutes(5)
 
   operation(:create,
     summary: "Extract structured data from documents",

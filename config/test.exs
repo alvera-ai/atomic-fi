@@ -99,3 +99,11 @@ config :phoenix, :plug_init_mode, :runtime
 import_config "openapi_servers.#{config_env()}.exs"
 
 # Migration paths inherit from config.exs (migrations + seed_migrations); no override.
+
+# Local test overrides — points the LLM-backed features (document parser,
+# JDM copilot, Lotus AI) at a real local Ollama (see config/test.secret.exs).
+# Optional + gitignored, per-developer. Once WireMock LLM stubs land they
+# become the test.exs default and this file is the opt-out back to Ollama.
+if File.exists?(Path.expand("test.secret.exs", __DIR__)) do
+  import_config "test.secret.exs"
+end

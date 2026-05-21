@@ -423,13 +423,15 @@ make server
 
 The home page links each example app. Each one is a standalone Vite
 build under `example-apps/<app>/`, rebuilt on file change by Phoenix's
-`:watchers` and served by Plug.Static under `/demo/<app>/`:
+`:watchers`. Plug.Static serves the built assets; a small SPA-fallback
+route (`PageController.demo_app`) serves `index.html` for the app root
+and client-side routes:
 
-| Path                                | What |
-|-------------------------------------|------|
-| `/demo/onboarding-flow/`            | Document extraction (`POST /api/parse`) |
-| `/demo/atomic-fi-jdm-editor/`       | JDM editor + CopilotKit (`POST /api/copilotkit`) |
-| `/demo/lotus-embed/`                | Lotus SQL editor + dashboard embed |
+| Path                            | What |
+|---------------------------------|------|
+| `/demo/onboarding-flow/`        | Document extraction (`POST /api/parse`) |
+| `/demo/atomic-fi-jdm-editor/`   | JDM editor + CopilotKit (`POST /api/copilotkit`) |
+| `/demo/lotus-embed/`            | Lotus SQL editor + dashboard embed |
 
 ### Verify Watchman
 

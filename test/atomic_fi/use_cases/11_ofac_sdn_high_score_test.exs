@@ -3,7 +3,7 @@ defmodule AtomicFi.UseCases.OfacSdnHighScoreTest do
   Catalog row #11 of guides/use-cases.md — `ofac_sdn_high_score`.
 
   Verifies the committed golden corpus at
-  `corpus/zen_rules/ofac_sdn_high_score/` still produces the catalog verdict
+  `corpus/zen_rules/ofac_sdn_match/` still produces the catalog verdict
   end-to-end against the live engine. Subprocess driver — see
   `AtomicFi.UseCases.CorpusRunner`.
   """
@@ -15,6 +15,6 @@ defmodule AtomicFi.UseCases.OfacSdnHighScoreTest do
   @moduletag :use_cases
 
   test "ofac_sdn_high_score corpus matches every _expected verdict" do
-    CorpusRunner.assert_golden!("ofac_sdn_high_score")
+    CorpusRunner.assert_golden!("ofac_sdn_match")
   end
 end

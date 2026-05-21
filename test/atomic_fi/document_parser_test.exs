@@ -26,6 +26,23 @@ defmodule AtomicFi.DocumentParserTest do
     end
   end
 
+  # Ported from example-apps/onboarding-flow/e2e/ai-extraction.spec.ts —
+  # the extraction half. Drives the local Ollama vision model — the only
+  # LLM transport this repo has today, so it runs in the normal suite.
+  describe "parse/4 — document extraction (ai-extraction.spec.ts)" do
+    @passport Path.expand("../support/fixtures/documents/usa-passport.jpg", __DIR__)
+
+    # Real local vision extraction is slow — well past ExUnit's 60s default.
+    # Sits above ReqLLM's 5-min receive timeout so that surfaces first.
+    @tag timeout: 360_000
+    test "extracts structured data from a passport image" do
+      bytes = File.read!(@passport)
+
+      assert {:ok, data, _usage} = DocumentParser.parse(bytes, "image/jpeg", "passport")
+      assert is_map(data) and map_size(data) > 0
+    end
+  end
+
   # A 1x1 transparent PNG (smallest valid PNG bytes — sufficient to
   # exercise the image-content-part branch without hitting an LLM).
   defp tiny_png do

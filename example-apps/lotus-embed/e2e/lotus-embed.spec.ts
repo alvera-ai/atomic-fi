@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 const BACKEND = "http://localhost:4100";
 
 async function loginAndEmbed(page: import("@playwright/test").Page) {
-  await page.goto("/");
+  await page.goto("./");
   await expect(page.locator("h1")).toContainText("Lotus Embed");
 
   // Login with seeded creds (pre-filled)
@@ -68,7 +68,7 @@ test.describe("Lotus secure embed — full flow", () => {
     await expect(frame.locator("table tbody tr").first()).toBeVisible({ timeout: 15_000 });
   });
 
-  test("AI assistant generates SQL query with Gemini", async ({ page }) => {
+  test("AI assistant generates SQL query with Ollama", async ({ page }) => {
     const frame = await loginAndEmbed(page);
 
     // Lotus lands on queries list — navigate to editor
@@ -135,7 +135,7 @@ test.describe("Lotus secure embed — full flow", () => {
   });
 
   test("refresh token re-enters token exchange step", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("./");
     await page.locator("button", { hasText: "Login" }).click();
     await expect(page.locator("h2", { hasText: "Exchange Bearer" })).toBeVisible({
       timeout: 10_000,

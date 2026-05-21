@@ -152,6 +152,20 @@ config :atomic_fi, AtomicFi.LotusRepo,
   database: "atomic_fi_dev",
   pool_size: 5
 
+# Lotus AI — the embedded Lotus dashboard's natural-language SQL
+# copilot. Hand ReqLLM a model map pointed at the local Ollama
+# OpenAI-compatible endpoint (the same transport the JDM copilot and
+# the document parser use) so the demo build needs no cloud LLM key.
+# Lotus passes this `model` value straight through to ReqLLM; the
+# inline map carries its own `base_url`, so no global :req_llm
+# provider override is needed. A developer can override this with a
+# real cloud provider in config/dev.secret.exs — that import runs
+# after this block, so it wins.
+config :lotus, :ai,
+  enabled: true,
+  api_key: "ollama",
+  model: %{provider: :openai, id: "qwen3.5:9b", base_url: "http://localhost:11434/v1"}
+
 # Import OpenAPI server configuration
 import_config "openapi_servers.#{config_env()}.exs"
 

@@ -10,7 +10,9 @@ defmodule AtomicFiWeb.PageControllerTest do
     # atomic-fi branding (not the Phoenix scaffold copy)
     assert body =~ "OSS compliance platform for payments"
 
-    # Each example app appears with both label and link href
+    # Each example app appears with label + bare /demo/<app>/ href.
+    # The bare path is served index.html by the demo_app SPA fallback;
+    # the app's React Router (basename /demo/<app>/) then resolves it.
     assert body =~ "Onboarding flow"
     assert body =~ ~s(href="/demo/onboarding-flow/")
     assert body =~ "JDM editor + copilot"
@@ -19,21 +21,26 @@ defmodule AtomicFiWeb.PageControllerTest do
     assert body =~ ~s(href="/demo/lotus-embed/")
   end
 
-  test "GET /demo/<app>/ serves the static index via Plug.Static", %{conn: conn} do
-    # In dev/test the build is produced by `mix server`'s vite watchers; in
-    # this unit test we drop a placeholder so Plug.Static has something to
-    # find. The route itself isn't declared in the router — Plug.Static
-    # matches first because "demo" is in AtomicFiWeb.static_paths/0.
+  test "GET /demo/<app>/ + a deep link both serve the SPA shell", %{conn: conn} do
+    # In dev/test the build is produced by `make server`'s vite
+    # watchers; in this unit test we drop a placeholder so the
+    # demo_app fallback has an index.html to send.
     placeholder = "priv/static/demo/onboarding-flow/index.html"
     File.mkdir_p!(Path.dirname(placeholder))
     File.write!(placeholder, "<h1>onboarding-flow placeholder</h1>")
 
-    body =
-      conn
-      |> get("/demo/onboarding-flow/index.html")
-      |> response(200)
+    # bare app root
+    assert conn |> get("/demo/onboarding-flow/") |> response(200) =~
+             "onboarding-flow placeholder"
 
-    assert body =~ "onboarding-flow placeholder"
+    # a client-side route (deep link / refresh) — no such file exists,
+    # the SPA fallback still serves index.html
+    assert build_conn() |> get("/demo/onboarding-flow/onboarding/abc/identity") |> response(200) =~
+             "onboarding-flow placeholder"
+  end
+
+  test "GET /demo/<unknown>/ is a 404", %{conn: conn} do
+    assert conn |> get("/demo/not-a-real-app/") |> response(404) =~ "Unknown demo"
   end
 
   test "GET /health-check returns 200 with status ok", %{conn: conn} do

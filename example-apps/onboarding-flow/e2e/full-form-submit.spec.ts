@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
+import { connectGate } from "./connect";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const credsPath = resolve(here, "../../../priv/repo/.bootstrap_creds.json");
@@ -83,7 +84,8 @@ test.describe("Full flow: AI extract → fill all forms → submit → backend v
     page,
   }) => {
     // ── Start application ──────────────────────────────────────
-    await page.goto("/start");
+    await page.goto("start");
+    await connectGate(page);
     await expect(page.locator("h1", { hasText: "Start your application" })).toBeVisible({
       timeout: 10_000,
     });
@@ -107,7 +109,7 @@ test.describe("Full flow: AI extract → fill all forms → submit → backend v
     await expect(page.locator("text=document(s) processed")).toBeVisible({ timeout: 90_000 });
 
     // ── Step 2: Verify AI-extracted identity fields ────────────
-    await page.goto(`/onboarding/${applicationId}/identity`);
+    await page.goto(`onboarding/${applicationId}/identity`);
     await expect(page.locator("h1", { hasText: "Business identity" })).toBeVisible();
 
     // MOA should have extracted company name
@@ -133,13 +135,13 @@ test.describe("Full flow: AI extract → fill all forms → submit → backend v
     await page.waitForTimeout(500);
 
     // ── Step 8: Verify directors extracted from MOA ─────────────
-    await page.goto(`/onboarding/${applicationId}/directors`);
+    await page.goto(`onboarding/${applicationId}/directors`);
     await expect(page.locator("main").locator("text=Sheikh Saud").first()).toBeVisible({
       timeout: 5_000,
     });
 
     // ── Step 9: Verify UBOs extracted from MOA shareholders ────
-    await page.goto(`/onboarding/${applicationId}/ubos`);
+    await page.goto(`onboarding/${applicationId}/ubos`);
     await expect(page.locator("main").locator("text=Ras Al Khaimah")).toBeVisible({
       timeout: 5_000,
     });
@@ -228,7 +230,7 @@ test.describe("Full flow: AI extract → fill all forms → submit → backend v
     ];
 
     for (const step of stepsToVerify) {
-      await page.goto(`/onboarding/${applicationId}/${step.path}`, {
+      await page.goto(`onboarding/${applicationId}/${step.path}`, {
         waitUntil: "networkidle",
       });
       await expect(page.locator("h1", { hasText: step.heading })).toBeVisible({
@@ -237,7 +239,7 @@ test.describe("Full flow: AI extract → fill all forms → submit → backend v
     }
 
     // ── Step 10: Review — confirm and submit ───────────────────
-    await page.goto(`/onboarding/${applicationId}/review`, { waitUntil: "networkidle" });
+    await page.goto(`onboarding/${applicationId}/review`, { waitUntil: "networkidle" });
     await expect(page.locator("h1", { hasText: "Review & submit" })).toBeVisible();
 
     const incompleteCount = await page.locator("text=Incomplete").count();

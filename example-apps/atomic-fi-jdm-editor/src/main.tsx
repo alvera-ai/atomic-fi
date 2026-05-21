@@ -27,28 +27,34 @@ import { CopilotProvider } from './copilot/copilot-provider';
 
 await zenWasm.default(zenWasmUrl);
 
-const router = createBrowserRouter([
-  {
-    path: '/',
-    element: <Navigate to="/rules/onboarding" replace />,
-  },
-  {
-    path: '/rules/:ruleType',
-    element: <RulesIndexPage />,
-  },
-  {
-    path: '/rules/:ruleType/:name',
-    element: (
-      <CopilotProvider>
-        <DecisionSimplePage />
-      </CopilotProvider>
-    ),
-  },
-  {
-    path: '*',
-    element: <NotFoundPage />,
-  },
-]);
+const router = createBrowserRouter(
+  [
+    {
+      path: '/',
+      element: <Navigate to="/rules/onboarding" replace />,
+    },
+    {
+      path: '/rules/:ruleType',
+      element: <RulesIndexPage />,
+    },
+    {
+      path: '/rules/:ruleType/:name',
+      element: (
+        <CopilotProvider>
+          <DecisionSimplePage />
+        </CopilotProvider>
+      ),
+    },
+    {
+      path: '*',
+      element: <NotFoundPage />,
+    },
+  ],
+  // basename = the Vite `base` ("/demo/atomic-fi-jdm-editor/" here, "/"
+  // for a standalone `pnpm dev`). Phoenix serves the app under that
+  // prefix via Plug.Static, so the router strips it before matching.
+  { basename: import.meta.env.BASE_URL },
+);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

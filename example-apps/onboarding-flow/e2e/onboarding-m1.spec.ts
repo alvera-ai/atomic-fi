@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
+import { connectGate } from "./connect";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const credsPath = resolve(here, "../../../priv/repo/.bootstrap_creds.json");
@@ -73,7 +74,8 @@ test.describe("M1 Onboarding — AccountHolder end-to-end", () => {
 
   test("fill onboarding form and submit", async ({ page }) => {
     // 1. Navigate to start page
-    await page.goto("/start");
+    await page.goto("start");
+    await connectGate(page);
     await expect(page.locator("h1", { hasText: "Start your application" })).toBeVisible({
       timeout: 10_000,
     });
@@ -88,7 +90,7 @@ test.describe("M1 Onboarding — AccountHolder end-to-end", () => {
     expect(applicationId).toBeTruthy();
 
     // 4. Navigate to identity step and fill business profile
-    await page.goto(`/onboarding/${applicationId}/identity`);
+    await page.goto(`onboarding/${applicationId}/identity`);
     await expect(page.locator("h1", { hasText: "Business identity" })).toBeVisible();
 
     await page.locator("#legal_name").fill("E2E Test Corp LLC");
@@ -166,7 +168,7 @@ test.describe("M1 Onboarding — AccountHolder end-to-end", () => {
     );
 
     // 6. Navigate to review step
-    await page.goto(`/onboarding/${applicationId}/review`);
+    await page.goto(`onboarding/${applicationId}/review`);
     await expect(page.locator("h1", { hasText: "Review & submit" })).toBeVisible();
 
     // 7. Verify all steps show as complete

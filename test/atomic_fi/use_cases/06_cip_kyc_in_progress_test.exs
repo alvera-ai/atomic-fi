@@ -3,7 +3,7 @@ defmodule AtomicFi.UseCases.CipKycInProgressTest do
   Catalog row #06 of guides/use-cases.md — `cip_kyc_in_progress`.
 
   Verifies the committed golden corpus at
-  `corpus/zen_rules/cip_kyc_in_progress/` still produces the catalog verdict
+  `corpus/zen_rules/cip_kyc_gate/` still produces the catalog verdict
   end-to-end against the live engine. Subprocess driver — see
   `AtomicFi.UseCases.CorpusRunner`.
   """
@@ -15,6 +15,6 @@ defmodule AtomicFi.UseCases.CipKycInProgressTest do
   @moduletag :use_cases
 
   test "cip_kyc_in_progress corpus matches every _expected verdict" do
-    CorpusRunner.assert_golden!("cip_kyc_in_progress")
+    CorpusRunner.assert_golden!("cip_kyc_gate")
   end
 end
