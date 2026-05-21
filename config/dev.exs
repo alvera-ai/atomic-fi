@@ -47,7 +47,39 @@ config :atomic_fi, AtomicFiWeb.Endpoint,
   secret_key_base: "9FVHZ5vPQIMeW6X++NhBtMOxA+wKiNB+kA33WrDThi7NBURRkhbpOjHH7U1p3G+v",
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:default, ~w(--sourcemap=inline --watch)]},
-    tailwind: {Tailwind, :install_and_run, [:default, ~w(--watch)]}
+    tailwind: {Tailwind, :install_and_run, [:default, ~w(--watch)]},
+    # Example-app Vite build watchers — outputs go to
+    # priv/static/demo/<app>/, served by Plug.Static. The live_reload
+    # patterns below pick up the regenerated files and refresh the
+    # browser tab. Each watcher runs from the repo root so pnpm's
+    # --filter resolves package names from pnpm-workspace.yaml.
+    pnpm: [
+      "--filter",
+      "onboarding-flow",
+      "exec",
+      "vite",
+      "build",
+      "--watch",
+      cd: Path.expand("..", __DIR__)
+    ],
+    pnpm: [
+      "--filter",
+      "@atomic-fi/jdm-editor",
+      "exec",
+      "vite",
+      "build",
+      "--watch",
+      cd: Path.expand("..", __DIR__)
+    ],
+    pnpm: [
+      "--filter",
+      "lotus-embed",
+      "exec",
+      "vite",
+      "build",
+      "--watch",
+      cd: Path.expand("..", __DIR__)
+    ]
   ]
 
 # ## SSL Support
@@ -78,6 +110,10 @@ config :atomic_fi, AtomicFiWeb.Endpoint,
   live_reload: [
     patterns: [
       ~r"priv/static/.*(js|css|png|jpeg|jpg|gif|svg)$",
+      # Example-app Vite build output. The Vite watchers above
+      # regenerate files under priv/static/demo/<app>/; this pattern
+      # picks them up and refreshes any open browser tab.
+      ~r"priv/static/demo/.*",
       ~r"priv/gettext/.*(po)$",
       ~r"lib/atomic_fi_web/(controllers|live|components)/.*(ex|heex)$"
     ]
