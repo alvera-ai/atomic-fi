@@ -223,6 +223,89 @@ like database drivers.
 
 ---
 
+## AI Features — the LLM provider
+
+Three capabilities call an LLM. The provider is **pluggable** — a local
+**Ollama** daemon by default (no API keys), or a cloud LLM (Gemini,
+Claude, OpenAI) selected by config. Same architecture either way; only a
+model string changes, never code.
+
+```mermaid
+flowchart LR
+    classDef component fill:#85bbf0,stroke:#4f87b8,color:#000
+    classDef external fill:#999,stroke:#666,color:#fff
+
+    parse["POST /api/parse<br/>document parser"]:::component
+    copilot["POST /api/copilotkit<br/>JDM copilot"]:::component
+    lotus["embedded Lotus dashboard<br/>SQL copilot"]:::component
+
+    llm["LLM provider<br/>Ollama (local) ⇄ Gemini · Claude · OpenAI (cloud)<br/>— selected by config"]:::external
+
+    parse   -- "vision · structured JSON" --> llm
+    copilot -- "streamed tool-loop"        --> llm
+    lotus   -- "text-to-SQL"               --> llm
+```
+
+| Feature | Surface | Job | Local default | Cloud example |
+|---|---|---|---|---|
+| Document parser | `POST /api/parse` | vision extraction | `llama3.2-vision:11b` | `google:gemini-1.5-pro` |
+| JDM copilot | `POST /api/copilotkit` | reasoning + tool-calling | `qwen3.5:9b` | `anthropic:claude-…` |
+| Lotus SQL copilot | embedded Lotus dashboard | text-to-SQL | `qwen3.5:9b` | `openai:gpt-…` |
+
+The model lives in config — `config :atomic_fi, :document_parser`,
+`:copilotkit`, and `config :lotus, :ai`. Pointing a feature at a cloud
+provider is a config change; no code moves.
+
+### Thinking vs non-thinking models
+
+A *thinking* model emits a hidden reasoning pass before its answer, which
+corrupts **schema-constrained JSON**. Ollama can disable it
+(`think: false`) on its native `/api/chat` endpoint but **not** on the
+OpenAI-compatible `/v1/` endpoint — the OpenAI API spec has no such
+field. So on the **local Ollama** path:
+
+- **Vision / document parsing** needs schema-constrained JSON → uses a
+  **non-thinking** vision model (`llama3.2-vision:11b`); Ollama's `/v1/`
+  endpoint then honours `response_format: json_schema` and returns
+  schema-valid JSON.
+- **SQL and JDM-rule generation** *benefit* from reasoning and emit
+  free-form text the caller parses (a SQL string, a tool call) → use a
+  **thinking** model (`qwen3.5:9b`).
+
+Cloud providers handle structured output natively — the distinction is a
+local-Ollama deployment detail only.
+
+### Document parser — PDF → structured JSON
+
+No local vision model ingests a PDF *file*; Poppler rasterises it first —
+the model receives page images plus the extracted text layer:
+
+```
+   PDF ─┬─ pdftoppm  → one PNG per page  ──┐
+        └─ pdftotext → embedded text ──────┤
+   image (jpg/png) ───────────────────────┤  (used as-is)
+                                           ▼
+                  LLM vision call  →  schema-valid JSON
+```
+
+Cloud providers (Gemini, Claude) accept a PDF directly — their backend
+runs this same rasterise step server-side.
+
+### Copilot streaming — `/api/copilotkit`
+
+The JDM editor's React copilot speaks CopilotKit's GraphQL Runtime
+Protocol; Phoenix answers it natively — no Node sidecar:
+
+- `availableAgents` / `loadAgentState` — one-shot JSON responses.
+- `generateCopilotResponse` — **streamed** as `multipart/mixed` chunks
+  (GraphQL incremental delivery): Phoenix drives a tool-loop against the
+  reasoning model, emitting one chunk per token / tool-call.
+
+No WebSocket. Client-side tool round-trips are chained HTTP requests —
+all conversation state travels in the `messages` array.
+
+---
+
 ## Layers
 
 ```

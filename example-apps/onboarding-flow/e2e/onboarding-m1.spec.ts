@@ -193,19 +193,18 @@ test.describe("M1 Onboarding — AccountHolder end-to-end", () => {
     );
     expect(ahRes.ok).toBe(true);
     const ahBody = (await ahRes.json()) as {
-      data: Array<{ id: string; holder_type: string; legal_entity_id: string }>;
+      data: Array<{
+        id: string;
+        account_holder_type: string;
+        legal_entity: { id: string; business_name: string };
+      }>;
     };
-    const created = ahBody.data.find((ah) => ah.holder_type === "business");
+    const created = ahBody.data.find((ah) => ah.account_holder_type === "business");
     expect(created).toBeTruthy();
     createdAccountHolderId = created?.id;
 
-    if (created?.legal_entity_id) {
-      const leRes = await fetch(`${API_BASE}/api/legal-entities/${created.legal_entity_id}`, {
-        headers: authHeaders(bearer),
-      });
-      expect(leRes.ok).toBe(true);
-      const leBody = (await leRes.json()) as { business_name: string };
-      expect(leBody.business_name).toBe("E2E Test Corp LLC");
-    }
+    // The AccountHolder response embeds the full LegalEntity — there is no
+    // standalone GET /api/legal-entities/:id endpoint.
+    expect(created?.legal_entity.business_name).toBe("E2E Test Corp LLC");
   });
 });

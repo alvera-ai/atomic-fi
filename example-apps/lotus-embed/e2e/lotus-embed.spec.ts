@@ -25,7 +25,7 @@ async function loginAndEmbed(page: import("@playwright/test").Page) {
 }
 
 test.describe("Lotus secure embed — full flow", () => {
-  test.setTimeout(120_000);
+  test.setTimeout(600_000);
 
   test.beforeEach(async () => {
     const res = await fetch(`${BACKEND}/api/info`).catch(() => null);
@@ -94,8 +94,11 @@ test.describe("Lotus secure embed — full flow", () => {
 
     // Wait for AI response — should show a SQL query in a code block
     // The assistant generates SQL and wraps it in <pre><code>
+    // qwen3.5:9b is a local thinking model — SQL generation runs
+    // several minutes ("AI is thinking…"). Generous wait for the
+    // generated SQL code block.
     await expect(frame.locator("#ai-conversation-history pre code")).toBeVisible({
-      timeout: 30_000,
+      timeout: 540_000,
     });
 
     // The response should contain SQL keywords

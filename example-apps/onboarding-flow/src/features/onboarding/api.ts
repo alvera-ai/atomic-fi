@@ -114,7 +114,7 @@ export type OnboardingResult = {
   kycRequirementId: string;
 };
 
-type ApiResponse = { id: string; legal_entity_id?: string };
+type ApiResponse = { id: string; legal_entity?: { id: string } };
 
 function mapAddresses(app: Application): LegalEntityAddressRequest[] {
   return app.addresses.map((addr) => ({
@@ -187,7 +187,9 @@ export async function submitOnboarding(app: Application): Promise<OnboardingResu
 
   const ahBody = ahRes.data as unknown as ApiResponse;
   const accountHolderId = ahBody.id;
-  const legalEntityId = ahBody.legal_entity_id ?? "";
+  // The AccountHolder response embeds the full LegalEntity — its id is
+  // nested under `legal_entity`, there is no top-level `legal_entity_id`.
+  const legalEntityId = ahBody.legal_entity?.id ?? "";
 
   // Step 2: Create Documents for each uploaded doc
   const documentIds: string[] = [];

@@ -133,7 +133,19 @@ defmodule AtomicFi.DocumentParser do
     config = Application.fetch_env!(:atomic_fi, :document_parser)
 
     Keyword.merge(
-      [temperature: 0.0, api_key: Keyword.fetch!(config, :api_key)],
+      [
+        temperature: 0.0,
+        api_key: Keyword.fetch!(config, :api_key),
+        # Force ReqLLM's OpenAI provider onto the `response_format:
+        # json_schema` path. Its default (:auto) falls to :tool_strict
+        # for any model it doesn't recognise — i.e. every Ollama model —
+        # and a forced tool call is something local VLMs (llama3.2-vision)
+        # reject outright ("does not support tools"). json_schema mode
+        # works against Ollama's /v1/ endpoint with a non-thinking VLM.
+        # Top-level provider option — ReqLLM's `determine_output_mode`
+        # reads it straight off `opts`, not a nested `:provider_options`.
+        openai_structured_output_mode: :json_schema
+      ],
       Keyword.take(opts, [:temperature, :max_tokens, :provider_options, :api_key])
     )
   end
