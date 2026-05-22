@@ -27,3 +27,36 @@ services:
       - ./priv/zenrule:/home/nonroot/data:ro
     environment:
       PROVIDER__TYPE: Filesystem
+
+  # copilot-runtime — generic CopilotKit v2 runtime sidecar (see ADR-002).
+  # CopilotKit ships @copilotkit/runtime as library middleware, not an image,
+  # so this is built from the vendored source at external-deps/copilot-runtime.
+  # Behaviour — provider, model, base URL — is controlled entirely by
+  # docker.env (env_file), the same "config from a file" pattern as watchman's
+  # mounted config.yml. Edit docker.env + `docker compose up -d` to change it;
+  # no rebuild. host.docker.internal lets the container reach Ollama on the
+  # host (no-op on Docker Desktop, host-gateway on Linux).
+  # CopilotKit client posts to: POST /api/copilotkit
+  copilot-runtime:
+    build:
+      context: ./external-deps/copilot-runtime
+    image: atomic-fi/copilot-runtime:local
+    ports:
+      - "4111:4111"
+    env_file:
+      - ./external-deps/copilot-runtime/docker.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # copilot-telemetry — Vector sidecar (see ADR-002). copilot-runtime's
+  # COPILOTKIT_TELEMETRY_URL (in docker.env) points here, so CopilotKit's
+  # /ingest telemetry is captured locally instead of going to
+  # telemetry.copilotkit.ai. Default sink: console — events show up in
+  # `docker compose -f local-dependencies.yaml logs copilot-telemetry`.
+  # Switch the backend by editing vector.yaml; no rebuild.
+  copilot-telemetry:
+    image: timberio/vector:0.55.0-alpine
+    ports:
+      - "8686:8686"
+    volumes:
+      - ./external-deps/copilot-telemetry/vector.yaml:/etc/vector/vector.yaml:ro

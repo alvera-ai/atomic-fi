@@ -1,0 +1,10 @@
+# bun test configuration for @atomic-fi/copilot-runtime.
+#
+# Coverage gates "our code" under src/ — the vendored CopilotKit runtime and
+# Vercel AI SDK in node_modules are never instrumented. The gate is global:
+# >=90% (line + function) across the suite.
+[test]
+coverage = true
+coverageThreshold = 0.9
+coverageReporter = ["text"]
+coverageSkipTestFiles = true
