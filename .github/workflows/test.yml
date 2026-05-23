@@ -123,23 +123,6 @@ jobs:
       - name: Compile application
         run: mix compile
 
-      - name: Set up MIX_ENV=dev for corpus.validate subprocesses
-        # The use-case corpus tests (test/atomic_fi/use_cases/*) shell out
-        # `mix corpus.validate <slug> --reset` via System.cmd with
-        # MIX_ENV=dev. Two things have to be true for that subprocess to
-        # land inside the per-test 60s ExUnit timeout:
-        #   1. _build/dev is warm — otherwise a cold dev compile (~90s)
-        #      blows the budget before the validator even runs.
-        #   2. The dev DB (atomic_fi_dev) exists — the validator creates
-        #      its own `atomic_fi_corpus` schema inside it. Without the
-        #      DB, the validator dies inside a 15s DBConnection retry
-        #      loop with the "ensure your database is available" log.
-        env:
-          MIX_ENV: dev
-        run: |
-          mix compile
-          mix ecto.create
-
       - name: Check formatting
         run: mix format --check-formatted
 
