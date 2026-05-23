@@ -1,4 +1,4 @@
-.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install reseed-stableaml reseed-saml-d reseed-amlgentex bench
+.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install reseed-stableaml reseed-saml-d reseed-amlgentex bench hydrate-zen-rules
 
 COMPOSE_FILE := local-dependencies.yaml
 
@@ -153,7 +153,19 @@ df.sample(n=min($(AMLGENTEX_ROWS), df.height), seed=$(AMLGENTEX_SEED)) \
   .write_ndjson('$(AMLGENTEX_NDJSON)')"; \
 	echo "✓ AMLGentex subset written to $(AMLGENTEX_NDJSON)  ($$(wc -l < $(AMLGENTEX_NDJSON)) rows)"
 
-run-backing-services:
+# Hydrate ZenRule's runtime rules dir from /zen_rules/ (the committed
+# source of truth) into /priv/zenrule/ (gitignored, bind-mounted into the
+# gorules/agent container). Same pattern as the Vite-built SPAs:
+# committed source → throwaway runtime location. Idempotent — rsync over
+# existing files; doesn't touch test-fixtures-* sibling directories.
+hydrate-zen-rules:
+	@echo "Hydrating priv/zenrule/{onboarding,transaction-screening}/ from zen_rules/ ..."
+	@mkdir -p priv/zenrule/onboarding priv/zenrule/transaction-screening
+	@cp zen_rules/onboarding/*.json priv/zenrule/onboarding/
+	@cp zen_rules/transaction-screening/*.json priv/zenrule/transaction-screening/
+	@echo "✓ ZenRule rules hydrated."
+
+run-backing-services: hydrate-zen-rules
 	@echo "Starting local backing services (docker compose: watchman)..."
 	@docker compose -f $(COMPOSE_FILE) up -d
 	@echo "Backing services ready. Run 'make deps.logs' to follow."
