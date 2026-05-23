@@ -54,6 +54,15 @@ node_modules/
 /.vscode/
 /.playwright-cli/
 **/.playwright-cli/
+# Exploratory Playwright "walk" scratchpads — manual flow discovery before
+# codifying into the real e2e/ specs. Screenshots, traces, throwaway
+# walker specs. Regenerated per walk; never committed.
+**/.playwright-sessions/
+# Playwright run artefacts at the repo root (root playwright.config.ts
+# writes here). The per-app outputs are already covered by the
+# `example-apps/*/test-results/` rule above.
+/test-results/
+/playwright-report/
 # Per-session runtime lock from Claude's scheduled-task harness — pid + sessionId.
 /.claude/scheduled_tasks.lock
 
