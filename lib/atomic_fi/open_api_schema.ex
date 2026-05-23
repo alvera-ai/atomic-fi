@@ -413,20 +413,21 @@ defmodule AtomicFi.OpenApiSchema do
         },
         document_type: %Schema{
           type: :string,
-          enum: [
-            "passport",
-            "driving_licence",
-            "national_id",
-            "visa",
-            "bank_statement",
-            "memorandum",
-            "custom"
-          ]
+          description:
+            "One of: `passport`, `driving_licence`, `national_id`, `visa`, " <>
+              "`bank_statement`, `memorandum`, `custom`. The controller does its own " <>
+              "membership check and returns a per-file `success: false, " <>
+              "error: \"invalid document_type: ...\"` result for unknown values — so " <>
+              "the enum constraint is intentionally omitted here to keep the " <>
+              "partial-failure path reachable."
         },
         data_base64: %Schema{
           type: :string,
-          format: :byte,
-          description: "Document bytes, base64-encoded (standard OpenAPI binary-as-string)."
+          description:
+            "Document bytes, base64-encoded. The controller does its own Base.decode64/1 " <>
+              "validation and returns a per-file `success: false, error: \"invalid base64\"` " <>
+              "result for malformed input — so the format constraint is intentionally omitted " <>
+              "here to keep the partial-failure path reachable."
         },
         label: %Schema{
           type: :string,
