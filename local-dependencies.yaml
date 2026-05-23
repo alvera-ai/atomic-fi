@@ -59,6 +59,22 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  # mock-external-deps — Mockoon CLI serving canned responses for any
+  # external HTTP service we don't host ourselves. Today: OpenAI-compatible
+  # chat completions (the document parser's vision call + Lotus AI's SQL
+  # completion); later additions (Anthropic, Google, S3, …) get new
+  # routes inside the same environment file. config/test.exs points the
+  # LLM consumers at http://localhost:8085 so `mix test` runs without
+  # Ollama. Devs can opt back into real Ollama via config/test.secret.exs.
+  # Environment file: priv/mockoon/atomic-fi.json (one route per upstream).
+  mock-external-deps:
+    image: mockoon/cli:9.3.0
+    ports:
+      - "8085:3000"
+    volumes:
+      - ./priv/mockoon:/data:ro
+    command: ["-d", "/data/atomic-fi.json", "-p", "3000"]
+
   # copilot-telemetry — Vector sidecar (see ADR-002). copilot-runtime's
   # COPILOTKIT_TELEMETRY_URL (in docker.env) points here, so CopilotKit's
   # /ingest telemetry is captured locally instead of going to

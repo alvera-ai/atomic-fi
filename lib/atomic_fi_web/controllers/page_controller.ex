@@ -16,7 +16,7 @@ defmodule AtomicFiWeb.PageController do
     %{
       slug: "atomic-fi-jdm-editor",
       label: "JDM editor + copilot",
-      description: "CopilotKit-driven rule editor (POST /api/copilotkit)"
+      description: "CopilotKit v2 rule editor (via copilot-runtime sidecar :4242)"
     },
     %{
       slug: "lotus-embed",

@@ -30,6 +30,17 @@ defmodule AtomicFi.Application do
       {Phoenix.PubSub, name: AtomicFi.PubSub},
       # Start Finch
       {Finch, name: AtomicFi.Finch},
+      # Dedicated Finch pool for the ZenRule HTTP client. Compliance
+      # evaluation fans out one POST per rule file inside RuleEngine,
+      # and `mix test` (max_cases = scheduler count) bursts hundreds of
+      # those through the same client — sharing the default Req/Finch
+      # pool surfaces as `:pool_not_available`. Default pool size is
+      # CPU-derived in config/config.exs and overridable via env in
+      # config/runtime.exs; read at boot (not compile) so releases pick
+      # the env override up.
+      {Finch,
+       name: AtomicFi.ZenRule.Finch,
+       pools: %{default: Application.get_env(:atomic_fi, AtomicFi.ZenRule.Finch, [])}},
       # Start Oban for background job processing (compliance screening)
       {Oban, Application.fetch_env!(:atomic_fi, Oban)},
       # Start the Endpoint (http/https)

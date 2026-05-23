@@ -20,6 +20,15 @@ if System.get_env("PHX_SERVER") do
   config :atomic_fi, AtomicFiWeb.Endpoint, server: true
 end
 
+# AtomicFi.ZenRule.Finch — env-driven pool sizing for prod deployments.
+# The compile-time default in config/config.exs is CPU-derived; this lets
+# a release tune the pool without recompiling.
+if zen_rule_pool_size = System.get_env("ZEN_RULE_POOL_SIZE") do
+  config :atomic_fi, AtomicFi.ZenRule.Finch,
+    size: String.to_integer(zen_rule_pool_size),
+    count: String.to_integer(System.get_env("ZEN_RULE_POOL_COUNT") || "1")
+end
+
 # AtomicFi.DocumentParser — pick up env-driven overrides for the LLM
 # transport. Defaults (set at compile time in config/config.exs) point
 # at local Ollama; production deployments switch via env:
@@ -37,21 +46,6 @@ parser_overrides =
 
 if parser_overrides != [] do
   config :atomic_fi, :document_parser, parser_overrides
-end
-
-# AtomicFiWeb.Copilotkit env overrides — same pattern as the parser
-# above. The JDM copilot model swap is OLLAMA_REASONING_MODEL.
-copilot_overrides =
-  Enum.reject(
-    [
-      reasoning_model_id: System.get_env("OLLAMA_REASONING_MODEL"),
-      base_url: System.get_env("LITER_LLM_BASE_URL")
-    ],
-    fn {_k, v} -> v in [nil, ""] end
-  )
-
-if copilot_overrides != [] do
-  config :atomic_fi, :copilotkit, copilot_overrides
 end
 
 if config_env() == :prod do

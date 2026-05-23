@@ -27,13 +27,14 @@ defmodule AtomicFi.DocumentParserTest do
   end
 
   # Ported from example-apps/onboarding-flow/e2e/ai-extraction.spec.ts —
-  # the extraction half. Drives the local Ollama vision model — the only
-  # LLM transport this repo has today, so it runs in the normal suite.
+  # the extraction half. The LLM transport is pointed at Mockoon (see
+  # config/test.exs), so this runs in `mix test` without Ollama. A
+  # developer can opt back into a real Ollama via config/test.secret.exs.
   describe "parse/4 — document extraction (ai-extraction.spec.ts)" do
     @passport Path.expand("../support/fixtures/documents/usa-passport.jpg", __DIR__)
 
-    # Real local vision extraction is slow — well past ExUnit's 60s default.
-    # Sits above ReqLLM's 5-min receive timeout so that surfaces first.
+    # Generous timeout retained — a real Ollama run can take minutes
+    # when the dev override in config/test.secret.exs is enabled.
     @tag timeout: 360_000
     test "extracts structured data from a passport image" do
       bytes = File.read!(@passport)

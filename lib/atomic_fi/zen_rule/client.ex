@@ -49,6 +49,14 @@ defmodule AtomicFi.ZenRule.Client do
   end
 
   defp req(base_url) do
-    Req.new(base_url: base_url, headers: [{"accept", "application/json"}])
+    # Route through the dedicated `AtomicFi.ZenRule.Finch` pool —
+    # sized in config/{config,test,runtime}.exs so RuleEngine's
+    # per-rule POST fan-out doesn't exhaust the shared Req/Finch pool
+    # under `mix test` concurrency (max_cases = scheduler count).
+    Req.new(
+      base_url: base_url,
+      headers: [{"accept", "application/json"}],
+      finch: AtomicFi.ZenRule.Finch
+    )
   end
 end

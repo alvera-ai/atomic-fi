@@ -34,22 +34,21 @@ config :atomic_fi, :document_parser,
   # ignores it. A cloud deployment overrides this with a real key.
   api_key: "ollama"
 
-# AtomicFiWeb.Copilotkit defaults — same Ollama transport (ReqLLM
-# OpenAI-compat path), different model. The JDM copilot wants a
-# reasoning model, not a vision one.
-config :atomic_fi, :copilotkit,
-  reasoning_model_id: "qwen2.5:7b",
-  base_url: "http://localhost:11434/v1",
-  # ReqLLM's OpenAI provider requires a credential even though Ollama
-  # ignores it. A cloud deployment overrides this with a real key.
-  api_key: "ollama"
-
 # ReqLLM HTTP receive timeouts. Local Ollama models — vision extraction
 # especially — are far slower than cloud APIs; ReqLLM's 30s/120s defaults
 # time out mid-generation. 5 minutes is a generous ceiling for both.
 config :req_llm,
   receive_timeout: :timer.minutes(5),
   image_receive_timeout: :timer.minutes(5)
+
+# AtomicFi.ZenRule.Finch — dedicated HTTP pool for the ZenRule client.
+# RuleEngine.apply_rules/3 fans out one POST per rule file, and
+# `mix test` (max_cases = scheduler count) bursts dozens of those at
+# once; pool size scales with cores so the burst fits in one go.
+# Override via ZEN_RULE_POOL_SIZE env in config/runtime.exs for prod.
+config :atomic_fi, AtomicFi.ZenRule.Finch,
+  size: max(System.schedulers_online() * 4, 10),
+  count: 1
 
 # Configures the endpoint
 config :atomic_fi, AtomicFiWeb.Endpoint,

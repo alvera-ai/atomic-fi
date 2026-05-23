@@ -156,10 +156,16 @@ df.sample(n=min($(AMLGENTEX_ROWS), df.height), seed=$(AMLGENTEX_SEED)) \
 # Hydrate ZenRule's runtime rules dir from /zen_rules/ (the committed
 # source of truth) into /priv/zenrule/ (gitignored, bind-mounted into the
 # gorules/agent container). Same pattern as the Vite-built SPAs:
-# committed source → throwaway runtime location. Idempotent — rsync over
-# existing files; doesn't touch test-fixtures-* sibling directories.
+# committed source → throwaway runtime location.
+#
+# Clean sync: wipes the demo subdirs first so leftover artifacts from a
+# previous JDM-editor session (interrupted Playwright runs that called
+# `save_rule` leave throwaway files behind, and the gorules/agent loader
+# happily picks them up + fails to evaluate them, breaking the test suite
+# on the next run). The test-fixtures-* sibling directories are untouched.
 hydrate-zen-rules:
 	@echo "Hydrating priv/zenrule/{onboarding,transaction-screening}/ from zen_rules/ ..."
+	@rm -rf priv/zenrule/onboarding priv/zenrule/transaction-screening
 	@mkdir -p priv/zenrule/onboarding priv/zenrule/transaction-screening
 	@cp zen_rules/onboarding/*.json priv/zenrule/onboarding/
 	@cp zen_rules/transaction-screening/*.json priv/zenrule/transaction-screening/

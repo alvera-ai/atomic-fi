@@ -18,6 +18,22 @@ config :atomic_fi, :root_api_key, "alvera_root_api_key_test"
 # Watchman base URL — per-module slice (Swoosh-style); used by Watchman.Client when delegated to in tests.
 config :atomic_fi, AtomicFi.Watchman.Client, base_url: "http://localhost:8084"
 
+# LLM-bound features point at the local Mockoon container (see
+# local-dependencies.yaml service `mock-external-deps`, started by
+# `make run-backing-services`). Mockoon serves an OpenAI-compatible
+# /openai/v1/chat/completions mock — vision requests get a JSON-schema
+# response, everything else gets a SQL completion. Per-developer opt-out
+# back to a real local Ollama lives in config/test.secret.exs.
+config :atomic_fi, :document_parser,
+  vision_model_id: "mock-vision",
+  base_url: "http://localhost:8085/openai/v1",
+  api_key: "mockoon"
+
+config :lotus, :ai,
+  enabled: true,
+  api_key: "mockoon",
+  model: %{provider: :openai, id: "mock-sql", base_url: "http://localhost:8085/openai/v1"}
+
 # Swap the screening engine to a Mox mock. DataCase/ConnCase setup hooks
 # stub_with the Default impl so existing tests keep hitting the live :8084
 # Watchman container; new tests can override per-call with Mox.expect/3 to
@@ -100,10 +116,12 @@ import_config "openapi_servers.#{config_env()}.exs"
 
 # Migration paths inherit from config.exs (migrations + seed_migrations); no override.
 
-# Local test overrides — points the LLM-backed features (document parser,
-# JDM copilot, Lotus AI) at a real local Ollama (see config/test.secret.exs).
-# Optional + gitignored, per-developer. Once WireMock LLM stubs land they
-# become the test.exs default and this file is the opt-out back to Ollama.
+# Optional, per-developer, gitignored local override — points the LLM-backed
+# features (document parser, Lotus AI) at a real local Ollama for the
+# `:ollama`-tagged tests (excluded from `mix test` by default; see
+# `test/test_helper.exs`). The file in the repo ships with its config
+# commented out, so it's a no-op until a developer uncomments + starts
+# Ollama on :11434.
 if File.exists?(Path.expand("test.secret.exs", __DIR__)) do
   import_config "test.secret.exs"
 end

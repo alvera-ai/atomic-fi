@@ -1,9 +1,9 @@
-# The full suite runs on every `mix test` — nothing is excluded. The
-# local backing services must be up:
+# The default `mix test` run requires three local services up:
 #   * ZenRule + Watchman — the test/atomic_fi/use_cases/* corpus tests
 #     shell out to `mix corpus.validate` and hit them live.
-#   * Ollama on :11434   — the document-parser tests drive a real local
-#     vision model (see config/test.secret.exs).
+#   * Mockoon on :8085 — every test that drives an LLM (document-parser
+#     vision + Lotus AI SQL completion) is routed through it via
+#     config/test.exs. Start everything with `make run-backing-services`.
 ExUnit.start()
 
 # Sweep any test_*.json rules left in priv/zenrule by crashed test runs.

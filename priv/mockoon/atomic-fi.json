@@ -1,0 +1,105 @@
+{
+  "uuid": "c0a3a1f6-5b3e-4d6d-9c8e-1a4b8e0e1b91",
+  "lastMigration": 33,
+  "name": "atomic-fi",
+  "endpointPrefix": "",
+  "latency": 0,
+  "port": 3000,
+  "hostname": "",
+  "folders": [],
+  "routes": [
+    {
+      "uuid": "a1c0e1b1-1111-4111-8111-111111111111",
+      "type": "http",
+      "documentation": "OpenAI-compatible chat completions mock. One route, two responses:\n  1. Body contains `image_url`  → vision extraction → JSON-schema content (DocumentParser)\n  2. Default                      → plain text content `SELECT 1;` (Lotus AI)",
+      "method": "post",
+      "endpoint": "openai/v1/chat/completions",
+      "responses": [
+        {
+          "uuid": "b1c0e1b1-2222-4222-8222-222222222222",
+          "body": "{\n  \"id\": \"chatcmpl-atomic-fi-mockoon-vision\",\n  \"object\": \"chat.completion\",\n  \"created\": 0,\n  \"model\": \"mock-vision\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"finish_reason\": \"stop\",\n      \"logprobs\": null,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": \"{\\\"personal_info\\\":{\\\"first_name\\\":\\\"MOCK\\\",\\\"last_name\\\":\\\"USER\\\",\\\"full_name\\\":\\\"MOCK USER\\\",\\\"date_of_birth\\\":\\\"1990-01-01\\\",\\\"nationality\\\":\\\"USA\\\"},\\\"document_info\\\":{\\\"id_type\\\":\\\"passport\\\",\\\"id_number\\\":\\\"X1234567\\\",\\\"issue_date\\\":\\\"2020-01-01\\\",\\\"expiry_date\\\":\\\"2030-01-01\\\",\\\"issuing_country\\\":\\\"USA\\\",\\\"issuing_authority\\\":\\\"US Department of State\\\"}}\"\n      }\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 1,\n    \"completion_tokens\": 1,\n    \"total_tokens\": 2\n  }\n}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "Vision extraction (DocumentParser)",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [
+            {
+              "target": "body",
+              "modifier": "",
+              "value": "image_url",
+              "invert": false,
+              "operator": "regex"
+            }
+          ],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": false,
+          "crudKey": "id",
+          "callbacks": []
+        },
+        {
+          "uuid": "c1c0e1b1-3333-4333-8333-333333333333",
+          "body": "{\n  \"id\": \"chatcmpl-atomic-fi-mockoon-sql\",\n  \"object\": \"chat.completion\",\n  \"created\": 0,\n  \"model\": \"mock-sql\",\n  \"choices\": [\n    {\n      \"index\": 0,\n      \"finish_reason\": \"stop\",\n      \"logprobs\": null,\n      \"message\": {\n        \"role\": \"assistant\",\n        \"content\": \"SELECT 1;\"\n      }\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 1,\n    \"completion_tokens\": 1,\n    \"total_tokens\": 2\n  }\n}",
+          "latency": 0,
+          "statusCode": 200,
+          "label": "SQL completion (Lotus AI)",
+          "headers": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "bodyType": "INLINE",
+          "filePath": "",
+          "databucketID": "",
+          "sendFileAsBody": false,
+          "rules": [],
+          "rulesOperator": "OR",
+          "disableTemplating": false,
+          "fallbackTo404": false,
+          "default": true,
+          "crudKey": "id",
+          "callbacks": []
+        }
+      ],
+      "responseMode": null,
+      "streamingMode": null,
+      "streamingInterval": 0,
+      "enabled": true
+    }
+  ],
+  "rootChildren": [
+    {
+      "type": "route",
+      "uuid": "a1c0e1b1-1111-4111-8111-111111111111"
+    }
+  ],
+  "proxyMode": false,
+  "proxyHost": "",
+  "proxyRemovePrefix": false,
+  "tlsOptions": {
+    "enabled": false,
+    "type": "CERT",
+    "pfxPath": "",
+    "certPath": "",
+    "keyPath": "",
+    "caPath": "",
+    "passphrase": ""
+  },
+  "cors": true,
+  "headers": [],
+  "proxyReqHeaders": [],
+  "proxyResHeaders": [],
+  "data": [],
+  "callbacks": []
+}
