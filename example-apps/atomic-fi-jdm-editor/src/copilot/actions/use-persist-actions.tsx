@@ -67,11 +67,15 @@ export function usePersistActions(args: Args): void {
       description:
         'Persist the current open graph to disk. Uses the current rule_type and filename from current_rule_meta.',
       parameters: SaveRuleToolParams,
-      render: ({ status, respond }) => {
+      // toolCallId cast — see neighbour renders for the explanation.
+      render: (props) => {
+        const { status, respond } = props;
+        const { toolCallId } = props as never as { toolCallId: string };
         const currentGraph = graphRef.current;
         const cyclic = isCyclic(currentGraph);
         return (
           <PersistCard
+            toolCallId={toolCallId}
             title="save_rule"
             status={status}
             sideEffectLabel="Save"
@@ -120,11 +124,18 @@ export function usePersistActions(args: Args): void {
       description:
         'Rename the currently open rule file. Saves the current graph under the new filename, deletes the old file, and navigates to the new editor URL. Same rule_type — to move across rule types, use create_rule and delete_rule explicitly.',
       parameters: RenameRuleToolParams,
-      render: ({ args: a, status, respond }) => {
+      // `toolCallId` is passed by CopilotKit's runtime but typed only on
+      // `useRenderTool`'s public surface, not `useHumanInTheLoop`'s. Pull
+      // it out via cast — PreviewCard / PersistCard use it for a stable
+      // ordinal that survives status-branch remounts.
+      render: (props) => {
+        const { args: a, status, respond } = props;
+        const { toolCallId } = props as never as { toolCallId: string };
         const parsed = RenameRuleArgsSchema.safeParse(a);
         if (!parsed.success) {
           return (
             <PersistCard
+              toolCallId={toolCallId}
               title="rename_rule — invalid args"
               status={status}
               sideEffectLabel="Acknowledge"
@@ -139,6 +150,7 @@ export function usePersistActions(args: Args): void {
         const cyclic = isCyclic(graphRef.current);
         return (
           <PersistCard
+            toolCallId={toolCallId}
             title="rename_rule"
             status={status}
             sideEffectLabel="Rename"
@@ -203,11 +215,18 @@ export function usePersistActions(args: Args): void {
       name: 'create_rule',
       description: 'Navigate to a blank editor for a new rule file.',
       parameters: CreateRuleToolParams,
-      render: ({ args: a, status, respond }) => {
+      // `toolCallId` is passed by CopilotKit's runtime but typed only on
+      // `useRenderTool`'s public surface, not `useHumanInTheLoop`'s. Pull
+      // it out via cast — PreviewCard / PersistCard use it for a stable
+      // ordinal that survives status-branch remounts.
+      render: (props) => {
+        const { args: a, status, respond } = props;
+        const { toolCallId } = props as never as { toolCallId: string };
         const parsed = CreateRuleArgsSchema.safeParse(a);
         if (!parsed.success) {
           return (
             <PersistCard
+              toolCallId={toolCallId}
               title="create_rule — invalid args"
               status={status}
               sideEffectLabel="Acknowledge"
@@ -220,6 +239,7 @@ export function usePersistActions(args: Args): void {
         const v = parsed.data;
         return (
           <PersistCard
+            toolCallId={toolCallId}
             title="create_rule"
             status={status}
             sideEffectLabel="Open blank editor"
@@ -249,11 +269,18 @@ export function usePersistActions(args: Args): void {
       name: 'delete_rule',
       description: 'Permanently remove a rule file from disk. Irreversible.',
       parameters: DeleteRuleToolParams,
-      render: ({ args: a, status, respond }) => {
+      // `toolCallId` is passed by CopilotKit's runtime but typed only on
+      // `useRenderTool`'s public surface, not `useHumanInTheLoop`'s. Pull
+      // it out via cast — PreviewCard / PersistCard use it for a stable
+      // ordinal that survives status-branch remounts.
+      render: (props) => {
+        const { args: a, status, respond } = props;
+        const { toolCallId } = props as never as { toolCallId: string };
         const parsed = DeleteRuleArgsSchema.safeParse(a);
         if (!parsed.success) {
           return (
             <DestructiveCard
+              toolCallId={toolCallId}
               title="delete_rule — invalid args"
               status={status}
               filename=""
@@ -266,6 +293,7 @@ export function usePersistActions(args: Args): void {
         const v = parsed.data;
         return (
           <DestructiveCard
+            toolCallId={toolCallId}
             title="delete_rule"
             status={status}
             filename={v.filename}
@@ -300,11 +328,18 @@ export function usePersistActions(args: Args): void {
       name: 'open_rule',
       description: 'Navigate to a different rule.',
       parameters: OpenRuleToolParams,
-      render: ({ args: a, status, respond }) => {
+      // `toolCallId` is passed by CopilotKit's runtime but typed only on
+      // `useRenderTool`'s public surface, not `useHumanInTheLoop`'s. Pull
+      // it out via cast — PreviewCard / PersistCard use it for a stable
+      // ordinal that survives status-branch remounts.
+      render: (props) => {
+        const { args: a, status, respond } = props;
+        const { toolCallId } = props as never as { toolCallId: string };
         const parsed = OpenRuleArgsSchema.safeParse(a);
         if (!parsed.success) {
           return (
             <PersistCard
+              toolCallId={toolCallId}
               title="open_rule — invalid args"
               status={status}
               sideEffectLabel="Acknowledge"
@@ -317,6 +352,7 @@ export function usePersistActions(args: Args): void {
         const v = parsed.data;
         return (
           <PersistCard
+            toolCallId={toolCallId}
             title="open_rule"
             status={status}
             sideEffectLabel="Open"

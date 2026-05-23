@@ -46,7 +46,10 @@ export function useSimulateAction(args: Args): void {
         'Pass the context as a JSON-ENCODED STRING in the `context_json` argument — small models drop nested-object args. ' +
         'The trace lands in last_simulation on the next turn.',
       parameters: SimulateRuleToolParams,
-      render: ({ args: a, status, respond }) => {
+      // toolCallId cast — see use-graph-actions.tsx for the explanation.
+      render: (props) => {
+        const { args: a, status, respond } = props;
+        const { toolCallId } = props as never as { toolCallId: string };
         // Surface the raw tool-call args so we can see exactly what the LLM
         // sent. Saved us at least once already (the "{trace:true}" mystery).
 
@@ -60,6 +63,7 @@ export function useSimulateAction(args: Args): void {
             .join('; ');
           return (
             <PersistCard
+              toolCallId={toolCallId}
               title="simulate_rule — missing context"
               status={status}
               sideEffectLabel="Acknowledge"
@@ -78,6 +82,7 @@ export function useSimulateAction(args: Args): void {
         }
         return (
           <PersistCard
+            toolCallId={toolCallId}
             title="simulate_rule"
             status={status}
             sideEffectLabel="Run simulation"

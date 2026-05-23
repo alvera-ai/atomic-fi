@@ -6,6 +6,15 @@ import { ToolCallStatus } from '@copilotkit/react-core/v2';
 import { registerPending } from './apply-all-footer';
 
 export type PreviewCardProps = {
+  /**
+   * CopilotKit tool-call id (`useHumanInTheLoop` render arg). Stable per
+   * tool call across re-renders + branch swaps (e.g. an `add_node` card
+   * that flips into the `add_node — duplicate name` branch keeps the same
+   * `toolCallId`). Used as the stable suffix on the card + its buttons,
+   * so specs can target `#hitl-card-{toolCallId}` and the id won't shift
+   * underneath them when the action handler re-renders.
+   */
+  toolCallId: string;
   title: string;
   status: ToolCallStatus;
   summary: React.ReactNode;
@@ -15,18 +24,24 @@ export type PreviewCardProps = {
   applyLabel?: string;
 };
 
-// Monotonic per-session counter for HITL card instances. Each PreviewCard
-// claims the next integer on mount and keeps it for its lifetime; rendered
-// as the `id` suffix on the card + its buttons (`hitl-card-3`,
-// `hitl-apply-3`, `hitl-reject-3`). Specs can target by exact id when they
-// know the order, or by `data-testid` family (e.g. `hitl-card`) +
-// `.filter({hasText:…})` when they don't. The counter resets per page
-// load — fine, because a fresh page has no pre-existing cards. Cross-page
-// uniqueness isn't a goal; per-session predictability is.
-let hitlCardSequence = 0;
-const nextCardId = (): number => hitlCardSequence++;
+// Per-session ToolCallId → ordinal map. Each new toolCallId claims the next
+// integer on first sighting; subsequent renders with the same toolCallId
+// keep their ordinal. Lets specs reach for `#hitl-card-{ordinal}` (e.g.
+// `#hitl-card-0` for "first card in this session") when they don't have
+// the toolCallId on hand — useful when you just want "the first add_node
+// card", regardless of its CopilotKit-assigned uuid.
+const toolCallOrdinals = new Map<string, number>();
+let nextOrdinal = 0;
+export function ordinalFor(toolCallId: string): number {
+  const existing = toolCallOrdinals.get(toolCallId);
+  if (existing !== undefined) return existing;
+  const n = nextOrdinal++;
+  toolCallOrdinals.set(toolCallId, n);
+  return n;
+}
 
 export const PreviewCard: React.FC<PreviewCardProps> = ({
+  toolCallId,
   title,
   status,
   summary,
@@ -61,11 +76,19 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({
   const appliedRef = React.useRef(false);
   const onApplyRef = React.useRef(onApply);
   const onRejectRef = React.useRef(onReject);
-  // Claim a session-stable sequence number on mount. `useRef(nextCardId())`
-  // runs the initializer once per component instance, so the id stays
-  // constant across re-renders (status transitions, prop updates).
-  const idxRef = React.useRef(nextCardId());
-  const idx = idxRef.current;
+  // Holds the active `registerPending` deregister token, set by the
+  // useEffect below whenever this card is in the Apply-all queue. After
+  // the user (or apply-all) fires the card, `pendingApply` / `guardedReject`
+  // calls this immediately so the footer's pending counter drops in
+  // real time. Without this, the useEffect cleanup only ran on
+  // deps change (status / pendingApply) — neither changes on click, so
+  // the card stayed in the registry indefinitely and the footer showed
+  // a stale "N pending actions" badge for already-applied cards.
+  const deregisterRef = React.useRef<(() => void) | null>(null);
+  // Ordinal is keyed on toolCallId, so remounts (status-branch swaps,
+  // unmount during streaming, etc.) reuse the same number. The id stays
+  // stable for the lifetime of the tool call, not just the React node.
+  const idx = ordinalFor(toolCallId);
   React.useEffect(() => {
     onApplyRef.current = onApply;
   }, [onApply]);
@@ -76,11 +99,19 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({
   const pendingApply = React.useCallback(() => {
     if (appliedRef.current) return;
     appliedRef.current = true;
+    // Unregister from the Apply-all queue immediately. The useEffect
+    // cleanup only fires on deps change; status/pendingApply don't change
+    // on click, so without this the card would stay in the registry and
+    // the footer's "N pending actions" badge would stay stale.
+    deregisterRef.current?.();
+    deregisterRef.current = null;
     onApplyRef.current();
   }, []);
   const guardedReject = React.useCallback(() => {
     if (appliedRef.current) return;
     appliedRef.current = true;
+    deregisterRef.current?.();
+    deregisterRef.current = null;
     onRejectRef.current();
   }, []);
 
@@ -89,7 +120,14 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({
     // 'executing' for the currently-active tool call; firing in 'inProgress'
     // is a silent no-op that strands the tool call.
     if (status !== ToolCallStatus.Executing || appliedRef.current) return;
-    return registerPending(pendingApply);
+    const unregister = registerPending(pendingApply);
+    deregisterRef.current = unregister;
+    return () => {
+      unregister();
+      // Don't null out deregisterRef here — if we re-register on the next
+      // run, the new effect overwrites it. Nulling on click is what
+      // matters; this branch is just the deps-change cleanup.
+    };
   }, [status, pendingApply]);
 
   // Stable hooks for E2E specs. Hybrid scheme:

@@ -92,11 +92,22 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
       name: 'add_node',
       description: 'Add a node to the open decision graph.',
       parameters: AddNodeToolParams,
-      render: ({ args, status, respond }) => {
+      // `toolCallId` is present at runtime (see CopilotKit's
+      // `react-core/dist/copilotkit-CtXcs1ea.cjs`, which invokes render with
+      // `toolCallId: toolCall.id`) but its public TS type for
+      // `useHumanInTheLoop` doesn't expose it — that field is typed only on
+      // `useRenderTool`'s surface. Destructure via `as never` so we can pull
+      // it out without losing the inferred types for the other fields.
+      // PreviewCard uses it to claim a stable ordinal that survives
+      // status-branch remounts.
+      render: (props) => {
+        const { args, status, respond } = props;
+        const { toolCallId } = props as never as { toolCallId: string };
         const parsed = AddNodeArgsSchema.safeParse(args);
         if (!parsed.success) {
           return (
             <PreviewCard
+              toolCallId={toolCallId}
               title="add_node — invalid args"
               status={status}
               summary={<span>Validation failed: {parsed.error.message}</span>}
@@ -114,6 +125,7 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
         if (existingWithSameName) {
           return (
             <PreviewCard
+              toolCallId={toolCallId}
               title="add_node — duplicate name"
               status={status}
               summary={
@@ -142,6 +154,7 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
         }
         return (
           <PreviewCard
+            toolCallId={toolCallId}
             title="add_node"
             status={status}
             summary={
@@ -183,11 +196,22 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
       description:
         "Update a node's name, content, or position. Pass the changes either nested under `patch` (canonical) OR as top-level shorthand — both are accepted. Provide ONLY the fields you want to change; omitted fields are preserved. **Use this to fix typos and bugs in a node's content — DO NOT remove and re-add.**",
       parameters: UpdateNodeToolParams,
-      render: ({ args, status, respond }) => {
+      // `toolCallId` is present at runtime (see CopilotKit's
+      // `react-core/dist/copilotkit-CtXcs1ea.cjs`, which invokes render with
+      // `toolCallId: toolCall.id`) but its public TS type for
+      // `useHumanInTheLoop` doesn't expose it — that field is typed only on
+      // `useRenderTool`'s surface. Destructure via `as never` so we can pull
+      // it out without losing the inferred types for the other fields.
+      // PreviewCard uses it to claim a stable ordinal that survives
+      // status-branch remounts.
+      render: (props) => {
+        const { args, status, respond } = props;
+        const { toolCallId } = props as never as { toolCallId: string };
         const parsed = UpdateNodeArgsSchema.safeParse(args);
         if (!parsed.success) {
           return (
             <PreviewCard
+              toolCallId={toolCallId}
               title="update_node — invalid args"
               status={status}
               summary={<span>{parsed.error.message}</span>}
@@ -202,6 +226,7 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
         if (!resolvedId) {
           return (
             <PreviewCard
+              toolCallId={toolCallId}
               title="update_node — node not found"
               status={status}
               summary={
@@ -224,6 +249,7 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
         }
         return (
           <PreviewCard
+            toolCallId={toolCallId}
             title="update_node"
             status={status}
             summary={
@@ -262,11 +288,22 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
       name: 'remove_node',
       description: 'Delete a node (and edges touching it). Use sparingly — prefer update_node for fixes.',
       parameters: RemoveNodeToolParams,
-      render: ({ args, status, respond }) => {
+      // `toolCallId` is present at runtime (see CopilotKit's
+      // `react-core/dist/copilotkit-CtXcs1ea.cjs`, which invokes render with
+      // `toolCallId: toolCall.id`) but its public TS type for
+      // `useHumanInTheLoop` doesn't expose it — that field is typed only on
+      // `useRenderTool`'s surface. Destructure via `as never` so we can pull
+      // it out without losing the inferred types for the other fields.
+      // PreviewCard uses it to claim a stable ordinal that survives
+      // status-branch remounts.
+      render: (props) => {
+        const { args, status, respond } = props;
+        const { toolCallId } = props as never as { toolCallId: string };
         const parsed = RemoveNodeArgsSchema.safeParse(args);
         if (!parsed.success) {
           return (
             <PreviewCard
+              toolCallId={toolCallId}
               title="remove_node — invalid args"
               status={status}
               summary={<span>{parsed.error.message}</span>}
@@ -281,6 +318,7 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
         if (!resolvedRemoveId) {
           return (
             <PreviewCard
+              toolCallId={toolCallId}
               title="remove_node — node not found"
               status={status}
               summary={
@@ -298,6 +336,7 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
         }
         return (
           <PreviewCard
+            toolCallId={toolCallId}
             title="remove_node"
             status={status}
             summary={
@@ -330,11 +369,22 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
       description:
         "Connect two nodes. source_id and target_id accept EITHER the real node id returned by add_node OR the node's exact name. Use the name when you're emitting add_edge in the same turn as the add_node calls it depends on (the real ids aren't available yet in that case).",
       parameters: AddEdgeToolParams,
-      render: ({ args, status, respond }) => {
+      // `toolCallId` is present at runtime (see CopilotKit's
+      // `react-core/dist/copilotkit-CtXcs1ea.cjs`, which invokes render with
+      // `toolCallId: toolCall.id`) but its public TS type for
+      // `useHumanInTheLoop` doesn't expose it — that field is typed only on
+      // `useRenderTool`'s surface. Destructure via `as never` so we can pull
+      // it out without losing the inferred types for the other fields.
+      // PreviewCard uses it to claim a stable ordinal that survives
+      // status-branch remounts.
+      render: (props) => {
+        const { args, status, respond } = props;
+        const { toolCallId } = props as never as { toolCallId: string };
         const parsed = AddEdgeArgsSchema.safeParse(args);
         if (!parsed.success) {
           return (
             <PreviewCard
+              toolCallId={toolCallId}
               title="add_edge — invalid args"
               status={status}
               summary={<span>{parsed.error.message}</span>}
@@ -356,6 +406,7 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
           if (!targetResolved) reasons.push(`target "${a.target_id}" matches no node id or name`);
           return (
             <PreviewCard
+              toolCallId={toolCallId}
               title="add_edge — endpoint not found"
               status={status}
               summary={
@@ -378,6 +429,7 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
         }
         return (
           <PreviewCard
+            toolCallId={toolCallId}
             title="add_edge"
             status={status}
             summary={
@@ -416,11 +468,22 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
       name: 'remove_edge',
       description: 'Disconnect two nodes.',
       parameters: RemoveEdgeToolParams,
-      render: ({ args, status, respond }) => {
+      // `toolCallId` is present at runtime (see CopilotKit's
+      // `react-core/dist/copilotkit-CtXcs1ea.cjs`, which invokes render with
+      // `toolCallId: toolCall.id`) but its public TS type for
+      // `useHumanInTheLoop` doesn't expose it — that field is typed only on
+      // `useRenderTool`'s surface. Destructure via `as never` so we can pull
+      // it out without losing the inferred types for the other fields.
+      // PreviewCard uses it to claim a stable ordinal that survives
+      // status-branch remounts.
+      render: (props) => {
+        const { args, status, respond } = props;
+        const { toolCallId } = props as never as { toolCallId: string };
         const parsed = RemoveEdgeArgsSchema.safeParse(args);
         if (!parsed.success) {
           return (
             <PreviewCard
+              toolCallId={toolCallId}
               title="remove_edge — invalid args"
               status={status}
               summary={<span>{parsed.error.message}</span>}
@@ -433,6 +496,7 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
         const a = parsed.data;
         return (
           <PreviewCard
+            toolCallId={toolCallId}
             title="remove_edge"
             status={status}
             summary={
