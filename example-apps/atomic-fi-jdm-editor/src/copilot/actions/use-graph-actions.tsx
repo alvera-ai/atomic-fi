@@ -180,7 +180,7 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
                 return { ...g, nodes: [...existing, node] };
               });
               onMutated();
-              respond?.({ accepted: true, node_id: id });
+              return respond?.({ accepted: true, node_id: id });
             }}
             onReject={() => respond?.({ accepted: false, reason: 'Rejected by user' })}
           />
@@ -273,7 +273,7 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
                 ),
               }));
               onMutated();
-              respond?.({ accepted: true });
+              return respond?.({ accepted: true });
             }}
             onReject={() => respond?.({ accepted: false, reason: 'Rejected by user' })}
           />
@@ -353,7 +353,7 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
                 ),
               }));
               onMutated();
-              respond?.({ accepted: true });
+              return respond?.({ accepted: true });
             }}
             onReject={() => respond?.({ accepted: false, reason: 'Rejected by user' })}
           />
@@ -453,7 +453,7 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
                 ],
               }));
               onMutated();
-              respond?.({ accepted: true, edge_id: id });
+              return respond?.({ accepted: true, edge_id: id });
             }}
             onReject={() => respond?.({ accepted: false, reason: 'Rejected by user' })}
           />
@@ -507,7 +507,7 @@ export function useGraphActions({ setGraph, graphRef, onMutated }: GraphActionsA
             onApply={() => {
               setGraph((g) => ({ ...g, edges: (g.edges ?? []).filter((e) => e.id !== a.edge_id) }));
               onMutated();
-              respond?.({ accepted: true });
+              return respond?.({ accepted: true });
             }}
             onReject={() => respond?.({ accepted: false, reason: 'Rejected by user' })}
           />

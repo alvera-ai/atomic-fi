@@ -96,7 +96,13 @@ export function usePersistActions(args: Args): void {
               const liveFilename = filenameRef.current;
               const liveRuleType = ruleTypeRef.current;
               if (isCyclic(liveGraph)) {
-                respond?.({ accepted: false, reason: 'Graph has a cycle; refuse to save.' });
+                // Await each respond — the AG-UI client needs the tool
+                // result settled BEFORE it composes the next /run.
+                // Fire-and-forget here triggered an
+                // `AI_MissingToolResultsError` on the runtime side: the
+                // next turn's messages held tool calls without matching
+                // results, and Vercel AI SDK refused the prompt.
+                await respond?.({ accepted: false, reason: 'Graph has a cycle; refuse to save.' });
                 return;
               }
               try {
@@ -105,9 +111,9 @@ export function usePersistActions(args: Args): void {
                   ...liveGraph,
                 });
                 onSaved();
-                respond?.({ accepted: true });
+                await respond?.({ accepted: true });
               } catch (e) {
-                respond?.({ accepted: false, reason: (e as Error).message });
+                await respond?.({ accepted: false, reason: (e as Error).message });
               }
             }}
             onReject={() => respond?.({ accepted: false, reason: 'Rejected by user' })}
@@ -168,15 +174,15 @@ export function usePersistActions(args: Args): void {
               const liveRuleType = ruleTypeRef.current;
               const liveGraph = graphRef.current;
               if (v.new_filename === liveFilename) {
-                respond?.({ accepted: false, reason: 'New filename equals the current one.' });
+                await respond?.({ accepted: false, reason: 'New filename equals the current one.' });
                 return;
               }
               if (isCyclic(liveGraph)) {
-                respond?.({ accepted: false, reason: 'Graph has a cycle; refuse to rename.' });
+                await respond?.({ accepted: false, reason: 'Graph has a cycle; refuse to rename.' });
                 return;
               }
               if (!liveFilename) {
-                respond?.({ accepted: false, reason: 'No current filename — use save_rule instead.' });
+                await respond?.({ accepted: false, reason: 'No current filename — use save_rule instead.' });
                 return;
               }
               try {
@@ -188,7 +194,7 @@ export function usePersistActions(args: Args): void {
                 } catch (deleteErr) {
                   // Rename half-succeeded: the new file exists, the old still does.
                   // Surface the partial outcome to the agent rather than masking it.
-                  respond?.({
+                  await respond?.({
                     accepted: false,
                     reason: `Saved under ${v.new_filename} but failed to delete ${liveFilename}: ${(deleteErr as Error).message}`,
                   });
@@ -197,9 +203,9 @@ export function usePersistActions(args: Args): void {
                 onSaved();
                 await refreshExistingRules();
                 navigate(`/rules/${liveRuleType}/${encodeURIComponent(v.new_filename)}`);
-                respond?.({ accepted: true });
+                await respond?.({ accepted: true });
               } catch (e) {
-                respond?.({ accepted: false, reason: (e as Error).message });
+                await respond?.({ accepted: false, reason: (e as Error).message });
               }
             }}
             onReject={() => respond?.({ accepted: false, reason: 'Rejected by user' })}
@@ -254,7 +260,7 @@ export function usePersistActions(args: Args): void {
             }
             onApply={() => {
               navigate(`/rules/${v.rule_type}/${encodeURIComponent(v.filename)}?new=1`);
-              respond?.({ accepted: true });
+              return respond?.({ accepted: true });
             }}
             onReject={() => respond?.({ accepted: false, reason: 'Rejected by user' })}
           />
@@ -310,9 +316,9 @@ export function usePersistActions(args: Args): void {
               try {
                 await deleteRule(v.rule_type as RuleType, v.filename);
                 await refreshExistingRules();
-                respond?.({ accepted: true });
+                await respond?.({ accepted: true });
               } catch (e) {
-                respond?.({ accepted: false, reason: (e as Error).message });
+                await respond?.({ accepted: false, reason: (e as Error).message });
               }
             }}
             onReject={() => respond?.({ accepted: false, reason: 'Rejected by user' })}
@@ -367,7 +373,7 @@ export function usePersistActions(args: Args): void {
             }
             onApply={() => {
               navigate(`/rules/${v.rule_type}/${encodeURIComponent(v.filename)}`);
-              respond?.({ accepted: true });
+              return respond?.({ accepted: true });
             }}
             onReject={() => respond?.({ accepted: false, reason: 'Rejected by user' })}
           />

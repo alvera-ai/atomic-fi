@@ -102,14 +102,14 @@ export function useSimulateAction(args: Args): void {
                   input: { graph: graphRef.current, context: parsed.data.context },
                 });
                 setLastSimulation(sim);
-                respond?.({
+                await respond?.({
                   accepted: true,
                   result: sim.result?.result ?? null,
                   trace: sim.result?.trace ?? {},
                   error: sim.error ?? null,
                 });
               } catch (e) {
-                respond?.({ accepted: false, reason: (e as Error).message });
+                await respond?.({ accepted: false, reason: (e as Error).message });
               }
             }}
             onReject={() => respond?.({ accepted: false, reason: 'Rejected by user' })}

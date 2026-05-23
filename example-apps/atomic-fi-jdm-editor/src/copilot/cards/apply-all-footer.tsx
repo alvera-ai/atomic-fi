@@ -63,13 +63,19 @@ export const ApplyAllFooter: React.FC = () => {
   if (count < 2 && !busy) return null;
 
   return (
-    <div className="fixed bottom-20 right-4 px-3 py-2 rounded-md border border-rule bg-surface flex items-center gap-3 z-50 shadow">
-      <span className="text-xs text-ink-muted">
+    <div
+      className="fixed bottom-20 right-4 px-3 py-2 rounded-md border border-rule bg-surface flex items-center gap-3 z-50 shadow"
+      id="apply-all-footer"
+      data-testid="apply-all-footer"
+    >
+      <span className="text-xs text-ink-muted" data-testid="apply-all-count">
         {busy
           ? `applying${count > 0 ? ` (${count} in flight)` : '…'}`
           : `${count} pending action${count === 1 ? '' : 's'}`}
       </span>
       <Button
+        id="apply-all-button"
+        data-testid="apply-all-button"
         size="small"
         type="primary"
         loading={busy}

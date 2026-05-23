@@ -19,8 +19,16 @@ export type PreviewCardProps = {
   status: ToolCallStatus;
   summary: React.ReactNode;
   diff?: React.ReactNode;
-  onApply: () => void;
-  onReject: () => void;
+  /**
+   * Apply / Reject callbacks may return a Promise — the card awaits it
+   * before clearing its applied guard. Critical for `respond?.(...)`,
+   * which returns a Promise the AG-UI client needs resolved before it
+   * composes the next `/run`. Without the await we hit
+   * `AI_MissingToolResultsError` on the runtime side (the LLM's next
+   * turn sees tool calls without matching results).
+   */
+  onApply: () => void | Promise<void>;
+  onReject: () => void | Promise<void>;
   applyLabel?: string;
 };
 
@@ -96,7 +104,7 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({
     onRejectRef.current = onReject;
   }, [onReject]);
 
-  const pendingApply = React.useCallback(() => {
+  const pendingApply = React.useCallback(async () => {
     if (appliedRef.current) return;
     appliedRef.current = true;
     // Unregister from the Apply-all queue immediately. The useEffect
@@ -105,14 +113,16 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({
     // the footer's "N pending actions" badge would stay stale.
     deregisterRef.current?.();
     deregisterRef.current = null;
-    onApplyRef.current();
+    // Await so callers that wrap `respond?.()` get its Promise resolved
+    // before we hand control back — see `onApply` prop doc above.
+    await onApplyRef.current();
   }, []);
-  const guardedReject = React.useCallback(() => {
+  const guardedReject = React.useCallback(async () => {
     if (appliedRef.current) return;
     appliedRef.current = true;
     deregisterRef.current?.();
     deregisterRef.current = null;
-    onRejectRef.current();
+    await onRejectRef.current();
   }, []);
 
   React.useEffect(() => {
