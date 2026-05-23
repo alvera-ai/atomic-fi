@@ -10,8 +10,7 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives",
     "lint:fix": "eslint . --ext ts,tsx --fix",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview",
-    "e2e": "playwright test"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
@@ -37,7 +36,6 @@
     "@eslint/compat": "^2.0.2",
     "@eslint/eslintrc": "^3.3.3",
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.60.0",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/git": "^10.0.1",
