@@ -14,7 +14,7 @@ import { DirectedGraph } from 'graphology';
 import { hasCycle } from 'graphology-dag';
 import { useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
-import { CopilotChat } from '@copilotkit/react-ui';
+import { CopilotChat, CopilotChatConfigurationProvider } from '@copilotkit/react-core/v2';
 
 import { ApplyAllFooter } from '../copilot/cards/apply-all-footer';
 import { displayError, errorMessage } from '../helpers/error-message';
@@ -67,6 +67,12 @@ export const DecisionSimplePage: React.FC = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [copilotOpen, setCopilotOpen] = useState(false);
+  // Pin <CopilotChat> to ONE thread for the editor session — without this,
+  // CopilotKit v2 mints a fresh threadId per interaction and the chat shows
+  // the welcome screen while runs land in untitled threads (the symptom
+  // documented in CopilotKit issue #2953). Per the v2 docs the fix is to
+  // wrap <CopilotChat> in <CopilotChatConfigurationProvider threadId={…}>.
+  const [threadId] = useState(() => crypto.randomUUID());
 
   const dirty = revision !== savedRevision;
 
@@ -177,6 +183,18 @@ export const DecisionSimplePage: React.FC = () => {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
 
+  // E2E hook — expose a deterministic graph summary on `window` so
+  // Playwright can wait on / assert graph state without scraping the
+  // React Flow canvas (which has no stable per-node DOM).
+  useEffect(() => {
+    window.__jdmEditor = {
+      nodeCount: graph.nodes?.length ?? 0,
+      nodeNames: (graph.nodes ?? []).map((node) => node.name ?? ''),
+      edgeCount: graph.edges?.length ?? 0,
+      dirty,
+    };
+  }, [graph, dirty]);
+
   useEditorReadables({
     ruleType,
     filename: name,
@@ -212,6 +230,7 @@ export const DecisionSimplePage: React.FC = () => {
       >
         <div className="flex items-center gap-3 min-w-0">
           <Button
+            id="back-to-rules-button"
             type="text"
             icon={<ArrowLeftOutlined />}
             onClick={() => navigate(`/rules/${ruleType}`)}
@@ -234,6 +253,7 @@ export const DecisionSimplePage: React.FC = () => {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Button
+            id="save-rule-button"
             type={dirty ? 'primary' : 'default'}
             icon={<SaveOutlined />}
             onClick={handleSave}
@@ -243,6 +263,7 @@ export const DecisionSimplePage: React.FC = () => {
             Save
           </Button>
           <Button
+            id="copilot-toggle"
             type={copilotOpen ? 'primary' : 'text'}
             icon={<MessageOutlined />}
             onClick={() => setCopilotOpen((open) => !open)}
@@ -317,6 +338,7 @@ export const DecisionSimplePage: React.FC = () => {
 
         {copilotOpen && (
           <aside
+            id="copilot-panel"
             className="w-[420px] shrink-0 border-l border-rule flex flex-col min-h-0"
             style={{ background: token.colorBgContainer }}
             aria-label="Rule copilot"
@@ -335,15 +357,16 @@ export const DecisionSimplePage: React.FC = () => {
               />
             </div>
             <div className="flex-1 min-h-0 overflow-hidden">
-              <CopilotChat
-                labels={{
-                  title: 'Rule copilot',
-                  initial:
-                    "Describe a rule in plain English and I'll draft, save, and simulate it for you. Each step surfaces a card you can Apply or Reject.",
-                }}
-                instructions=""
-                className="h-full"
-              />
+              <CopilotChatConfigurationProvider threadId={threadId}>
+                <CopilotChat
+                  agentId="default"
+                  labels={{
+                    welcomeMessageText:
+                      "Describe a rule in plain English and I'll draft, save, and simulate it for you. Each step surfaces a card you can Apply or Reject.",
+                  }}
+                  className="h-full"
+                />
+              </CopilotChatConfigurationProvider>
             </div>
           </aside>
         )}

@@ -1,4 +1,4 @@
-defmodule AtomicFiWeb.Copilotkit.IncrementalTest do
+defmodule AtomicFi.CopilotKitContext.IncrementalTest do
   @moduledoc """
   Verifies the wire shape of GraphQL Incremental Delivery chunks
   written via `Plug.Conn.chunk/2`. We use `Plug.Test.conn/2` +
@@ -10,7 +10,7 @@ defmodule AtomicFiWeb.Copilotkit.IncrementalTest do
   import Plug.Test
   import Plug.Conn
 
-  alias AtomicFiWeb.Copilotkit.Incremental
+  alias AtomicFi.CopilotKitContext.Incremental
 
   setup do
     {:ok, conn: open_chunked()}

@@ -41,8 +41,11 @@ services:
     build:
       context: ./external-deps/copilot-runtime
     image: atomic-fi/copilot-runtime:local
+    # Host port 4242 (container still listens on 4111 internally).
+    # 4111 is intentionally left free for the old worktree's v1 runtime
+    # so the two can run side-by-side for v1↔v2 comparison.
     ports:
-      - "4111:4111"
+      - "4242:4111"
     env_file:
       - ./external-deps/copilot-runtime/docker.env
     extra_hosts:

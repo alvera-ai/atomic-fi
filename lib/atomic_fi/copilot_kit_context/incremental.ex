@@ -1,4 +1,4 @@
-defmodule AtomicFiWeb.Copilotkit.Incremental do
+defmodule AtomicFi.CopilotKitContext.Incremental do
   @moduledoc """
   Encoder for GraphQL Incremental Delivery (`@defer`/`@stream` directives)
   over `multipart/mixed`. Mirrors the wire format produced by

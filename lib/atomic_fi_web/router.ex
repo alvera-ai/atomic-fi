@@ -73,10 +73,10 @@ defmodule AtomicFiWeb.Router do
   # spec. Industry default for protocol passthroughs (GitHub /graphql,
   # Stripe webhook receivers, Apollo, AWS Lambda Proxy) is to leave the
   # endpoint out of one's own REST spec. Lives in `atomic_fi_web`, not
-  # `atomic_fi_api`. See AtomicFiWeb.CopilotkitController moduledoc.
+  # `atomic_fi_api`. See AtomicFiWeb.CopilotKitController moduledoc.
   scope "/api", AtomicFiWeb do
     pipe_through :api
-    post "/copilotkit", CopilotkitController, :create
+    post "/copilotkit", CopilotKitController, :create
   end
 
   # Lotus dashboard — authenticated via embed token in query param

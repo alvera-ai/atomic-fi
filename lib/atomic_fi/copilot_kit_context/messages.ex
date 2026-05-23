@@ -1,4 +1,4 @@
-defmodule AtomicFiWeb.Copilotkit.Messages do
+defmodule AtomicFi.CopilotKitContext.Messages do
   @moduledoc """
   Translation between CopilotKit's GraphQL message types and the shapes
   ReqLLM understands.

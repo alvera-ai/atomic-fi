@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { Button, Card, Input, Tag } from 'antd';
 import { DeleteOutlined, CloseOutlined } from '@ant-design/icons';
+import { ToolCallStatus } from '@copilotkit/react-core/v2';
 
 export type DestructiveCardProps = {
   title: string;
-  status: 'inProgress' | 'executing' | 'complete';
+  status: ToolCallStatus;
   filename: string;
   warning: React.ReactNode;
   onApply: () => void;
@@ -20,7 +21,7 @@ export const DestructiveCard: React.FC<DestructiveCardProps> = ({
   onReject,
 }) => {
   const [confirmText, setConfirmText] = useState('');
-  const decided = status === 'complete';
+  const decided = status === ToolCallStatus.Complete;
   const ready = confirmText.trim() === filename;
 
   // Same idempotency + stale-respond defense as PreviewCard. See that file
@@ -58,7 +59,7 @@ export const DestructiveCard: React.FC<DestructiveCardProps> = ({
       className="my-2"
     >
       <div className="text-sm">{warning}</div>
-      {!decided && status === 'executing' && (
+      {!decided && status === ToolCallStatus.Executing && (
         <>
           <div className="mt-2 text-xs">
             Type <code className="font-mono">{filename}</code> to confirm:
@@ -74,13 +75,20 @@ export const DestructiveCard: React.FC<DestructiveCardProps> = ({
             <Button size="small" icon={<CloseOutlined />} onClick={guardedReject}>
               Cancel
             </Button>
-            <Button size="small" danger type="primary" icon={<DeleteOutlined />} disabled={!ready} onClick={guardedApply}>
+            <Button
+              size="small"
+              danger
+              type="primary"
+              icon={<DeleteOutlined />}
+              disabled={!ready}
+              onClick={guardedApply}
+            >
               Delete
             </Button>
           </div>
         </>
       )}
-      {!decided && status !== 'executing' && (
+      {!decided && status !== ToolCallStatus.Executing && (
         <div className="mt-2 text-xs text-ink-muted">queued — waiting for previous tool to finish…</div>
       )}
     </Card>

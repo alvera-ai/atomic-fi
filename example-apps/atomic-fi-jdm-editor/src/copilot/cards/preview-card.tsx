@@ -1,12 +1,13 @@
 import React from 'react';
 import { Button, Card, Tag } from 'antd';
 import { CheckOutlined, CloseOutlined } from '@ant-design/icons';
+import { ToolCallStatus } from '@copilotkit/react-core/v2';
 
 import { registerPending } from './apply-all-footer';
 
 export type PreviewCardProps = {
   title: string;
-  status: 'inProgress' | 'executing' | 'complete';
+  status: ToolCallStatus;
   summary: React.ReactNode;
   diff?: React.ReactNode;
   onApply: () => void;
@@ -23,7 +24,7 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({
   onReject,
   applyLabel = 'Apply',
 }) => {
-  const decided = status === 'complete';
+  const decided = status === ToolCallStatus.Complete;
 
   // Idempotency + stable identity guard.
   //
@@ -71,7 +72,7 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({
     // Only register while truly executable. CK provides respond only in
     // 'executing' for the currently-active tool call; firing in 'inProgress'
     // is a silent no-op that strands the tool call.
-    if (status !== 'executing' || appliedRef.current) return;
+    if (status !== ToolCallStatus.Executing || appliedRef.current) return;
     return registerPending(pendingApply);
   }, [status, pendingApply]);
 
@@ -91,7 +92,7 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({
       {diff && <div className="mt-2 font-mono text-[12px] whitespace-pre-wrap">{diff}</div>}
       {!decided && (
         <div className="flex justify-end gap-2 mt-3">
-          {status === 'executing' ? (
+          {status === ToolCallStatus.Executing ? (
             <>
               <Button size="small" icon={<CloseOutlined />} onClick={guardedReject}>
                 Reject

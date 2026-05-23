@@ -1,4 +1,4 @@
-defmodule AtomicFiWeb.CopilotkitController do
+defmodule AtomicFiWeb.CopilotKitController do
   @moduledoc """
   `POST /api/copilotkit` — CopilotKit Runtime Protocol passthrough.
 
@@ -9,7 +9,7 @@ defmodule AtomicFiWeb.CopilotkitController do
 
     * The two queries return constant JSON (no agents in atomic-fi).
     * The mutation streams `multipart/mixed` chunks per GraphQL
-      Incremental Delivery, driven by `AtomicFiWeb.Copilotkit`.
+      Incremental Delivery, driven by `AtomicFi.CopilotKitContext`.
 
   This endpoint is **not** modeled in atomic-fi's OpenApiSpec — the
   body shape is governed by CopilotKit's GraphQL schema, not by
@@ -58,7 +58,7 @@ defmodule AtomicFiWeb.CopilotkitController do
     conn
     |> put_resp_content_type("multipart/mixed; boundary=\"-\"")
     |> send_chunked(200)
-    |> AtomicFiWeb.Copilotkit.stream_response(data)
+    |> AtomicFi.CopilotKitContext.stream_response(data)
   end
 
   def create(conn, %{"operationName" => op}) do

@@ -39,7 +39,10 @@ config :atomic_fi, :document_parser,
 # reasoning model, not a vision one.
 config :atomic_fi, :copilotkit,
   reasoning_model_id: "qwen2.5:7b",
-  base_url: "http://localhost:11434/v1"
+  base_url: "http://localhost:11434/v1",
+  # ReqLLM's OpenAI provider requires a credential even though Ollama
+  # ignores it. A cloud deployment overrides this with a real key.
+  api_key: "ollama"
 
 # ReqLLM HTTP receive timeouts. Local Ollama models — vision extraction
 # especially — are far slower than cloud APIs; ReqLLM's 30s/120s defaults

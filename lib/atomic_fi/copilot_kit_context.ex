@@ -1,30 +1,43 @@
-defmodule AtomicFiWeb.Copilotkit do
+defmodule AtomicFi.CopilotKitContext do
   @moduledoc """
-  Streaming orchestrator for `POST /api/copilotkit`'s
+  JDM-editor copilot — the context behind `POST /api/copilotkit`'s
   `generateCopilotResponse` mutation.
 
-  Phoenix invokes `stream_response/2` after `put_resp_content_type` +
-  `send_chunked` have already prepared the connection. We:
+  A context-layer sibling of `AtomicFi.RuleEngine` (decision evaluation)
+  and `AtomicFi.DocumentParser` (vision extraction).
+  `AtomicFiWeb.CopilotKitController` is a dumb pass-through: it calls
+  `stream_response/2` and nothing else.
 
-    1. Translate the request's history → ReqLLM context messages.
-    2. Translate `frontend.actions` → ReqLLM tools.
-    3. Emit the initial multipart chunk (threadId / runId / extensions).
-    4. Call the LLM (non-streaming for V1; full response in one go).
-    5. Emit message chunks for the response text + any tool_calls.
-    6. Emit the deferred `status` chunk.
-    7. Emit the final `hasNext: false` part + multipart terminator.
+  ## Two entry points
 
-  Token-by-token streaming via `ReqLLM.stream_text/3` is a future
-  refinement — the protocol supports it (the React client reads
-  `content @stream` per character) but isn't required for the demo.
+    * `complete/2` — one LLM turn. Pure: ReqLLM messages + tools in, a
+      transport-free `t:completion/0` out (assistant text + tool calls).
+      Unit-tested directly against the configured model.
+
+    * `stream_response/2` — the full `generateCopilotResponse`
+      orchestration: translate the CopilotKit request → ReqLLM, run
+      `complete/2`, and stream the reply back over the already
+      `send_chunked/2`'d connection as GraphQL Incremental Delivery
+      `multipart/mixed` parts.
+
+  The reasoning model + transport come from `config :atomic_fi, :copilotkit`
+  (local Ollama by default).
   """
 
-  alias AtomicFiWeb.Copilotkit.Incremental
-  alias AtomicFiWeb.Copilotkit.Messages
+  alias AtomicFi.CopilotKitContext.Incremental
+  alias AtomicFi.CopilotKitContext.Messages
+
+  @messages_path ["generateCopilotResponse", "messages"]
+
+  @typedoc "A tool call the model emitted — the action name + its raw JSON arguments string."
+  @type tool_call :: %{name: String.t(), arguments: String.t()}
+
+  @typedoc "A finished LLM turn — assistant text and any tool calls."
+  @type completion :: %{text: String.t(), tool_calls: [tool_call()]}
 
   @doc """
   Stream a `generateCopilotResponse` reply for `data` (the request's
-  `variables.data` payload).
+  `variables.data` payload) over an already-chunked connection.
   """
   @spec stream_response(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def stream_response(conn, data) do
@@ -36,65 +49,80 @@ defmodule AtomicFiWeb.Copilotkit do
 
     conn
     |> Incremental.send_initial(thread_id, run_id)
-    |> drive_llm(messages, tools)
+    |> stream_completion(messages, tools)
     |> Incremental.defer_chunk(["generateCopilotResponse"], Messages.success_status())
     |> Incremental.send_final()
   end
 
-  # ── internals ──────────────────────────────────────────────────────
+  @doc """
+  Run one LLM turn over `messages` with `tools` available.
 
-  defp drive_llm(conn, messages, tools) do
-    opts = generation_opts(tools)
+  Returns `{:ok, completion}`, or `{:error, reason}` where `reason` is
+  ReqLLM's error (transport failure, etc.) — the caller decides how to
+  surface it.
+  """
+  @spec complete([ReqLLM.Message.t()], [ReqLLM.Tool.t()]) ::
+          {:ok, completion()} | {:error, term()}
+  def complete(messages, tools) when is_list(messages) and is_list(tools) do
+    case ReqLLM.generate_text(model_spec(), messages, generation_opts(tools)) do
+      {:ok, %ReqLLM.Response{} = response} -> {:ok, extract(response)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
 
-    case ReqLLM.generate_text(model_spec(), messages, opts) do
-      {:ok, response} ->
-        emit_response(conn, response)
+  # ── streaming ───────────────────────────────────────────────────────
+
+  defp stream_completion(conn, messages, tools) do
+    case complete(messages, tools) do
+      {:ok, %{text: text, tool_calls: tool_calls}} ->
+        conn
+        |> stream_text(text)
+        |> stream_tool_calls(tool_calls)
 
       {:error, _reason} ->
-        # On LLM failure we still close the stream cleanly so the
-        # React client doesn't hang. The `status` defer chunk
-        # following this will report Success — for the demo build
-        # we treat transport errors as ephemeral.
-        Incremental.stream_chunk(
+        # Close the stream cleanly so the React client doesn't hang; the
+        # Phoenix log carries the real reason. The demo build treats LLM
+        # transport errors as ephemeral.
+        stream_message(
           conn,
-          ["generateCopilotResponse", "messages"],
-          [Messages.text_message("[server error reaching LLM — see Phoenix logs]")]
+          Messages.text_message("[server error reaching LLM — see Phoenix logs]")
         )
     end
   end
 
-  defp emit_response(conn, %ReqLLM.Response{} = response) do
-    text = ReqLLM.Response.text(response)
-    tool_calls = ReqLLM.Response.tool_calls(response) || []
+  defp stream_text(conn, ""), do: conn
+  defp stream_text(conn, text), do: stream_message(conn, Messages.text_message(text))
 
-    conn =
-      if text && text != "" do
-        Incremental.stream_chunk(
-          conn,
-          ["generateCopilotResponse", "messages"],
-          [Messages.text_message(text)]
-        )
-      else
-        conn
-      end
-
-    Enum.reduce(tool_calls, conn, fn tc, acc ->
-      arguments_json =
-        case Map.get(tc, :arguments) do
-          json when is_binary(json) -> json
-          args when is_map(args) -> Jason.encode!(args)
-          _ -> "{}"
-        end
-
-      Incremental.stream_chunk(
-        acc,
-        ["generateCopilotResponse", "messages"],
-        [Messages.action_execution_message(tc.name, arguments_json)]
-      )
+  defp stream_tool_calls(conn, tool_calls) do
+    Enum.reduce(tool_calls, conn, fn %{name: name, arguments: arguments}, acc ->
+      stream_message(acc, Messages.action_execution_message(name, arguments))
     end)
   end
 
-  defp emit_response(conn, _other), do: conn
+  defp stream_message(conn, message),
+    do: Incremental.stream_chunk(conn, @messages_path, [message])
+
+  defp generate_id, do: 16 |> :crypto.strong_rand_bytes() |> Base.encode16(case: :lower)
+
+  # ── LLM turn ────────────────────────────────────────────────────────
+
+  defp extract(%ReqLLM.Response{} = response) do
+    %{
+      text: ReqLLM.Response.text(response) || "",
+      tool_calls:
+        response |> ReqLLM.Response.tool_calls() |> List.wrap() |> Enum.map(&to_tool_call/1)
+    }
+  end
+
+  # ReqLLM.ToolCall carries the name + arguments under :function (the
+  # OpenAI wire shape — %{name: string, arguments: JSON-string}); there
+  # is no top-level :name / :arguments.
+  defp to_tool_call(%ReqLLM.ToolCall{function: %{name: name, arguments: arguments}}) do
+    %{name: name, arguments: encode_arguments(arguments)}
+  end
+
+  defp encode_arguments(json) when is_binary(json), do: json
+  defp encode_arguments(map) when is_map(map), do: Jason.encode!(map)
 
   defp model_spec do
     config = Application.fetch_env!(:atomic_fi, :copilotkit)
@@ -107,8 +135,11 @@ defmodule AtomicFiWeb.Copilotkit do
   end
 
   defp generation_opts(tools) do
-    [temperature: 0.1, tools: tools]
-  end
+    config = Application.fetch_env!(:atomic_fi, :copilotkit)
 
-  defp generate_id, do: 16 |> :crypto.strong_rand_bytes() |> Base.encode16(case: :lower)
+    # ReqLLM's OpenAI provider resolves a credential even against Ollama;
+    # without :api_key it raises before the request is sent. Mirrors
+    # AtomicFi.DocumentParser.
+    [temperature: 0.1, tools: tools, api_key: Keyword.fetch!(config, :api_key)]
+  end
 end
