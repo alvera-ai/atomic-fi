@@ -8,7 +8,7 @@ defmodule AtomicFiWeb.PageControllerTest do
       |> html_response(200)
 
     # atomic-fi branding (not the Phoenix scaffold copy)
-    assert body =~ "OSS compliance platform for payments"
+    assert body =~ "OSS system of action for fintech"
 
     # Each example app appears with label + bare /demo/<app>/ href.
     # The bare path is served index.html by the demo_app SPA fallback;
