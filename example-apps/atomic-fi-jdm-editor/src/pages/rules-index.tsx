@@ -88,7 +88,7 @@ export const RulesIndexPage: React.FC = () => {
           <h1 className="font-display text-lg tracking-tight m-0">Rules</h1>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleNewRule}>
+          <Button id="new-rule-button" type="primary" icon={<PlusOutlined />} onClick={handleNewRule}>
             New rule
           </Button>
           <Dropdown

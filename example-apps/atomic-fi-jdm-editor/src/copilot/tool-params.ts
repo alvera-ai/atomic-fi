@@ -27,8 +27,14 @@ const contentDescription =
 export const AddNodeToolParams = z.object({
   type: z.enum(NODE_TYPES).describe('REQUIRED. The JDM node kind.').optional(),
   name: z.string().describe('REQUIRED. Human-readable node name.').optional(),
-  content: z.unknown().describe(contentDescription),
-  position: z.unknown().describe(positionDescription),
+  // .optional() on z.unknown() is load-bearing: without it, zod-to-json-schema
+  // emits these in `required[]` (zod's default-required behaviour). Small LLMs
+  // like qwen3.5:9b dutifully ship `{content:{}, position:{}}` to satisfy the
+  // schema, then the strict per-node-type schema rejects the empty content
+  // and the agent self-corrects — wasted turns. Marking optional drops them
+  // from `required[]` so the model only emits them when it actually means to.
+  content: z.unknown().describe(contentDescription).optional(),
+  position: z.unknown().describe(positionDescription).optional(),
 });
 
 export const UpdateNodeToolParams = z.object({
@@ -39,12 +45,15 @@ export const UpdateNodeToolParams = z.object({
         'name. Case-sensitive when matching by name.',
     )
     .optional(),
+  // See the `AddNodeToolParams` note above — `.optional()` on `z.unknown()` is
+  // load-bearing for `required[]` hygiene in the JSON schema sent to the LLM.
   patch: z
     .unknown()
-    .describe('Canonical form: { name?, content?, position? }. Use this OR the ' + 'top-level shorthand, not both.'),
+    .describe('Canonical form: { name?, content?, position? }. Use this OR the ' + 'top-level shorthand, not both.')
+    .optional(),
   name: z.string().describe('Shorthand: new node name.').optional(),
-  content: z.unknown().describe('Shorthand: new node content (a JSON object).'),
-  position: z.unknown().describe('Shorthand: new { x, y } position.'),
+  content: z.unknown().describe('Shorthand: new node content (a JSON object).').optional(),
+  position: z.unknown().describe('Shorthand: new { x, y } position.').optional(),
 });
 
 export const RemoveNodeToolParams = z.object({

@@ -34,11 +34,22 @@ const handleCopilotError = (event: unknown): void => {
 };
 
 export const CopilotProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // `showDevConsole="auto"` floats the CopilotKitInspector — the same widget
-  // CopilotKit's own examples/v2/react/demo uses — so the live agent /
-  // message-store state is visible while we debug v2 parity against v1.
+  // Gate the CopilotKitInspector on Vite's build mode rather than its
+  // "auto" heuristic. Two reasons:
+  //   1. UX — the demo bundle that ships to `/demo/atomic-fi-jdm-editor/`
+  //      is built with `vite build --watch` (production mode), so end
+  //      users would otherwise see the inspector widget. It's a debug
+  //      tool, not a feature.
+  //   2. E2E — the inspector is `position: fixed` at the top-right
+  //      corner with `z-index: 2147483646` (max), and overlaps the
+  //      `#copilot-toggle` button at its 1-pixel edge. Playwright treats
+  //      the overlap as a pointer-event interception and refuses to
+  //      click. Hiding it in the built bundle removes both problems in
+  //      one change; local `pnpm dev` keeps the inspector via
+  //      `import.meta.env.DEV`.
+  const showDevConsole = import.meta.env.DEV;
   return (
-    <CopilotKitProvider runtimeUrl={runtimeUrl} showDevConsole="auto" onError={handleCopilotError}>
+    <CopilotKitProvider runtimeUrl={runtimeUrl} showDevConsole={showDevConsole} onError={handleCopilotError}>
       {children}
     </CopilotKitProvider>
   );

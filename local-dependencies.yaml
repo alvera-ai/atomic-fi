@@ -27,6 +27,14 @@ services:
       - ./priv/zenrule:/home/nonroot/data:ro
     environment:
       PROVIDER__TYPE: Filesystem
+      # Enable permissive CORS so the editor (served by Phoenix at :4100)
+      # can POST evaluate requests directly to ZenRule from the browser.
+      # Old vite-dev got same-origin via a vite proxy; the new
+      # vite-build-served-by-Phoenix setup makes the call cross-origin.
+      # ZenRule's `cors_permissive` struct default is `true`, but the
+      # serde-default for the bare bool field is `false` — so we pin
+      # it explicitly here (config-rs maps `CORS_PERMISSIVE` → field).
+      CORS_PERMISSIVE: "true"
 
   # copilot-runtime — generic CopilotKit v2 runtime sidecar (see ADR-002).
   # CopilotKit ships @copilotkit/runtime as library middleware, not an image,

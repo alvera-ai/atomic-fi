@@ -63,6 +63,13 @@ export const DecisionSimplePage: React.FC = () => {
   const [lastSimulation, setLastSimulation] = useState<Simulation | null>(null);
   const [revision, setRevision] = useState(0);
   const [savedRevision, setSavedRevision] = useState(0);
+  // The hash of the last persisted graph (last load OR last save). Used by
+  // `handleChange` to distinguish a real user edit from the spurious
+  // onChange DecisionGraph fires every time its `value` prop is replaced
+  // (the library's own internal normalization). Without this gate, every
+  // rule load would arrive with `dirty: true` because the prop-replacement
+  // onChange bumps `revision` while `savedRevision` stays 0.
+  const lastPersistedHashRef = useRef<string>(JSON.stringify(emptyGraph));
   const [loading, setLoading] = useState(!isNew);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -121,7 +128,12 @@ export const DecisionSimplePage: React.FC = () => {
       try {
         const data = await getRule(ruleType, name);
         if (cancelled) return;
-        setGraph({ nodes: data.nodes ?? [], edges: data.edges ?? [] });
+        const loaded = { nodes: data.nodes ?? [], edges: data.edges ?? [] };
+        setGraph(loaded);
+        // Persist the structural hash of what we loaded so the spurious
+        // DecisionGraph onChange that fires immediately after this
+        // setGraph doesn't read as a user edit.
+        lastPersistedHashRef.current = JSON.stringify(loaded);
         setRevision(0);
         setSavedRevision(0);
       } catch (e) {
@@ -137,7 +149,13 @@ export const DecisionSimplePage: React.FC = () => {
 
   const handleChange = useCallback((value: DecisionGraphType) => {
     setGraph(value);
-    setRevision((r) => r + 1);
+    // Bump revision only when the canvas content structurally differs
+    // from what's persisted (last load or last save). DecisionGraph
+    // fires onChange once after every `value` prop replacement — that
+    // spurious fire matches the persisted hash and must NOT mark dirty.
+    if (JSON.stringify(value) !== lastPersistedHashRef.current) {
+      setRevision((r) => r + 1);
+    }
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -155,6 +173,10 @@ export const DecisionSimplePage: React.FC = () => {
     try {
       await saveRule(ruleType, name, { contentType: DECISION_CONTENT_TYPE, ...graph });
       setSavedRevision(revision);
+      // Update the persisted hash so the next handleChange sees a clean
+      // baseline. Otherwise an edit-save-edit cycle would still compare
+      // against the original load hash.
+      lastPersistedHashRef.current = JSON.stringify(graph);
       message.success(`Saved ${name}`);
     } catch (e) {
       displayError(e);
@@ -211,7 +233,12 @@ export const DecisionSimplePage: React.FC = () => {
     filename: name,
     dirty,
     graph,
-    onSaved: () => setSavedRevision(revisionRef.current),
+    onSaved: () => {
+      setSavedRevision(revisionRef.current);
+      // Same baseline reset as the manual save path — keep the
+      // persisted hash in sync after the agent's save_rule action.
+      lastPersistedHashRef.current = JSON.stringify(currentGraphRef.current);
+    },
     refreshExistingRules,
   });
   useSimulateAction({
