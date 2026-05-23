@@ -15,6 +15,17 @@ export type PreviewCardProps = {
   applyLabel?: string;
 };
 
+// Monotonic per-session counter for HITL card instances. Each PreviewCard
+// claims the next integer on mount and keeps it for its lifetime; rendered
+// as the `id` suffix on the card + its buttons (`hitl-card-3`,
+// `hitl-apply-3`, `hitl-reject-3`). Specs can target by exact id when they
+// know the order, or by `data-testid` family (e.g. `hitl-card`) +
+// `.filter({hasText:…})` when they don't. The counter resets per page
+// load — fine, because a fresh page has no pre-existing cards. Cross-page
+// uniqueness isn't a goal; per-session predictability is.
+let hitlCardSequence = 0;
+const nextCardId = (): number => hitlCardSequence++;
+
 export const PreviewCard: React.FC<PreviewCardProps> = ({
   title,
   status,
@@ -50,6 +61,11 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({
   const appliedRef = React.useRef(false);
   const onApplyRef = React.useRef(onApply);
   const onRejectRef = React.useRef(onReject);
+  // Claim a session-stable sequence number on mount. `useRef(nextCardId())`
+  // runs the initializer once per component instance, so the id stays
+  // constant across re-renders (status transitions, prop updates).
+  const idxRef = React.useRef(nextCardId());
+  const idx = idxRef.current;
   React.useEffect(() => {
     onApplyRef.current = onApply;
   }, [onApply]);
@@ -76,9 +92,29 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({
     return registerPending(pendingApply);
   }, [status, pendingApply]);
 
+  // Stable hooks for E2E specs. Hybrid scheme:
+  //   * `data-testid="hitl-card"` (and same on the buttons) — testid family
+  //     for `getByTestId(...).nth(i)` and `.filter({hasText:...})` lookups.
+  //     Idiomatic for repeated patterns where multiple cards share semantics.
+  //   * `id="hitl-card-{n}"` (and matching on the buttons) — session-stable
+  //     suffixed id so specs targeting a known-position card can use plain
+  //     `#hitl-card-2` instead of nth().
+  //   * `data-hitl-title` + `data-hitl-status` — filter attributes for
+  //     scenario-based selectors (e.g. "the executing add_node card").
+  const cardStatus =
+    status === ToolCallStatus.Complete
+      ? 'resolved'
+      : status === ToolCallStatus.Executing
+        ? 'executing'
+        : 'queued';
+
   return (
     <Card
       size="small"
+      id={`hitl-card-${idx}`}
+      data-testid="hitl-card"
+      data-hitl-title={title}
+      data-hitl-status={cardStatus}
       title={
         <div className="flex items-center gap-2">
           <span className="font-mono text-[12px]">{title}</span>
@@ -94,15 +130,34 @@ export const PreviewCard: React.FC<PreviewCardProps> = ({
         <div className="flex justify-end gap-2 mt-3">
           {status === ToolCallStatus.Executing ? (
             <>
-              <Button size="small" icon={<CloseOutlined />} onClick={guardedReject}>
+              <Button
+                id={`hitl-reject-${idx}`}
+                data-testid="hitl-reject"
+                size="small"
+                icon={<CloseOutlined />}
+                onClick={guardedReject}
+              >
                 Reject
               </Button>
-              <Button size="small" type="primary" icon={<CheckOutlined />} onClick={pendingApply}>
+              <Button
+                id={`hitl-apply-${idx}`}
+                data-testid="hitl-apply"
+                size="small"
+                type="primary"
+                icon={<CheckOutlined />}
+                onClick={pendingApply}
+              >
                 {applyLabel}
               </Button>
             </>
           ) : (
-            <span className="text-xs text-ink-muted self-center">queued — waiting for previous tool to finish…</span>
+            <span
+              id={`hitl-queued-${idx}`}
+              data-testid="hitl-queued"
+              className="text-xs text-ink-muted self-center"
+            >
+              queued — waiting for previous tool to finish…
+            </span>
           )}
         </div>
       )}
