@@ -235,26 +235,37 @@ flowchart LR
     classDef component fill:#85bbf0,stroke:#4f87b8,color:#000
     classDef external fill:#999,stroke:#666,color:#fff
 
-    parse["POST /api/parse<br/>document parser"]:::component
-    copilot["POST /api/copilotkit<br/>JDM copilot"]:::component
-    lotus["embedded Lotus dashboard<br/>SQL copilot"]:::component
+    parse["POST /api/parse<br/>document parser (Phoenix)"]:::component
+    copilot["POST /api/copilotkit<br/>JDM copilot (copilot-runtime sidecar :4242)"]:::component
+    lotus["embedded Lotus dashboard<br/>SQL copilot (Phoenix)"]:::component
 
-    llm["LLM provider<br/>Ollama (local) ⇄ Gemini · Claude · OpenAI (cloud)<br/>— selected by config"]:::external
+    llm["LLM provider<br/>Ollama (local) ⇄ Gemini · Claude · OpenAI · Groq (cloud)<br/>— selected by config"]:::external
 
     parse   -- "vision · structured JSON" --> llm
-    copilot -- "streamed tool-loop"        --> llm
+    copilot -- "AG-UI / Vercel AI SDK streamText" --> llm
     lotus   -- "text-to-SQL"               --> llm
 ```
 
 | Feature | Surface | Job | Local default | Cloud example |
 |---|---|---|---|---|
-| Document parser | `POST /api/parse` | vision extraction | `llama3.2-vision:11b` | `google:gemini-1.5-pro` |
-| JDM copilot | `POST /api/copilotkit` | reasoning + tool-calling | `qwen3.5:9b` | `anthropic:claude-…` |
+| Document parser | `POST /api/parse` (Phoenix) | vision extraction | `llama3.2-vision:11b` | `google:gemini-1.5-pro` |
+| JDM copilot | `POST /api/copilotkit` (copilot-runtime sidecar) | reasoning + tool-calling | `qwen3.5:9b` | `anthropic:claude-…` |
 | Lotus SQL copilot | embedded Lotus dashboard | text-to-SQL | `qwen3.5:9b` | `openai:gpt-…` |
 
-The model lives in config — `config :atomic_fi, :document_parser`,
-`:copilotkit`, and `config :lotus, :ai`. Pointing a feature at a cloud
-provider is a config change; no code moves.
+Parser + Lotus call the LLM from Phoenix via ReqLLM. The JDM copilot is
+the exception — it speaks CopilotKit v2's AG-UI protocol, which ships
+only as JS library middleware, so a small **generic copilot-runtime
+sidecar** (`external-deps/copilot-runtime/`, Bun + Hono + Vercel AI SDK)
+brokers the LLM call. The editor's React client posts to that sidecar's
+`/api/copilotkit` directly; the sidecar holds zero domain logic — its
+job is provider-switching and AG-UI stream shaping. Same pluggable-LLM
+property either way: a config change moves any feature between local
+Ollama and a cloud provider, no code moves.
+
+Configuration lives in `config :atomic_fi, :document_parser`,
+`external-deps/copilot-runtime/docker.env` (`LLM_PROVIDER`, `LLM_MODEL`,
+`OLLAMA_BASE_URL`), and `config :lotus, :ai`. The sidecar is started by
+`make run-backing-services` alongside ZenRule + Watchman.
 
 ### Thinking vs non-thinking models
 
@@ -291,18 +302,37 @@ the model receives page images plus the extracted text layer:
 Cloud providers (Gemini, Claude) accept a PDF directly — their backend
 runs this same rasterise step server-side.
 
-### Copilot streaming — `/api/copilotkit`
+### Copilot streaming — `/api/copilotkit` (copilot-runtime sidecar)
 
-The JDM editor's React copilot speaks CopilotKit's GraphQL Runtime
-Protocol; Phoenix answers it natively — no Node sidecar:
+The JDM editor's React copilot speaks **CopilotKit v2 / AG-UI** to the
+generic sidecar at `:4242`. The sidecar bundles
+`@copilotkit/runtime/v2` + Hono on Bun, and uses a `BuiltInAgent` in
+`"aisdk"` Factory Mode — every turn the sidecar runs Vercel AI SDK's
+`streamText`, returns its result, and CopilotKit converts the stream
+into AG-UI events the client renders.
 
-- `availableAgents` / `loadAgentState` — one-shot JSON responses.
-- `generateCopilotResponse` — **streamed** as `multipart/mixed` chunks
-  (GraphQL incremental delivery): Phoenix drives a tool-loop against the
-  reasoning model, emitting one chunk per token / tool-call.
+- `availableAgents` / `loadAgentState` — one-shot JSON.
+- `runAgent` — SSE (`text/event-stream`) carrying AG-UI events
+  (`RUN_STARTED` / `TEXT_MESSAGE_CHUNK` / `TOOL_CALL_*` / `RUN_FINISHED`).
+- A 15 s transport-level keepalive (`: keepalive\n\n` comment frames)
+  prevents Bun's idle timer + downstream proxies from closing the
+  socket during the LLM's silent prompt-eval window.
 
-No WebSocket. Client-side tool round-trips are chained HTTP requests —
-all conversation state travels in the `messages` array.
+No WebSocket; tool round-trips are chained HTTP requests with the full
+conversation in the `messages` array. The sidecar holds no domain
+logic — the JDM authoring system prompt + the 11 HITL tool schemas
+live in the editor (`src/copilot/`).
+
+### Rule storage — `zen_rules/` source vs `priv/zenrule/` runtime
+
+Demo rules are committed at `zen_rules/<rule_type>/<name>.json` (source
+of truth) and copied to `priv/zenrule/<rule_type>/` by
+`make hydrate-zen-rules` (a dependency of `make run-backing-services`).
+ZenRule's container bind-mounts `priv/zenrule/` read-only and polls
+every ~5 s for changes — so writes from the editor's `save_rule`
+action (via Phoenix's REST proxy) become evaluable shortly after the
+HTTP write returns. Same pattern as the Vite-built SPAs: committed
+source at the repo root, gitignored runtime location under `priv/`.
 
 ---
 

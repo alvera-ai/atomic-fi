@@ -430,8 +430,30 @@ and client-side routes:
 | Path                            | What |
 |---------------------------------|------|
 | `/demo/onboarding-flow/`        | Document extraction (`POST /api/parse`) |
-| `/demo/atomic-fi-jdm-editor/`   | JDM editor + CopilotKit (`POST /api/copilotkit`) |
+| `/demo/atomic-fi-jdm-editor/`   | JDM editor + CopilotKit copilot (runtime sidecar at :4242, see `external-deps/copilot-runtime/`) |
 | `/demo/lotus-embed/`            | Lotus SQL editor + dashboard embed |
+
+#### Example flows — the JDM editor walkthrough
+
+The four end-to-end specs in `example-apps/atomic-fi-jdm-editor/e2e/jdm-copilot.spec.ts`
+double as **executable docs** for the JDM editor + its CopilotKit
+copilot. Each one drives the live demo at
+`http://localhost:4100/demo/atomic-fi-jdm-editor/` against a real local
+Ollama, mirrors a realistic user flow, and ships green from the repo
+root. Run any of them with `pnpm e2e:jdm`.
+
+| Spec | User flow | Demonstrates |
+|---|---|---|
+| `spec 1 — onboarding/permissive: explain, generate input, simulate` | Pass the ConnectGate → open the seeded `permissive.json` → ask the copilot to explain the rule in plain English → ask the copilot for a minimal input JSON → paste into the Simulator → Run → observe `ledger_accounts` in the output | The two LLM-as-narrator flows (explain a rule, draft an input) + the simulator round-trip through ZenRule. |
+| `spec 2 — onboarding: copilot authors a new rule, sim it, then edit it` | New rule via `#new-rule-button` → ask the copilot to author a BSA §326 CIP gate end-to-end (3 nodes + 2 edges, named `Request` / `KYC Gate` / `Response`) → drain the HITL cards via "Apply all" → manual `#save-rule-button` → wait 15 s for ZenRule's filesystem poll → copilot drafts an input → simulate → ask the copilot to `update_node` a node's name → assert the dirty flag re-flipped | Multi-turn copilot authoring with `useHumanInTheLoop`'s Apply / Reject + the Apply-all batch path, plus the write/eval split (writes via Phoenix REST, eval direct to ZenRule). |
+| `spec 3 — transaction-screening/de_minimis: explain, generate input, simulate` | Same shape as spec 1 but on the seeded `de_minimis.json` rule under transaction-screening. | Same flow, different rule type — confirms the txn-screening side wires up identically. |
+| `spec 4 — transaction-screening: copilot authors a new rule, sim it, then edit it` | Mirror of spec 2 for OFAC SDN match-score gating (use-case #11 from `guides/use-cases.md`). | Same multi-turn authoring + edit round-trip on the txn-screening side. |
+
+Runtime: all four pass in ~10 min on a warm Ollama (`qwen3.5:9b`).
+The `applyAllPending` helper in the spec file drains HITL queues
+across multi-turn agent conversations; the global setup pre-warms
+Ollama so the first turn doesn't eat its cold-load on a long-idle
+session.
 
 ### Verify Watchman
 
