@@ -39,14 +39,19 @@ defmodule AtomicFi.UseCases.CorpusRunner do
 
     args = ["corpus.validate", corpus_path, "--reset"]
 
-    # Inherit the parent's MIX_ENV — `mix test` runs in :test, regression
-    # workflows run mix tasks in :dev. Either way the subprocess gets a
-    # warm _build for the same env and writes to the existing
-    # `atomic_fi_<env>` DB. The validator creates its own
-    # `atomic_fi_corpus` schema inside whatever DB it connects to, so
-    # there's no cross-test pollution either way (the test sandbox uses
-    # the `public` schema; the corpus subprocess never touches it).
-    {output, status} = System.cmd("mix", args, stderr_to_stdout: true)
+    # MIX_ENV=dev is deliberate — the screening/rule engine modules use
+    # `Application.compile_env(:atomic_fi, :screening_engine, Default)`
+    # which is baked at compile time. In MIX_ENV=test the Mox mock is
+    # baked in, and the subprocess has no DataCase to install a
+    # `stub_with`, so the first real call from corpus.validate would
+    # crash with `Mox.UnexpectedCallError`. MIX_ENV=dev's compile_env
+    # resolves to the live `Default` impl, which is what the validator
+    # actually needs — it talks to Watchman + ZenRule end-to-end.
+    {output, status} =
+      System.cmd("mix", args,
+        env: [{"MIX_ENV", "dev"}],
+        stderr_to_stdout: true
+      )
 
     if status != 0 do
       IO.puts(output)

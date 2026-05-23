@@ -1,10 +1,20 @@
-# The default `mix test` run requires three local services up:
-#   * ZenRule + Watchman — the test/atomic_fi/use_cases/* corpus tests
-#     shell out to `mix corpus.validate` and hit them live.
-#   * Mockoon on :8085 — every test that drives an LLM (document-parser
-#     vision + Lotus AI SQL completion) is routed through it via
-#     config/test.exs. Start everything with `make run-backing-services`.
-ExUnit.start()
+# `mix test` defaults: unit + integration only. Two extra-slow tag
+# groups are excluded; opt in per CI workflow with `mix test --only <tag>`.
+#
+#   * :use_cases  — the corpus golden-regression checks under
+#                   test/atomic_fi/use_cases/. Each shells out
+#                   `mix corpus.validate <slug> --reset` (subprocess,
+#                   MIX_ENV=dev — see corpus_runner.ex) and hits the
+#                   live ZenRule + Watchman + DB end-to-end. They're
+#                   regression-contract tests against the committed
+#                   corpus, not unit tests of the application code, so
+#                   they live in regression.yml (alongside vitest +
+#                   bruno) rather than test.yml.
+#
+# Local backing services for the LLM-bound tests (document-parser
+# vision + Lotus AI SQL completion) come from `make run-backing-services`
+# (Mockoon on :8085, ZenRule on :8090, Watchman on :8084).
+ExUnit.start(exclude: [:use_cases])
 
 # Sweep any test_*.json rules left in priv/zenrule by crashed test runs.
 AtomicFi.RulesTestHelper.cleanup_orphaned_test_rules()

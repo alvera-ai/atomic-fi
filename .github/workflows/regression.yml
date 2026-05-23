@@ -195,6 +195,20 @@ jobs:
         # + root API key that the vitest harness needs.
         run: mix ecto.reset
 
+      - name: Run corpus golden-regression checks (mix test --only use_cases)
+        # The :use_cases corpus tests are excluded from default `mix test`
+        # in test_helper.exs — they're regression-contract tests against
+        # the committed golden corpus, not unit tests of the application
+        # code. Their natural home is here:
+        #   * MIX_ENV=dev is already in scope (workflow env)
+        #   * _build/dev is warm (mix compile above)
+        #   * atomic_fi_dev exists (mix ecto.reset above)
+        #   * ZenRule + Watchman are already running as services
+        # Each test shells out `mix corpus.validate <slug> --reset` and
+        # asserts every row in the committed proof.md still produces
+        # the catalog verdict end-to-end.
+        run: mix test --only use_cases
+
       - name: Dump bootstrap creds for the vitest harness
         # Writes priv/repo/.bootstrap_creds.json — read by
         # integration-tests/src/env.ts when TARGET_ENV=local.
