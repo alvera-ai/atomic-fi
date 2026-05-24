@@ -39,6 +39,14 @@ defmodule AtomicFi.UseCases.CorpusRunner do
 
     args = ["corpus.validate", corpus_path, "--reset"]
 
+    # MIX_ENV=dev is deliberate — the screening/rule engine modules use
+    # `Application.compile_env(:atomic_fi, :screening_engine, Default)`
+    # which is baked at compile time. In MIX_ENV=test the Mox mock is
+    # baked in, and the subprocess has no DataCase to install a
+    # `stub_with`, so the first real call from corpus.validate would
+    # crash with `Mox.UnexpectedCallError`. MIX_ENV=dev's compile_env
+    # resolves to the live `Default` impl, which is what the validator
+    # actually needs — it talks to Watchman + ZenRule end-to-end.
     {output, status} =
       System.cmd("mix", args,
         env: [{"MIX_ENV", "dev"}],

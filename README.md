@@ -380,38 +380,80 @@ The cookbook MDX (planned) is the third generated artifact — produced by `vite
 
 ### Prerequisites
 
-- **Erlang**: 27.3.3
-- **Elixir**: 1.18.3-otp-27
+- **Erlang**: 27.3.3 / **Elixir**: 1.18.3-otp-27 (see `.tool-versions`)
 - **PostgreSQL**: 17.2
-- **Watchman** (sanctions screening): `make run-watchman` (pulls `moov/watchman:v0.61.1`)
+- **Docker**: backing services (ZenRule + Watchman)
+- **Ollama**: native daemon for local AI (no API keys required)
+  - `brew install ollama && ollama serve`
+  - `ollama pull llama3.2-vision:11b`   (document parser at `/api/parse`)
+  - `ollama pull qwen2.5:7b`           (JDM copilot at `/api/copilotkit`)
+- **poppler**: PDF rasterization for the document parser
+  - `brew install poppler`   (macOS) / `apt-get install poppler-utils` (Linux)
+- **pnpm**: example-app builds (auto-run by `make server` as Phoenix
+  watchers — install via `corepack enable` or `brew install pnpm`)
 
-See `.tool-versions` for exact versions.
+**No Rust toolchain required.** The LLM transport (ReqLLM) is pure
+Elixir; the future ZenRule NIF (ADR-001 §Decision 3) will ship as
+a precompiled binary too.
 
 ### Setup
 
 ```bash
-# Install dependencies
+# Install Elixir + JS deps
 mix deps.get
+pnpm install
+
+# Start backing services (ZenRule + Watchman) — once per boot
+make run-backing-services
 
 # Create DB, run migrations, seed
 mix ecto.setup
 
-# Start Watchman (sanctions screening + custom watchlist)
-make run-watchman
-
-# Ingest the custom watchlist into Watchman
-curl -X POST http://localhost:8084/v2/ingest/custom_watchlist \
-  -H "Content-Type: application/octet-stream" \
-  --data-binary @custom-watchlist.jsonl
-
-# Start server
-mix phx.server
+# Start everything: Phoenix + example-app build watchers
+make server
 ```
 
 **Visit:**
 
+- **Home (demo list)**: http://localhost:4100/
 - **API Docs**: http://localhost:4100/api/docs
 - **OpenAPI Spec**: http://localhost:4100/api/openapi
+
+### Demos (`/`)
+
+The home page links each example app. Each one is a standalone Vite
+build under `example-apps/<app>/`, rebuilt on file change by Phoenix's
+`:watchers`. Plug.Static serves the built assets; a small SPA-fallback
+route (`PageController.demo_app`) serves `index.html` for the app root
+and client-side routes:
+
+| Path                            | What |
+|---------------------------------|------|
+| `/demo/onboarding-flow/`        | Document extraction (`POST /api/parse`) |
+| `/demo/atomic-fi-jdm-editor/`   | JDM editor + CopilotKit copilot (runtime sidecar at :4242, see `external-deps/copilot-runtime/`) |
+| `/demo/lotus-embed/`            | Lotus SQL editor + dashboard embed |
+
+#### Example flows — the JDM editor walkthrough
+
+The four end-to-end specs in `example-apps/atomic-fi-jdm-editor/e2e/jdm-copilot.spec.ts`
+double as **executable docs** for the JDM editor + its CopilotKit
+copilot. Each one drives the live demo at
+`http://localhost:4100/demo/atomic-fi-jdm-editor/` against a real local
+Ollama, mirrors a realistic user flow, and ships green from the repo
+root. Run any of them with `pnpm e2e:jdm`.
+
+| Spec | User flow | Demonstrates |
+|---|---|---|
+| `spec 1 — onboarding/permissive: explain, generate input, simulate` | Pass the ConnectGate → open the seeded `permissive.json` → ask the copilot to explain the rule in plain English → ask the copilot for a minimal input JSON → paste into the Simulator → Run → observe `ledger_accounts` in the output | The two LLM-as-narrator flows (explain a rule, draft an input) + the simulator round-trip through ZenRule. |
+| `spec 2 — onboarding: copilot authors a new rule, sim it, then edit it` | New rule via `#new-rule-button` → ask the copilot to author a BSA §326 CIP gate end-to-end (3 nodes + 2 edges, named `Request` / `KYC Gate` / `Response`) → drain the HITL cards via "Apply all" → manual `#save-rule-button` → wait 15 s for ZenRule's filesystem poll → copilot drafts an input → simulate → ask the copilot to `update_node` a node's name → assert the dirty flag re-flipped | Multi-turn copilot authoring with `useHumanInTheLoop`'s Apply / Reject + the Apply-all batch path, plus the write/eval split (writes via Phoenix REST, eval direct to ZenRule). |
+| `spec 3 — transaction-screening/de_minimis: explain, generate input, simulate` | Same shape as spec 1 but on the seeded `de_minimis.json` rule under transaction-screening. | Same flow, different rule type — confirms the txn-screening side wires up identically. |
+| `spec 4 — transaction-screening: copilot authors a new rule, sim it, then edit it` | Mirror of spec 2 for OFAC SDN match-score gating (use-case #11 from `guides/use-cases.md`). | Same multi-turn authoring + edit round-trip on the txn-screening side. |
+
+Runtime: all four pass in ~10 min on a warm Ollama (`qwen3.5:9b`).
+The `applyAllPending` helper in the spec file drains HITL queues
+across multi-turn agent conversations; the global setup pre-warms
+Ollama so the first turn doesn't eat its cold-load on a long-idle
+session.
 
 ### Verify Watchman
 

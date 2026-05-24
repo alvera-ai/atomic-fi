@@ -3,7 +3,7 @@ defmodule AtomicFi.UseCases.OfacMixerUsdcTest do
   Catalog row #34 of guides/use-cases.md — `ofac_mixer_usdc`.
 
   Verifies the committed golden corpus at
-  `corpus/zen_rules/ofac_mixer_usdc/` still produces the catalog verdict
+  `corpus/zen_rules/stableaml_wallet_blocklist/` still produces the catalog verdict
   end-to-end against the live engine. Subprocess driver — see
   `AtomicFi.UseCases.CorpusRunner`.
   """
@@ -15,6 +15,6 @@ defmodule AtomicFi.UseCases.OfacMixerUsdcTest do
   @moduletag :use_cases
 
   test "ofac_mixer_usdc corpus matches every _expected verdict" do
-    CorpusRunner.assert_golden!("ofac_mixer_usdc")
+    CorpusRunner.assert_golden!("stableaml_wallet_blocklist")
   end
 end

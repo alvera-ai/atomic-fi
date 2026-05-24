@@ -67,20 +67,16 @@ jobs:
         ports:
           - 8090:8080
 
-      # OpenAI-compatible mock for Lotus.AI / ReqLLM. Lotus is configured
-      # below to point at /openai/v1/<...> on this instance, so any
-      # generate_text/generate_object call lands here instead of the
-      # live OpenAI / Gemini endpoint. Mappings live under
-      # priv/wiremock/openai/mappings/ and are copied in after start.
-      wiremock:
-        image: wiremock/wiremock:3.10.0
-        ports:
-          - 8085:8080
-        options: --name wiremock
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Hydrate ZenRule demo rules
+        # `priv/zenrule/{onboarding,transaction-screening}/` are gitignored
+        # (committed source lives at /zen_rules/). Mirror what
+        # `make run-backing-services` does locally so the docker cp below
+        # picks up demo + test-fixture rules together.
+        run: make hydrate-zen-rules
 
       - name: Seed ZenRule rule corpus into the service container
         # Same pattern as test.yml: zenrule's filesystem provider starts
@@ -102,21 +98,6 @@ jobs:
           docker logs ${{ job.services.zenrule.id }}
           exit 1
 
-      - name: Seed WireMock mappings (OpenAI-compatible stub for Lotus.AI)
-        run: |
-          docker cp priv/wiremock/openai/mappings/. wiremock:/home/wiremock/mappings/
-          docker restart wiremock
-          for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-            if curl -sf "http://localhost:8085/__admin/mappings" >/dev/null 2>&1; then
-              echo "WireMock up"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "WireMock did not come up; last logs:"
-          docker logs wiremock
-          exit 1
-
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
         with:
@@ -133,6 +114,26 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
+
+      - name: Install and start Mockoon CLI (mock-external-deps)
+        # OpenAI-compatible mock for Lotus.AI + DocumentParser. Both point
+        # at http://localhost:8085 via the dev.secret.exs CI writer below.
+        # Mirrors the @usebruno/cli pattern further down — install global,
+        # background-start from the checked-out env file. No docker.
+        run: |
+          npm install -g @mockoon/cli@9.3.0
+          nohup mockoon-cli start --data priv/mockoon/atomic-fi.json --port 8085 > mockoon.log 2>&1 &
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -sf -X POST "http://localhost:8085/openai/v1/chat/completions" \
+                 -H 'Content-Type: application/json' -d '{}' >/dev/null 2>&1; then
+              echo "Mockoon up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Mockoon did not come up; last log:"
+          cat mockoon.log
+          exit 1
 
       - name: Restore Elixir deps cache
         # Separate key from the `test` job so the dev/test build artifacts
@@ -151,24 +152,32 @@ jobs:
 
       - name: Write minimal config/dev.secret.exs
         # The repo's dev.secret.exs is gitignored. For CI, write a minimal
-        # one that:
-        #   - enables Lotus.AI but
-        #   - points it at the WireMock service via an inline ReqLLM model
-        #     spec (provider + id + base_url). ReqLLM accepts a plain map
-        #     as a model_input and bakes base_url into the request, so no
-        #     upstream Lotus patch is needed.
-        # The /openai path segment is intentional — leaves room for
-        # /anthropic, /google, etc. mappings later.
+        # one that points every LLM-bound feature at the local Mockoon CLI
+        # mock on :8085 (started above). The /openai path segment is
+        # intentional — leaves room for /anthropic, /google, etc.
+        # mappings later inside priv/mockoon/atomic-fi.json.
         run: |
           cat > config/dev.secret.exs <<'EOF'
           import Config
 
+          # DocumentParser (POST /api/parse) — vision call goes to Mockoon.
+          # Request body contains `image_url` parts, so Mockoon's rule
+          # returns the JSON-schema response; ReqLLM's structured-output
+          # path decodes that into the IdentityDocument map.
+          config :atomic_fi, :document_parser,
+            vision_model_id: "mock-vision",
+            base_url: "http://localhost:8085/openai/v1",
+            api_key: "mockoon"
+
+          # Lotus.AI (SQL completion) — Mockoon's default response.
+          # ReqLLM accepts a plain map as a model_input and bakes base_url
+          # into the request, so no upstream Lotus patch is needed.
           config :lotus, :ai,
             enabled: true,
-            api_key: "wiremock",
+            api_key: "mockoon",
             model: %{
               provider: :openai,
-              id: "mock",
+              id: "mock-sql",
               base_url: "http://localhost:8085/openai/v1"
             }
           EOF
@@ -185,6 +194,25 @@ jobs:
         # and so never installs the bootstrap system tenant + admin user
         # + root API key that the vitest harness needs.
         run: mix ecto.reset
+
+      - name: Run corpus golden-regression checks
+        # Loops the committed golden corpora and asserts each row in the
+        # accompanying proof.md still produces the catalog verdict
+        # end-to-end against the live Watchman + ZenRule. Equivalent to
+        # what `mix test --only use_cases` does locally (each :use_cases
+        # ExUnit test is a 1:1 wrapper around one of these calls), but
+        # bypasses ExUnit + test/support compilation so we don't need
+        # atomic_fi_test / _build/test in this dev-env workflow.
+        #
+        # `set -e` + ::group:: gives a readable summary on failure.
+        run: |
+          set -e
+          for slug_dir in corpus/zen_rules/*/; do
+            slug="$(basename "$slug_dir")"
+            echo "::group::corpus.validate $slug"
+            mix corpus.validate "corpus/zen_rules/$slug" --reset
+            echo "::endgroup::"
+          done
 
       - name: Dump bootstrap creds for the vitest harness
         # Writes priv/repo/.bootstrap_creds.json — read by
@@ -284,11 +312,16 @@ jobs:
             echo "no phoenix.log captured"
           fi
 
-      - name: WireMock request journal (on failure)
+      - name: Mockoon log (on failure)
         if: failure()
         run: |
-          curl -sf http://localhost:8085/__admin/requests 2>/dev/null \
-            | head -c 50000 || echo "no wiremock journal"
+          if [ -f mockoon.log ]; then
+            echo "::group::mockoon.log (tail 500)"
+            tail -n 500 mockoon.log
+            echo "::endgroup::"
+          else
+            echo "no mockoon.log captured"
+          fi
 
       - name: Stop Phoenix
         if: always()

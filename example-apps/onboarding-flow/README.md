@@ -71,25 +71,16 @@ curl -X POST http://localhost:4100/api/tenants/refresh-blocklist-cache \
   -H "authorization: Bearer <token>"
 ```
 
-### 3. Start the Document Agent server
+### 3. Start the React app
+
+The Python document-agent-server is gone — document extraction now lives
+inside Phoenix at `POST /api/parse`, backed by a local Ollama vision
+model (no API keys). `make server` starts it alongside everything else.
+Confirm Ollama is running with the vision model pulled:
 
 ```bash
-cd example-apps/document-agent-server
-
-# Create .env from example
-cp .env.example .env
-# Edit .env and set GOOGLE_API_KEY
-
-# Install deps and start
-make install
-make server    # starts on :8100
-```
-
-Verify it works:
-
-```bash
-curl http://localhost:8100/health
-# {"status":"ok"}
+ollama list | grep llama3.2-vision     # should appear
+# If missing: ollama pull llama3.2-vision:11b
 ```
 
 ### 4. Start the React app
@@ -193,10 +184,13 @@ public/                  # Sample PDFs for AI extraction testing
 | `VITE_API_KEY` | For backend submission | Atomic FI API key from bootstrap creds |
 | `VITE_TENANT_ID` | For backend submission | Tenant UUID |
 
-### Document Agent Server (`.env`)
+### Document extraction (Phoenix `POST /api/parse`)
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `GOOGLE_API_KEY` | Yes | Google AI API key for Gemini |
-| `GEMINI_MODEL` | No | Model name (default: `gemini-2.5-flash-lite`) |
-| `MAX_CONCURRENT` | No | Max concurrent extractions (default: 5) |
+Extraction now happens in Phoenix; the Python service is gone.
+Configure via env vars at the Phoenix process — set in
+`config/runtime.exs` from these env vars (defaults are local Ollama):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OLLAMA_VISION_MODEL` | `llama3.2-vision:11b` | Vision model for `/api/parse` |
+| `LITER_LLM_BASE_URL` | `http://localhost:11434/v1` | OpenAI-compatible endpoint (Ollama by default) |

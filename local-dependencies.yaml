@@ -27,3 +27,63 @@ services:
       - ./priv/zenrule:/home/nonroot/data:ro
     environment:
       PROVIDER__TYPE: Filesystem
+      # Enable permissive CORS so the editor (served by Phoenix at :4100)
+      # can POST evaluate requests directly to ZenRule from the browser.
+      # Old vite-dev got same-origin via a vite proxy; the new
+      # vite-build-served-by-Phoenix setup makes the call cross-origin.
+      # ZenRule's `cors_permissive` struct default is `true`, but the
+      # serde-default for the bare bool field is `false` — so we pin
+      # it explicitly here (config-rs maps `CORS_PERMISSIVE` → field).
+      CORS_PERMISSIVE: "true"
+
+  # copilot-runtime — generic CopilotKit v2 runtime sidecar (see ADR-002).
+  # CopilotKit ships @copilotkit/runtime as library middleware, not an image,
+  # so this is built from the vendored source at external-deps/copilot-runtime.
+  # Behaviour — provider, model, base URL — is controlled entirely by
+  # docker.env (env_file), the same "config from a file" pattern as watchman's
+  # mounted config.yml. Edit docker.env + `docker compose up -d` to change it;
+  # no rebuild. host.docker.internal lets the container reach Ollama on the
+  # host (no-op on Docker Desktop, host-gateway on Linux).
+  # CopilotKit client posts to: POST /api/copilotkit
+  copilot-runtime:
+    build:
+      context: ./external-deps/copilot-runtime
+    image: atomic-fi/copilot-runtime:local
+    # Host port 4242 (container still listens on 4111 internally).
+    # 4111 is intentionally left free for the old worktree's v1 runtime
+    # so the two can run side-by-side for v1↔v2 comparison.
+    ports:
+      - "4242:4111"
+    env_file:
+      - ./external-deps/copilot-runtime/docker.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # mock-external-deps — Mockoon CLI serving canned responses for any
+  # external HTTP service we don't host ourselves. Today: OpenAI-compatible
+  # chat completions (the document parser's vision call + Lotus AI's SQL
+  # completion); later additions (Anthropic, Google, S3, …) get new
+  # routes inside the same environment file. config/test.exs points the
+  # LLM consumers at http://localhost:8085 so `mix test` runs without
+  # Ollama. Devs can opt back into real Ollama via config/test.secret.exs.
+  # Environment file: priv/mockoon/atomic-fi.json (one route per upstream).
+  mock-external-deps:
+    image: mockoon/cli:9.3.0
+    ports:
+      - "8085:3000"
+    volumes:
+      - ./priv/mockoon:/data:ro
+    command: ["-d", "/data/atomic-fi.json", "-p", "3000"]
+
+  # copilot-telemetry — Vector sidecar (see ADR-002). copilot-runtime's
+  # COPILOTKIT_TELEMETRY_URL (in docker.env) points here, so CopilotKit's
+  # /ingest telemetry is captured locally instead of going to
+  # telemetry.copilotkit.ai. Default sink: console — events show up in
+  # `docker compose -f local-dependencies.yaml logs copilot-telemetry`.
+  # Switch the backend by editing vector.yaml; no rebuild.
+  copilot-telemetry:
+    image: timberio/vector:0.55.0-alpine
+    ports:
+      - "8686:8686"
+    volumes:
+      - ./external-deps/copilot-telemetry/vector.yaml:/etc/vector/vector.yaml:ro

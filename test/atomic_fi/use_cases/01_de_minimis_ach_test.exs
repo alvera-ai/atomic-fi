@@ -3,7 +3,7 @@ defmodule AtomicFi.UseCases.DeMinimisAchTest do
   Catalog row #01 of guides/use-cases.md — `de_minimis_ach`.
 
   Verifies the committed golden corpus at
-  `corpus/zen_rules/de_minimis_ach/` still produces the catalog verdict
+  `corpus/zen_rules/de_minimis_stablecoin/` still produces the catalog verdict
   end-to-end against the live engine. Subprocess driver — see
   `AtomicFi.UseCases.CorpusRunner`.
   """
@@ -15,6 +15,6 @@ defmodule AtomicFi.UseCases.DeMinimisAchTest do
   @moduletag :use_cases
 
   test "de_minimis_ach corpus matches every _expected verdict" do
-    CorpusRunner.assert_golden!("de_minimis_ach")
+    CorpusRunner.assert_golden!("de_minimis_stablecoin")
   end
 end

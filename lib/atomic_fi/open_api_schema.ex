@@ -387,4 +387,146 @@ defmodule AtomicFi.OpenApiSchema do
     RiskClassificationResponse,
     "risk_classifications"
   )
+
+  # -- Document parser (`POST /api/parse`) ---------------------------
+  #
+  # The request body is `application/json` with a `files` array; each
+  # entry carries the document bytes as base64 (`format: byte` per
+  # OpenAPI spec). Mirrors the Python service's multipart contract on
+  # the response side so the onboarding-flow client's decoder is
+  # unchanged.
+
+  defmodule ParseRequestFile do
+    @moduledoc false
+    require OpenApiSpex
+
+    OpenApiSpex.schema(%{
+      title: "ParseRequestFile",
+      description: "One file in a /api/parse request — base64-encoded bytes + metadata.",
+      type: :object,
+      properties: %{
+        name: %Schema{type: :string, description: "Filename (used in the response)"},
+        content_type: %Schema{
+          type: :string,
+          description: "MIME type — application/pdf or image/*",
+          example: "image/png"
+        },
+        document_type: %Schema{
+          type: :string,
+          description:
+            "One of: `passport`, `driving_licence`, `national_id`, `visa`, " <>
+              "`bank_statement`, `memorandum`, `custom`. The controller does its own " <>
+              "membership check and returns a per-file `success: false, " <>
+              "error: \"invalid document_type: ...\"` result for unknown values — so " <>
+              "the enum constraint is intentionally omitted here to keep the " <>
+              "partial-failure path reachable."
+        },
+        data_base64: %Schema{
+          type: :string,
+          description:
+            "Document bytes, base64-encoded. The controller does its own Base.decode64/1 " <>
+              "validation and returns a per-file `success: false, error: \"invalid base64\"` " <>
+              "result for malformed input — so the format constraint is intentionally omitted " <>
+              "here to keep the partial-failure path reachable."
+        },
+        label: %Schema{
+          type: :string,
+          nullable: true,
+          description: "Optional caller-supplied label echoed in the response."
+        },
+        output_schema: %Schema{
+          type: :object,
+          nullable: true,
+          additionalProperties: true,
+          description:
+            "Required when document_type='custom' — the JSON Schema to extract against."
+        },
+        prompt: %Schema{
+          type: :string,
+          nullable: true,
+          description: "Optional extraction-prompt override."
+        }
+      },
+      required: [:name, :content_type, :document_type, :data_base64]
+    })
+  end
+
+  defmodule ParseRequest do
+    @moduledoc false
+    require OpenApiSpex
+
+    OpenApiSpex.schema(%{
+      title: "ParseRequest",
+      description: "POST /api/parse — extract structured data from one or more documents.",
+      type: :object,
+      properties: %{
+        files: %Schema{
+          type: :array,
+          items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/ParseRequestFile"},
+          minItems: 1,
+          description: "Documents to extract — one entry per file."
+        }
+      },
+      required: [:files]
+    })
+  end
+
+  defmodule ParseUsageInfo do
+    @moduledoc false
+    require OpenApiSpex
+
+    OpenApiSpex.schema(%{
+      title: "ParseUsageInfo",
+      description: "LLM token-usage info for one extraction.",
+      type: :object,
+      properties: %{
+        input_tokens: %Schema{type: :integer, nullable: true},
+        output_tokens: %Schema{type: :integer, nullable: true},
+        total_tokens: %Schema{type: :integer, nullable: true}
+      }
+    })
+  end
+
+  defmodule ExtractionResult do
+    @moduledoc false
+    require OpenApiSpex
+
+    OpenApiSpex.schema(%{
+      title: "ExtractionResult",
+      description: "Result for one file in a /api/parse response.",
+      type: :object,
+      properties: %{
+        filename: %Schema{type: :string},
+        document_type: %Schema{type: :string},
+        success: %Schema{type: :boolean},
+        data: %Schema{
+          type: :object,
+          nullable: true,
+          additionalProperties: true,
+          description: "Extracted structured data matching the schema for the document_type."
+        },
+        error: %Schema{type: :string, nullable: true},
+        usage: %OpenApiSpex.Reference{"$ref": "#/components/schemas/ParseUsageInfo"}
+      },
+      required: [:filename, :document_type, :success]
+    })
+  end
+
+  defmodule ParseResponse do
+    @moduledoc false
+    require OpenApiSpex
+
+    OpenApiSpex.schema(%{
+      title: "ParseResponse",
+      description: "POST /api/parse response — one ExtractionResult per input file.",
+      type: :object,
+      properties: %{
+        results: %Schema{
+          type: :array,
+          items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/ExtractionResult"}
+        }
+      },
+      required: [:results]
+    })
+  end
 end

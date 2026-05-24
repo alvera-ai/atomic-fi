@@ -1,14 +1,19 @@
-# Per-scenario use-case tests (test/atomic_fi/use_cases/*) shell out to
-# `mix corpus.validate corpus/zen_rules/<slug> --reset`, which spawns a
-# fresh BEAM, drops + re-migrates the dedicated corpus schema, hits the
-# live ZenRule + Watchman backing services, and walks the entire entity
-# graph (AH → CP → BO → PA → Txn). They're slow (10s × 10 scenarios) and
-# would dominate `mix test` runtime, so they're tagged :use_cases and
-# excluded by default. Run them on demand with:
+# `mix test` defaults: unit + integration only. Two extra-slow tag
+# groups are excluded; opt in per CI workflow with `mix test --only <tag>`.
 #
-#     mix test --only use_cases
+#   * :use_cases  — the corpus golden-regression checks under
+#                   test/atomic_fi/use_cases/. Each shells out
+#                   `mix corpus.validate <slug> --reset` (subprocess,
+#                   MIX_ENV=dev — see corpus_runner.ex) and hits the
+#                   live ZenRule + Watchman + DB end-to-end. They're
+#                   regression-contract tests against the committed
+#                   corpus, not unit tests of the application code, so
+#                   they live in regression.yml (alongside vitest +
+#                   bruno) rather than test.yml.
 #
-# (or:  mix test --include use_cases  to add them alongside the unit suite)
+# Local backing services for the LLM-bound tests (document-parser
+# vision + Lotus AI SQL completion) come from `make run-backing-services`
+# (Mockoon on :8085, ZenRule on :8090, Watchman on :8084).
 ExUnit.start(exclude: [:use_cases])
 
 # Sweep any test_*.json rules left in priv/zenrule by crashed test runs.

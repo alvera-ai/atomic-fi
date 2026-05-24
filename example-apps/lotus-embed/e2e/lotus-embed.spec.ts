@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 const BACKEND = "http://localhost:4100";
 
 async function loginAndEmbed(page: import("@playwright/test").Page) {
-  await page.goto("/");
+  await page.goto("./");
   await expect(page.locator("h1")).toContainText("Lotus Embed");
 
   // Login with seeded creds (pre-filled)
@@ -25,7 +25,7 @@ async function loginAndEmbed(page: import("@playwright/test").Page) {
 }
 
 test.describe("Lotus secure embed — full flow", () => {
-  test.setTimeout(120_000);
+  test.setTimeout(600_000);
 
   test.beforeEach(async () => {
     const res = await fetch(`${BACKEND}/api/info`).catch(() => null);
@@ -68,7 +68,7 @@ test.describe("Lotus secure embed — full flow", () => {
     await expect(frame.locator("table tbody tr").first()).toBeVisible({ timeout: 15_000 });
   });
 
-  test("AI assistant generates SQL query with Gemini", async ({ page }) => {
+  test("AI assistant generates SQL query with Ollama", async ({ page }) => {
     const frame = await loginAndEmbed(page);
 
     // Lotus lands on queries list — navigate to editor
@@ -94,8 +94,11 @@ test.describe("Lotus secure embed — full flow", () => {
 
     // Wait for AI response — should show a SQL query in a code block
     // The assistant generates SQL and wraps it in <pre><code>
+    // qwen3.5:9b is a local thinking model — SQL generation runs
+    // several minutes ("AI is thinking…"). Generous wait for the
+    // generated SQL code block.
     await expect(frame.locator("#ai-conversation-history pre code")).toBeVisible({
-      timeout: 30_000,
+      timeout: 540_000,
     });
 
     // The response should contain SQL keywords
@@ -135,7 +138,7 @@ test.describe("Lotus secure embed — full flow", () => {
   });
 
   test("refresh token re-enters token exchange step", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("./");
     await page.locator("button", { hasText: "Login" }).click();
     await expect(page.locator("h2", { hasText: "Exchange Bearer" })).toBeVisible({
       timeout: 10_000,

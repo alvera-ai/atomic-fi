@@ -1,4 +1,4 @@
-.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install reseed-stableaml reseed-saml-d reseed-amlgentex bench
+.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install reseed-stableaml reseed-saml-d reseed-amlgentex bench hydrate-zen-rules
 
 COMPOSE_FILE := local-dependencies.yaml
 
@@ -153,7 +153,25 @@ df.sample(n=min($(AMLGENTEX_ROWS), df.height), seed=$(AMLGENTEX_SEED)) \
   .write_ndjson('$(AMLGENTEX_NDJSON)')"; \
 	echo "✓ AMLGentex subset written to $(AMLGENTEX_NDJSON)  ($$(wc -l < $(AMLGENTEX_NDJSON)) rows)"
 
-run-backing-services:
+# Hydrate ZenRule's runtime rules dir from /zen_rules/ (the committed
+# source of truth) into /priv/zenrule/ (gitignored, bind-mounted into the
+# gorules/agent container). Same pattern as the Vite-built SPAs:
+# committed source → throwaway runtime location.
+#
+# Clean sync: wipes the demo subdirs first so leftover artifacts from a
+# previous JDM-editor session (interrupted Playwright runs that called
+# `save_rule` leave throwaway files behind, and the gorules/agent loader
+# happily picks them up + fails to evaluate them, breaking the test suite
+# on the next run). The test-fixtures-* sibling directories are untouched.
+hydrate-zen-rules:
+	@echo "Hydrating priv/zenrule/{onboarding,transaction-screening}/ from zen_rules/ ..."
+	@rm -rf priv/zenrule/onboarding priv/zenrule/transaction-screening
+	@mkdir -p priv/zenrule/onboarding priv/zenrule/transaction-screening
+	@cp zen_rules/onboarding/*.json priv/zenrule/onboarding/
+	@cp zen_rules/transaction-screening/*.json priv/zenrule/transaction-screening/
+	@echo "✓ ZenRule rules hydrated."
+
+run-backing-services: hydrate-zen-rules
 	@echo "Starting local backing services (docker compose: watchman)..."
 	@docker compose -f $(COMPOSE_FILE) up -d
 	@echo "Backing services ready. Run 'make deps.logs' to follow."
@@ -236,7 +254,7 @@ up: run-backing-services
 	@echo "🛠  Setting up database..."
 	@mix ecto.setup
 	@$(MAKE) seed
-	@echo "✅ Stack ready. Run 'make server' (atomic-fi API) and 'make sight' (atomic-sight UI) in separate terminals."
+	@echo "✅ Stack ready. Run 'make server' — Phoenix + example-app build watchers run together."
 
 down: stop-backing-services
 
@@ -248,10 +266,6 @@ seed:
 	fi
 	@mix bench.seed
 
-sight:
-	@echo "🎨 Starting atomic-sight-insight dev server..."
-	@cd packages/atomic-sight-insight && pnpm dev
-
 test-integration:
 	@echo "🧪 Running vitest integration suite..."
 	@cd integration-tests && pnpm test
@@ -259,20 +273,6 @@ test-integration:
 test-playwright:
 	@echo "🎭 Running playwright e2e suite..."
 	@cd playwright-e2e && pnpm test
-
-DOC_AGENT_DIR := example-apps/document-agent-server
-
-ai-doc.install:
-	@echo "Installing document-agent dependencies..."
-	@$(MAKE) -C $(DOC_AGENT_DIR) install
-
-ai-doc.server:
-	@echo "Starting document-agent API server..."
-	@$(MAKE) -C $(DOC_AGENT_DIR) server
-
-ai-doc.check:
-	@echo "Running document-agent quality suite..."
-	@$(MAKE) -C $(DOC_AGENT_DIR) check
 
 help:
 	@echo "Payments Compliance Platform - Available Commands"
@@ -291,16 +291,10 @@ help:
 	@echo "  make run-watchman            - Start Watchman standalone"
 	@echo "  make stop-watchman           - Stop Watchman"
 	@echo ""
-	@echo "Document Agent (AI Doc Processing):"
-	@echo "  make ai-doc.install          - Install document-agent deps"
-	@echo "  make ai-doc.server           - Start document-agent API (port 8100)"
-	@echo "  make ai-doc.check            - Run full quality suite (lint/types/test/audit)"
-	@echo ""
 	@echo "One-shot:"
-	@echo "  make up                      - Backing services + db + seed (then run 'make server' and 'make sight')"
+	@echo "  make up                      - Backing services + db + seed (then run 'make server')"
 	@echo "  make down                    - Stop backing services"
 	@echo "  make seed                    - (Re)seed db from priv/corpus/out, generating corpus if missing"
-	@echo "  make sight                   - Start atomic-sight-insight Vite dev server"
 	@echo "  make test-integration        - Run vitest integration suite"
 	@echo "  make test-playwright         - Run playwright e2e suite"
 	@echo ""

@@ -46,6 +46,38 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Hydrate ZenRule demo rules
+        # `priv/zenrule/{onboarding,transaction-screening}/` are gitignored
+        # (committed source lives at /zen_rules/). Mirror what
+        # `make run-backing-services` does locally so the docker cp below
+        # picks up demo + test-fixture rules together.
+        run: make hydrate-zen-rules
+
+      - name: Set up Node (for @mockoon/cli)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install and start Mockoon CLI (mock-external-deps)
+        # config/test.exs points the LLM-bound features (document parser
+        # + Lotus AI) at http://localhost:8085. Mirrors the @usebruno/cli
+        # pattern in regression.yml — install the CLI globally, then
+        # background-start it from the checked-out env file. No docker.
+        run: |
+          npm install -g @mockoon/cli@9.3.0
+          nohup mockoon-cli start --data priv/mockoon/atomic-fi.json --port 8085 > mockoon.log 2>&1 &
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -sf -X POST "http://localhost:8085/openai/v1/chat/completions" \
+                 -H 'Content-Type: application/json' -d '{}' >/dev/null 2>&1; then
+              echo "Mockoon up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Mockoon did not come up; last log:"
+          cat mockoon.log
+          exit 1
+
       - name: Seed ZenRule rule corpus into the service container
         # The zenrule service starts before checkout, so its filesystem provider
         # finds an empty mount and registers zero projects. We docker cp the rules

@@ -33,6 +33,11 @@ defmodule AtomicFiApi.Routes do
 
         # Bearer session creation (exchange credentials for Bearer token)
         post "/sessions", SessionController, :create
+
+        # Document parser (replaces Python document-agent-server).
+        # JSON body with base64-encoded files — see ParseRequest schema.
+        # Public: same exposure as the Python endpoint it replaces.
+        post "/parse", ParseController, :create
       end
 
       # Protected API routes - require x-api-key header

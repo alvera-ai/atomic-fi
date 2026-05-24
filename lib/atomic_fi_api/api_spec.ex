@@ -198,7 +198,16 @@ defmodule AtomicFiApi.ApiSpec do
           "RiskClassificationRequest" => OpenApiSchema.RiskClassificationRequest.schema(),
           "RiskClassificationResponse" => OpenApiSchema.RiskClassificationResponse.schema(),
           "RiskClassificationListResponse" =>
-            OpenApiSchema.RiskClassificationListResponse.schema()
+            OpenApiSchema.RiskClassificationListResponse.schema(),
+          # Document parser request/response (POST /api/parse). ParseRequest
+          # $refs ParseRequestFile; ParseResponse $refs ExtractionResult which
+          # $refs ParseUsageInfo. All four must be registered here so
+          # openapi-ts can resolve the chain when generating the SDK client.
+          "ParseRequestFile" => OpenApiSchema.ParseRequestFile.schema(),
+          "ParseRequest" => OpenApiSchema.ParseRequest.schema(),
+          "ParseUsageInfo" => OpenApiSchema.ParseUsageInfo.schema(),
+          "ExtractionResult" => OpenApiSchema.ExtractionResult.schema(),
+          "ParseResponse" => OpenApiSchema.ParseResponse.schema()
         }
       },
       tags: [

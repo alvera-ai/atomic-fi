@@ -6,7 +6,14 @@
   "scripts": {
     "sdk:build": "pnpm --filter @atomic-fi/sdk build",
     "sdk:check": "pnpm --filter @atomic-fi/sdk check",
-    "test:e2e": "pnpm --filter atomic-fi-integration-tests test:e2e"
+    "test:e2e": "pnpm --filter atomic-fi-integration-tests test:e2e",
+    "e2e": "playwright test",
+    "e2e:jdm": "playwright test --project=atomic-fi-jdm-editor",
+    "e2e:onboarding": "playwright test --project=onboarding-flow",
+    "e2e:lotus": "playwright test --project=lotus-embed"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0"
   },
   "packageManager": "pnpm@9.15.0",
   "pnpm": {

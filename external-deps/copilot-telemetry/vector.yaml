@@ -1,0 +1,45 @@
+# Vector config for the copilot-telemetry sidecar.
+#
+# Receives copilot-runtime's CopilotKit telemetry — the runtime's
+# COPILOTKIT_TELEMETRY_URL points here instead of telemetry.copilotkit.ai —
+# and routes it to a locally-controlled backend. Switch the backend by
+# editing the `sinks` block below, then `docker compose up -d
+# copilot-telemetry`. No rebuild. See ADR-002.
+#
+# Reference: https://vector.dev/docs/reference/configuration/
+
+sources:
+  copilotkit_ingest:
+    type: http_server
+    address: 0.0.0.0:8686
+    # CopilotKit POSTs one JSON object per event to /ingest.
+    path: /ingest
+    encoding: json
+
+sinks:
+  # Default backend: print every event to stdout — visible via
+  # `docker compose -f local-dependencies.yaml logs copilot-telemetry`.
+  console:
+    type: console
+    inputs: [copilotkit_ingest]
+    encoding:
+      codec: json
+
+  # ─── Switch / add backends here ──────────────────────────────────────
+  # Persist to a JSONL file (mount a volume for /var/lib/vector first):
+  #
+  #   file:
+  #     type: file
+  #     inputs: [copilotkit_ingest]
+  #     path: /var/lib/vector/copilotkit-%Y-%m-%d.log
+  #     encoding:
+  #       codec: json
+  #
+  # Also forward upstream to CopilotKit (restore vendor telemetry):
+  #
+  #   forward_upstream:
+  #     type: http
+  #     inputs: [copilotkit_ingest]
+  #     uri: https://telemetry.copilotkit.ai/ingest
+  #     encoding:
+  #       codec: json

@@ -1,15 +1,30 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Dropdown, message, theme as antTheme } from 'antd';
-import { ArrowLeftOutlined, BulbOutlined, CheckOutlined, PlayCircleOutlined, SaveOutlined } from '@ant-design/icons';
+import {
+  ArrowLeftOutlined,
+  BulbOutlined,
+  CheckOutlined,
+  CloseOutlined,
+  MessageOutlined,
+  PlayCircleOutlined,
+  SaveOutlined,
+} from '@ant-design/icons';
 import { DecisionGraph, DecisionGraphRef, DecisionGraphType, GraphSimulator, Simulation } from '@gorules/jdm-editor';
 import { DirectedGraph } from 'graphology';
 import { hasCycle } from 'graphology-dag';
 import { useBlocker, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
+import { CopilotChat, CopilotChatConfigurationProvider } from '@copilotkit/react-core/v2';
+
+import { ApplyAllFooter } from '../copilot/cards/apply-all-footer';
 import { displayError, errorMessage } from '../helpers/error-message';
-import { getRule, RULE_TYPES, RULE_TYPE_LABELS, type RuleType, saveRule } from '../helpers/rules-api';
+import { getRule, listRules, RULE_TYPES, RULE_TYPE_LABELS, type RuleType, saveRule } from '../helpers/rules-api';
 import { runSimulation } from '../helpers/simulator';
 import { ThemePreference, useTheme } from '../context/theme.provider';
+import { useEditorReadables } from '../copilot/use-editor-readables';
+import { useGraphActions } from '../copilot/actions/use-graph-actions';
+import { usePersistActions } from '../copilot/actions/use-persist-actions';
+import { useSimulateAction } from '../copilot/actions/use-simulate-action';
 
 const DECISION_CONTENT_TYPE = 'application/vnd.gorules.decision';
 
@@ -35,6 +50,9 @@ export const DecisionSimplePage: React.FC = () => {
   const { themePreference, setThemePreference } = useTheme();
   const { token } = antTheme.useToken();
   const graphRef = useRef<DecisionGraphRef>(null);
+  // Always-current graph snapshot the agent's action hooks can read at JSX
+  // render time without baking a stale graph into closures.
+  const currentGraphRef = useRef<DecisionGraphType>(emptyGraph);
 
   const ruleType: RuleType = isRuleType(ruleTypeParam) ? ruleTypeParam : 'onboarding';
   const name = useMemo(() => (nameParam ? decodeURIComponent(nameParam) : ''), [nameParam]);
@@ -42,16 +60,64 @@ export const DecisionSimplePage: React.FC = () => {
 
   const [graph, setGraph] = useState<DecisionGraphType>(emptyGraph);
   const [graphTrace, setGraphTrace] = useState<Simulation>();
+  const [lastSimulation, setLastSimulation] = useState<Simulation | null>(null);
   const [revision, setRevision] = useState(0);
   const [savedRevision, setSavedRevision] = useState(0);
+  // The hash of the last persisted graph (last load OR last save). Used by
+  // `handleChange` to distinguish a real user edit from the spurious
+  // onChange DecisionGraph fires every time its `value` prop is replaced
+  // (the library's own internal normalization). Without this gate, every
+  // rule load would arrive with `dirty: true` because the prop-replacement
+  // onChange bumps `revision` while `savedRevision` stays 0.
+  const lastPersistedHashRef = useRef<string>(JSON.stringify(emptyGraph));
   const [loading, setLoading] = useState(!isNew);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [copilotOpen, setCopilotOpen] = useState(false);
+  // Pin <CopilotChat> to ONE thread for the editor session — without this,
+  // CopilotKit v2 mints a fresh threadId per interaction and the chat shows
+  // the welcome screen while runs land in untitled threads (the symptom
+  // documented in CopilotKit issue #2953). Per the v2 docs the fix is to
+  // wrap <CopilotChat> in <CopilotChatConfigurationProvider threadId={…}>.
+  const [threadId] = useState(() => crypto.randomUUID());
 
   const dirty = revision !== savedRevision;
 
+  // Keep currentGraphRef in sync with the latest graph state (every render).
+  // useEffect would be a render late; assignment during render is fine for refs.
+  currentGraphRef.current = graph;
+  // Same pattern for revision — onSaved needs to set savedRevision to whatever
+  // revision is CURRENT at save time, not what was captured at hook-registration
+  // time. (Without this, the agent's save would mark a stale revision as saved
+  // and the dirty indicator would never clear.)
+  const revisionRef = useRef(revision);
+  revisionRef.current = revision;
+
+  // Mark the rule dirty when the agent mutates the graph via an action. The
+  // canvas-driven `handleChange` already bumps revision for human edits — this
+  // is the analogous hook for agent edits so the Save button reflects reality.
+  const markAgentMutation = useCallback(() => {
+    setRevision((r) => r + 1);
+  }, []);
+
+  const [existingRules, setExistingRules] = useState<Record<RuleType, string[] | undefined>>({
+    onboarding: undefined,
+    'transaction-screening': undefined,
+  });
+
+  const refreshExistingRules = useCallback(async () => {
+    const results = await Promise.all(RULE_TYPES.map((t) => listRules(t).then((r) => [t, r] as const)));
+    setExistingRules(Object.fromEntries(results) as Record<RuleType, string[]>);
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time seed of existing rule names list
+    refreshExistingRules();
+  }, [refreshExistingRules]);
+
   useEffect(() => {
     if (isNew || !name) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-time load gate for new/empty rule
       setLoading(false);
       return;
     }
@@ -62,7 +128,12 @@ export const DecisionSimplePage: React.FC = () => {
       try {
         const data = await getRule(ruleType, name);
         if (cancelled) return;
-        setGraph({ nodes: data.nodes ?? [], edges: data.edges ?? [] });
+        const loaded = { nodes: data.nodes ?? [], edges: data.edges ?? [] };
+        setGraph(loaded);
+        // Persist the structural hash of what we loaded so the spurious
+        // DecisionGraph onChange that fires immediately after this
+        // setGraph doesn't read as a user edit.
+        lastPersistedHashRef.current = JSON.stringify(loaded);
         setRevision(0);
         setSavedRevision(0);
       } catch (e) {
@@ -78,7 +149,13 @@ export const DecisionSimplePage: React.FC = () => {
 
   const handleChange = useCallback((value: DecisionGraphType) => {
     setGraph(value);
-    setRevision((r) => r + 1);
+    // Bump revision only when the canvas content structurally differs
+    // from what's persisted (last load or last save). DecisionGraph
+    // fires onChange once after every `value` prop replacement — that
+    // spurious fire matches the persisted hash and must NOT mark dirty.
+    if (JSON.stringify(value) !== lastPersistedHashRef.current) {
+      setRevision((r) => r + 1);
+    }
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -96,6 +173,10 @@ export const DecisionSimplePage: React.FC = () => {
     try {
       await saveRule(ruleType, name, { contentType: DECISION_CONTENT_TYPE, ...graph });
       setSavedRevision(revision);
+      // Update the persisted hash so the next handleChange sees a clean
+      // baseline. Otherwise an edit-save-edit cycle would still compare
+      // against the original load hash.
+      lastPersistedHashRef.current = JSON.stringify(graph);
       message.success(`Saved ${name}`);
     } catch (e) {
       displayError(e);
@@ -124,6 +205,50 @@ export const DecisionSimplePage: React.FC = () => {
     return () => window.removeEventListener('beforeunload', handler);
   }, [dirty]);
 
+  // E2E hook — expose a deterministic graph summary on `window` so
+  // Playwright can wait on / assert graph state without scraping the
+  // React Flow canvas (which has no stable per-node DOM).
+  useEffect(() => {
+    window.__jdmEditor = {
+      nodeCount: graph.nodes?.length ?? 0,
+      nodeNames: (graph.nodes ?? []).map((node) => node.name ?? ''),
+      edgeCount: graph.edges?.length ?? 0,
+      dirty,
+    };
+  }, [graph, dirty]);
+
+  useEditorReadables({
+    ruleType,
+    filename: name,
+    isNew,
+    dirty,
+    savedRevision,
+    graph,
+    lastSimulation,
+    existingRules,
+  });
+  useGraphActions({ setGraph, graphRef: currentGraphRef, onMutated: markAgentMutation });
+  usePersistActions({
+    ruleType,
+    filename: name,
+    dirty,
+    graph,
+    onSaved: () => {
+      setSavedRevision(revisionRef.current);
+      // Same baseline reset as the manual save path — keep the
+      // persisted hash in sync after the agent's save_rule action.
+      lastPersistedHashRef.current = JSON.stringify(currentGraphRef.current);
+    },
+    refreshExistingRules,
+  });
+  useSimulateAction({
+    ruleType,
+    filename: name,
+    dirty,
+    graph,
+    setLastSimulation,
+  });
+
   return (
     <div className="flex flex-col h-screen bg-surface text-ink">
       <header
@@ -132,6 +257,7 @@ export const DecisionSimplePage: React.FC = () => {
       >
         <div className="flex items-center gap-3 min-w-0">
           <Button
+            id="back-to-rules-button"
             type="text"
             icon={<ArrowLeftOutlined />}
             onClick={() => navigate(`/rules/${ruleType}`)}
@@ -154,6 +280,7 @@ export const DecisionSimplePage: React.FC = () => {
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Button
+            id="save-rule-button"
             type={dirty ? 'primary' : 'default'}
             icon={<SaveOutlined />}
             onClick={handleSave}
@@ -162,6 +289,14 @@ export const DecisionSimplePage: React.FC = () => {
           >
             Save
           </Button>
+          <Button
+            id="copilot-toggle"
+            type={copilotOpen ? 'primary' : 'text'}
+            icon={<MessageOutlined />}
+            onClick={() => setCopilotOpen((open) => !open)}
+            aria-label={copilotOpen ? 'Close rule copilot' : 'Open rule copilot'}
+            aria-pressed={copilotOpen}
+          />
           <Dropdown
             menu={{
               onClick: ({ key }) => setThemePreference(key as ThemePreference),
@@ -177,54 +312,94 @@ export const DecisionSimplePage: React.FC = () => {
         </div>
       </header>
 
-      <div className="flex-1 overflow-hidden">
-        {loadError ? (
-          <div className="h-full flex flex-col items-center justify-center gap-3 text-ink-muted">
-            <p className="text-sm">Could not load rule. {loadError}</p>
-            <Button type="link" onClick={() => navigate(`/rules/${ruleType}`)}>
-              Back to rules
-            </Button>
-          </div>
-        ) : loading ? (
-          <div className="h-full flex items-center justify-center text-ink-muted text-sm">loading…</div>
-        ) : (
-          <DecisionGraph
-            ref={graphRef}
-            value={graph}
-            onChange={handleChange}
-            reactFlowProOptions={{ hideAttribution: true }}
-            simulate={graphTrace}
-            panels={[
-              {
-                id: 'simulator',
-                title: 'Simulator',
-                icon: <PlayCircleOutlined />,
-                renderPanel: () => (
-                  <GraphSimulator
-                    onClear={() => setGraphTrace(undefined)}
-                    onRun={async ({ graph: simGraph, context }) => {
-                      if (!name) {
-                        message.error('Save the rule before simulating.');
-                        return;
-                      }
-                      if (dirty) {
-                        message.warning('Simulator evaluates the last saved version. Save your changes first.');
-                      }
-                      const sim = await runSimulation({
-                        ruleType,
-                        name,
-                        input: { graph: simGraph, context },
-                      });
-                      setGraphTrace(sim);
-                      if (sim.error?.message) message.error(sim.error.message);
-                    }}
-                  />
-                ),
-              },
-            ]}
-          />
+      <div className="flex-1 flex overflow-hidden min-h-0">
+        <div className="flex-1 overflow-hidden min-w-0">
+          {loadError ? (
+            <div className="h-full flex flex-col items-center justify-center gap-3 text-ink-muted">
+              <p className="text-sm">Could not load rule. {loadError}</p>
+              <Button type="link" onClick={() => navigate(`/rules/${ruleType}`)}>
+                Back to rules
+              </Button>
+            </div>
+          ) : loading ? (
+            <div className="h-full flex items-center justify-center text-ink-muted text-sm">loading…</div>
+          ) : (
+            <DecisionGraph
+              ref={graphRef}
+              value={graph}
+              onChange={handleChange}
+              reactFlowProOptions={{ hideAttribution: true }}
+              simulate={graphTrace}
+              panels={[
+                {
+                  id: 'simulator',
+                  title: 'Simulator',
+                  icon: <PlayCircleOutlined />,
+                  renderPanel: () => (
+                    <GraphSimulator
+                      onClear={() => setGraphTrace(undefined)}
+                      onRun={async ({ graph: simGraph, context }) => {
+                        if (!name) {
+                          message.error('Save the rule before simulating.');
+                          return;
+                        }
+                        if (dirty) {
+                          message.warning('Simulator evaluates the last saved version. Save your changes first.');
+                        }
+                        const sim = await runSimulation({
+                          ruleType,
+                          name,
+                          input: { graph: simGraph, context },
+                        });
+                        setGraphTrace(sim);
+                        setLastSimulation(sim);
+                        if (sim.error?.message) message.error(sim.error.message);
+                      }}
+                    />
+                  ),
+                },
+              ]}
+            />
+          )}
+        </div>
+
+        {copilotOpen && (
+          <aside
+            id="copilot-panel"
+            className="w-[420px] shrink-0 border-l border-rule flex flex-col min-h-0"
+            style={{ background: token.colorBgContainer }}
+            aria-label="Rule copilot"
+          >
+            <div
+              className="flex items-center justify-between px-3 py-2 border-b border-rule shrink-0"
+              style={{ background: token.colorBgLayout }}
+            >
+              <span className="font-display text-sm">Rule copilot</span>
+              <Button
+                type="text"
+                size="small"
+                icon={<CloseOutlined />}
+                onClick={() => setCopilotOpen(false)}
+                aria-label="Close rule copilot"
+              />
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <CopilotChatConfigurationProvider threadId={threadId}>
+                <CopilotChat
+                  agentId="default"
+                  labels={{
+                    welcomeMessageText:
+                      "Describe a rule in plain English and I'll draft, save, and simulate it for you. Each step surfaces a card you can Apply or Reject.",
+                  }}
+                  className="h-full"
+                />
+              </CopilotChatConfigurationProvider>
+            </div>
+          </aside>
         )}
       </div>
+
+      <ApplyAllFooter />
     </div>
   );
 };
