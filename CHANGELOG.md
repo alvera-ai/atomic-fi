@@ -1,5 +1,38 @@
 # Changelog
 
+## [1.6.0](https://github.com/alvera-ai/atomic-fi/compare/v1.5.0...v1.6.0) (2026-05-24)
+
+
+### Features
+
+* **compliance-screening:** stateful sync screen-by-id endpoints + Flop-shaped responses ([7a3b878](https://github.com/alvera-ai/atomic-fi/commit/7a3b8781a504bb49194df4945c7d1c59d4e89eb4))
+* **copilotkit:** /api/copilotkit CopilotKit Runtime Protocol passthrough ([2f0a6cf](https://github.com/alvera-ai/atomic-fi/commit/2f0a6cf932a5b1dcbfdd9ad2fbfc6ed016e3b7dc))
+* **copilotkit:** wire POST /api/copilotkit in router + Ollama config ([ea3754f](https://github.com/alvera-ai/atomic-fi/commit/ea3754fcb77af4cd7bd76220154f8bb851790910))
+* **delete:** 422 instead of 5xx on FK :restrict + ControlLimit ExOpenApiUtils ([c241219](https://github.com/alvera-ai/atomic-fi/commit/c241219a1ef00021eb77a893b4c46cb7977f8d4c))
+* **demo:** allow Plug.Static to serve priv/static/demo/* ([7d36811](https://github.com/alvera-ai/atomic-fi/commit/7d368114b50ea7ad5e9a4787c4bee7071826a31e))
+* **demo:** list example apps on the home page ([9bba945](https://github.com/alvera-ai/atomic-fi/commit/9bba945ef8f78ec32de781a6f00093d126455777))
+* **demo:** point example-app builds at priv/static/demo/&lt;app&gt; ([22f530e](https://github.com/alvera-ai/atomic-fi/commit/22f530e15b08a32dc2b52e6c8f35690bdbf03a28))
+* **demo:** run vite build --watch per example app from Phoenix ([403ed65](https://github.com/alvera-ai/atomic-fi/commit/403ed65cc8a57647359e34d1f9ca49c020210d5c))
+* **gh-49:** copilot-runtime — generic CopilotKit v2 sidecar + Vector telemetry ([42580db](https://github.com/alvera-ai/atomic-fi/commit/42580db9be3eccdbe63d043aca036350825639c1))
+* **gh-49:** JDM editor copilot on CopilotKit v2 + harden SSE streaming ([022a69e](https://github.com/alvera-ai/atomic-fi/commit/022a69ee9cb1223a6e2537a5211b845f59728b3e))
+* **gh-49:** onboarding API-key gate + Elixir e2e ports + parser fixes ([f425c94](https://github.com/alvera-ai/atomic-fi/commit/f425c94ca04d568e8646a8cb75991404620eeaae))
+* **gh-49:** PR-ready — Mockoon replaces WireMock, drop dead Elixir CopilotKit, size ZenRule pool ([bcc47c2](https://github.com/alvera-ai/atomic-fi/commit/bcc47c2351ead6586a24279bcb164a1e85df1933))
+* **gh-49:** single-app demo build — JDM editor copilot v2, Mockoon LLM mock, unified Playwright ([003adbc](https://github.com/alvera-ai/atomic-fi/commit/003adbc4e1089a69fdd2b941997163e8abf63bf1))
+* **parse:** port app/schemas.py + extractor to Elixir (ReqLLM + poppler) ([22835e8](https://github.com/alvera-ai/atomic-fi/commit/22835e89b7900d4e6e3c1364c36b3ac863d09887))
+* **parse:** POST /api/parse — JSON + base64 controller ([f6a0985](https://github.com/alvera-ai/atomic-fi/commit/f6a0985e6efa32ee15aa4a43ef3f93a7284e713d))
+
+
+### Bug Fixes
+
+* **demo:** green Playwright e2e for onboarding + Lotus demos ([0505faf](https://github.com/alvera-ai/atomic-fi/commit/0505faff96fc4f948d7ec969cf47223fb387e155))
+* **gh-49:** CI greens — register Parse* schemas, warm dev _build + atomic_fi_dev ([de8ae3a](https://github.com/alvera-ai/atomic-fi/commit/de8ae3a9ff4b9d4cadb19728ba4c4d3f1b88f42b))
+* **gh-49:** corpus checks — bash loop in regression.yml, drop ExUnit wrapper ([ce9f71d](https://github.com/alvera-ai/atomic-fi/commit/ce9f71d2dab02404f823ee5bd82f253c8f23a8a1))
+* **gh-49:** corpus.validate inherits parent MIX_ENV — no CI dev-env workaround ([a2d1447](https://github.com/alvera-ai/atomic-fi/commit/a2d14473e8db42e246ddadb0602569da6d09c29f))
+* **gh-49:** HITL cards — fix stale Apply-all registry + thread toolCallId for stable ids ([90854be](https://github.com/alvera-ai/atomic-fi/commit/90854be9891507e749b3a0ca7591db0f07884bfc))
+* **gh-49:** HITL respond?.() — await it everywhere to avoid AI_MissingToolResultsError ([9c1700b](https://github.com/alvera-ai/atomic-fi/commit/9c1700be27dce06b27b64355f3a3e3283ba2699e))
+* **gh-49:** JDM editor robustness — dev-console gate, dirty-on-load, simulator routing, error catch-all ([d573d70](https://github.com/alvera-ai/atomic-fi/commit/d573d708d1d3d12446de69b386534b2d5658e8c6))
+* **openapi:** register LinkedLedgerAccount{Request,Response} ([9345d61](https://github.com/alvera-ai/atomic-fi/commit/9345d61bcf420ee36779c11b80ac6cd6f23ec901)), closes [#44](https://github.com/alvera-ai/atomic-fi/issues/44)
+
 ## [1.5.0](https://github.com/alvera-ai/atomic-fi/compare/v1.4.0...v1.5.0) (2026-05-18)
 
 
