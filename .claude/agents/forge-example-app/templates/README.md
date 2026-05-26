@@ -35,9 +35,11 @@ templates/
     ├── input.tsx
     └── label.tsx
 │
-├── # Auth + Lotus (mandatory in every generated app)
+├── # Auth (mandatory in every generated app — bearer is the only path)
 ├── lib/session.ts                   sessionStorage get/set + login() against POST /api/sessions
 ├── components/login-gate.tsx        email + password + tenant form, pre-filled with dev creds
+│
+├── # Lotus dashboard embed (opt-in per use case)
 ├── lib/lotus.ts                     bearer → getEmbedToken() → embedUrl()
 └── components/lotus-panel.tsx       <LotusPanel bearer={…} /> renders the iframe
 ```
@@ -47,8 +49,15 @@ Every scaffolded app runs the same boot dance:
 ```
 1. App() reads getStoredBearer().
 2. No bearer → render <LoginGate onConnected={setBearer} />, return early.
-3. Bearer present → render the use-case flow + <LotusPanel bearer={bearer} />.
+3. Bearer present → render the use-case flow.
+4. If the use case asked for it: also render <LotusPanel bearer={bearer} /> below.
 ```
+
+The auth half is universal (every API call needs a bearer). The Lotus half is
+wired only when the use-case prompt mentions an audit view, operator dashboard,
+or "see results in Lotus". Skipping it when not asked keeps generated apps
+focused — and means `lib/lotus.ts` + `components/lotus-panel.tsx` aren't copied
+into the app dir at all in that case.
 
 This is the same pattern `lotus-embed` uses, just split into reusable components
 so each new app inherits it without duplicating the state machine.
