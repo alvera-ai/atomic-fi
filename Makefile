@@ -1,4 +1,4 @@
-.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install reseed-stableaml reseed-saml-d reseed-amlgentex bench hydrate-zen-rules
+.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install reseed-stableaml reseed-saml-d reseed-amlgentex bench hydrate-zen-rules test-bruno test-corpus
 
 COMPOSE_FILE := local-dependencies.yaml
 
@@ -274,6 +274,32 @@ test-playwright:
 	@echo "🎭 Running playwright e2e suite..."
 	@cd playwright-e2e && pnpm test
 
+# ─── Correctness verification (issue #53) ──────────────────────────────
+
+BRUNO_DIR := bruno/atomic-fi-scenarios
+BRUNO_SCENARIOS := $(filter-out environments smoke-tests,$(notdir $(wildcard $(BRUNO_DIR)/*/)))
+
+test-bruno:
+	@echo "→ Running Bruno scenarios against live API..."
+	@failed=0; total=0; \
+	for scenario in $(BRUNO_SCENARIOS); do \
+		total=$$((total + 1)); \
+		echo "  [$${total}] $$scenario"; \
+		if npx @usebruno/cli run "$(BRUNO_DIR)/$$scenario" --env local 2>&1 | tail -1 | grep -q "Failed"; then \
+			echo "    ✗ FAILED"; \
+			failed=$$((failed + 1)); \
+		else \
+			echo "    ✓ pass"; \
+		fi; \
+	done; \
+	echo ""; \
+	echo "Bruno: $$((total - failed))/$$total scenarios green"; \
+	[ $$failed -eq 0 ]
+
+test-corpus:
+	@echo "→ Running corpus.validate against all scenarios..."
+	@mix corpus.validate --reset
+
 help:
 	@echo "Payments Compliance Platform - Available Commands"
 	@echo ""
@@ -297,6 +323,8 @@ help:
 	@echo "  make seed                    - (Re)seed db from priv/corpus/out, generating corpus if missing"
 	@echo "  make test-integration        - Run vitest integration suite"
 	@echo "  make test-playwright         - Run playwright e2e suite"
+	@echo "  make test-bruno              - Run all Bruno scenarios (needs live API)"
+	@echo "  make test-corpus             - Run corpus.validate on all scenarios"
 	@echo ""
 	@echo "Usage:"
 	@echo "  1. Start services:  make run-backing-services"
