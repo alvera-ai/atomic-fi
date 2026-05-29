@@ -33,6 +33,7 @@ jobs:
         image: moov/watchman:v0.62.0
         env:
           APP_CONFIG: /app/config.yml
+        options: --health-cmd "true" --health-interval 30s --health-retries 1
         ports:
           - 8084:8084
           - 9094:9094
