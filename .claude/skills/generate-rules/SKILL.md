@@ -36,7 +36,7 @@ URLs may be eCFR links, USC links, PDF links (HTTP or local), or local file path
 4. HANDOFF     →  Surface file list + suggested commit message. DO NOT commit.
 ```
 
-Sequential — one URL at a time. If a URL's proof fails, surface it and let the user decide: fix/retry or skip.
+Sequential — one URL at a time. If a URL's proof fails or scenario-author hits a lockstep guard, **STOP THE ENTIRE LOOP IMMEDIATELY**. Do not proceed to the next URL. Do not attempt to work around the failure. Print the failure reason and ask the user: "Fix/retry this URL, skip it, or abort?"
 
 ---
 
@@ -175,6 +175,8 @@ See: `references/master-md-format.md`
 | `proof_failed` | scenario-author proof loop doesn't converge | Surface to user: fix/retry or skip. |
 
 **Never silently skip, never silently substitute, never reconstruct from web search.** Compliance rules must trace to authoritative sources — a regulator cannot trust rules built from search snippets or substituted sections.
+
+**"STOP" means STOP.** When any step says STOP (lockstep guard, missing payload field, schema drift), you must immediately cease all work, print the exact failure reason, and wait for user input. Do not attempt workarounds, do not try alternative field names, do not continue to the next URL. The user decides what happens next.
 
 ---
 

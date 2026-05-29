@@ -53,10 +53,12 @@ Map ndjson to request sequence internally. Only pause for user confirmation if p
 3. Entity creates (AH → CP → PA, FK order)
 4. Screening refresh steps if needed (see `references/bru-format.md` § Screening refresh)
 5. Transactions (one `.bru` per row, assertions from `_expected`)
-6. Lifecycle steps if proof.md shows BLOCK → action → PASS:
+6. **Lifecycle steps — REQUIRED for every scenario that has a BLOCK verdict.**
+   Every scenario that blocks a transaction MUST include the remediation path:
    - Inspect screening (adapt `templates/lifecycle-inspect-screening.bru`)
-   - Mark false positive (adapt `templates/lifecycle-mark-false-positive.bru`)
-   - Retry transaction (adapt `templates/lifecycle-retry-transaction.bru`)
+   - Mark false positive / resolve (adapt `templates/lifecycle-mark-false-positive.bru`)
+   - Retry transaction — assert it now passes (adapt `templates/lifecycle-retry-transaction.bru`)
+   This proves the system isn't a dead end — a compliance officer can review, override, and unblock. Without these steps the demo is incomplete.
 
 ### chain_screening decision
 
@@ -111,6 +113,7 @@ On failure:
 - **Never auto-commit.**
 - **Never skip assertion failures.**
 - **Use server UUIDs in downstream requests.** Capture `res.body.id` in post-response scripts; don't use ndjson `external_id` values as FK references.
+- **Set `external_id` on every entity and transaction.** Use a unique, timestamp-based ID in a pre-request script (e.g., `PEP-TXN-BLOCK-${Date.now()}-${Math.floor(Math.random() * 1e6)}`). Without `external_id`, re-runs create duplicates instead of upserting — the collection becomes non-idempotent.
 - **Kebab-case folder names.** Bruno folders use kebab-case even though corpus uses snake_case.
 
 ---

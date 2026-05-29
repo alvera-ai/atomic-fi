@@ -91,6 +91,13 @@ See: `references/use-cases-row-format.md`
 
 This is the load-bearing invariant of this entire system; **do not bypass it under any condition.**
 
+**When this step says STOP, you must IMMEDIATELY end the skill invocation.** Print:
+1. Which field is missing or mismatched
+2. Where it needs to be added (payload.ex, the schema, or the preloads)
+3. The exact error: "LOCKSTEP GUARD FAILED — cannot proceed. The user must extend the payload before this rule can be authored."
+
+Do NOT attempt to: guess field names, use alternative fields, skip the rule, proceed to the next step, or retry with different parameters. Return control to the user (or to the calling orchestrator skill) with the failure message. Zero tolerance.
+
 ---
 
 ## Step 3 — Draft the rule
@@ -141,7 +148,7 @@ This is the load-bearing invariant of this entire system; **do not bypass it und
 **Row design:**
 
 - One transaction row per decision-table band (positive case), plus at least one fall-through.
-- Each AH/CP/PA row: set `external_id` to a unique handle prefixed with the slug (`pr-` for `prohibited_risk_freeze`, `mx-` for `ofac_mixer_usdc`, …). Unique prefixes prevent corpus collisions on shared schemas.
+- Each AH/CP/PA row AND each transaction row: set `external_id` to a unique handle prefixed with the slug (`pr-` for `prohibited_risk_freeze`, `mx-` for `ofac_mixer_usdc`, …). Unique prefixes prevent corpus collisions on shared schemas. **Every entity and transaction must have an `external_id`** — without it, Bruno collections generated from this corpus will be non-idempotent on re-runs.
 - Required scalars (else the contexts crash, which is correct):
   - `account_holders.ndjson`: `external_id`, `holder_type`, `status: "pending"`, `kyc_status`, `risk_level`, `enabled_currencies`, `legal_entity: { … }`
   - `payment_accounts.ndjson`: `external_id`, `account_holder_external_id` OR `counterparty_external_id`, `account_type`, `currency`
@@ -176,10 +183,11 @@ Read the markdown report. Per-row outcomes:
 - `setup_error`  — context rejected the payload (Ecto changeset error). Fix the ndjson row.
 - `engine_error` — rule engine reachability or shape problem. Check agent is up (`docker compose ps zenrule`) and the rule file is loaded (`curl http://localhost:8090/api/projects/<rule_type>/entrypoints | jq`).
 
-**Iteration cap: 5 rounds.** If you're still red at round 5, **stop and bring the user in** — three+ failed attempts is an architectural signal, not a code-fix signal. State plainly:
+**Iteration cap: 5 rounds.** If you're still red at round 5, **STOP IMMEDIATELY and return control to the user** — three+ failed attempts is an architectural signal, not a code-fix signal. Do NOT attempt round 6. Do NOT try alternative approaches. Print plainly:
 - Which rows still mismatch
-- What you've tried
+- What you tried in each round
 - Best-guess root cause (rule structure, schema misunderstanding, expected verdict wrong)
+- "PROOF LOOP FAILED after 5 rounds — returning to user."
 
 **For Watchman-unreachable scenarios** (row 53 pattern): the `ScreeningEngine.Behaviour` mock seam returns `{:error, :unreachable}`; the rule emits a REVIEW Control (NOT a BLOCK); the `audit_events` row is written by `ScreeningEngine.Default`'s error path (NOT by the rule). Facts vs decision separation — never put the audit write in the rule.
 
