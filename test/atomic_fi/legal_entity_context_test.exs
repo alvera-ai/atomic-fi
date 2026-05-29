@@ -87,5 +87,40 @@ defmodule AtomicFi.LegalEntityContextTest do
       legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
       assert %Ecto.Changeset{} = LegalEntityContext.change_legal_entity(legal_entity)
     end
+
+    test "create_legal_entity/2 persists institutional due diligence fields", %{session: session} do
+      attrs =
+        params_for(
+          :legal_entity,
+          Map.merge(@valid_attrs, %{
+            tenant_id: session.tenant_id,
+            institution_type: :bank,
+            has_physical_presence: false,
+            jurisdiction_cooperative: true
+          })
+        )
+
+      assert {:ok, %LegalEntity{} = le} =
+               LegalEntityContext.create_legal_entity(session, attrs)
+
+      assert le.institution_type == :bank
+      assert le.has_physical_presence == false
+      assert le.jurisdiction_cooperative == true
+    end
+
+    test "update_legal_entity/3 updates institutional due diligence fields", %{session: session} do
+      legal_entity = insert(:legal_entity, tenant_id: session.tenant_id)
+
+      assert {:ok, %LegalEntity{} = updated} =
+               LegalEntityContext.update_legal_entity(session, legal_entity, %{
+                 institution_type: :msb,
+                 has_physical_presence: true,
+                 jurisdiction_cooperative: false
+               })
+
+      assert updated.institution_type == :msb
+      assert updated.has_physical_presence == true
+      assert updated.jurisdiction_cooperative == false
+    end
   end
 end

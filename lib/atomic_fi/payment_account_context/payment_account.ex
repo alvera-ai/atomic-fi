@@ -263,6 +263,7 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
       :card_pan,
       :wallet_address,
       :wallet_chain,
+      :country,
       :payment_account_number,
       :external_id,
       :account_holder_id,

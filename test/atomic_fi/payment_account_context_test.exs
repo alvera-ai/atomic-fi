@@ -130,6 +130,29 @@ defmodule AtomicFi.PaymentAccountContextTest do
       assert payment_account.external_id == "ext-acc-001"
     end
 
+    test "create_payment_account/2 persists country field", %{session: session} do
+      account_holder = insert(:account_holder, tenant_id: session.tenant_id)
+
+      insert(:ledger,
+        tenant_id: session.tenant_id,
+        account_holder_id: account_holder.id,
+        currency: "USD"
+      )
+
+      request = %PaymentAccountRequest{
+        account_type: :bank_account,
+        currency: "USD",
+        country: "GB",
+        account_holder_id: account_holder.id,
+        tenant_id: session.tenant_id
+      }
+
+      assert {:ok, %PaymentAccount{} = pa} =
+               PaymentAccountContext.create_payment_account(session, request)
+
+      assert pa.country == "GB"
+    end
+
     test "create_payment_account/2 with card type and card_pan", %{session: session} do
       account_holder = insert(:account_holder, tenant_id: session.tenant_id)
 
