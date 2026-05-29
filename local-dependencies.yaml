@@ -1,6 +1,6 @@
 services:
   watchman:
-    image: moov/watchman:v0.61.1
+    image: moov/watchman:v0.62.0
     ports:
       - "8084:8084"
       - "9094:9094"

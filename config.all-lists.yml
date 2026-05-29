@@ -15,7 +15,8 @@ Watchman:
 
     IncludedLists:
       - us_ofac
-      - us_csl
+      # us_csl disabled — data.trade.gov DNS is dead (decommissioned May 2026)
+      # - us_csl
       - us_non_sdn
       - us_fincen_311
       - un_csl
