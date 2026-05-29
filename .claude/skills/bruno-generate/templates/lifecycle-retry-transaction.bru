@@ -1,0 +1,45 @@
+meta {
+  name: 0NN — Retry transaction (asserts PASS after override)
+  type: http
+  seq: NN
+}
+
+post {
+  url: {{baseUrl}}/api/transactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "transaction_type": "TRANSACTION_TYPE",
+    "amount": AMOUNT,
+    "currency": "CURRENCY",
+    "account_holder_id": "{{SENDER_AH_ID_VAR}}",
+    "debtor_payment_account_id": "{{DEBTOR_PA_ID_VAR}}",
+    "creditor_payment_account_id": "{{CREDITOR_PA_ID_VAR}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Replay the same payment intent now that the screening is cleared.
+  The rule engine reads the updated `false_positive_qualifier`,
+  skips the cleared screening, and no rule trips. Transaction settles.
+
+  Expected: status accepted, rejected_rule null.
+}
+
+assert {
+  res.status: eq 201
+  res.body.status: eq accepted
+}

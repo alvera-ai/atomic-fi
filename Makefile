@@ -173,7 +173,7 @@ hydrate-zen-rules:
 
 run-backing-services: hydrate-zen-rules
 	@echo "Starting local backing services (docker compose: watchman)..."
-	@docker compose -f $(COMPOSE_FILE) up -d
+	@docker compose -f $(COMPOSE_FILE) up -d --build
 	@echo "Backing services ready. Run 'make deps.logs' to follow."
 	@echo "Note: compose-managed watchman uses upstream moov/watchman with the"
 	@echo "      same config + custom watchlist as 'make run-watchman'."
@@ -277,7 +277,7 @@ test-playwright:
 # ─── Correctness verification (issue #53) ──────────────────────────────
 
 BRUNO_DIR := bruno/atomic-fi-scenarios
-BRUNO_SCENARIOS := $(filter-out environments smoke-tests,$(notdir $(wildcard $(BRUNO_DIR)/*/)))
+BRUNO_SCENARIOS := $(filter-out environments smoke-tests %.md %.json %.bru,$(notdir $(patsubst %/,%,$(wildcard $(BRUNO_DIR)/*/))))
 
 test-bruno:
 	@echo "→ Running Bruno scenarios against live API..."

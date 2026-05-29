@@ -1,0 +1,49 @@
+meta {
+  name: 0NN — Inspect ENTITY compliance screening
+  type: http
+  seq: NN
+}
+
+get {
+  url: {{baseUrl}}/api/compliance-screenings?order_by=inserted_at&order_directions=desc&page_size=100
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  accept: application/json
+}
+
+script:post-response {
+  const items = res.body.data || res.body.items || res.body;
+  const leId = bru.getEnvVar("ENTITY_LEGAL_ENTITY_ID_VAR");
+  const flagged = items.find(s =>
+    s.legal_entity_id === leId &&
+    s.screening_type === "sanctions" &&
+    (s.sanctions_matches || []).length > 0
+  );
+  if (!flagged) {
+    throw new Error(`Expected a sanctions screening for legal_entity_id=${leId} with sanctions_matches[] populated. Got ${items.length} screenings.`);
+  }
+  bru.setEnvVar("flaggedScreeningId", flagged.id);
+  bru.setEnvVar("flaggedScope", flagged.scope);
+  bru.setEnvVar("flaggedScreeningType", flagged.screening_type);
+  bru.setEnvVar("flaggedScreeningStatus", flagged.screening_status);
+  bru.setEnvVar("flaggedScreenedEntityType", flagged.screened_entity_type);
+  bru.setEnvVar("flaggedScreenedEntityName", flagged.screened_entity_name);
+}
+
+docs {
+  List compliance screenings and find the flagged sanctions screening
+  for ENTITY. The post-response script stashes the screening ID and
+  required fields for the PUT full-replacement in the false-positive
+  override step.
+}
+
+assert {
+  res.status: eq 200
+}

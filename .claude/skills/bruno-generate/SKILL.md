@@ -53,7 +53,10 @@ Map ndjson to request sequence internally. Only pause for user confirmation if p
 3. Entity creates (AH → CP → PA, FK order)
 4. Screening refresh steps if needed (see `references/bru-format.md` § Screening refresh)
 5. Transactions (one `.bru` per row, assertions from `_expected`)
-6. Lifecycle steps if proof.md shows BLOCK → action → PASS
+6. Lifecycle steps if proof.md shows BLOCK → action → PASS:
+   - Inspect screening (adapt `templates/lifecycle-inspect-screening.bru`)
+   - Mark false positive (adapt `templates/lifecycle-mark-false-positive.bru`)
+   - Retry transaction (adapt `templates/lifecycle-retry-transaction.bru`)
 
 ### chain_screening decision
 
@@ -72,6 +75,8 @@ Copy `templates/001-auth.bru` and `templates/002-warmup.bru` verbatim into the o
 For all other `.bru` files: each needs `meta {}`, `post/put {}`, `auth:bearer {}`, `headers {}`, `body:json {}`, `docs {}`, `assert {}`. Pre/post-response scripts for dynamic IDs.
 
 See: `references/bru-format.md` for the full format spec — entity creation pattern, assertion syntax, ID chaining rules, screening refresh pattern. This is the authoritative format reference.
+
+**Large corpus exception:** If the corpus has more than 10 transactions or involves counterparties, read ONE existing Bruno scenario folder (pick the most structurally similar one) to learn the counterparty/PA creation pattern at scale. For small corpora (≤10 transactions, no counterparties), the reference file and templates are sufficient — don't read other scenarios.
 
 ---
 
@@ -114,7 +119,10 @@ On failure:
 
 - **`templates/001-auth.bru`** — standard auth prelude (copy verbatim)
 - **`templates/002-warmup.bru`** — standard warmup prelude (copy verbatim)
-- **`references/bru-format.md`** — .bru file format, naming, entity creation, assertion syntax, ID chaining, screening refresh
+- **`templates/lifecycle-inspect-screening.bru`** — inspect compliance screenings, find flagged one, stash ID + fields (adapt placeholders)
+- **`templates/lifecycle-mark-false-positive.bru`** — PUT screening with manual_override, clears all duplicate screening rows (adapt placeholders)
+- **`templates/lifecycle-retry-transaction.bru`** — retry blocked transaction after remediation (adapt placeholders)
+- **`references/bru-format.md`** — .bru file format, naming, entity creation, assertion syntax, ID chaining, screening refresh, lifecycle patterns
 
 ## Related
 

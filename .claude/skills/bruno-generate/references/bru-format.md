@@ -83,6 +83,27 @@ assert {
 
 Place this step immediately after the entity creation that needs it, before any payment account or transaction steps that depend on the screening result.
 
+## Lifecycle pattern (BLOCK → remediate → PASS)
+
+When proof.md describes a lifecycle flow where a transaction is first blocked, then an investigator remediates, then a retry passes, use the three lifecycle templates bundled in `templates/`:
+
+1. **Inspect screening** (`lifecycle-inspect-screening.bru`) — GET compliance-screenings, find the flagged sanctions screening by legal_entity_id, stash its ID and all required fields for the PUT. Replace `ENTITY_LEGAL_ENTITY_ID_VAR` with the correct env var (e.g., `receiverLegalEntityId`).
+
+2. **Mark false positive** (`lifecycle-mark-false-positive.bru`) — PUT the screening with `false_positive_qualifier: manual_override`. The post-response script also clears any duplicate screening rows for the same legal entity (chain_screening + refresh can produce multiple). Replace `ENTITY_LEGAL_ENTITY_ID_VAR` with the legal entity env var, `REVIEW_TIMESTAMP` with a current ISO timestamp.
+
+3. **Retry transaction** (`lifecycle-retry-transaction.bru`) — POST the same transaction again, asserting `status: accepted`. Replace the placeholder values (TRANSACTION_TYPE, AMOUNT, CURRENCY, and the ID env vars) with the actual values from the corpus.
+
+Sequence in the `.bru` file numbering:
+```
+... entity creates + screening refresh ...
+0NN — Inspect ENTITY compliance screening
+0NN — Transaction (asserts BLOCK)
+0NN — Investigator clears screening as false positive
+0NN — Retry transaction (asserts PASS)
+```
+
+The inspect step must come BEFORE the blocked transaction so the screening ID is stashed. The false-positive step uses that stashed ID.
+
 ## Transaction assertion pattern
 
 ```bru

@@ -1,66 +1,57 @@
-# Master Suite Entity Mix
+# Entity Mix — Existing Catalog Scenarios
 
-## Account Holders (100)
+The master-suite composes the 10 committed catalog scenarios under `corpus/zen_rules/`. Each scenario is a self-contained NDJSON folder with hand-curated entities and `_expected` verdict blocks.
 
-| Band | Count | Purpose |
-|------|-------|---------|
-| Clean individuals | ~40 | KYC approved, low risk, US residence. Baseline — transactions should PASS. |
-| Clean businesses | ~15 | KYC approved, low risk, with BOs on file. Baseline for business path. |
-| KYC-pending individuals | ~10 | `kyc_status: in_progress`. Triggers `cip_kyc_not_approved`. |
-| KYC-pending businesses | ~10 | Same but business path. |
-| Prohibited risk | ~5 | `risk_level: prohibited`. Triggers `prohibited_risk_freeze`. |
-| DPRK/sanctioned country | ~5 | Address in KP/IR/CU/SY. Triggers `ah_country_kp_residence`. |
-| Zero-BO businesses | ~5 | Business with no beneficial owners. Triggers `business_ah_zero_bos`. |
-| High-risk individuals | ~5 | `risk_level: high`. May trigger risk-based rules. |
-| High-risk businesses | ~5 | Same but business path. |
+## The 10 Catalog Scenarios
 
-## Counterparties (1,000)
+| Scenario | Entities | Txns | Rule triggered | Trigger mechanism |
+|---|---|---|---|---|
+| `ofac_sdn_match` | 3 AH, 3 PA | 2 | ofac_sdn_match | Creditor AH named "Vladimir Putin" → Watchman SDN score ≥95 |
+| `cip_kyc_gate` | 4 AH, 4 PA | 3 | cip_kyc_not_approved | Sender AH kyc_status=in_progress/rejected |
+| `ctr_structuring` | 2 AH, 2 PA | ~10 | ctr_structuring | 3+ sub-$10k debits from same AH in 24h |
+| `smurfing_pattern_sar_eligible` | 2 AH, 8+ PA | ~10 | smurfing_pattern_sar_eligible | 6+ small debits to distinct creditor PAs |
+| `prohibited_risk_freeze` | 3 AH, 3 PA | 2 | prohibited_risk_freeze | Sender AH risk_level=prohibited |
+| `ah_country_kp_residence` | 3 AH, 3 PA | 2 | ah_country_kp_residence | Sender AH citizenship_country=KP + address in DPRK |
+| `business_ah_zero_bos` | 3 AH, 3 PA, 1 BO | 2 | business_ah_zero_bos | Business AH with zero beneficial owners |
+| `internal_blocklist_lastname` | 3 AH, 3 PA, 1 BL | 2 | internal_blocklist_lastname | Creditor AH last_name matches seeded blocklist |
+| `stableaml_wallet_blocklist` | 1 AH, 10 CP, 11 PA | 10 | stableaml_wallet_blocklist | Creditor PA wallet_address on OFAC mixer list |
+| `de_minimis_stablecoin` | 3 AH, 4 PA | 3 | stablecoin_block_unverified | Creditor AH kyc_status != approved (P2P transfer) |
 
-| Band | Count | Purpose |
-|------|-------|---------|
-| Clean individuals | ~700 | Normal names, no SDN match. Baseline. |
-| Clean businesses | ~150 | Normal company names. Baseline. |
-| SDN high-score names | ~50 | Names matching moov/watchman SDN entries with score ≥95 (e.g. "Vladimir Putin", "Osama Bin Laden"). Triggers `ofac_sdn_match`. |
-| SDN alt-name partials | ~30 | Names partially matching SDN alt-name entries, score 70-94. May trigger REVIEW. |
-| Internal blocklist matches | ~20 | Last names matching seeded blocklist entries. Triggers `internal_blocklist_lastname`. |
-| Mixer wallet addresses | ~10 | CPs with wallet addresses matching OFAC-sanctioned mixer addresses. Triggers `ofac_mixer_usdc` / `stableaml_wallet_blocklist`. |
-| Mixed-risk | ~40 | Various flags that exercise edge cases. |
+## Scale via VU Fan-Out
 
-## Transactions (10,000)
+The `mix corpus.bench` task scales these scenarios via k6-style VU replication:
 
-Design transactions to exercise every rule. Mix of:
-- Random AH × random CP pairings (most transactions)
-- Targeted pairings that fire specific rules:
-  - Clean AH → SDN CP = `ofac_sdn_match` fires
-  - KYC-pending AH → any CP = `cip_kyc_not_approved` fires
-  - Prohibited AH → any CP = `prohibited_risk_freeze` fires
-  - Any AH → blocklist CP = `internal_blocklist_lastname` fires
-  - Clean AH → mixer CP = `stableaml_wallet_blocklist` fires
-  - DPRK AH → any CP = `ah_country_kp_residence` fires
-  - Zero-BO business AH → any CP = `business_ah_zero_bos` fires
-- Velocity patterns:
-  - 3+ sub-$10k debits from same AH in 24h = `ctr_structuring`
-  - 6+ small debits from same AH to distinct CPs = `smurfing_pattern_sar_eligible`
+| VU Level | Total Scenarios | Approx AHs | Approx Txns |
+|---|---|---|---|
+| 1 | 1 (round-robin) | ~3 | ~5 |
+| 10 | 10 (1 of each) | ~30 | ~50 |
+| 100 | 100 (10 each) | ~300 | ~500 |
+| 1000 | 1000 (100 each) | ~3000 | ~5000 |
+| 10000 | 10000 (1000 each) | ~30000 | ~50000 |
 
-**Amounts:** vary realistically. Most $50-$5,000. Some $5,000-$9,999 (structuring band). Some $10,000+ (CTR threshold). Some very small ($1-$50).
+Each VU gets a UUID prefix for DB-layer isolation. VUs run in parallel.
 
-**Cross-firing:** deliberate. A transaction from a KYC-pending AH to an SDN-matched CP hits both rules. For `_expected`, use whichever rule fires first per `hitPolicy: "first"`.
+## Scale via Synthetic Generators
 
-## Ndjson output
+For larger per-scenario transaction counts:
 
-Write under `tmp/corpus/<seed>/master/`:
+```bash
+# 1000 stableaml transactions
+mix corpus.generate.stableaml --emit-corpus --txns 1000 --seed 42
 
-```
-account_holders.ndjson     (100 lines)
-counterparties.ndjson      (1,000 lines)
-payment_accounts.ndjson    (at least 1 PA per AH + 1 PA per CP)
-transactions.ndjson        (10,000 lines)
-blocklist_entries.ndjson   (internal blocklist terms to seed)
+# 10000 SAML-D synthetic rows
+mix corpus.generate.saml_d --synthetic --rows 10000 --seed 42 --shards 1 --out tmp/saml-d
+
+# 10000 AMLGentex synthetic rows
+mix corpus.generate.amlgentex --synthetic --rows 10000 --seed 42 --shards 1 --out tmp/amlgentex
 ```
 
-## Determinism
+These use `SyntheticSeed` for determinism (same seed → byte-identical NDJSON).
 
-- Use `:rand.seed(:exsss, {seed, seed * 7919, seed * 6151})` (same pattern as `SyntheticSeed`)
-- `external_id` values: `ms-<type>-<zero-padded-index>` (e.g. `ms-ah-001`, `ms-cp-0042`, `ms-txn-00001`)
-- Names: draw from fixed arrays, indexed by seed-derived RNG
-- Amounts: seed-derived within the appropriate band
+## Architecture
+
+Most transaction-screening rules check `creditor_payment_account.compliance_screenings[]`, populated during entity onboarding (`OnboardingContext.onboard → screen`):
+
+- **Debtor-side rules** (check sender AH properties): cip_kyc_gate, prohibited_risk_freeze, ah_country_kp_residence, business_ah_zero_bos
+- **Creditor-side rules** (check creditor PA's screenings): ofac_sdn_match, internal_blocklist_lastname, stableaml_wallet_blocklist, de_minimis_stablecoin
+- **Velocity rules** (check sender AH's recent debits): ctr_structuring, smurfing_pattern_sar_eligible
