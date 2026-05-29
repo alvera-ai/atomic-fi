@@ -85,6 +85,7 @@ Both share the same shape — `lib/atomic_fi/payment_account_context/payment_acc
 | `<side>_payment_account.currency`                           | string  | ISO 4217                                         |
 | `<side>_payment_account.bank_name`                          | string  |                                                  |
 | `<side>_payment_account.iban`                               | string  | sensitive (PCI/PII)                              |
+| `<side>_payment_account.country`                            | string  | ISO 3166-1 alpha-2 (e.g. `"US"`, `"KP"`)        |
 | `<side>_payment_account.enabled_regimes`                    | string[]| e.g. `["ach_de_minimis","stablecoin_de_minimis"]`|
 | `<side>_payment_account.account_holder.kyc_status`          | enum    | nested — same enum as `account_holder.kyc_status`|
 | `<side>_payment_account.account_holder.holder_type`         | enum    | nested                                           |

@@ -183,6 +183,17 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
     schema: %Schema{
       type: :string,
       nullable: true,
+      description:
+        "ISO 3166-1 alpha-2 country code of the account's domicile jurisdiction " <>
+          "(e.g. US, GB, KP). Used by cross-border reporting rules (31 USC §5318(n))."
+    },
+    key: :country
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :string,
+      nullable: true,
       description: "Opaque internal payment account number"
     },
     key: :payment_account_number
@@ -288,6 +299,11 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
     field :wallet_address, :string
     field :wallet_chain, :string
 
+    # ISO 3166-1 alpha-2 country code of the account's domicile jurisdiction.
+    # Used by §5318(n) cross-border reporting rules to determine if a payment
+    # crosses national boundaries.
+    field :country, :string
+
     # Identifiers
     field :payment_account_number, :string
     field :external_id, :string
@@ -326,6 +342,7 @@ defmodule AtomicFi.PaymentAccountContext.PaymentAccount do
       :card_pan,
       :wallet_address,
       :wallet_chain,
+      :country,
       :payment_account_number,
       :external_id,
       :account_holder_id,
