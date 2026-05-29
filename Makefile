@@ -1,4 +1,4 @@
-.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install reseed-stableaml reseed-saml-d reseed-amlgentex bench hydrate-zen-rules test-bruno test-corpus
+.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down run seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install reseed-stableaml reseed-saml-d reseed-amlgentex bench hydrate-zen-rules test-bruno test-corpus
 
 COMPOSE_FILE := local-dependencies.yaml
 
@@ -256,6 +256,8 @@ up: run-backing-services
 	@$(MAKE) seed
 	@echo "✅ Stack ready. Run 'make server' — Phoenix + example-app build watchers run together."
 
+run: up server
+
 down: stop-backing-services
 
 seed:
@@ -318,6 +320,7 @@ help:
 	@echo "  make stop-watchman           - Stop Watchman"
 	@echo ""
 	@echo "One-shot:"
+	@echo "  make run                     - Everything: backing services + db + seed + Phoenix server"
 	@echo "  make up                      - Backing services + db + seed (then run 'make server')"
 	@echo "  make down                    - Stop backing services"
 	@echo "  make seed                    - (Re)seed db from priv/corpus/out, generating corpus if missing"

@@ -22,8 +22,8 @@ defmodule Mix.Tasks.Corpus.Validate do
       $ mix corpus.validate corpus/zen_rules/de_minimis_stablecoin --reset
       $ mix corpus.validate corpus/zen_rules/de_minimis_stablecoin --concurrency 8
 
-  `--concurrency K` fans the seed scenario out to K parallel VUs (k6
-  model), each with its own `vu####-` id prefix.
+  `--concurrency K` repeats the scenario K times sequentially, each
+  with its own `vu####-` id prefix. Useful for volume testing.
 
   Always runs inside a dedicated Postgres schema (`atomic_fi_corpus`).
   Requires the backing services up (`make run-backing-services`).
@@ -135,18 +135,11 @@ defmodule Mix.Tasks.Corpus.Validate do
   # ── VU fan-out ────────────────────────────────────────────────────
 
   defp run_vus(session, scenario, concurrency) do
-    0..(concurrency - 1)
-    |> Task.async_stream(
-      fn vu ->
-        prefix = vu_prefix(vu)
-        {rows, _prefix} = ScenarioRunner.run_vu(session, scenario, prefix: prefix, verbose: true)
-        rows
-      end,
-      max_concurrency: max(concurrency, 1),
-      ordered: true,
-      timeout: :infinity
-    )
-    |> Enum.map(fn {:ok, rows} -> rows end)
+    Enum.map(0..(concurrency - 1), fn vu ->
+      prefix = vu_prefix(vu)
+      {rows, _prefix} = ScenarioRunner.run_vu(session, scenario, prefix: prefix, verbose: true)
+      rows
+    end)
   end
 
   defp vu_prefix(vu), do: "vu#{:io_lib.format("~4..0B", [vu]) |> IO.iodata_to_binary()}-"
