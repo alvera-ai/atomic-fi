@@ -25,14 +25,11 @@ The slug must match an existing corpus folder under `corpus/zen_rules/<slug>/`. 
 
 ```
 1. READ       →  Read corpus/zen_rules/<slug>/ (ndjson + proof.md)
-2. STUDY      →  Read 2+ existing Bruno scenarios to learn conventions
-                  See: references/bru-format.md
-3. PLAN       →  Map corpus to request sequence: auth → warmup → entities → txns
-                  → lifecycle steps. Print plan, confirm with user.
-4. GENERATE   →  Write .bru files under bruno/atomic-fi-scenarios/<slug>/
-5. RUN        →  bru run <slug> --env local (or npx @usebruno/cli)
-6. ITERATE    →  Fix failures. Re-run. Cap at 5 iterations.
-7. HANDOFF    →  Surface file list + bru run result. DO NOT commit.
+2. PLAN       →  Map corpus to request sequence (see below)
+3. GENERATE   →  Copy preludes from templates/, write .bru files
+4. RUN        →  bru run <slug> --env local (or npx @usebruno/cli)
+5. ITERATE    →  Fix failures. Re-run. Cap at 5 iterations.
+6. HANDOFF    →  Surface file list + bru run result. DO NOT commit.
 ```
 
 ---
@@ -47,29 +44,38 @@ Read all four ndjson files and proof.md from `corpus/zen_rules/<slug>/`.
 
 ---
 
-## Step 3 — Plan
+## Step 2 — Plan
 
-Map ndjson to request sequence:
+Map ndjson to request sequence internally. Only pause for user confirmation if proof.md describes an ambiguous or unusual lifecycle flow.
 
-1. `001-auth.bru` — standard prelude (copy verbatim)
-2. `002-warmup.bru` — standard prelude (copy verbatim)
+1. `001-auth.bru` — copy from `templates/001-auth.bru` (bundled in this skill)
+2. `002-warmup.bru` — copy from `templates/002-warmup.bru` (bundled in this skill)
 3. Entity creates (AH → CP → PA, FK order)
-4. Transactions (one `.bru` per row, assertions from `_expected`)
-5. Lifecycle steps if proof.md shows BLOCK → action → PASS
+4. Screening refresh steps if needed (see `references/bru-format.md` § Screening refresh)
+5. Transactions (one `.bru` per row, assertions from `_expected`)
+6. Lifecycle steps if proof.md shows BLOCK → action → PASS
+
+### chain_screening decision
+
+- Set `chain_screening: true` on any account holder whose legal entity needs Watchman screening (OFAC/sanctions scenarios). This triggers an async screening job at entity creation time.
+- Set `chain_screening: false` for velocity/threshold rules (CIP, CTR, structuring, de minimis) where screening is irrelevant to the rule being tested.
+- When in doubt, check whether the corpus `_expected` references an `ofac_*` or `sanctions_*` rule — if so, at least one party needs `chain_screening: true`.
 
 ---
 
-## Step 4 — Generate
+## Step 3 — Generate
 
 Folder name uses **kebab-case**: `ofac_sdn_match` → `ofac-sdn-match`.
 
-Each `.bru` file needs: `meta {}`, `post/put {}`, `auth:bearer {}`, `headers {}`, `body:json {}`, `docs {}`, `assert {}`. Pre/post-response scripts for dynamic IDs.
+Copy `templates/001-auth.bru` and `templates/002-warmup.bru` verbatim into the output folder. Do not modify them. Do not read other scenario folders to get these files.
 
-See: `references/bru-format.md` for the full format spec, entity creation pattern, assertion syntax, and ID chaining rules.
+For all other `.bru` files: each needs `meta {}`, `post/put {}`, `auth:bearer {}`, `headers {}`, `body:json {}`, `docs {}`, `assert {}`. Pre/post-response scripts for dynamic IDs.
+
+See: `references/bru-format.md` for the full format spec — entity creation pattern, assertion syntax, ID chaining rules, screening refresh pattern. This is the authoritative format reference.
 
 ---
 
-## Step 5 — Run
+## Step 4 — Run
 
 ```sh
 make run-backing-services
@@ -80,7 +86,7 @@ If `local.bru` doesn't exist, copy from `environments/local.example.bru` and war
 
 ---
 
-## Step 6 — Iterate
+## Step 5 — Iterate
 
 On failure:
 - **Assertion failure** — check API response shape, assertion syntax, or stale `_expected`
@@ -96,7 +102,7 @@ On failure:
 
 - **One slug per invocation.**
 - **Corpus must exist.** Stop if `corpus/zen_rules/<slug>/` is missing.
-- **Copy prelude verbatim.** `001-auth.bru` and `002-warmup.bru` are identical across scenarios.
+- **Copy prelude from templates/.** `001-auth.bru` and `002-warmup.bru` are bundled — copy them, don't read other scenarios.
 - **Never auto-commit.**
 - **Never skip assertion failures.**
 - **Use server UUIDs in downstream requests.** Capture `res.body.id` in post-response scripts; don't use ndjson `external_id` values as FK references.
@@ -104,9 +110,11 @@ On failure:
 
 ---
 
-## Reference files
+## Bundled files
 
-- **`references/bru-format.md`** — .bru file format, naming, entity creation pattern, assertion syntax, ID chaining
+- **`templates/001-auth.bru`** — standard auth prelude (copy verbatim)
+- **`templates/002-warmup.bru`** — standard warmup prelude (copy verbatim)
+- **`references/bru-format.md`** — .bru file format, naming, entity creation, assertion syntax, ID chaining, screening refresh
 
 ## Related
 

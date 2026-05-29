@@ -1,5 +1,7 @@
 # Bruno .bru File Format Reference
 
+This is the authoritative format reference for generating `.bru` files. Do not read other scenario folders for conventions — everything you need is here.
+
 ## File naming
 
 ```
@@ -14,13 +16,7 @@ Three-digit zero-padded sequence numbers. Lowercase kebab-case names.
 
 ## Standard prelude (001 + 002)
 
-Every scenario folder starts with the same two files:
-
-**001-auth.bru** — `POST {{baseUrl}}/api/sessions` with `{{adminEmail}}`, `{{adminPassword}}`, `{{tenantSlug}}`. Post-response script sets `authBearer` and `tenantId` env vars, resets running ID arrays.
-
-**002-warmup.bru** — `POST {{baseUrl}}/api/tenants/refresh-blocklist-cache` with bearer auth. Ensures BlocklistCache is warm.
-
-Copy these verbatim from an existing scenario (e.g. `ofac-sdn-high-score/001-auth.bru`).
+Every scenario folder starts with the same two files. Copy them verbatim from `templates/001-auth.bru` and `templates/002-warmup.bru` in this skill directory. Do not modify them.
 
 ## Entity creation pattern
 
@@ -50,6 +46,43 @@ assert {
 - Capture the server-assigned `id` in post-response for downstream references
 - Use env vars to chain IDs between requests (`senderAhId`, `receiverCpId`, `senderPaId`, etc.)
 
+## Screening refresh pattern
+
+When a scenario involves Watchman screening (OFAC, sanctions), account holders created with `chain_screening: true` trigger an async screening job. The screening result may not be ready by the time the next request runs. Add a synchronous refresh step after the entity that needs screening:
+
+```bru
+meta {
+  name: 0NN — Refresh screening for <entity>
+  type: http
+  seq: NN
+}
+
+put {
+  url: {{baseUrl}}/api/account-holders/{{entityAhId}}/refresh-screening
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  accept: application/json
+}
+
+docs {
+  Force a synchronous Watchman screen so screening artefacts exist
+  before the downstream transaction evaluation reads them.
+}
+
+assert {
+  res.status: eq 200
+}
+```
+
+Place this step immediately after the entity creation that needs it, before any payment account or transaction steps that depend on the screening result.
+
 ## Transaction assertion pattern
 
 ```bru
@@ -60,11 +93,14 @@ assert {
 }
 ```
 
-Map `_expected` fields directly to assert blocks:
-- `status` → `res.body.status: eq <value>`
-- `rejected_rule` → `res.body.rejected_rule: eq <value>`
-- `rejected_code` → `res.body.rejected_code: eq <value>`
-- `null` values: omit from assertions (don't assert `eq null`)
+### Assertion convention
+
+Map `_expected` fields from the corpus ndjson to assert blocks:
+
+- **Always assert:** `res.body.status` (accepted/rejected)
+- **On rejection transactions, also assert:** `res.body.rejected_rule`
+- **Optionally assert on rejections:** `res.body.rejected_code`, `res.body.rejected_direction`, `res.body.rejected_period` — include these when the corpus `_expected` specifies them, as they strengthen correctness verification
+- **Null values:** omit from assertions entirely — don't assert `eq null` or `isNull`
 
 ## Docs blocks
 
