@@ -117,6 +117,17 @@ curl -s "http://localhost:8084/v2/search?name=<known_name>&limit=1"
 
 If the entity appears with a match score, Watchman loaded the data successfully.
 
+### Known limitation: Watchman v0.62.0 custom ingest
+
+Watchman v0.62.0 uses `*ingest.MockRepository` for custom watchlist files — entities are read from the file but **NOT indexed for search**. Only the 4 built-in lists (us_ofac, un_csl, us_non_sdn, us_fincen_311) are searchable. This is a Watchman binary limitation, not a file format issue.
+
+**Still append the data** — the file is the source of truth and will work when Watchman's ingest is fixed or upgraded. Log the limitation in the rollup:
+
+```
+⚠ Watchman custom ingest: MockRepository — entities in file but not searchable.
+  Built-in lists (OFAC, UN CSL) remain functional for screening.
+```
+
 ---
 
 ## Step 3 — RULES (country-specific ZenRule rules)
@@ -128,10 +139,24 @@ Research the country's AML/CFT regulatory framework. Every country has at minimu
 - **STR/SAR obligations** — suspicious transaction reporting
 - **Sanctions compliance** — domestic designated persons list
 
-For each derivable rule:
+For each derivable rule, author it directly (do NOT delegate to scenario-author — it's too heavy for country onboarding and burns tokens on stability checks that aren't needed here):
+
 1. Find the regulation text (prefer the country's official gazette, central bank website, or FIU website)
-2. Delegate to `scenario-author --regulation <url-or-saved-text>` for the proof loop
-3. If the regulation can't be fetched (gov site blocks automated access), save the relevant text to `.regulations/<country>/<slug>.txt` and pass the local path
+2. Copy an existing rule as a template — pick the closest pattern:
+   - **CTR threshold rules**: copy `zen_rules/transaction-screening/ctr_structuring.json` — change amount threshold, currency, and description
+   - **Designated person/sanctions rules**: copy `zen_rules/transaction-screening/ofac_sdn_match.json` — same structure, different cite
+   - **Country block rules**: copy `zen_rules/transaction-screening/ah_country_kp_residence.json` — add country code to the sanctioned array
+3. Write the rule to `zen_rules/transaction-screening/<slug>.json` AND `priv/zenrule/transaction-screening/<slug>.json`
+4. Create corpus at `corpus/zen_rules/<slug>/` using the template in `references/corpus-template.md`
+5. Run `mix corpus.validate corpus/zen_rules/<slug> --reset` — must show match > 0, mismatch = 0
+6. If the regulation can't be fetched (gov site blocks automated access), save the relevant text to `.regulations/<country>/<slug>.txt`
+
+### Avoiding common proof failures
+
+- Use `internal_transfer` as `transaction_type` for large-amount tests — `ach` triggers `ach_de_minimis` interference
+- Use `account_holder_type` not `holder_type` (the field was renamed)
+- Set `creditor_counterparty_external_id` on transactions that need the counterparty's legal entity visible to the rule engine
+- Expect rule stacking: if the entity also triggers `ofac_sdn_match` or other sanctions rules, `rejected_rule` will be semicolon-delimited (e.g., `"id_dttot_match; ofac_sdn_match"`). Set `_expected` to match the full folded string.
 
 ### Common rule patterns per country
 
@@ -193,10 +218,10 @@ ORDER BY sm.match_score DESC
 - **One country per invocation.** Don't batch countries — each has different datasets, regulations, and rule shapes.
 - **No fabricated sanctions data.** Only use OpenSanctions (public, maintained, cited by FATF). Never invent entity names or make up sanctions lists.
 - **No silent failures.** If OpenSanctions doesn't have a dataset for the country, say so. If a regulation can't be fetched, say so.
-- **Delegate rule creation to scenario-author.** This skill orchestrates; it does not draft JDM rules directly.
+- **Author rules directly.** Copy from existing rules as templates. Do NOT delegate to scenario-author — it runs full stability checks that are too heavy for country onboarding.
 - **Never auto-commit.** The user reviews Watchman data additions and rule changes before committing.
-- **Verify Watchman loaded the data.** Don't assume — search for a known entity after restart.
 - **Proceed without confirmation.** After completing each step, move to the next. Don't ask "Shall I continue?"
+- **Expect cross-rule interference.** New sanctions rules will stack with existing ones (ofac_sdn_match, etc.) in the `rejected_rule` field. Set `_expected` to match the full folded string. This is correct behavior — rules that fire on the same entity are ALL reported.
 
 ---
 
@@ -204,6 +229,7 @@ ORDER BY sm.match_score DESC
 
 - **`references/opensanctions-ftm-format.md`** — FTM entity schema and Senzing JSONL conversion mapping
 - **`references/country-fiu-directory.md`** — FIU names and regulation URLs per country
+- **`references/corpus-template.md`** — Known-good NDJSON templates with correct field names
 
 ## Related
 
