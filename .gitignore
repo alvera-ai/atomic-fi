@@ -102,3 +102,6 @@ node_modules/
 /example-apps/*/test-results/
 /example-apps/*/playwright-report/
 
+
+# Hydrated Watchman data dir (make hydrate-watchlists); source of truth is /watchlists
+priv/watchman-data/

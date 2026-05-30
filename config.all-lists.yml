@@ -21,6 +21,14 @@ Watchman:
       - us_fincen_311
       - un_csl
 
+    # Country-specific OpenSanctions datasets in Senzing format. Loaded into the
+    # in-memory search index at startup, exactly like the built-in lists above.
+    # The file is provided locally at InitialDataDirectory/<SourceList>
+    # (/data/id_dttot, bind-mounted), so Watchman matches it by name and never
+    # needs a download Location.
+    Senzing:
+      - SourceList: id_dttot
+
   Search:
     Goroutines:
       Default: 10

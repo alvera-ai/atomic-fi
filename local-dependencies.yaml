@@ -7,6 +7,11 @@ services:
     volumes:
       - ./config.all-lists.yml:/app/config.yml:ro
       - ./custom-watchlist.jsonl:/data/custom_watchlist.jsonl:ro
+      # Country sanctions lists, hydrated by `make hydrate-watchlists` into
+      # priv/watchman-data/ (bare-named per SourceList). Mounted into the
+      # InitialDataDirectory so Watchman loads them into the in-memory search
+      # index at startup — no ingest endpoint, no Postgres. One line per list.
+      - ./priv/watchman-data/id_dttot:/data/id_dttot:ro
     environment:
       APP_CONFIG: /app/config.yml
 

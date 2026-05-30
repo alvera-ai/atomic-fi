@@ -171,7 +171,26 @@ hydrate-zen-rules:
 	@cp zen_rules/transaction-screening/*.json priv/zenrule/transaction-screening/
 	@echo "✓ ZenRule rules hydrated."
 
-run-backing-services: hydrate-zen-rules
+# Hydrate Watchman's data directory from /watchlists/ (the committed source
+# of truth) into /priv/watchman-data/ (gitignored, bind-mounted into the
+# moov/watchman container at /data — its InitialDataDirectory). Same pattern
+# as hydrate-zen-rules: committed source → throwaway runtime location.
+#
+# Each committed file is named <list>.senzing.json for readability; Watchman's
+# downloader only treats a local file as a list when its name EXACTLY equals
+# the configured SourceList (no extension), so we strip .senzing.json on copy.
+# A file dropped in /data short-circuits the network download entirely —
+# the list loads into the in-memory search index at startup, no ingest, no db.
+hydrate-watchlists:
+	@echo "Hydrating priv/watchman-data/ from watchlists/ ..."
+	@rm -rf priv/watchman-data
+	@mkdir -p priv/watchman-data
+	@for f in watchlists/*/*.senzing.json; do \
+		cp "$$f" "priv/watchman-data/$$(basename "$$f" .senzing.json)"; \
+	done
+	@echo "✓ Sanctions watchlists hydrated."
+
+run-backing-services: hydrate-zen-rules hydrate-watchlists
 	@echo "Starting local backing services (docker compose: watchman)..."
 	@docker compose -f $(COMPOSE_FILE) up -d --build
 	@echo "Backing services ready. Run 'make deps.logs' to follow."
