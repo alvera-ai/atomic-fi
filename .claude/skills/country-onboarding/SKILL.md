@@ -117,16 +117,13 @@ curl -s "http://localhost:8084/v2/search?name=<known_name>&limit=1"
 
 If the entity appears with a match score, Watchman loaded the data successfully.
 
-### Known limitation: Watchman v0.62.0 custom ingest
+### Custom ingest requires Postgres
 
-Watchman v0.62.0 uses `*ingest.MockRepository` for custom watchlist files — entities are read from the file but **NOT indexed for search**. Only the 4 built-in lists (us_ofac, un_csl, us_non_sdn, us_fincen_311) are searchable. This is a Watchman binary limitation, not a file format issue.
+Watchman uses `sqlRepository` (real persistence + search) only when `Database.Postgres` is configured in `config.all-lists.yml`. Without it, Watchman falls back to `MockRepository` which accepts data but doesn't index it for search.
 
-**Still append the data** — the file is the source of truth and will work when Watchman's ingest is fixed or upgraded. Log the limitation in the rollup:
+The local setup (`config.all-lists.yml`) already has the Database config — custom entities are searchable with `source=custom_watchlist`. If you see `MockRepository` in the logs, the Database config is missing.
 
-```
-⚠ Watchman custom ingest: MockRepository — entities in file but not searchable.
-  Built-in lists (OFAC, UN CSL) remain functional for screening.
-```
+**Note:** Custom-ingested entities require `source=custom_watchlist` in search queries. Broad searches (no source filter) only return built-in lists. The screening engine already handles this — it searches both broad and custom_watchlist sources.
 
 ---
 
