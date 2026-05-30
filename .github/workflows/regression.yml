@@ -74,10 +74,12 @@ jobs:
 
       - name: Start Watchman (needs checkout for config)
         run: |
+          sed '/^  Database:/,/^  [A-Z]/{ /^  Database:/d; /^    /d; }' \
+            config.all-lists.yml > /tmp/watchman-ci.yml
           docker run -d --name watchman \
             -p 8084:8084 -p 9094:9094 \
             -e APP_CONFIG=/app/config.yml \
-            -v ${{ github.workspace }}/config.all-lists.yml:/app/config.yml:ro \
+            -v /tmp/watchman-ci.yml:/app/config.yml:ro \
             -v ${{ github.workspace }}/custom-watchlist.jsonl:/data/custom_watchlist.jsonl:ro \
             moov/watchman:v0.62.0
           for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
