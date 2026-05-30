@@ -72,12 +72,12 @@ One JSON object per line. No leading/trailing whitespace per line. **One termina
 ### `account_holders.ndjson`
 
 ```jsonl
-{"external_id":"<slug-ah-handle>","holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"Alice","last_name":"Sender"}}
+{"external_id":"<slug-ah-handle>","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"Alice","last_name":"Sender"}}
 ```
 
 Required keys (else context crashes — which is correct):
 - `external_id` (stable handle, unique across all corpora)
-- `holder_type`
+- `account_holder_type`
 - `status: "pending"` (default state on insert)
 - `kyc_status`
 - `risk_level`

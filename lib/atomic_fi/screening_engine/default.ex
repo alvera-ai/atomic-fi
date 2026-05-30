@@ -378,9 +378,13 @@ defmodule AtomicFi.ScreeningEngine.Default do
          suppressed_source_ids,
          list_info
        ) do
-    case Client.v2_search_get(search_params) do
-      {:ok, %{entities: entities}} ->
-        all_match_attrs = build_sanctions_match_attrs(entities || [], suppressed_source_ids)
+    broad_entities = search_watchman(search_params)
+    custom_entities = search_watchman(Keyword.put(search_params, :source, "custom_watchlist"))
+
+    case {broad_entities, custom_entities} do
+      {{:ok, broad}, {:ok, custom}} ->
+        entities = Enum.uniq_by(broad ++ custom, & &1.sourceID)
+        all_match_attrs = build_sanctions_match_attrs(entities, suppressed_source_ids)
         active = Enum.reject(all_match_attrs, & &1.suppressed)
 
         {:ok,
@@ -394,14 +398,28 @@ defmodule AtomicFi.ScreeningEngine.Default do
          )}
 
       # coveralls-ignore-start
-      {:error, _} = error ->
+      {{:error, _} = error, _} ->
         error
 
-      :error ->
+      {_, {:error, _} = error} ->
+        error
+
+      _ ->
         {:error, :watchman_search_unavailable}
         # coveralls-ignore-stop
     end
   end
+
+  # coveralls-ignore-start
+  defp search_watchman(params) do
+    case Client.v2_search_get(params) do
+      {:ok, %{entities: entities}} -> {:ok, entities || []}
+      {:error, _} = error -> error
+      :error -> {:error, :watchman_search_unavailable}
+    end
+  end
+
+  # coveralls-ignore-stop
 
   defp build_sanctions_match_attrs(entities, suppressed_source_ids) do
     Enum.map(entities, fn entity ->
