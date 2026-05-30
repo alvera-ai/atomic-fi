@@ -59,7 +59,9 @@ The platform also resolves Indonesia's reporting regime:
 | Large-cash-transaction reporting threshold | 500,000,000 Indonesian rupiah (about 31,000 US dollars) |
 | Governing regulation | Indonesian Financial Services Authority Regulation 12 of 2017 |
 
-🖼 _screenshot slot: `assets/launch-new-geography-indonesia/01-discover.png`_
+The platform that enforces all of this is a single compliance interface — every control referenced below (screening, account holders, counterparties, ledgers) is exposed here:
+
+![The Payment Compliance Platform interface, listing every compliance resource](images/launch-indonesia/01-scalar-api-overview.png)
 
 **Status:** Done — Indonesia resolves to one usable sanctions list and a known cash-reporting threshold. The election dataset was correctly left out.
 
@@ -110,7 +112,7 @@ us_ofac    19,014
 
 The same screening is exposed on the platform's own interface — the stateless *Preview-screen a counterparty* endpoint, which a developer calls to check a party before saving anything:
 
-![The platform's compliance-screening endpoint in the API explorer](../images/launch-indonesia/02-screening-endpoint.png)
+![The platform's compliance-screening endpoint in the API explorer](images/launch-indonesia/02-screening-endpoint.png)
 
 **Status:** Done — Indonesia's full list (536 parties) is loaded into the in-memory search index as a first-class list. Every Indonesian designation is screenable, including names that appear on no other list.
 
@@ -128,7 +130,7 @@ _pending_
 
 _pending_
 
-🖼 _screenshot slot: `assets/launch-new-geography-indonesia/03-rules-editor.png`_
+🖼 _screenshot slot: `images/launch-indonesia/03-rules-editor.png`_
 
 **Status:** Not yet run
 
@@ -146,7 +148,7 @@ _pending_
 
 _pending_
 
-🎞 _video slot: `assets/launch-new-geography-indonesia/04-corpus-validate.gif`_
+🎞 _video slot: `images/launch-indonesia/04-corpus-validate.gif`_
 
 **Status:** Not yet run
 
@@ -164,7 +166,7 @@ _pending_
 
 _pending_
 
-🖼 _screenshot slot: `assets/launch-new-geography-indonesia/05-bruno-run.png`_
+🖼 _screenshot slot: `images/launch-indonesia/05-bruno-run.png`_
 
 **Status:** Not yet run
 
@@ -182,7 +184,7 @@ _pending_
 
 _pending_
 
-🎞 _video slot: `assets/launch-new-geography-indonesia/06-lotus-probe.mp4`_
+🎞 _video slot: `images/launch-indonesia/06-lotus-probe.mp4`_
 
 **Status:** Not yet run
 
