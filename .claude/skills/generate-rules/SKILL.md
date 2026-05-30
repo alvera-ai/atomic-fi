@@ -25,7 +25,7 @@ URLs may be eCFR links, USC links, PDF links (HTTP or local), or local file path
 ## Workflow
 
 ```
-1. PARSE       →  Extract URL list. Validate. Deduplicate. Print and confirm with user.
+1. PARSE       →  Extract URL list. Validate. Print summary (no confirmation needed).
 2. LOOP        →  For each URL, sequentially:
                    a. FETCH    — Use the source-specific strategy below
                    b. VALIDATE — Confirm fetched content is regulatory text
@@ -47,18 +47,17 @@ Sequential — one URL at a time. If a URL's proof fails or scenario-author hits
 - Strip comment lines (lines starting with `#`)
 - Treat remaining lines as URLs or local file paths
 
-### URL normalization and dedup
-- Strip trailing slashes before comparison
-- Exact string match after normalization — two URLs that differ only by trailing slash are duplicates
-- Log which duplicates were removed and why
+### URL normalization
+- Strip trailing slashes
+- Do NOT deduplicate. Do NOT skip URLs because an "existing rule covers this regulation." Every URL in the list gets its own rule + corpus + proof. If two URLs point to related regulations, they get separate rules — the user decided to include both.
 
 ### URL validation (pre-flight)
 
 Before fetching, do a lightweight check on each URL:
 
-1. **Domain heuristic:** If the domain is NOT in `[ecfr.gov, uscode.house.gov, fincen.gov, ofac.treasury.gov, treasury.gov, congress.gov, law.cornell.edu]` AND the path doesn't end in `.pdf`, **warn the user** that this doesn't look like a regulation source. Still include it if the user confirms.
+1. **Domain heuristic:** If the domain is NOT in `[ecfr.gov, uscode.house.gov, fincen.gov, ofac.treasury.gov, treasury.gov, congress.gov, law.cornell.edu]` AND the path doesn't end in `.pdf`, log a warning but proceed anyway.
 
-2. **eCFR path structure:** If domain is `ecfr.gov`, verify the path matches the expected pattern (`/current/title-NN/...`). Flag obvious typos (e.g., `cuitle` instead of `current/title`) and suggest corrections.
+2. **eCFR path structure:** If domain is `ecfr.gov`, verify the path matches the expected pattern (`/current/title-NN/...`). Flag obvious typos and suggest corrections.
 
 3. **Section existence (eCFR only):** Query the eCFR versioner API to confirm the section exists before attempting content fetch:
    ```
@@ -66,7 +65,7 @@ Before fetching, do a lightweight check on each URL:
    ```
    If `result_count: 0`, the section doesn't exist — fail loud immediately with the structure API's table of contents for the part so the user can pick the right section.
 
-Print the final URL list with source types and ask the user to confirm before proceeding.
+Print the final URL list with source types, then **proceed immediately** — do not ask for confirmation.
 
 ---
 
@@ -183,6 +182,9 @@ See: `references/master-md-format.md`
 ## Hard rules
 
 - **Sequential URL processing.** Never parallelize — corpus collisions produce non-deterministic results.
+- **One rule per URL.** Every URL produces its own rule + corpus + proof. Do NOT merge multiple URLs into one rule. Do NOT skip a URL because "an existing rule already covers this." The user chose to include it — generate it.
+- **No dedup against existing rules.** Do NOT check existing `corpus/zen_rules/` or `priv/zenrule/` for coverage overlap. That's the user's decision, not the skill's.
+- **No confirmation prompts between URLs.** After completing URL N, immediately proceed to URL N+1. Do not ask "Ready to proceed?" or "Shall I continue?" — just go.
 - **Delegate to scenario-author.** This skill orchestrates; it does not draft rules or write corpus files.
 - **Never auto-commit.**
 - **Never skip a failed proof silently.**
