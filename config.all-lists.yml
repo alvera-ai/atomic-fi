@@ -36,6 +36,13 @@ Watchman:
   #   BinaryPath: ""
   #   CGOSelfInstances: 1
 
+  Database:
+    DatabaseName: "watchman"
+    Postgres:
+      Address: "host.docker.internal:5432"
+      User: "postgres"
+      Password: "postgres"
+
   Ingest:
     Files:
       custom_watchlist:
