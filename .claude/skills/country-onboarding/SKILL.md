@@ -97,25 +97,28 @@ Mapping:
 
 Write the conversion as a Python one-liner or small script. Use `python3` (available in the environment).
 
-### 2c. Append to watchlist
+### 2c. Upload via Watchman API (NOT file append)
+
+The file-based ingest (`custom-watchlist.jsonl` mount) is broken — Watchman's Senzing parser reads only 1 entity regardless of file size. Use the **API ingest** instead:
 
 ```bash
-cat /tmp/<dataset>.senzing.jsonl >> custom-watchlist.jsonl
+while IFS= read -r line; do
+  curl -s -X POST "http://localhost:8084/v2/ingest/custom_watchlist" \
+    -H "Content-Type: text/plain" \
+    -d "$line" > /dev/null
+done < /tmp/<dataset>.senzing.jsonl
+echo "Uploaded $(wc -l < /tmp/<dataset>.senzing.jsonl) entities"
 ```
 
-### 2d. Restart Watchman and verify
+This POSTs each entity individually. They're persisted in Watchman's Postgres DB (`sqlRepository`) and survive restarts.
+
+### 2d. Verify entities are searchable
 
 ```bash
-docker compose -f local-dependencies.yaml restart watchman
+curl -s "http://localhost:8084/v2/search?name=<known_name>&limit=1&source=custom_watchlist"
 ```
 
-Wait for health check, then verify a known entity from the dataset is findable:
-
-```bash
-curl -s "http://localhost:8084/v2/search?name=<known_name>&limit=1"
-```
-
-If the entity appears with a match score, Watchman loaded the data successfully.
+The `source=custom_watchlist` filter is required — custom-ingested entities don't appear in broad (unfiltered) searches. The screening engine already handles this automatically.
 
 ### Custom ingest requires Postgres
 
