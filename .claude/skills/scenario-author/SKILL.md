@@ -82,19 +82,19 @@ See: `references/use-cases-row-format.md`
 
 **Non-negotiable.** Before drafting ANY JDM:
 
-1. Open `references/payload-schema.md` (the schema doc this skill reads).
-2. Open `lib/atomic_fi/rule_engine/payload.ex` (the live source of truth).
+1. Open `.claude/skills/scenario-author/references/payload-schema.md` (the schema doc this skill reads). **This file exists — read it.**
+2. Open `lib/atomic_fi/rule_engine.ex` (the live source of truth — functions `build_transaction_payload/2`, `pa_payload/2`, `ah_payload/3`). **There is no separate `payload.ex` file.**
 3. Diff: every field the rule will reference MUST appear in BOTH.
-   - In `payload.ex` but missing from doc → **update doc first**, then draft.
-   - In neither → **STOP**. Extend `payload.ex` with a failing test in `test/atomic_fi/rule_engine/payload_test.exs` BEFORE returning to this skill. The rule cannot move ahead of the payload.
-4. If the field exists in payload but ISN'T POPULATED in `Payload.from_transaction/1` due to missing preloads → STOP and fix the preloads in `TransactionContext` (or the relevant context). The rule will silently see `null` otherwise.
+   - In `rule_engine.ex` but missing from doc → **update doc first**, then draft.
+   - In neither → **STOP**. Extend the payload builders in `rule_engine.ex` BEFORE returning to this skill. The rule cannot move ahead of the payload.
+4. If the field exists in the schema but ISN'T POPULATED in the payload builders due to missing preloads → STOP and fix the preloads in `TransactionContext` (or the relevant context). The rule will silently see `null` otherwise.
 
 This is the load-bearing invariant of this entire system; **do not bypass it under any condition.**
 
 **When this step says STOP, you must IMMEDIATELY end the skill invocation.** Print:
 1. Which field is missing or mismatched
 2. Where it needs to be added (payload.ex, the schema, or the preloads)
-3. The exact error: "LOCKSTEP GUARD FAILED — cannot proceed. The user must extend the payload before this rule can be authored."
+3. The exact error: "LOCKSTEP GUARD FAILED — cannot proceed. The user must extend the payload in `lib/atomic_fi/rule_engine.ex` before this rule can be authored."
 
 Do NOT attempt to: guess field names, use alternative fields, skip the rule, proceed to the next step, or retry with different parameters. Return control to the user (or to the calling orchestrator skill) with the failure message. Zero tolerance.
 
@@ -263,9 +263,14 @@ If the slice is one of the 10 golden scenarios, also remind the user to:
 
 ## Reference files
 
-- **`references/payload-schema.md`** — the `AtomicFi.RuleEngine.Payload` shape. The rule may only reference paths documented here. Lockstep-checked against `payload.ex` on every invocation.
-- **`references/use-cases-row-format.md`** — how to read a row of `guides/use-cases.md` and extract slug + rule_type + verdict + schema needs.
-- **`references/regulation-snippet-format.md`** — how to extract the same fields from a regulatory PDF/text snippet (the `--regulation` mode).
-- **`references/output-contract.md`** — the exact shape the skill must emit (JDM 3-node graph, four ndjson files, proof.md).
-- **`references/jdm-cheatsheet.md`** — JDM cell-expression syntax (equality, IN, range, null checks), hit policies.
-- **`scripts/evaluate.sh`** — smoke-test a single context against the live agent without going through the corpus validator. Use for fast iteration on a single decision-table row before running `mix corpus.validate`.
+All paths below are relative to THIS skill's directory (`.claude/skills/scenario-author/`). They EXIST — read them before drafting.
+
+- **`.claude/skills/scenario-author/references/payload-schema.md`** — the `AtomicFi.RuleEngine.Payload` shape. The rule may only reference paths documented here. Lockstep-checked against `rule_engine.ex` on every invocation.
+- **`.claude/skills/scenario-author/references/use-cases-row-format.md`** — how to read a row of `guides/use-cases.md` and extract slug + rule_type + verdict + schema needs.
+- **`.claude/skills/scenario-author/references/regulation-snippet-format.md`** — how to extract the same fields from a regulatory PDF/text snippet (the `--regulation` mode).
+- **`.claude/skills/scenario-author/references/output-contract.md`** — the exact shape the skill must emit (JDM 3-node graph, four ndjson files, proof.md).
+- **`.claude/skills/scenario-author/references/jdm-cheatsheet.md`** — JDM cell-expression syntax (equality, IN, range, null checks), hit policies.
+
+## Payload source of truth
+
+The payload is built inline in **`lib/atomic_fi/rule_engine.ex`** (functions `build_transaction_payload/2`, `build_onboarding_payload/2`, `pa_payload/2`, `ah_payload/3`). There is no separate `payload.ex` file. When the lockstep guard says "check payload.ex", read `lib/atomic_fi/rule_engine.ex` instead.
