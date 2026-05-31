@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.0](https://github.com/alvera-ai/atomic-fi/compare/v1.7.0...v1.8.0) (2026-05-31)
+
+
+### Features
+
+* add .env support for dev secrets ([d1830c4](https://github.com/alvera-ai/atomic-fi/commit/d1830c44712786b4f8ac4e7aa522cb2be6ad4b29))
+* add .env support for dev secrets ([1bc391b](https://github.com/alvera-ai/atomic-fi/commit/1bc391bde49d12716b7a72a8011cf332b9a60c4b))
+
 ## [1.7.0](https://github.com/alvera-ai/atomic-fi/compare/v1.6.0...v1.7.0) (2026-05-31)
 
 
