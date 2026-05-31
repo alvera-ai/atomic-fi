@@ -1,4 +1,4 @@
-.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install reseed-stableaml reseed-saml-d reseed-amlgentex bench hydrate-zen-rules
+.PHONY: server console help run-backing-services stop-backing-services deps.logs deps.status run-watchman stop-watchman up down run seed test-integration test-playwright sight ai-doc.server ai-doc.check ai-doc.install reseed-stableaml reseed-saml-d reseed-amlgentex bench hydrate-zen-rules test-bruno test-corpus
 
 COMPOSE_FILE := local-dependencies.yaml
 
@@ -171,9 +171,28 @@ hydrate-zen-rules:
 	@cp zen_rules/transaction-screening/*.json priv/zenrule/transaction-screening/
 	@echo "✓ ZenRule rules hydrated."
 
-run-backing-services: hydrate-zen-rules
+# Hydrate Watchman's data directory from /watchlists/ (the committed source
+# of truth) into /priv/watchman-data/ (gitignored, bind-mounted into the
+# moov/watchman container at /data — its InitialDataDirectory). Same pattern
+# as hydrate-zen-rules: committed source → throwaway runtime location.
+#
+# Each committed file is named <list>.senzing.json for readability; Watchman's
+# downloader only treats a local file as a list when its name EXACTLY equals
+# the configured SourceList (no extension), so we strip .senzing.json on copy.
+# A file dropped in /data short-circuits the network download entirely —
+# the list loads into the in-memory search index at startup, no ingest, no db.
+hydrate-watchlists:
+	@echo "Hydrating priv/watchman-data/ from watchlists/ ..."
+	@rm -rf priv/watchman-data
+	@mkdir -p priv/watchman-data
+	@for f in watchlists/*/*.senzing.json; do \
+		cp "$$f" "priv/watchman-data/$$(basename "$$f" .senzing.json)"; \
+	done
+	@echo "✓ Sanctions watchlists hydrated."
+
+run-backing-services: hydrate-zen-rules hydrate-watchlists
 	@echo "Starting local backing services (docker compose: watchman)..."
-	@docker compose -f $(COMPOSE_FILE) up -d
+	@docker compose -f $(COMPOSE_FILE) up -d --build
 	@echo "Backing services ready. Run 'make deps.logs' to follow."
 	@echo "Note: compose-managed watchman uses upstream moov/watchman with the"
 	@echo "      same config + custom watchlist as 'make run-watchman'."
@@ -256,6 +275,8 @@ up: run-backing-services
 	@$(MAKE) seed
 	@echo "✅ Stack ready. Run 'make server' — Phoenix + example-app build watchers run together."
 
+run: up server
+
 down: stop-backing-services
 
 seed:
@@ -273,6 +294,32 @@ test-integration:
 test-playwright:
 	@echo "🎭 Running playwright e2e suite..."
 	@cd playwright-e2e && pnpm test
+
+# ─── Correctness verification (issue #53) ──────────────────────────────
+
+BRUNO_DIR := bruno/atomic-fi-scenarios
+BRUNO_SCENARIOS := $(filter-out environments smoke-tests %.md %.json %.bru,$(notdir $(patsubst %/,%,$(wildcard $(BRUNO_DIR)/*/))))
+
+test-bruno:
+	@echo "→ Running Bruno scenarios against live API..."
+	@failed=0; total=0; \
+	for scenario in $(BRUNO_SCENARIOS); do \
+		total=$$((total + 1)); \
+		echo "  [$${total}] $$scenario"; \
+		if npx @usebruno/cli run "$(BRUNO_DIR)/$$scenario" --env local 2>&1 | tail -1 | grep -q "Failed"; then \
+			echo "    ✗ FAILED"; \
+			failed=$$((failed + 1)); \
+		else \
+			echo "    ✓ pass"; \
+		fi; \
+	done; \
+	echo ""; \
+	echo "Bruno: $$((total - failed))/$$total scenarios green"; \
+	[ $$failed -eq 0 ]
+
+test-corpus:
+	@echo "→ Running corpus.validate against all scenarios..."
+	@mix corpus.validate --reset
 
 help:
 	@echo "Payments Compliance Platform - Available Commands"
@@ -292,11 +339,14 @@ help:
 	@echo "  make stop-watchman           - Stop Watchman"
 	@echo ""
 	@echo "One-shot:"
+	@echo "  make run                     - Everything: backing services + db + seed + Phoenix server"
 	@echo "  make up                      - Backing services + db + seed (then run 'make server')"
 	@echo "  make down                    - Stop backing services"
 	@echo "  make seed                    - (Re)seed db from priv/corpus/out, generating corpus if missing"
 	@echo "  make test-integration        - Run vitest integration suite"
 	@echo "  make test-playwright         - Run playwright e2e suite"
+	@echo "  make test-bruno              - Run all Bruno scenarios (needs live API)"
+	@echo "  make test-corpus             - Run corpus.validate on all scenarios"
 	@echo ""
 	@echo "Usage:"
 	@echo "  1. Start services:  make run-backing-services"

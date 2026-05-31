@@ -57,6 +57,20 @@ Backed by `lib/atomic_fi/account_holder_context/account_holder.ex`.
 | `account_holder.risk_level`         | enum    | `"low"`, `"medium"`, `"high"`, `"very_high"`                           |
 | `account_holder.enabled_currencies` | string[]| e.g. `["USD","EUR"]`                                                   |
 
+### `*.legal_entity` (nested on AH, debtor_counterparty, creditor_counterparty)
+
+| Field path | Type | Notes |
+|---|---|---|
+| `*.legal_entity.legal_entity_type` | enum | `"individual"`, `"business"` |
+| `*.legal_entity.first_name` | string | Individuals only |
+| `*.legal_entity.last_name` | string | Individuals only |
+| `*.legal_entity.business_name` | string | Businesses only |
+| `*.legal_entity.citizenship_country` | string | ISO 3166-1 alpha-2 |
+| `*.legal_entity.politically_exposed_person` | bool | FATF PEP flag |
+| `*.legal_entity.institution_type` | enum | `"bank"`, `"msb"`, `"broker_dealer"`, `"insurance"`, `"fintech"`, `"none"` — set by compliance analyst |
+| `*.legal_entity.has_physical_presence` | bool | false = shell bank — set by compliance analyst |
+| `*.legal_entity.jurisdiction_cooperative` | bool | false = non-cooperative jurisdiction — set by compliance analyst |
+
 ## debtor_payment_account / creditor_payment_account
 
 Both share the same shape — `lib/atomic_fi/payment_account_context/payment_account.ex`.
@@ -69,6 +83,7 @@ Both share the same shape — `lib/atomic_fi/payment_account_context/payment_acc
 | `<side>_payment_account.currency`                           | string  | ISO 4217                                         |
 | `<side>_payment_account.bank_name`                          | string  |                                                  |
 | `<side>_payment_account.iban`                               | string  | sensitive (PCI/PII)                              |
+| `<side>_payment_account.country`                            | string  | ISO 3166-1 alpha-2 (e.g. `"US"`, `"KP"`)        |
 | `<side>_payment_account.enabled_regimes`                    | string[]| e.g. `["ach_de_minimis","stablecoin_de_minimis"]`|
 | `<side>_payment_account.account_holder.kyc_status`          | enum    | nested — same enum as `account_holder.kyc_status`|
 | `<side>_payment_account.account_holder.holder_type`         | enum    | nested                                           |

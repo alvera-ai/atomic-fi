@@ -1,0 +1,53 @@
+meta {
+  name: 014 — Retry transaction to DTTOT recipient (asserts PASS after override)
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{baseUrl}}/api/transactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "transaction_type": "internal_transfer",
+    "amount": 2500,
+    "currency": "USD",
+    "account_holder_id": "{{senderAhId}}",
+    "debtor_payment_account_id": "{{senderPaId}}",
+    "creditor_payment_account_id": "{{dttotRecipientPaId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Replay the same payment intent now that the DTTOT screening is
+  cleared. The rule engine reads the updated `false_positive_qualifier`,
+  the `id_dttot_match` rule's CLEARED filter skips this screening,
+  and no rule trips. Transaction settles.
+
+  Expected:
+    - `status: accepted`
+    - `rejected_rule: null`
+
+  The regulator-walkable evidence is the pair of transaction POSTs
+  around the recorded compliance event at step 013 — same parties,
+  same amount, two outcomes, separated by an audit-trail PUT against
+  the screening record.
+}
+
+assert {
+  res.status: eq 201
+  res.body.status: eq accepted
+}

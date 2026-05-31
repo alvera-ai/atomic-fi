@@ -150,6 +150,42 @@ defmodule AtomicFi.LegalEntityContext.LegalEntity do
 
   open_api_property(
     schema: %Schema{
+      type: :string,
+      nullable: true,
+      enum: ["bank", "msb", "broker_dealer", "insurance", "fintech", "none"],
+      description:
+        "Financial institution classification — set by compliance analyst " <>
+          "during KYB, not by the API consumer. Used by §5318(i)/(j) rules."
+    },
+    key: :institution_type
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :boolean,
+      nullable: true,
+      description:
+        "Does the institution maintain a physical office? false = shell bank. " <>
+          "Set by compliance analyst from correspondent banking questionnaire. " <>
+          "Used by §5318(j) foreign shell bank prohibition."
+    },
+    key: :has_physical_presence
+  )
+
+  open_api_property(
+    schema: %Schema{
+      type: :boolean,
+      nullable: true,
+      description:
+        "Does the entity's home jurisdiction cooperate with US AML enforcement? " <>
+          "Set by compliance analyst from FATF grey/black list status. " <>
+          "Used by §5318(i) enhanced due diligence for non-cooperative jurisdictions."
+    },
+    key: :jurisdiction_cooperative
+  )
+
+  open_api_property(
+    schema: %Schema{
       type: :array,
       items: %OpenApiSpex.Reference{"$ref": "#/components/schemas/LegalEntityAddressRequest"}
     },
@@ -230,6 +266,9 @@ defmodule AtomicFi.LegalEntityContext.LegalEntity do
       :date_of_birth,
       :citizenship_country,
       :politically_exposed_person,
+      :institution_type,
+      :has_physical_presence,
+      :jurisdiction_cooperative,
       :addresses,
       :phone_numbers,
       :identifications,
@@ -285,6 +324,25 @@ defmodule AtomicFi.LegalEntityContext.LegalEntity do
     # Non-PII identity fields
     field :citizenship_country, :string
     field :politically_exposed_person, :boolean
+
+    # Institutional due diligence fields — populated by the compliance team
+    # during KYB (Know Your Business) or correspondent banking onboarding,
+    # NOT by the API consumer or the counterparty themselves.
+
+    # §5318(i)/(j): What kind of financial institution is this entity?
+    # Compliance analyst sets this after reviewing incorporation docs.
+    field :institution_type, Ecto.Enum,
+      values: [:bank, :msb, :broker_dealer, :insurance, :fintech, :none]
+
+    # §5318(j): Does the institution maintain a physical office in any
+    # country? false = shell bank. Compliance analyst determines this
+    # from correspondent banking questionnaire or FATF mutual evaluation.
+    field :has_physical_presence, :boolean
+
+    # §5318(i): Does the entity's home jurisdiction cooperate with US AML
+    # enforcement? Compliance analyst sets this from FATF grey/black list
+    # status or bilateral treaty review.
+    field :jurisdiction_cooperative, :boolean
 
     has_many :addresses, LegalEntityAddress, on_replace: :delete
     has_many :phone_numbers, LegalEntityPhoneNumber, on_replace: :delete
@@ -430,6 +488,9 @@ defmodule AtomicFi.LegalEntityContext.LegalEntity do
         :date_of_birth,
         :citizenship_country,
         :politically_exposed_person,
+        :institution_type,
+        :has_physical_presence,
+        :jurisdiction_cooperative,
         :legal_entity_number,
         :tenant_id
       ])

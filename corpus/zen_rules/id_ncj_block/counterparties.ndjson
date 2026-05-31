@@ -1,0 +1,2 @@
+{"external_id":"idncj-cp-cooperative","status":"active","account_holder_external_id":"idncj-ah-sender","chain_screening":false,"legal_entity":{"legal_entity_type":"individual","first_name":"Coop","last_name":"Partner","citizenship_country":"SG","jurisdiction_cooperative":true}}
+{"external_id":"idncj-cp-noncooperative","status":"active","account_holder_external_id":"idncj-ah-sender","chain_screening":false,"legal_entity":{"legal_entity_type":"individual","first_name":"Noncoop","last_name":"Entity","citizenship_country":"KP","jurisdiction_cooperative":false}}

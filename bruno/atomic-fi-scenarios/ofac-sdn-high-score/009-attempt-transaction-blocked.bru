@@ -50,5 +50,5 @@ docs {
 assert {
   res.status: eq 201
   res.body.status: eq rejected
-  res.body.rejected_rule: eq ofac_sdn_match
+  res.body.rejected_rule: eq id_dttot_match; ofac_sdn_match
 }

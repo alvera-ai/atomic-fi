@@ -180,6 +180,7 @@ defmodule AtomicFi.Corpus.ScenarioRunner do
   def run_vu(session, scenario, opts \\ []) do
     prefix = Keyword.get(opts, :prefix, "")
     verbose = Keyword.get(opts, :verbose, true)
+    progress_fn = Keyword.get(opts, :progress_fn)
 
     ah = Enum.map(scenario.ah, &prefix_external_ids(&1, prefix))
     cp = Enum.map(scenario.cp, &prefix_external_ids(&1, prefix))
@@ -192,8 +193,13 @@ defmodule AtomicFi.Corpus.ScenarioRunner do
     insert_beneficial_owners(session, bo, verbose)
     insert_payment_accounts(session, pa, verbose)
 
+    total = length(tx)
+
     rows =
-      Enum.map(tx, fn row ->
+      tx
+      |> Enum.with_index(1)
+      |> Enum.map(fn {row, idx} ->
+        if progress_fn && rem(idx, 500) == 0, do: progress_fn.(idx, total)
         result = validate_transaction(session, row, verbose)
         %{result | external_id: strip_prefix(result.external_id, prefix)}
       end)
@@ -526,8 +532,18 @@ defmodule AtomicFi.Corpus.ScenarioRunner do
     end
   end
 
+  # __struct__() forces the module to load, registering its field atoms in the BEAM table;
+  # to_existing_atom/1 then safely converts string keys without risking atom exhaustion.
   defp to_request(map, mod) do
-    atoms = for {k, v} <- map, into: %{}, do: {String.to_atom(k), v}
+    allowed = mod.__struct__() |> Map.keys() |> MapSet.new()
+
+    atoms =
+      for {k, v} <- map,
+          atom_key = String.to_existing_atom(k),
+          atom_key in allowed,
+          into: %{},
+          do: {atom_key, v}
+
     struct(mod, atoms)
   end
 

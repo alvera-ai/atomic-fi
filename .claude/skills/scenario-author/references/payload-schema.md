@@ -70,6 +70,9 @@ The AH's identity record (ISO 20022 acmt:007). Preloaded on every party in the r
 | `account_holder.legal_entity.citizenship_country`   | string  | ISO 3166-1 alpha-2 (e.g. `"US"`, `"KP"`)                                |
 | `account_holder.legal_entity.country_of_residence`  | string  | **Projection.** ISO 3166-1 alpha-2 derived from the LE's primary residential address; falls back to `citizenship_country` when no primary residential address is loaded. Read this for residency-band rules (scenario #15). |
 | `account_holder.legal_entity.politically_exposed_person` | bool | FATF PEP flag                                                           |
+| `account_holder.legal_entity.institution_type` | enum | `"bank"`, `"msb"`, `"broker_dealer"`, `"insurance"`, `"fintech"`, `"none"` — set by compliance analyst during KYB |
+| `account_holder.legal_entity.has_physical_presence` | bool | false = shell bank — set by compliance analyst from correspondent banking questionnaire |
+| `account_holder.legal_entity.jurisdiction_cooperative` | bool | false = non-cooperative jurisdiction — set by compliance analyst from FATF grey/black list |
 
 The same `legal_entity.*` shape applies to `debtor_counterparty.legal_entity` and `creditor_counterparty.legal_entity`.
 
@@ -85,6 +88,7 @@ Both share the same shape — `lib/atomic_fi/payment_account_context/payment_acc
 | `<side>_payment_account.currency`                           | string  | ISO 4217                                         |
 | `<side>_payment_account.bank_name`                          | string  |                                                  |
 | `<side>_payment_account.iban`                               | string  | sensitive (PCI/PII)                              |
+| `<side>_payment_account.country`                            | string  | ISO 3166-1 alpha-2 (e.g. `"US"`, `"KP"`)        |
 | `<side>_payment_account.enabled_regimes`                    | string[]| e.g. `["ach_de_minimis","stablecoin_de_minimis"]`|
 | `<side>_payment_account.account_holder.kyc_status`          | enum    | nested — same enum as `account_holder.kyc_status`|
 | `<side>_payment_account.account_holder.holder_type`         | enum    | nested                                           |

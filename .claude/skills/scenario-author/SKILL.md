@@ -82,14 +82,21 @@ See: `references/use-cases-row-format.md`
 
 **Non-negotiable.** Before drafting ANY JDM:
 
-1. Open `references/payload-schema.md` (the schema doc this skill reads).
-2. Open `lib/atomic_fi/rule_engine/payload.ex` (the live source of truth).
+1. Open `.claude/skills/scenario-author/references/payload-schema.md` (the schema doc this skill reads). **This file exists — read it.**
+2. Open `lib/atomic_fi/rule_engine.ex` (the live source of truth — functions `build_transaction_payload/2`, `pa_payload/2`, `ah_payload/3`). **There is no separate `payload.ex` file.**
 3. Diff: every field the rule will reference MUST appear in BOTH.
-   - In `payload.ex` but missing from doc → **update doc first**, then draft.
-   - In neither → **STOP**. Extend `payload.ex` with a failing test in `test/atomic_fi/rule_engine/payload_test.exs` BEFORE returning to this skill. The rule cannot move ahead of the payload.
-4. If the field exists in payload but ISN'T POPULATED in `Payload.from_transaction/1` due to missing preloads → STOP and fix the preloads in `TransactionContext` (or the relevant context). The rule will silently see `null` otherwise.
+   - In `rule_engine.ex` but missing from doc → **update doc first**, then draft.
+   - In neither → **STOP**. Extend the payload builders in `rule_engine.ex` BEFORE returning to this skill. The rule cannot move ahead of the payload.
+4. If the field exists in the schema but ISN'T POPULATED in the payload builders due to missing preloads → STOP and fix the preloads in `TransactionContext` (or the relevant context). The rule will silently see `null` otherwise.
 
 This is the load-bearing invariant of this entire system; **do not bypass it under any condition.**
+
+**When this step says STOP, you must IMMEDIATELY end the skill invocation.** Print:
+1. Which field is missing or mismatched
+2. Where it needs to be added (payload.ex, the schema, or the preloads)
+3. The exact error: "LOCKSTEP GUARD FAILED — cannot proceed. The user must extend the payload in `lib/atomic_fi/rule_engine.ex` before this rule can be authored."
+
+Do NOT attempt to: guess field names, use alternative fields, skip the rule, proceed to the next step, or retry with different parameters. Return control to the user (or to the calling orchestrator skill) with the failure message. Zero tolerance.
 
 ---
 
@@ -141,7 +148,7 @@ This is the load-bearing invariant of this entire system; **do not bypass it und
 **Row design:**
 
 - One transaction row per decision-table band (positive case), plus at least one fall-through.
-- Each AH/CP/PA row: set `external_id` to a unique handle prefixed with the slug (`pr-` for `prohibited_risk_freeze`, `mx-` for `ofac_mixer_usdc`, …). Unique prefixes prevent corpus collisions on shared schemas.
+- Each AH/CP/PA row AND each transaction row: set `external_id` to a unique handle prefixed with the slug (`pr-` for `prohibited_risk_freeze`, `mx-` for `ofac_mixer_usdc`, …). Unique prefixes prevent corpus collisions on shared schemas. **Every entity and transaction must have an `external_id`** — without it, Bruno collections generated from this corpus will be non-idempotent on re-runs.
 - Required scalars (else the contexts crash, which is correct):
   - `account_holders.ndjson`: `external_id`, `holder_type`, `status: "pending"`, `kyc_status`, `risk_level`, `enabled_currencies`, `legal_entity: { … }`
   - `payment_accounts.ndjson`: `external_id`, `account_holder_external_id` OR `counterparty_external_id`, `account_type`, `currency`
@@ -176,10 +183,11 @@ Read the markdown report. Per-row outcomes:
 - `setup_error`  — context rejected the payload (Ecto changeset error). Fix the ndjson row.
 - `engine_error` — rule engine reachability or shape problem. Check agent is up (`docker compose ps zenrule`) and the rule file is loaded (`curl http://localhost:8090/api/projects/<rule_type>/entrypoints | jq`).
 
-**Iteration cap: 5 rounds.** If you're still red at round 5, **stop and bring the user in** — three+ failed attempts is an architectural signal, not a code-fix signal. State plainly:
+**Iteration cap: 5 rounds.** If you're still red at round 5, **STOP IMMEDIATELY and return control to the user** — three+ failed attempts is an architectural signal, not a code-fix signal. Do NOT attempt round 6. Do NOT try alternative approaches. Print plainly:
 - Which rows still mismatch
-- What you've tried
+- What you tried in each round
 - Best-guess root cause (rule structure, schema misunderstanding, expected verdict wrong)
+- "PROOF LOOP FAILED after 5 rounds — returning to user."
 
 **For Watchman-unreachable scenarios** (row 53 pattern): the `ScreeningEngine.Behaviour` mock seam returns `{:error, :unreachable}`; the rule emits a REVIEW Control (NOT a BLOCK); the `audit_events` row is written by `ScreeningEngine.Default`'s error path (NOT by the rule). Facts vs decision separation — never put the audit write in the rule.
 
@@ -255,9 +263,14 @@ If the slice is one of the 10 golden scenarios, also remind the user to:
 
 ## Reference files
 
-- **`references/payload-schema.md`** — the `AtomicFi.RuleEngine.Payload` shape. The rule may only reference paths documented here. Lockstep-checked against `payload.ex` on every invocation.
-- **`references/use-cases-row-format.md`** — how to read a row of `guides/use-cases.md` and extract slug + rule_type + verdict + schema needs.
-- **`references/regulation-snippet-format.md`** — how to extract the same fields from a regulatory PDF/text snippet (the `--regulation` mode).
-- **`references/output-contract.md`** — the exact shape the skill must emit (JDM 3-node graph, four ndjson files, proof.md).
-- **`references/jdm-cheatsheet.md`** — JDM cell-expression syntax (equality, IN, range, null checks), hit policies.
-- **`scripts/evaluate.sh`** — smoke-test a single context against the live agent without going through the corpus validator. Use for fast iteration on a single decision-table row before running `mix corpus.validate`.
+All paths below are relative to THIS skill's directory (`.claude/skills/scenario-author/`). They EXIST — read them before drafting.
+
+- **`.claude/skills/scenario-author/references/payload-schema.md`** — the `AtomicFi.RuleEngine.Payload` shape. The rule may only reference paths documented here. Lockstep-checked against `rule_engine.ex` on every invocation.
+- **`.claude/skills/scenario-author/references/use-cases-row-format.md`** — how to read a row of `guides/use-cases.md` and extract slug + rule_type + verdict + schema needs.
+- **`.claude/skills/scenario-author/references/regulation-snippet-format.md`** — how to extract the same fields from a regulatory PDF/text snippet (the `--regulation` mode).
+- **`.claude/skills/scenario-author/references/output-contract.md`** — the exact shape the skill must emit (JDM 3-node graph, four ndjson files, proof.md).
+- **`.claude/skills/scenario-author/references/jdm-cheatsheet.md`** — JDM cell-expression syntax (equality, IN, range, null checks), hit policies.
+
+## Payload source of truth
+
+The payload is built inline in **`lib/atomic_fi/rule_engine.ex`** (functions `build_transaction_payload/2`, `build_onboarding_payload/2`, `pa_payload/2`, `ah_payload/3`). There is no separate `payload.ex` file. When the lockstep guard says "check payload.ex", read `lib/atomic_fi/rule_engine.ex` instead.

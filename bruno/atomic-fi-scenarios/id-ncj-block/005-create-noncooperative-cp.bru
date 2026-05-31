@@ -1,0 +1,60 @@
+meta {
+  name: 005 — Create non-cooperative counterparty (jurisdiction_cooperative: false)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/counterparties
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("noncoopCpExternalId", `IDNCJ-CP-NONCOOP-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{noncoopCpExternalId}}",
+    "status": "active",
+    "account_holder_id": "{{senderAhId}}",
+    "chain_screening": false,
+    "tenant_id": "{{tenantId}}",
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Noncoop",
+      "last_name": "Entity",
+      "citizenship_country": "KP",
+      "jurisdiction_cooperative": false,
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    }
+  }
+}
+
+docs {
+  Non-cooperative jurisdiction counterparty — North Korea (KP) is on
+  the FATF black list. jurisdiction_cooperative=false means the
+  id_ncj_block ZenRule should BLOCK any transaction where this party
+  is the creditor counterparty.
+}
+
+script:post-response {
+  bru.setEnvVar("noncoopCpId", res.body.id);
+  bru.setEnvVar("noncoopCpExternalId", bru.getVar("noncoopCpExternalId"));
+  bru.setEnvVar("noncoopLegalEntityId", res.body.legal_entity.id);
+}
+
+assert {
+  res.status: eq 201
+}

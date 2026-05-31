@@ -1,0 +1,101 @@
+meta {
+  name: 0NN — Investigator clears the screening as false positive
+  type: http
+  seq: NN
+}
+
+put {
+  url: {{baseUrl}}/api/compliance-screenings/{{flaggedScreeningId}}
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "scope": "{{flaggedScope}}",
+    "screening_type": "{{flaggedScreeningType}}",
+    "screening_status": "{{flaggedScreeningStatus}}",
+    "screened_entity_type": "{{flaggedScreenedEntityType}}",
+    "screened_entity_name": "{{flaggedScreenedEntityName}}",
+    "legal_entity_id": "{{ENTITY_LEGAL_ENTITY_ID_VAR}}",
+    "false_positive_qualifier": "manual_override",
+    "manual_review_required": false,
+    "reviewed_at": "REVIEW_TIMESTAMP",
+    "review_notes": "Investigator reviewed OFAC hit; clearing as manual_override per §501.806 (due-diligence determination).",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Investigator clears the SDN match with `false_positive_qualifier:
+  manual_override` and attaches review notes per §501.806 due-diligence
+  record. The rule engine reads this on the next transaction evaluation
+  and skips that screening's matches.
+}
+
+assert {
+  res.status: eq 200
+  res.body.false_positive_qualifier: eq manual_override
+  res.body.manual_review_required: eq false
+}
+
+script:post-response {
+  // Clear ALL sanctions screenings for this legal entity — chain_screening
+  // + refresh can produce multiple rows. The rule blocks if ANY uncleared
+  // sanctions screening with sanctions_matches[] exists.
+  const axios = require("axios");
+  const baseUrl = bru.getEnvVar("baseUrl");
+  const bearer = bru.getEnvVar("authBearer");
+  const tenantId = bru.getEnvVar("tenantId");
+  const leId = bru.getEnvVar("ENTITY_LEGAL_ENTITY_ID_VAR");
+  const alreadyCleared = bru.getEnvVar("flaggedScreeningId");
+
+  const listRes = await axios.get(
+    `${baseUrl}/api/compliance-screenings?order_by=inserted_at&order_directions=desc&page_size=100`,
+    { headers: { Authorization: `Bearer ${bearer}`, Accept: "application/json" } }
+  );
+  const items = (listRes.data && listRes.data.data) || [];
+  const others = items.filter(s =>
+    s.id !== alreadyCleared &&
+    s.legal_entity_id === leId &&
+    s.screening_type === "sanctions" &&
+    (s.sanctions_matches || []).length > 0 &&
+    s.false_positive_qualifier !== "manual_override" &&
+    s.false_positive_qualifier !== "auto_suppressed"
+  );
+
+  for (const s of others) {
+    await axios.put(
+      `${baseUrl}/api/compliance-screenings/${s.id}`,
+      {
+        scope: s.scope,
+        screening_type: s.screening_type,
+        screening_status: s.screening_status,
+        screened_entity_type: s.screened_entity_type,
+        screened_entity_name: s.screened_entity_name,
+        legal_entity_id: leId,
+        false_positive_qualifier: "manual_override",
+        manual_review_required: false,
+        reviewed_at: "REVIEW_TIMESTAMP",
+        review_notes: "Clearing additional sanctions screening for the same legal entity (chain_screening + refresh produced multiple rows). Same §501.806 rationale.",
+        tenant_id: tenantId,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+      }
+    );
+  }
+}

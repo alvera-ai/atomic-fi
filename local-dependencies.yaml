@@ -1,12 +1,17 @@
 services:
   watchman:
-    image: moov/watchman:v0.61.1
+    image: moov/watchman:v0.62.0
     ports:
       - "8084:8084"
       - "9094:9094"
     volumes:
       - ./config.all-lists.yml:/app/config.yml:ro
       - ./custom-watchlist.jsonl:/data/custom_watchlist.jsonl:ro
+      # Country sanctions lists, hydrated by `make hydrate-watchlists` into
+      # priv/watchman-data/ (bare-named per SourceList). Mounted into the
+      # InitialDataDirectory so Watchman loads them into the in-memory search
+      # index at startup — no ingest endpoint, no Postgres. One line per list.
+      - ./priv/watchman-data/id_dttot:/data/id_dttot:ro
     environment:
       APP_CONFIG: /app/config.yml
 

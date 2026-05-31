@@ -150,7 +150,8 @@ config :atomic_fi, AtomicFi.LotusRepo,
   password: "postgres",
   hostname: "localhost",
   database: "atomic_fi_dev",
-  pool_size: 5
+  pool_size: 5,
+  after_connect: {Postgrex, :query!, ["SET search_path TO public, atomic_fi_corpus", []]}
 
 # Lotus AI — the embedded Lotus dashboard's natural-language SQL
 # copilot. Hand ReqLLM a model map pointed at the local Ollama

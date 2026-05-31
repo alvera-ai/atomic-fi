@@ -1,0 +1,2 @@
+{"external_id":"idctr-ah-sender","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["IDR"],"legal_entity":{"legal_entity_type":"individual","first_name":"Budi","last_name":"Santoso","citizenship_country":"ID"}}
+{"external_id":"idctr-ah-receiver","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["IDR"],"legal_entity":{"legal_entity_type":"individual","first_name":"Siti","last_name":"Rahayu","citizenship_country":"ID"}}

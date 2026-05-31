@@ -1,0 +1,53 @@
+meta {
+  name: 007 — Inspect DTTOT recipient compliance screening
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/api/compliance-screenings?order_by=inserted_at&order_directions=desc&page_size=100
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  accept: application/json
+}
+
+script:post-response {
+  const items = res.body.data || res.body.items || res.body;
+  const leId = bru.getEnvVar("dttotRecipientLegalEntityId");
+  const flagged = items.find(s =>
+    s.legal_entity_id === leId &&
+    s.screening_type === "sanctions" &&
+    (s.sanctions_matches || []).length > 0
+  );
+  if (!flagged) {
+    throw new Error(`Expected a sanctions screening for legal_entity_id=${leId} with sanctions_matches[] populated. Got ${items.length} screenings.`);
+  }
+  bru.setEnvVar("flaggedScreeningId", flagged.id);
+  bru.setEnvVar("flaggedScope", flagged.scope);
+  bru.setEnvVar("flaggedScreeningType", flagged.screening_type);
+  bru.setEnvVar("flaggedScreeningStatus", flagged.screening_status);
+  bru.setEnvVar("flaggedScreenedEntityType", flagged.screened_entity_type);
+  bru.setEnvVar("flaggedScreenedEntityName", flagged.screened_entity_name);
+}
+
+docs {
+  Inspect the live screening artefact. The post-response script finds
+  the sanctions screening for the DTTOT recipient's legal entity with
+  non-empty `sanctions_matches[]` and stashes its id plus all fields
+  needed for the full-replacement PUT in step 013.
+
+  In a real ops UI this is the panel an investigator sees: name,
+  screening_score, list of matched DTTOT entities — enough context to
+  decide whether to clear the hit.
+}
+
+assert {
+  res.status: eq 200
+}

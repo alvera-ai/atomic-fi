@@ -1,0 +1,58 @@
+meta {
+  name: 004 — Create cooperative counterparty (jurisdiction_cooperative: true)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/counterparties
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("coopCpExternalId", `IDNCJ-CP-COOP-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{coopCpExternalId}}",
+    "status": "active",
+    "account_holder_id": "{{senderAhId}}",
+    "chain_screening": false,
+    "tenant_id": "{{tenantId}}",
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Coop",
+      "last_name": "Partner",
+      "citizenship_country": "SG",
+      "jurisdiction_cooperative": true,
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    }
+  }
+}
+
+docs {
+  Cooperative jurisdiction counterparty — Singapore (SG) is on no
+  FATF black/grey list. jurisdiction_cooperative=true means
+  transactions to this party should pass the id_ncj_block rule.
+}
+
+script:post-response {
+  bru.setEnvVar("coopCpId", res.body.id);
+  bru.setEnvVar("coopCpExternalId", bru.getVar("coopCpExternalId"));
+}
+
+assert {
+  res.status: eq 201
+}

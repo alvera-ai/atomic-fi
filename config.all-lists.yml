@@ -15,10 +15,19 @@ Watchman:
 
     IncludedLists:
       - us_ofac
-      - us_csl
+      # us_csl disabled — data.trade.gov DNS is dead (decommissioned May 2026)
+      # - us_csl
       - us_non_sdn
       - us_fincen_311
       - un_csl
+
+    # Country-specific OpenSanctions datasets in Senzing format. Loaded into the
+    # in-memory search index at startup, exactly like the built-in lists above.
+    # The file is provided locally at InitialDataDirectory/<SourceList>
+    # (/data/id_dttot, bind-mounted), so Watchman matches it by name and never
+    # needs a download Location.
+    Senzing:
+      - SourceList: id_dttot
 
   Search:
     Goroutines:
@@ -34,6 +43,13 @@ Watchman:
   #   RequestTimeout: "10s"
   #   BinaryPath: ""
   #   CGOSelfInstances: 1
+
+  Database:
+    DatabaseName: "watchman"
+    Postgres:
+      Address: "host.docker.internal:5432"
+      User: "postgres"
+      Password: "postgres"
 
   Ingest:
     Files:

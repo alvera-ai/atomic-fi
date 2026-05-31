@@ -1,0 +1,30 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": { "x": 100, "y": 160 }
+    },
+    {
+      "id": "ncj_gate",
+      "type": "functionNode",
+      "name": "Indonesia NCJ Block Gate",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "source": "/**\n * Indonesia non-cooperative jurisdiction block (POJK 8/2023 Art. 36).\n *\n * OJK requires countermeasures (blocking) for FATF Call-for-Action\n * (black list) jurisdictions. Currently DPRK, Iran, and Myanmar.\n * This checks the creditor counterparty's legal entity\n * jurisdiction_cooperative flag — set false by compliance analyst\n * for entities in FATF black-list jurisdictions.\n *\n * Grey-list (Increased Monitoring) jurisdictions require EDD but\n * not blocking — those are NOT covered here.\n */\nexport const handler = async (input) => {\n  const cp = input.creditor_counterparty;\n  if (!cp) return { ledger_accounts: {} };\n\n  const le = cp.legal_entity;\n  if (!le) return { ledger_accounts: {} };\n\n  if (le.jurisdiction_cooperative !== false) return { ledger_accounts: {} };\n\n  const creditor = input.creditor_payment_account;\n  if (!creditor) return { ledger_accounts: {} };\n\n  const las = creditor.las || [];\n  const ledger_accounts = {};\n  for (const la of las) {\n    ledger_accounts[la.id] = {\n      daily_debit_cap: 0,\n      daily_credit_cap: 0,\n      reason: 'id_ncj_block',\n      block_reason: 'id_ncj_block',\n      is_blocked: true\n    };\n  }\n  return { ledger_accounts };\n};\n"
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": { "x": 700, "y": 160 }
+    }
+  ],
+  "edges": [
+    { "id": "edge_request_ncj", "type": "edge", "sourceId": "request", "targetId": "ncj_gate" },
+    { "id": "edge_ncj_response", "type": "edge", "sourceId": "ncj_gate", "targetId": "response" }
+  ]
+}

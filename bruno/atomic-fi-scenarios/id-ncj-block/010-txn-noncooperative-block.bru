@@ -1,0 +1,56 @@
+meta {
+  name: 010 — Transaction to non-cooperative CP (asserts BLOCK)
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/transactions
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "transaction_type": "internal_transfer",
+    "amount": 2500,
+    "currency": "USD",
+    "account_holder_id": "{{senderAhId}}",
+    "debtor_payment_account_id": "{{senderPaId}}",
+    "creditor_payment_account_id": "{{noncoopCpPaId}}",
+    "creditor_counterparty_id": "{{noncoopCpId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Transfer USD 2,500 to the non-cooperative counterparty (North Korea,
+  jurisdiction_cooperative=false — FATF black list). The id_ncj_block
+  ZenRule checks the creditor counterparty's legal entity
+  jurisdiction_cooperative field. Since it is false, the rule fires
+  and blocks the transaction.
+
+  This block is NOT based on compliance screening matches — it is a
+  direct jurisdiction attribute check on the counterparty's legal entity.
+  There is no screening override that can remediate this; the counterparty
+  would need to change jurisdictions (which is not a real remediation path).
+
+  Expected:
+    - status: rejected
+    - rejected_rule: id_ncj_block
+}
+
+assert {
+  res.status: eq 201
+  res.body.status: eq rejected
+  res.body.rejected_rule: eq id_ncj_block
+}

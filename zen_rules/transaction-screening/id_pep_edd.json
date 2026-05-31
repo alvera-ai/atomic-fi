@@ -1,0 +1,30 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": { "x": 100, "y": 160 }
+    },
+    {
+      "id": "pep_gate",
+      "type": "functionNode",
+      "name": "Indonesia PEP EDD Gate",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "source": "/**\n * Indonesia PEP enhanced due diligence gate (POJK 8/2023 + PPATK Reg. 11/2020).\n *\n * OJK requires enhanced due diligence for all Politically Exposed\n * Persons — domestic, foreign, and international organization PEPs.\n * Senior management sign-off is required before the relationship\n * is established. Source of funds and wealth must be verified.\n *\n * Modeled as BLOCK — the compliance team must complete EDD review\n * and clear the account holder before transactions can proceed.\n * Checks the debtor (sender) side since the AH initiating the\n * transaction is the primary PEP risk.\n */\nexport const handler = async (input) => {\n  const debtor = input.debtor_payment_account;\n  if (!debtor) return { ledger_accounts: {} };\n\n  const ah = debtor.account_holder;\n  const le = ah && ah.legal_entity;\n  if (!le) return { ledger_accounts: {} };\n\n  if (le.politically_exposed_person !== true) return { ledger_accounts: {} };\n\n  const las = debtor.las || [];\n  const ledger_accounts = {};\n  for (const la of las) {\n    ledger_accounts[la.id] = {\n      daily_debit_cap: 0,\n      daily_credit_cap: 0,\n      reason: 'id_pep_edd',\n      block_reason: 'id_pep_edd',\n      is_blocked: true\n    };\n  }\n  return { ledger_accounts };\n};\n"
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": { "x": 700, "y": 160 }
+    }
+  ],
+  "edges": [
+    { "id": "edge_request_pep", "type": "edge", "sourceId": "request", "targetId": "pep_gate" },
+    { "id": "edge_pep_response", "type": "edge", "sourceId": "pep_gate", "targetId": "response" }
+  ]
+}

@@ -16,13 +16,14 @@ defmodule Mix.Tasks.Corpus.Validate do
 
   Usage:
 
-      $ mix corpus.validate corpus/zen_rules/de_minimis_stablecoin
+      $ mix corpus.validate                                        # all scenarios under corpus/zen_rules/
+      $ mix corpus.validate corpus/zen_rules/de_minimis_stablecoin  # single scenario
       $ mix corpus.validate corpus/zen_rules/de_minimis_stablecoin --out tmp/report.md
       $ mix corpus.validate corpus/zen_rules/de_minimis_stablecoin --reset
       $ mix corpus.validate corpus/zen_rules/de_minimis_stablecoin --concurrency 8
 
-  `--concurrency K` fans the seed scenario out to K parallel VUs (k6
-  model), each with its own `vu####-` id prefix.
+  `--concurrency K` repeats the scenario K times sequentially, each
+  with its own `vu####-` id prefix. Useful for volume testing.
 
   Always runs inside a dedicated Postgres schema (`atomic_fi_corpus`).
   Requires the backing services up (`make run-backing-services`).
@@ -39,9 +40,7 @@ defmodule Mix.Tasks.Corpus.Validate do
         strict: [out: :string, reset: :boolean, concurrency: :integer]
       )
 
-    corpus_path =
-      List.first(positional) ||
-        Mix.raise("usage: mix corpus.validate <corpus_path> [--out <file>] [--reset]")
+    corpus_path = List.first(positional)
 
     ScenarioRunner.inject_search_path_after_connect!()
     Mix.Task.run("app.start")
@@ -49,37 +48,15 @@ defmodule Mix.Tasks.Corpus.Validate do
 
     session = ScenarioRunner.build_system_session()
 
-    shard_dirs = discover_shards(corpus_path)
+    scenario_paths = discover_scenarios(corpus_path)
 
-    {vu_outputs, all_timings, rows} =
-      if shard_dirs == [] do
-        scenario = ScenarioRunner.load_scenario(corpus_path)
-        ScenarioRunner.seed_blocklists!(session, [scenario])
+    all_rows =
+      Enum.flat_map(scenario_paths, fn path ->
+        Mix.shell().info("─── #{Path.basename(path)} ───")
+        run_single_scenario(session, path, opts)
+      end)
 
-        concurrency = Keyword.get(opts, :concurrency, 1)
-
-        Mix.shell().info(
-          "→ fanning out across #{concurrency} VU(s) (k6 model — each VU runs the seed scenario with its own id prefix)"
-        )
-
-        vu_outputs = run_vus(session, scenario, concurrency)
-        timings = Enum.flat_map(vu_outputs, & &1)
-        rows = reduce_vu_outputs(vu_outputs)
-        {vu_outputs, timings, rows}
-      else
-        Mix.shell().info(
-          "→ found #{length(shard_dirs)} shard folder(s); running them in parallel as K VUs"
-        )
-
-        outputs = run_shards(session, shard_dirs)
-        timings = Enum.flat_map(outputs, & &1)
-        rows = reduce_vu_outputs(outputs)
-        {outputs, timings, rows}
-      end
-
-    _ = vu_outputs
-
-    report = render_markdown(corpus_path, rows)
+    report = render_markdown(corpus_path || "corpus/zen_rules", all_rows)
 
     case opts[:out] do
       nil ->
@@ -91,67 +68,81 @@ defmodule Mix.Tasks.Corpus.Validate do
         Mix.shell().info("✓ Wrote validation report to #{path}")
     end
 
+    all_timings = Enum.reject(all_rows, &is_nil(&1.elapsed_ms))
     print_timing(all_timings)
 
-    if Enum.any?(rows, &(&1.status in [:mismatch, :engine_error, :setup_error])) do
+    if Enum.any?(all_rows, &(&1.status in [:mismatch, :engine_error, :setup_error])) do
       System.at_exit(fn _ -> exit({:shutdown, 1}) end)
     end
+  end
+
+  # ── scenario discovery ─────────────────────────────────────────────
+
+  @default_catalog "corpus/zen_rules"
+
+  defp discover_scenarios(nil) do
+    discover_scenarios(@default_catalog)
+  end
+
+  defp discover_scenarios(path) do
+    cond do
+      has_ndjson?(path) ->
+        [path]
+
+      has_shards?(path) ->
+        path
+        |> File.ls!()
+        |> Enum.filter(&String.starts_with?(&1, "shard-"))
+        |> Enum.map(&Path.join(path, &1))
+        |> Enum.filter(&File.dir?/1)
+        |> Enum.sort()
+
+      File.dir?(path) ->
+        path
+        |> File.ls!()
+        |> Enum.map(&Path.join(path, &1))
+        |> Enum.filter(&(File.dir?(&1) and has_ndjson?(&1)))
+        |> Enum.sort()
+
+      true ->
+        Mix.raise("corpus folder not found: #{path}")
+    end
+  end
+
+  defp has_ndjson?(dir) do
+    File.exists?(Path.join(dir, "transactions.ndjson"))
+  end
+
+  defp has_shards?(dir) do
+    case File.ls(dir) do
+      {:ok, entries} -> Enum.any?(entries, &String.starts_with?(&1, "shard-"))
+      _ -> false
+    end
+  end
+
+  # ── single scenario execution ────────────────────────────────────
+
+  defp run_single_scenario(session, path, opts) do
+    scenario = ScenarioRunner.load_scenario(path)
+    ScenarioRunner.seed_blocklists!(session, [scenario])
+
+    concurrency = Keyword.get(opts, :concurrency, 1)
+
+    vu_outputs = run_vus(session, scenario, concurrency)
+    reduce_vu_outputs(vu_outputs)
   end
 
   # ── VU fan-out ────────────────────────────────────────────────────
 
   defp run_vus(session, scenario, concurrency) do
-    0..(concurrency - 1)
-    |> Task.async_stream(
-      fn vu ->
-        prefix = vu_prefix(vu)
-        {rows, _prefix} = ScenarioRunner.run_vu(session, scenario, prefix: prefix, verbose: true)
-        rows
-      end,
-      max_concurrency: max(concurrency, 1),
-      ordered: true,
-      timeout: :infinity
-    )
-    |> Enum.map(fn {:ok, rows} -> rows end)
+    Enum.map(0..(concurrency - 1), fn vu ->
+      prefix = vu_prefix(vu)
+      {rows, _prefix} = ScenarioRunner.run_vu(session, scenario, prefix: prefix, verbose: true)
+      rows
+    end)
   end
 
   defp vu_prefix(vu), do: "vu#{:io_lib.format("~4..0B", [vu]) |> IO.iodata_to_binary()}-"
-
-  # ── shard fan-out (legacy synthetic-shards path) ──────────────────
-
-  defp discover_shards(corpus_path) do
-    case File.ls(corpus_path) do
-      {:ok, entries} ->
-        entries
-        |> Enum.filter(&String.starts_with?(&1, "shard-"))
-        |> Enum.map(&Path.join(corpus_path, &1))
-        |> Enum.filter(&File.dir?/1)
-        |> Enum.sort()
-
-      _ ->
-        Mix.raise("corpus folder not found: #{corpus_path}")
-    end
-  end
-
-  defp run_shards(session, shard_dirs) do
-    # Each shard is already prefixed for id-uniqueness, so no in-memory
-    # prefix is applied. Seed each shard's blocklist before its VU starts;
-    # the per-tenant cache is refreshed once after all shards seed.
-    scenarios = Enum.map(shard_dirs, &ScenarioRunner.load_scenario/1)
-    ScenarioRunner.seed_blocklists!(session, scenarios)
-
-    scenarios
-    |> Task.async_stream(
-      fn scenario ->
-        {rows, _prefix} = ScenarioRunner.run_vu(session, scenario, prefix: "", verbose: true)
-        rows
-      end,
-      max_concurrency: max(length(scenarios), 1),
-      ordered: true,
-      timeout: :infinity
-    )
-    |> Enum.map(fn {:ok, rows} -> rows end)
-  end
 
   # ── reduce + render ───────────────────────────────────────────────
 

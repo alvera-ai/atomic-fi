@@ -1,0 +1,2 @@
+{"external_id":"idncj-ah-sender","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"Budi","last_name":"Sender","citizenship_country":"ID"}}
+{"external_id":"idncj-ah-receiver","account_holder_type":"individual","status":"pending","kyc_status":"approved","risk_level":"low","enabled_currencies":["USD"],"legal_entity":{"legal_entity_type":"individual","first_name":"Rita","last_name":"Receiver","citizenship_country":"ID"}}
