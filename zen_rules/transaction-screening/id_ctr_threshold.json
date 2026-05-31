@@ -1,0 +1,30 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": { "x": 100, "y": 160 }
+    },
+    {
+      "id": "ctr_gate",
+      "type": "functionNode",
+      "name": "Indonesia CTR Threshold Gate",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "source": "/**\n * Indonesia CTR threshold gate (Law No. 8/2010 Art. 23).\n *\n * Transactions in IDR at or above IDR 500,000,000 (~$31k) in a\n * single business day require Cash Transaction Report filing to\n * PPATK within 14 working days. Modeled as BLOCK since the\n * platform has no REVIEW status — the compliance team reviews\n * the blocked transaction and files the CTR.\n *\n * Only fires on IDR-denominated transactions.\n */\nexport const handler = async (input) => {\n  const tx = input.transaction;\n  if (!tx) return { ledger_accounts: {} };\n\n  const CTR_THRESHOLD = 500000000;\n\n  if (tx.currency !== 'IDR') return { ledger_accounts: {} };\n  if (typeof tx.amount !== 'number' || tx.amount < CTR_THRESHOLD) {\n    return { ledger_accounts: {} };\n  }\n\n  const debtor = input.debtor_payment_account;\n  if (!debtor) return { ledger_accounts: {} };\n\n  const las = debtor.las || [];\n  const ledger_accounts = {};\n  for (const la of las) {\n    ledger_accounts[la.id] = {\n      daily_debit_cap: 0,\n      daily_credit_cap: 0,\n      reason: 'id_ctr_threshold',\n      block_reason: 'id_ctr_threshold',\n      is_blocked: true\n    };\n  }\n  return { ledger_accounts };\n};\n"
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": { "x": 700, "y": 160 }
+    }
+  ],
+  "edges": [
+    { "id": "edge_request_ctr", "type": "edge", "sourceId": "request", "targetId": "ctr_gate" },
+    { "id": "edge_ctr_response", "type": "edge", "sourceId": "ctr_gate", "targetId": "response" }
+  ]
+}

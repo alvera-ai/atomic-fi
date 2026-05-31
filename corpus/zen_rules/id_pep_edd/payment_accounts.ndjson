@@ -1,0 +1,3 @@
+{"external_id":"idpep-pa-pep-sender","account_holder_external_id":"idpep-ah-pep-sender","account_type":"bank_account","currency":"USD"}
+{"external_id":"idpep-pa-clean-sender","account_holder_external_id":"idpep-ah-clean-sender","account_type":"bank_account","currency":"USD"}
+{"external_id":"idpep-pa-receiver","account_holder_external_id":"idpep-ah-receiver","account_type":"bank_account","currency":"USD"}

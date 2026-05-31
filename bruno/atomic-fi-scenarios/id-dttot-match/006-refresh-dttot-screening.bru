@@ -1,0 +1,35 @@
+meta {
+  name: 006 — Refresh DTTOT recipient screening
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders/{{dttotRecipientAhId}}/refresh
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  accept: application/json
+}
+
+docs {
+  `POST /:id/refresh` re-runs the onboarding screening pipeline
+  synchronously against the live Watchman container at :8084. Watchman
+  returns one or more DTTOT matches for "Abdulhai Salek". The platform
+  writes a ComplianceScreening row with `screening_type: sanctions` and
+  child `SanctionsMatch` rows capturing each hit.
+
+  Synchronous refresh removes the timing dependency on the async
+  worker that ran inside the create call; by the time this returns
+  we know the screening artefacts are in the database.
+}
+
+assert {
+  res.status: in [200, 202]
+}

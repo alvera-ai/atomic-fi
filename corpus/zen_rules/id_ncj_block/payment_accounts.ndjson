@@ -1,0 +1,3 @@
+{"external_id":"idncj-pa-sender","account_holder_external_id":"idncj-ah-sender","account_type":"bank_account","currency":"USD"}
+{"external_id":"idncj-pa-cp-cooperative","account_holder_external_id":"idncj-ah-sender","counterparty_external_id":"idncj-cp-cooperative","account_type":"bank_account","currency":"USD"}
+{"external_id":"idncj-pa-cp-noncooperative","account_holder_external_id":"idncj-ah-sender","counterparty_external_id":"idncj-cp-noncooperative","account_type":"bank_account","currency":"USD"}

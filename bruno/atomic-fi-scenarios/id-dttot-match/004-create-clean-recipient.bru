@@ -1,0 +1,59 @@
+meta {
+  name: 004 — Create clean recipient (John Tester, ID)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("externalId", `DTTOT-AH-CLEAN-RECIP-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{externalId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "chain_screening": false,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "John",
+      "last_name": "Tester",
+      "citizenship_country": "ID",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("cleanRecipientAhId", res.body.id);
+}
+
+docs {
+  Clean Indonesian recipient — no DTTOT matches expected. This AH
+  serves as the control: a transaction to this recipient should pass
+  through all rules including `id_dttot_match`.
+}
+
+assert {
+  res.status: eq 201
+}

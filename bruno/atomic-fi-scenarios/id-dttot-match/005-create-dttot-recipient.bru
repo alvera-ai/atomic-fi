@@ -1,0 +1,67 @@
+meta {
+  name: 005 — Create DTTOT recipient (Abdulhai Salek, ID)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("externalId", `DTTOT-AH-DTTOT-RECIP-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{externalId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "chain_screening": true,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Abdulhai",
+      "last_name": "Salek",
+      "citizenship_country": "ID",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("dttotRecipientAhId", res.body.id);
+  bru.setEnvVar("dttotRecipientLegalEntityId", res.body.legal_entity.id);
+}
+
+docs {
+  DTTOT-flagged recipient. "Abdulhai Salek" matches a record on
+  Indonesia's DTTOT (Daftar Terduga Teroris dan Organisasi Teroris)
+  list, ingested into Watchman. `chain_screening: true` schedules an
+  async screen at create time; the explicit refresh in step 006
+  ensures the screening artefact is written before we inspect it.
+
+  Cite: Law No. 9/2013 on the Prevention and Eradication of the
+  Criminal Act of Terrorism Financing, Art. 28(1) — financial service
+  providers must freeze funds belonging to any person on the DTTOT
+  list without delay.
+}
+
+assert {
+  res.status: eq 201
+}

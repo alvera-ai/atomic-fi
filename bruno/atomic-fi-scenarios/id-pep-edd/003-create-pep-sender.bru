@@ -1,0 +1,61 @@
+meta {
+  name: 003 — Create PEP sender (Agus Politisi)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("externalId", `IDPEP-AH-PEP-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{externalId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "chain_screening": false,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Agus",
+      "last_name": "Politisi",
+      "citizenship_country": "ID",
+      "politically_exposed_person": true,
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("pepSenderAhId", res.body.id);
+}
+
+docs {
+  Indonesia PEP EDD scenario — politically exposed sender.
+
+  Agus Politisi, Indonesian citizen with `politically_exposed_person: true`.
+  `chain_screening: false` because this scenario tests the `id_pep_edd`
+  ZenRule, not sanctions screening. No Watchman screen is needed.
+}
+
+assert {
+  res.status: eq 201
+}

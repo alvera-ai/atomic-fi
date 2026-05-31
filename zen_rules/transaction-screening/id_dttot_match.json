@@ -1,0 +1,30 @@
+{
+  "contentType": "application/vnd.gorules.decision",
+  "nodes": [
+    {
+      "id": "request",
+      "type": "inputNode",
+      "name": "Request",
+      "position": { "x": 100, "y": 160 }
+    },
+    {
+      "id": "dttot_gate",
+      "type": "functionNode",
+      "name": "DTTOT Screening Gate",
+      "position": { "x": 380, "y": 160 },
+      "content": {
+        "source": "/**\n * Indonesia DTTOT screening gate (Law No. 9/2013 Art. 28(1)).\n *\n * Blocks transactions where the creditor side has an uncleared\n * sanctions match from PPATK's Daftar Terduga Teroris dan\n * Organisasi Teroris (DTTOT). Joint Regulation No. 01/1.02/PPATK/2/15\n * mandates immediate asset freezing on any DTTOT-listed entity.\n *\n * Mirrors ofac_sdn_match — reads\n * creditor_payment_account.compliance_screenings[].sanctions_matches[]\n * and blocks when any uncleared screening has matches.\n */\nexport const handler = async (input) => {\n  const creditor = input.creditor_payment_account;\n  if (!creditor) return { ledger_accounts: {} };\n\n  const CLEARED = ['manual_override', 'auto_suppressed'];\n  const screenings = creditor.compliance_screenings || [];\n  const hit = screenings.some(function (s) {\n    if (CLEARED.indexOf(s.false_positive_qualifier) >= 0) return false;\n    const matches = s.sanctions_matches || [];\n    return matches.length > 0;\n  });\n  if (!hit) return { ledger_accounts: {} };\n\n  const las = creditor.las || [];\n  const ledger_accounts = {};\n  for (const la of las) {\n    ledger_accounts[la.id] = {\n      daily_debit_cap: 0,\n      daily_credit_cap: 0,\n      reason: 'id_dttot_match',\n      block_reason: 'id_dttot_match',\n      is_blocked: true\n    };\n  }\n  return { ledger_accounts };\n};\n"
+      }
+    },
+    {
+      "id": "response",
+      "type": "outputNode",
+      "name": "Response",
+      "position": { "x": 700, "y": 160 }
+    }
+  ],
+  "edges": [
+    { "id": "edge_request_dttot", "type": "edge", "sourceId": "request", "targetId": "dttot_gate" },
+    { "id": "edge_dttot_response", "type": "edge", "sourceId": "dttot_gate", "targetId": "response" }
+  ]
+}

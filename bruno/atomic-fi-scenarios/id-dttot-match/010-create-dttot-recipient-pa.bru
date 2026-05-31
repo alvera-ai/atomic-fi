@@ -1,0 +1,42 @@
+meta {
+  name: 010 — Create DTTOT recipient payment account
+  type: http
+  seq: 10
+}
+
+post {
+  url: {{baseUrl}}/api/payment-accounts
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("externalId", `DTTOT-PA-DTTOT-RECIP-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{externalId}}",
+    "account_type": "wallet",
+    "currency": "USD",
+    "account_holder_id": "{{dttotRecipientAhId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("dttotRecipientPaId", res.body.id);
+}
+
+assert {
+  res.status: eq 201
+}

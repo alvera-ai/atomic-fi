@@ -1,0 +1,61 @@
+meta {
+  name: 004 — Create clean sender (Dewi Rakyat)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("externalId", `IDPEP-AH-CLEAN-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{externalId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "chain_screening": false,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Dewi",
+      "last_name": "Rakyat",
+      "citizenship_country": "ID",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("cleanSenderAhId", res.body.id);
+}
+
+docs {
+  Indonesia PEP EDD scenario — clean (non-PEP) sender.
+
+  Dewi Rakyat, Indonesian citizen with `politically_exposed_person: false`.
+  `chain_screening: false` — same rationale as the PEP sender: this
+  scenario only exercises the PEP EDD rule, not sanctions screening.
+}
+
+assert {
+  res.status: eq 201
+}

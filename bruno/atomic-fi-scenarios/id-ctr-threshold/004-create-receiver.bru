@@ -1,0 +1,60 @@
+meta {
+  name: 004 — Create receiver (Siti Rahayu)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("receiverExternalId", `IDCTR-AH-RECEIVER-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{receiverExternalId}}",
+    "account_holder_type": "individual",
+    "status": "pending",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["IDR"],
+    "chain_screening": false,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Siti",
+      "last_name": "Rahayu",
+      "citizenship_country": "ID",
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("receiverAhId", res.body.id);
+}
+
+docs {
+  Indonesia CTR threshold scenario — receiver account holder.
+
+  Siti Rahayu, Indonesian citizen. `chain_screening: false` — same
+  rationale as the sender: this scenario only exercises the CTR
+  threshold rule, not sanctions screening.
+}
+
+assert {
+  res.status: eq 201
+}

@@ -1,0 +1,43 @@
+meta {
+  name: 007 — Create cooperative counterparty payment account
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/api/payment-accounts
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("coopCpPaExternalId", `IDNCJ-PA-CP-COOP-${Date.now()}-${Math.floor(Math.random() * 1e6)}`);
+}
+
+body:json {
+  {
+    "external_id": "{{coopCpPaExternalId}}",
+    "account_type": "bank_account",
+    "currency": "USD",
+    "account_holder_id": "{{senderAhId}}",
+    "counterparty_id": "{{coopCpId}}",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("coopCpPaId", res.body.id);
+}
+
+assert {
+  res.status: eq 201
+}
