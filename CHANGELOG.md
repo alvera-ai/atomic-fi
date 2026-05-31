@@ -1,5 +1,50 @@
 # Changelog
 
+## [1.7.0](https://github.com/alvera-ai/atomic-fi/compare/v1.6.0...v1.7.0) (2026-05-31)
+
+
+### Features
+
+* **gh-53:** add corpus schema to LotusRepo search_path ([c6579c3](https://github.com/alvera-ai/atomic-fi/commit/c6579c3071dd9287577183582599b24537b23e96))
+* **gh-53:** add correctness verification skills + make targets ([9815154](https://github.com/alvera-ai/atomic-fi/commit/98151548a015309792a5ee1d99c0e8303839ab8b)), closes [#53](https://github.com/alvera-ai/atomic-fi/issues/53)
+* **gh-53:** add country field to PaymentAccount ([a3c349e](https://github.com/alvera-ai/atomic-fi/commit/a3c349efe3bcd7ff9176e79f1d1050be9b08ae7c))
+* **gh-53:** add country-onboarding skill ([a58162b](https://github.com/alvera-ai/atomic-fi/commit/a58162b0b49efd21bf5dd3836ddd30e8b8c4b72e))
+* **gh-53:** add Indonesia rules, corpora, and Bruno collections ([2e7602e](https://github.com/alvera-ai/atomic-fi/commit/2e7602ec8f1196ea6d43a47ae3d26b5373a5043f))
+* **gh-53:** add institutional due diligence fields to LegalEntity ([02c98b9](https://github.com/alvera-ai/atomic-fi/commit/02c98b94a60ad369a3ca98f10c2538c1a3449450))
+* **gh-53:** correctness verification — three skills for the compliance officer ([187421d](https://github.com/alvera-ai/atomic-fi/commit/187421d9e8e8eeb5a836c5e3cd5576b7611f4452))
+* **gh-53:** enable Watchman Postgres-backed custom ingest ([613c1b5](https://github.com/alvera-ai/atomic-fi/commit/613c1b5596f9a7d78e628d90aaeff6b645e9ac93))
+* **gh-53:** fill guide section 3 — Write the controls ([778170c](https://github.com/alvera-ai/atomic-fi/commit/778170c9e7465addd770d400434580ccb44b6abf))
+* **gh-53:** fill guide section 4 — Prove the controls ([7f53e43](https://github.com/alvera-ai/atomic-fi/commit/7f53e4360bd13607c9ae4a98c9bc04cebe5e3b98))
+* **gh-53:** fill guide sections 5-7 — Bruno, Lotus, evidence pack ([e7b48b6](https://github.com/alvera-ai/atomic-fi/commit/e7b48b68b20a5ed4a2819da62cb86414ded58821))
+* **gh-53:** harden generate-rules with source-specific fetch strategies ([f070d22](https://github.com/alvera-ai/atomic-fi/commit/f070d22cd76895bd315f09b61d04719cfae62a69))
+* **gh-53:** harden skills, fix atom safety, add --build for fresh clones ([5268879](https://github.com/alvera-ai/atomic-fi/commit/52688798bcfdbc6ca91ef87e1f7065d13222a92d))
+* **gh-53:** improve bruno-generate skill from eval findings ([0c6e3c4](https://github.com/alvera-ai/atomic-fi/commit/0c6e3c40b1caf308f65b03eee9777e51ccb0ecf3))
+* **gh-53:** master-suite now generates 100 AH / 1k CP / 10k Txn ([f3a2f34](https://github.com/alvera-ai/atomic-fi/commit/f3a2f34d8ff13ad4804e195094f70815d0da07fd))
+* **gh-53:** onboard Indonesia sanctions list via in-memory Senzing pathway ([c2c672a](https://github.com/alvera-ai/atomic-fi/commit/c2c672a27e0b062d51e7d8b86d33fc1a91495061))
+
+
+### Bug Fixes
+
+* **ci:** override Watchman healthcheck so initial crash doesn't abort job ([717ae4c](https://github.com/alvera-ai/atomic-fi/commit/717ae4cf897cfbf3164781163e6f00e1bc5f66d8))
+* **ci:** start Watchman after checkout via docker run, not as a service ([b3ebdd8](https://github.com/alvera-ai/atomic-fi/commit/b3ebdd8a23aef4aaa3950028b98d64e0ce88332c))
+* **ci:** strip Watchman Database config in CI to avoid role error ([1139253](https://github.com/alvera-ai/atomic-fi/commit/11392538487e93ca53254613a8f5b9a08cc24741))
+* **ci:** upgrade Watchman to v0.62.0 and disable dead us_csl in CI ([5300989](https://github.com/alvera-ai/atomic-fi/commit/530098932a7a3027ec5ff50caa2c98d9a692bea7))
+* **gh-53:** add make run, remove Task.async from validate, simplify master-suite ([06a7fed](https://github.com/alvera-ai/atomic-fi/commit/06a7fedd648590fd73e12df7638def41542e9a39))
+* **gh-53:** correct guide screenshot paths so images render ([dc5145d](https://github.com/alvera-ai/atomic-fi/commit/dc5145d298deb82af1c4d70104818844dcdfd110))
+* **gh-53:** country-onboarding uses API ingest, not file append ([780c6f1](https://github.com/alvera-ai/atomic-fi/commit/780c6f16874ce1645927f641cfa25542fc9c4e12))
+* **gh-53:** country-onboarding uses in-memory Senzing pathway ([0c465c1](https://github.com/alvera-ai/atomic-fi/commit/0c465c1f86d3561e176ff62c5d1c58b2fe350ef6))
+* **gh-53:** enforce hard stops in skills + require lifecycle & external_id ([a111d70](https://github.com/alvera-ai/atomic-fi/commit/a111d7027603e425107382cada652b1add3bcce7))
+* **gh-53:** fix id_dttot_match _expected for rule stacking ([69743af](https://github.com/alvera-ai/atomic-fi/commit/69743afd00f12cdeb41480f978c18f28d8a8076a))
+* **gh-53:** fix ofac_sdn_match _expected for rule stacking with id_dttot_match ([d6d1e7d](https://github.com/alvera-ai/atomic-fi/commit/d6d1e7de81e8a5af96f4e19cc2b27046453b501c))
+* **gh-53:** fix ofac-sdn Bruno assertion for rule stacking ([8134c37](https://github.com/alvera-ai/atomic-fi/commit/8134c370e4a90d5f7e42c1435885e917baf94795))
+* **gh-53:** fix output-contract holder_type + search custom watchlist ([abe5eee](https://github.com/alvera-ai/atomic-fi/commit/abe5eeec6671c05b7f1aaa4cfdb37294314f77d3))
+* **gh-53:** fix scenario-author file paths — payload.ex does not exist ([0e588a3](https://github.com/alvera-ai/atomic-fi/commit/0e588a3bd600c40256484ff10a64f0fba2f2889c))
+* **gh-53:** improve country-onboarding from eval findings ([e1639d6](https://github.com/alvera-ai/atomic-fi/commit/e1639d6f3f18bef5a00e45ef0a82c19f33d0ba2e))
+* **gh-53:** remove dedup + confirmation prompts from generate-rules ([4ce3f09](https://github.com/alvera-ai/atomic-fi/commit/4ce3f0995f71e00166fb3a40323d25cdb09011ef))
+* **gh-53:** update country-onboarding skill — Postgres ingest works now ([140fbe9](https://github.com/alvera-ai/atomic-fi/commit/140fbe9e764ec89c9e01af5f6792241fd9e03f5c))
+* **gh-53:** use R2 CDN URLs for guide videos ([2518011](https://github.com/alvera-ai/atomic-fi/commit/2518011e1ab927dbe0ff87bc3636f15b2c80232a))
+* upgrade Watchman to v0.62.0 and disable dead us_csl list ([34c7c91](https://github.com/alvera-ai/atomic-fi/commit/34c7c91de5a6006c61bbf9d1272d1071ec296183))
+
 ## [1.6.0](https://github.com/alvera-ai/atomic-fi/compare/v1.5.0...v1.6.0) (2026-05-24)
 
 
