@@ -1,0 +1,53 @@
+meta {
+  name: 002 — Create account holder for screening
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/account-holders
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+script:pre-request {
+  bru.setVar("screenAhExtId", `SCREEN-AH-${Date.now()}`);
+}
+
+body:json {
+  {
+    "external_id": "{{screenAhExtId}}",
+    "account_holder_type": "individual",
+    "status": "active",
+    "kyc_status": "approved",
+    "risk_level": "low",
+    "enabled_currencies": ["USD"],
+    "chain_screening": false,
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Screen",
+      "last_name": "Holder",
+      "citizenship_country": "US",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    },
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+script:post-response {
+  bru.setEnvVar("screenAhId", res.body.id);
+}
+
+assert {
+  res.status: eq 201
+}
