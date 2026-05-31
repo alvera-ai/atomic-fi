@@ -19,7 +19,7 @@
     "@gorules/zen-engine-wasm": "^0.23.0",
     "ace-builds": "^1.43.6",
     "antd": "^5.29.3",
-    "axios": "^1.15.2",
+    "axios": "^1.16.0",
     "graphology": "^0.26.0",
     "graphology-dag": "^0.4.1",
     "json5": "^2.2.3",
