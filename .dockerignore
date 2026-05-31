@@ -1,0 +1,11 @@
+_build
+deps
+node_modules
+.git
+.claude
+example-apps/*/node_modules
+.elixir_ls
+tmp
+test-results
+playwright-report
+.bench-work

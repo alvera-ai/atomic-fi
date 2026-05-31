@@ -59,6 +59,8 @@ services:
       - "4242:4111"
     env_file:
       - ./external-deps/copilot-runtime/docker.env
+      - path: .env
+        required: false
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -85,12 +87,7 @@ services:
     ports:
       - "4100:4100"
     volumes:
-      - .:/app
-      - deps:/app/deps
-      - build:/app/_build
-      - node_modules_onboarding:/app/example-apps/onboarding-flow/node_modules
-      - node_modules_jdm:/app/example-apps/atomic-fi-jdm-editor/node_modules
-      - node_modules_lotus:/app/example-apps/lotus-embed/node_modules
+      - ./.env:/app/.env:ro
     environment:
       MIX_ENV: dev
       DATABASE_HOST: postgres
@@ -108,8 +105,3 @@ services:
 
 volumes:
   pgdata:
-  deps:
-  build:
-  node_modules_onboarding:
-  node_modules_jdm:
-  node_modules_lotus:

@@ -2,9 +2,6 @@ FROM hexpm/elixir:1.18.3-erlang-27.3.3-debian-bookworm-20250428-slim
 
 RUN apt-get update && apt-get install -y \
     git curl build-essential inotify-tools \
-    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
-    && apt-get install -y nodejs \
-    && npm install -g pnpm@9.15.0 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -15,21 +12,17 @@ RUN mix local.hex --force && mix local.rebar --force && mix deps.get
 COPY config config
 RUN mix deps.compile
 
-COPY . .
+COPY lib lib
+COPY priv priv
+COPY zen_rules zen_rules
+COPY corpus corpus
+COPY Makefile Makefile
+COPY custom-watchlist.jsonl custom-watchlist.jsonl
+COPY config.all-lists.yml config.all-lists.yml
 
-RUN mix compile
-
-# Install example-app JS deps
-RUN for app in example-apps/*/; do \
-      if [ -f "$app/package.json" ]; then \
-        cd /app/$app && pnpm install; \
-        cd /app; \
-      fi; \
-    done
-
-# Hydrate ZenRule rules + watchlists
 RUN make hydrate-zen-rules 2>/dev/null || true
+RUN mix compile
 
 EXPOSE 4100
 
-CMD ["sh", "-c", "if [ -f .env ]; then set -a; . ./.env; set +a; fi; mix ecto.setup && iex -S mix phx.server"]
+CMD ["sh", "-c", "mix ecto.setup && mix phx.server"]
