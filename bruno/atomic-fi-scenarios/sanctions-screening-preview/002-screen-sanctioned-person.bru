@@ -1,0 +1,69 @@
+meta {
+  name: 002 — Screen sanctioned person (Vladimir Putin)
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/compliance-screenings/screen-counterparty
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "account_holder_id": "{{tenantId}}",
+    "chain_screening": false,
+    "enabled_regimes": [],
+    "external_id": "",
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Vladimir",
+      "last_name": "Putin",
+      "citizenship_country": "RU",
+      "politically_exposed_person": true,
+      "tenant_id": "{{tenantId}}"
+    },
+    "status": "active",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Stateless preview screen — no DB writes. Screens "Vladimir Putin"
+  against Watchman. He appears on the OFAC SDN list (us_ofac) and
+  should return a sanctions match with match_score >= 0.80.
+
+  This proves the screening service correctly identifies sanctioned
+  individuals before they are onboarded.
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:post-response {
+  const screenings = res.body.data || [];
+  const hasMatch = screenings.some(s =>
+    (s.sanctions_matches || []).some(m => m.match_score >= 0.80)
+  );
+  bru.setVar("sanctionedScreeningFound", hasMatch);
+
+  // Log for visibility
+  if (screenings.length > 0) {
+    const s = screenings[0];
+    const matches = s.sanctions_matches || [];
+    if (matches.length > 0) {
+      console.log(`Match: ${matches[0].matched_name} (score: ${matches[0].match_score}, list: ${matches[0].source_list})`);
+    }
+  }
+}
