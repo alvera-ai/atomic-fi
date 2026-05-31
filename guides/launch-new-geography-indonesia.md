@@ -164,14 +164,14 @@ The compliance officer invokes the country onboarding skill from the Claude Code
 
 The skill discovers that Indonesia's sanctions list is already loaded, finds the 4 rules in place, creates corpus test cases for each rule, and validates them against the live transaction path.
 
-🎞 Full run recording: [04-country-onboarding-run.mov](images/launch-indonesia/04-country-onboarding-run.mov)
-🎞 Output summary: [04-country-onboarding-output.mov](images/launch-indonesia/04-country-onboarding-output.mov)
+🎞 Full run recording: [04-country-onboarding-run.mov](https://static.alvera.ai/alvera-atomic-fi/guides/launch-indonesia/04-country-onboarding-run.mov)
+🎞 Output summary: [04-country-onboarding-output.mov](https://static.alvera.ai/alvera-atomic-fi/guides/launch-indonesia/04-country-onboarding-output.mov)
 
 **What came back:**
 
 The corpus validator runs each rule's test transactions through the real API — the same code path production uses — and checks the verdicts:
 
-🎞 Corpus validation run: [04-corpus-validate.mov](images/launch-indonesia/04-corpus-validate.mov)
+🎞 Corpus validation run: [04-corpus-validate.mov](https://static.alvera.ai/alvera-atomic-fi/guides/launch-indonesia/04-corpus-validate.mov)
 
 All four rules pass:
 
@@ -194,7 +194,7 @@ All four rules pass:
 
 The compliance officer generates Bruno HTTP collections from the corpus — one folder per rule, each containing real API requests with assertions:
 
-🎞 Bruno collection generation: [05-bruno-generate.mov](images/launch-indonesia/05-bruno-generate.mov)
+🎞 Bruno collection generation: [05-bruno-generate.mov](https://static.alvera.ai/alvera-atomic-fi/guides/launch-indonesia/05-bruno-generate.mov)
 
 Each collection creates entities (account holders, counterparties, payment accounts), submits transactions, and asserts the verdict matches the rule's intent. The regulator can re-run every request from the Bruno desktop app.
 
@@ -202,7 +202,7 @@ Each collection creates entities (account holders, counterparties, payment accou
 
 All four Indonesia collections run green — every request succeeds, every assertion passes:
 
-🎞 Bruno runner output: [05-bruno-run.mov](images/launch-indonesia/05-bruno-run.mov)
+🎞 Bruno runner output: [05-bruno-run.mov](https://static.alvera.ai/alvera-atomic-fi/guides/launch-indonesia/05-bruno-run.mov)
 
 **Status:** Done — four runnable Bruno collections, each independently re-executable by the regulator.
 
@@ -216,9 +216,9 @@ All four Indonesia collections run green — every request succeeds, every asser
 
 The compliance officer opens the Lotus dashboard (embedded in the platform at `/demo/lotus-embed/`) and queries the transaction data directly:
 
-🎞 Lotus probe — querying blocked transactions by rule: [06-lotus-probe.mov](images/launch-indonesia/06-lotus-probe.mov)
+🎞 Lotus probe — querying blocked transactions by rule: [06-lotus-probe.mov](https://static.alvera.ai/alvera-atomic-fi/guides/launch-indonesia/06-lotus-probe.mov)
 
-🎞 Lotus probe — drilling into specific results: [06-lotus-probe-2.mov](images/launch-indonesia/06-lotus-probe-2.mov)
+🎞 Lotus probe — drilling into specific results: [06-lotus-probe-2.mov](https://static.alvera.ai/alvera-atomic-fi/guides/launch-indonesia/06-lotus-probe-2.mov)
 
 The officer can type SQL or use the AI assistant to ask questions in English. Results export to CSV for the evidence pack.
 
