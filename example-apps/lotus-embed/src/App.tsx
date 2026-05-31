@@ -64,7 +64,7 @@ export default function App() {
   };
 
   return (
-    <div style={{ fontFamily: "system-ui", maxWidth: 960, margin: "0 auto", padding: 24 }}>
+    <div style={{ fontFamily: "system-ui", width: "100vw", height: "100vh", display: "flex", flexDirection: "column" }}>
       <h1>Lotus Embed — Secure iframe POC</h1>
       <p style={{ color: "#666" }}>
         Mirrors the Stripe embed pattern from SCP: login &rarr; exchange bearer
@@ -109,7 +109,7 @@ export default function App() {
           </p>
           <iframe
             src={state.embedUrl}
-            style={{ width: "100%", height: "80vh", border: "1px solid #ccc", borderRadius: 8 }}
+            style={{ width: "100%", flex: 1, border: "none" }}
             title="Lotus Dashboard"
           />
           <button
