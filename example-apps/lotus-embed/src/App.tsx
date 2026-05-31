@@ -102,14 +102,10 @@ export default function App() {
       )}
 
       {state.step === "embedded" && (
-        <div>
-          <h2>3. Lotus Dashboard (iframe)</h2>
-          <p style={{ fontSize: 13, color: "#666" }}>
-            Embed URL: <code>{state.embedUrl.slice(0, 80)}...</code>
-          </p>
+        <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
           <iframe
             src={state.embedUrl}
-            style={{ width: "100%", flex: 1, border: "none" }}
+            style={{ width: "100%", flex: 1, minHeight: "720px", border: "none" }}
             title="Lotus Dashboard"
           />
           <button
