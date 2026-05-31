@@ -281,7 +281,9 @@ run: up server
 down: stop-backing-services
 
 seed:
-	@echo "🌱 Seeding complete (seed migrations run during ecto.setup)."
+	@echo "🌱 Seeding corpus data..."
+	@mix corpus.validate --reset
+	@echo "✓ Corpus seeded."
 
 test-integration:
 	@echo "🧪 Running vitest integration suite..."
