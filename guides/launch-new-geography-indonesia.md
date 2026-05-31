@@ -124,15 +124,31 @@ The same screening is exposed on the platform's own interface — the stateless 
 
 **Command or screen:**
 
-_pending_
+The platform's visual rule editor shows four Indonesia-specific controls, each modeled as a three-node decision graph (Request → Rule Logic → Response):
 
-**What came back:**
+![All four Indonesia rules listed in the transaction-screening project](images/launch-indonesia/03-rules-list.png)
 
-_pending_
+Each rule is a self-contained JavaScript function that reads the transaction payload and decides whether to block. Here are all four:
 
-🖼 _screenshot slot: `images/launch-indonesia/03-rules-editor.png`_
+**IDR CTR Threshold** — blocks IDR transactions at or above 500,000,000 (≈$31k) for PPATK filing:
 
-**Status:** Not yet run
+![CTR threshold rule code — checks currency is IDR and amount ≥ 500M](images/launch-indonesia/03-ctr-threshold-code.png)
+
+**DTTOT Screening Gate** — blocks transactions where the creditor has uncleared sanctions matches from Indonesia's terrorist designation list:
+
+![DTTOT match rule code — reads compliance_screenings for uncleared sanctions](images/launch-indonesia/03-dttot-match-code.png)
+
+**Non-Cooperative Jurisdiction Block** — blocks transactions where the creditor's legal entity is from a FATF black-list jurisdiction:
+
+![NCJ block rule code — checks jurisdiction_cooperative flag on legal entity](images/launch-indonesia/03-ncj-block-code.png)
+
+**PEP Enhanced Due Diligence** — blocks transactions where the sender is a Politically Exposed Person, requiring EDD review before funds move:
+
+![PEP EDD graph view — three-node decision flow](images/launch-indonesia/03-pep-edd-graph.png)
+
+![PEP EDD rule code — checks politically_exposed_person flag on sender's legal entity](images/launch-indonesia/03-pep-edd-code.png)
+
+**Status:** Done — four Indonesia-specific controls are live in the rule engine.
 
 ---
 
