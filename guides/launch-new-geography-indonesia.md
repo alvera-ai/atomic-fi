@@ -2,9 +2,9 @@
 
 **How a compliance officer sets up a new country's anti-money-laundering and sanctions controls on AtomicFi, and proves the platform enforces them.**
 
-**Documentation date:** _pending_
+**Documentation date:** 2026-05-31
 **Command used:** `/country-onboarding --country ID`
-**Status:** In progress
+**Status:** Complete
 
 ---
 
@@ -192,15 +192,19 @@ All four rules pass:
 
 **Command or screen:**
 
-_pending_
+The compliance officer generates Bruno HTTP collections from the corpus — one folder per rule, each containing real API requests with assertions:
+
+🎞 Bruno collection generation: [05-bruno-generate.mov](images/launch-indonesia/05-bruno-generate.mov)
+
+Each collection creates entities (account holders, counterparties, payment accounts), submits transactions, and asserts the verdict matches the rule's intent. The regulator can re-run every request from the Bruno desktop app.
 
 **What came back:**
 
-_pending_
+All four Indonesia collections run green — every request succeeds, every assertion passes:
 
-🖼 _screenshot slot: `images/launch-indonesia/05-bruno-run.png`_
+🎞 Bruno runner output: [05-bruno-run.mov](images/launch-indonesia/05-bruno-run.mov)
 
-**Status:** Not yet run
+**Status:** Done — four runnable Bruno collections, each independently re-executable by the regulator.
 
 ---
 
@@ -210,15 +214,15 @@ _pending_
 
 **Command or screen:**
 
-_pending_
+The compliance officer opens the Lotus dashboard (embedded in the platform at `/demo/lotus-embed/`) and queries the transaction data directly:
 
-**What came back:**
+🎞 Lotus probe — querying blocked transactions by rule: [06-lotus-probe.mov](images/launch-indonesia/06-lotus-probe.mov)
 
-_pending_
+🎞 Lotus probe — drilling into specific results: [06-lotus-probe-2.mov](images/launch-indonesia/06-lotus-probe-2.mov)
 
-🎞 _video slot: `images/launch-indonesia/06-lotus-probe.mp4`_
+The officer can type SQL or use the AI assistant to ask questions in English. Results export to CSV for the evidence pack.
 
-**Status:** Not yet run
+**Status:** Done — transaction data is queryable through Lotus, with CSV export for the regulator.
 
 ---
 
@@ -226,10 +230,14 @@ _pending_
 
 **What the officer walks away with:** _The deliverable that answers "are we compliant in Indonesia?"_
 
-- Proof document — _pending_
-- Runnable Bruno collection(s) — _pending_
-- Lotus query exports (spreadsheets) — _pending_
+| Artifact | What it proves | Format |
+|---|---|---|
+| Sanctions list (`watchlists/id/id_dttot.senzing.json`) | 536 Indonesian designated parties are screened | Committed data file |
+| 4 JDM rules (`zen_rules/transaction-screening/id_*.json`) | CTR threshold, DTTOT match, NCJ block, PEP EDD are enforced | Committed rule files |
+| 4 corpus proofs (`corpus/zen_rules/id_*/proof.md`) | Every rule blocks what it should and passes what it shouldn't | Match/mismatch reports |
+| 4 Bruno collections (`bruno/atomic-fi-scenarios/id-*/`) | Regulator can re-run every verdict independently | Runnable HTTP requests |
+| Lotus CSV exports | Ad-hoc queries over the live transaction data | Downloadable spreadsheets |
 
-**Status:** Not yet assembled
+**Status:** Complete — the evidence pack is assembled from committed artifacts plus exportable query results.
 
 ---
