@@ -68,6 +68,7 @@ node_modules/
 
 # Dev secrets (API keys) — never commit.
 /config/dev.secret.exs
+/.env
 
 # Local test overrides (LLM transport → Ollama). No secrets, but
 # per-developer — not committed.
