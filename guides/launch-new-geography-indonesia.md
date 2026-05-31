@@ -158,15 +158,31 @@ Each rule is a self-contained JavaScript function that reads the transaction pay
 
 **Command or screen:**
 
-_pending_
+The compliance officer invokes the country onboarding skill from the Claude Code desktop app:
+
+![Country onboarding starting — discovers sanctions datasets, checks existing state](images/launch-indonesia/04-country-onboarding-start.png)
+
+The skill discovers that Indonesia's sanctions list is already loaded, finds the 4 rules in place, creates corpus test cases for each rule, and validates them against the live transaction path.
+
+🎞 Full run recording: [04-country-onboarding-run.mov](images/launch-indonesia/04-country-onboarding-run.mov)
+🎞 Output summary: [04-country-onboarding-output.mov](images/launch-indonesia/04-country-onboarding-output.mov)
 
 **What came back:**
 
-_pending_
+The corpus validator runs each rule's test transactions through the real API — the same code path production uses — and checks the verdicts:
 
-🎞 _video slot: `images/launch-indonesia/04-corpus-validate.gif`_
+🎞 Corpus validation run: [04-corpus-validate.mov](images/launch-indonesia/04-corpus-validate.mov)
 
-**Status:** Not yet run
+All four rules pass:
+
+| Rule | Transactions | Result |
+|---|---|---|
+| id_ctr_threshold | 3 (below/at/wrong-currency) | 3/3 match |
+| id_dttot_match | 2 (clean/designated) | 2/2 match |
+| id_ncj_block | 2 (cooperative/non-cooperative) | 2/2 match |
+| id_pep_edd | 2 (clean/PEP) | 2/2 match |
+
+**Status:** Done — every control blocks what it should and passes what it shouldn't, verified against the live transaction path.
 
 ---
 
