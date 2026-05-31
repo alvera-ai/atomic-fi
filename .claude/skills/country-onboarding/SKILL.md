@@ -63,7 +63,9 @@ If no datasets found for the country code, log it and proceed to Step 3 (rules o
 
 ## Step 2 — WATCHMAN (sanctions data)
 
-### 2a. Download
+Country sanctions lists are loaded as **in-memory Senzing lists** — the same way Watchman loads OFAC, UN CSL, and other built-in lists. No database, no API upload, no special ingest path.
+
+### 2a. Download and convert
 
 ```bash
 curl -sL -o /tmp/<dataset>.ftm.json \
@@ -72,61 +74,49 @@ curl -sL -o /tmp/<dataset>.ftm.json \
 
 If the download fails or returns HTML (Cloudflare), try the `.json.gz` variant and gunzip. If both fail, skip this dataset and log the failure.
 
-### 2b. Convert FTM → Senzing JSONL
+Convert FTM → Senzing JSONL using the script in `references/opensanctions-ftm-format.md`. The output is one JSON object per line with `DATA_SOURCE`, `RECORD_ID`, `NAME_FULL`/`NAME_ORG`, etc.
 
-OpenSanctions FTM (FollowTheMoney) entities have this shape:
+### 2b. Commit the Senzing file
 
-```json
-{"id": "...", "schema": "Person", "properties": {"name": ["..."], "birthDate": ["..."], "nationality": ["..."], ...}}
+Save the converted file to `watchlists/<cc>/<dataset>.senzing.json` (committed to the repo):
+
+```
+watchlists/id/id_dttot.senzing.json     ← Indonesia DTTOT
+watchlists/ae/ae_local_terrorists.senzing.json  ← UAE example
 ```
 
-Convert each entity to Senzing JSONL (same format as `custom-watchlist.jsonl`):
+### 2c. Register in Watchman config
 
-```json
-{"DATA_SOURCE": "<DATASET_UPPER>", "RECORD_ID": "<ftm_id>", "RECORD_TYPE": "PERSON|ORGANIZATION", "NAME_FULL": "...", "DATE_OF_BIRTH": "...", "NATIONALITY": "...", "ADDR_COUNTRY": "..."}
+Add the dataset to `config.all-lists.yml` under `Download.Senzing`:
+
+```yaml
+Download:
+  Senzing:
+    - SourceList: <dataset>
 ```
 
-Mapping:
+And mount the file in `local-dependencies.yaml`:
 
-| FTM schema | Senzing RECORD_TYPE | Name field |
-|---|---|---|
-| `Person` | `PERSON` | `NAME_FULL` from `properties.name[0]` |
-| `Organization` | `ORGANIZATION` | `NAME_ORG` from `properties.name[0]` |
-| `LegalEntity` | `ORGANIZATION` | `NAME_ORG` |
-| `Company` | `ORGANIZATION` | `NAME_ORG` |
+```yaml
+volumes:
+  - ./priv/watchman-data/<dataset>:/data/<dataset>:ro
+```
 
-Write the conversion as a Python one-liner or small script. Use `python3` (available in the environment).
+Add a hydration step to the Makefile (`make hydrate-watchlists`) that copies from `watchlists/<cc>/` to `priv/watchman-data/`.
 
-### 2c. Upload via Watchman API (NOT file append)
-
-The file-based ingest (`custom-watchlist.jsonl` mount) is broken — Watchman's Senzing parser reads only 1 entity regardless of file size. Use the **API ingest** instead:
+### 2d. Restart and verify
 
 ```bash
-while IFS= read -r line; do
-  curl -s -X POST "http://localhost:8084/v2/ingest/custom_watchlist" \
-    -H "Content-Type: text/plain" \
-    -d "$line" > /dev/null
-done < /tmp/<dataset>.senzing.jsonl
-echo "Uploaded $(wc -l < /tmp/<dataset>.senzing.jsonl) entities"
+make run-backing-services   # or: docker compose -f local-dependencies.yaml restart watchman
 ```
 
-This POSTs each entity individually. They're persisted in Watchman's Postgres DB (`sqlRepository`) and survive restarts.
-
-### 2d. Verify entities are searchable
+Verify the list loaded:
 
 ```bash
-curl -s "http://localhost:8084/v2/search?name=<known_name>&limit=1&source=custom_watchlist"
+curl -s "http://localhost:8084/v2/search?name=<known_name>&limit=1"
 ```
 
-The `source=custom_watchlist` filter is required — custom-ingested entities don't appear in broad (unfiltered) searches. The screening engine already handles this automatically.
-
-### Custom ingest requires Postgres
-
-Watchman uses `sqlRepository` (real persistence + search) only when `Database.Postgres` is configured in `config.all-lists.yml`. Without it, Watchman falls back to `MockRepository` which accepts data but doesn't index it for search.
-
-The local setup (`config.all-lists.yml`) already has the Database config — custom entities are searchable with `source=custom_watchlist`. If you see `MockRepository` in the logs, the Database config is missing.
-
-**Note:** Custom-ingested entities require `source=custom_watchlist` in search queries. Broad searches (no source filter) only return built-in lists. The screening engine already handles this — it searches both broad and custom_watchlist sources.
+The entity should appear with `sourceList: "<dataset>"` — no `source=` filter needed. In-memory Senzing lists are searchable in broad (unfiltered) searches, just like OFAC and UN CSL.
 
 ---
 
