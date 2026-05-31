@@ -1,0 +1,27 @@
+{
+  "name": "atomic-fi",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "forwardPorts": [4100, 8084, 8090, 8085, 4242],
+  "portsAttributes": {
+    "4100": { "label": "Phoenix", "onAutoForward": "notify" },
+    "8084": { "label": "Watchman", "onAutoForward": "silent" },
+    "8090": { "label": "ZenRule", "onAutoForward": "silent" },
+    "8085": { "label": "Mockoon", "onAutoForward": "silent" },
+    "4242": { "label": "CopilotKit", "onAutoForward": "silent" }
+  },
+  "postCreateCommand": "mix deps.get && mix deps.compile && mix compile && pnpm install --filter './example-apps/*'",
+  "postStartCommand": "make run-backing-services && sleep 10 && mix ecto.setup && echo '✅ Ready — run: make server'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "JakeBecker.elixir-ls",
+        "phoenixframework.phoenix"
+      ]
+    }
+  }
+}
