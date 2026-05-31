@@ -1,0 +1,107 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: atomic_fi_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U postgres
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  watchman:
+    image: moov/watchman:v0.62.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8084:8084"
+      - "9094:9094"
+    volumes:
+      - ./config.all-lists.yml:/app/config.yml:ro
+      - ./custom-watchlist.jsonl:/data/custom_watchlist.jsonl:ro
+      - ./priv/watchman-data/id_dttot:/data/id_dttot:ro
+    environment:
+      APP_CONFIG: /app/config.yml
+
+  zenrule:
+    build:
+      context: ./external-deps
+      dockerfile: zenrule.Dockerfile
+    image: gorules/agent:local
+    ports:
+      - "8090:8080"
+    volumes:
+      - ./priv/zenrule:/home/nonroot/data:ro
+    environment:
+      PROVIDER__TYPE: Filesystem
+      CORS_PERMISSIVE: "true"
+
+  mock-external-deps:
+    image: mockoon/cli:9.3.0
+    ports:
+      - "8085:3000"
+    volumes:
+      - ./priv/mockoon:/data:ro
+    command: ["-d", "/data/atomic-fi.json", "-p", "3000"]
+
+  copilot-runtime:
+    build:
+      context: ./external-deps/copilot-runtime
+    image: atomic-fi/copilot-runtime:local
+    ports:
+      - "4242:4111"
+    env_file:
+      - ./external-deps/copilot-runtime/docker.env
+      - path: .env
+        required: false
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  copilot-telemetry:
+    image: timberio/vector:0.55.0-alpine
+    ports:
+      - "8686:8686"
+    volumes:
+      - ./external-deps/copilot-telemetry/vector.yaml:/etc/vector/vector.yaml:ro
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      watchman:
+        condition: service_started
+      zenrule:
+        condition: service_started
+      mock-external-deps:
+        condition: service_started
+    ports:
+      - "4100:4100"
+    volumes:
+      - ./.env:/app/.env:ro
+    environment:
+      MIX_ENV: dev
+      DATABASE_HOST: postgres
+      WATCHMAN_BASE_URL: http://watchman:8084
+      ZENRULE_BASE_URL: http://zenrule:8080
+      MOCKOON_BASE_URL: http://mock-external-deps:3000
+    env_file:
+      - path: .env
+        required: false
+    command: >
+      sh -c "
+        mix ecto.setup &&
+        mix phx.server
+      "
+
+volumes:
+  pgdata:

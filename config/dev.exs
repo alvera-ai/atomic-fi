@@ -170,6 +170,20 @@ config :lotus, :ai,
 # Import OpenAPI server configuration
 import_config "openapi_servers.#{config_env()}.exs"
 
+# Allow env-var overrides for Docker Compose (services use container hostnames).
+if db_host = System.get_env("DATABASE_HOST") do
+  config :atomic_fi, AtomicFi.Repo, hostname: db_host
+  config :atomic_fi, AtomicFi.LotusRepo, hostname: db_host
+end
+
+if watchman_url = System.get_env("WATCHMAN_BASE_URL") do
+  config :atomic_fi, AtomicFi.Watchman.Client, base_url: watchman_url
+end
+
+if zenrule_url = System.get_env("ZENRULE_BASE_URL") do
+  config :atomic_fi, AtomicFi.RuleEngine, base_url: zenrule_url
+end
+
 # Import dev secrets (API keys, etc.) — not checked into version control.
 # Copy config/dev.secret.exs.example to config/dev.secret.exs and fill in values.
 if File.exists?(Path.expand("dev.secret.exs", __DIR__)) do

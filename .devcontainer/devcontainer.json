@@ -1,0 +1,30 @@
+{
+  "name": "atomic-fi",
+  "image": "hexpm/elixir:1.18.3-erlang-27.3.3-debian-bookworm-20250428-slim",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "installZsh": false,
+      "configureZshCompletions": false
+    }
+  },
+  "forwardPorts": [4100, 8084, 8090, 8085, 4242],
+  "portsAttributes": {
+    "4100": { "label": "Phoenix", "onAutoForward": "notify" },
+    "8084": { "label": "Watchman", "onAutoForward": "silent" },
+    "8090": { "label": "ZenRule", "onAutoForward": "silent" },
+    "8085": { "label": "Mockoon", "onAutoForward": "silent" },
+    "4242": { "label": "CopilotKit", "onAutoForward": "silent" }
+  },
+  "postCreateCommand": "apt-get update && apt-get install -y build-essential git curl && mix local.hex --force && mix local.rebar --force && mix deps.get && mix deps.compile && mix compile && npm install -g pnpm@9.15.0",
+  "postStartCommand": "make run-backing-services && sleep 15 && mix ecto.setup && echo '✅ Ready — run: make server'",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "JakeBecker.elixir-ls",
+        "phoenixframework.phoenix"
+      ]
+    }
+  }
+}
