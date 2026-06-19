@@ -61,7 +61,10 @@ if config_env() == :prod do
     System.get_env("ZEN_RULE_URL") ||
       raise "environment variable ZEN_RULE_URL is missing."
 
-  config :atomic_fi, AtomicFi.RuleEngine.ZenRule, base_url: zen_rule_url
+  # NOTE: the engine reads `Application.fetch_env!(:atomic_fi, RuleEngine)`
+  # (see lib/atomic_fi/rule_engine/default.ex) — the key is AtomicFi.RuleEngine,
+  # NOT AtomicFi.RuleEngine.ZenRule. Matches config/config.exs:139 + dev.exs.
+  config :atomic_fi, AtomicFi.RuleEngine, base_url: zen_rule_url
 
   # Cloak encryption key for sensitive fields (API keys, tokens, etc.)
   cloak_key = System.get_env("CLOAK_KEY") || raise("CLOAK_KEY is missing")
