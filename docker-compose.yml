@@ -156,15 +156,17 @@ services:
       PHX_SERVER: "true"
       URL_SCHEME: http
       URL_PORT: "4100"
-      SECRET_KEY_BASE: TTkA96eBOeLgMyGWdJ1DN8fJUb8jq8LpuCEBArjnSMuJQ4ajSmZHfQTlCcZZq8/s
-      CLOAK_KEY: 3wFfgYkQ5LThSEN3B5/KU4TyriVcPZpHFqvlDRaPLds=
-      # Match the native dev defaults (config/dev.exs) so the documented
-      # credentials in INSTALLATION.md are valid for both run paths.
-      ROOT_API_KEY: alvera_root_api_key_dev
-      TENANT_NAME: atomic-fi-tenant
-      ADMIN_USER: admin@atomic-fi.local
-      ADMIN_PASS: admin-password-dev
-      BOT_USER: bot@atomic-fi.local
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:-TTkA96eBOeLgMyGWdJ1DN8fJUb8jq8LpuCEBArjnSMuJQ4ajSmZHfQTlCcZZq8/s}
+      CLOAK_KEY: ${CLOAK_KEY:-3wFfgYkQ5LThSEN3B5/KU4TyriVcPZpHFqvlDRaPLds=}
+      # Seeded identity + REST API key. Defaults match the native dev values
+      # (config/dev.exs) so INSTALLATION.md's documented creds work on both
+      # paths; override any of them in .env (see .env.example). Compose reads
+      # ./.env for ${...} interpolation, so a value set there wins.
+      ROOT_API_KEY: ${ROOT_API_KEY:-alvera_root_api_key_dev}
+      TENANT_NAME: ${TENANT_NAME:-atomic-fi-tenant}
+      ADMIN_USER: ${ADMIN_USER:-admin@atomic-fi.local}
+      ADMIN_PASS: ${ADMIN_PASS:-admin-password-dev}
+      BOT_USER: ${BOT_USER:-bot@atomic-fi.local}
     # Optional LLM keys for cloud-model AI features; boots fine without it.
     env_file:
       - path: .env
