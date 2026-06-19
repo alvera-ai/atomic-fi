@@ -6,8 +6,10 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+ENV MIX_ENV=prod
+
 COPY mix.exs mix.lock ./
-RUN mix local.hex --force && mix local.rebar --force && mix deps.get
+RUN mix local.hex --force && mix local.rebar --force && mix deps.get --only prod
 
 COPY config config
 RUN mix deps.compile
