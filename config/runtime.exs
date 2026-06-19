@@ -66,6 +66,15 @@ if config_env() == :prod do
   # NOT AtomicFi.RuleEngine.ZenRule. Matches config/config.exs:139 + dev.exs.
   config :atomic_fi, AtomicFi.RuleEngine, base_url: zen_rule_url
 
+  # Lotus SQL copilot — the embedded dashboard's natural-language SQL helper.
+  # In dev this is wired by config/dev.secret.exs; prod reads the same env vars
+  # (LOTUS_AI_MODEL / LOTUS_AI_API_KEY) so the keys in .env take effect under
+  # `docker compose up`. Empty api_key => disabled-but-harmless default model.
+  config :lotus, :ai,
+    enabled: true,
+    model: System.get_env("LOTUS_AI_MODEL", "google:gemini-2.5-flash"),
+    api_key: System.get_env("LOTUS_AI_API_KEY", "")
+
   # Cloak encryption key for sensitive fields (API keys, tokens, etc.)
   cloak_key = System.get_env("CLOAK_KEY") || raise("CLOAK_KEY is missing")
 

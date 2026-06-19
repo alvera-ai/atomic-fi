@@ -138,6 +138,17 @@ GOOGLE_API_KEY=your-api-key-here
 
 The `copilot-runtime` defaults (Ollama on `host.docker.internal:11434`) live in `external-deps/copilot-runtime/docker.env`. Values in `.env` override them.
 
+Which key drives which feature:
+
+| Feature | Service | Env vars |
+|---|---|---|
+| JDM editor copilot (`/demo/atomic-fi-jdm-editor/`) | `copilot-runtime` | `LLM_PROVIDER`, `LLM_MODEL`, `GOOGLE_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` |
+| Document parser (`/api/parse`) | `app` | `OLLAMA_VISION_MODEL`, `LITER_LLM_BASE_URL` |
+| Lotus SQL copilot (`/lotus`) | `app` | `LOTUS_AI_MODEL` (`<provider>:<model>`), `LOTUS_AI_API_KEY` |
+
+> After editing `.env`, run `docker compose up -d` again — it recreates the
+> containers so the new `env_file` values load (`restart` alone won't re-read it).
+
 ---
 
 ## Default credentials
