@@ -33,6 +33,13 @@ COPY integration-tests ./integration-tests
 
 RUN pnpm install --frozen-lockfile
 
+# Generate the TS SDK from the committed OpenAPI spec (packages/sdk/spec/
+# openapi.yaml). packages/sdk/generated/ is gitignored (absent on a fresh
+# clone) and re-exported by @atomic-fi/sdk, which the onboarding-flow SPA
+# imports. Run only `sdk:gen` (openapi-ts, offline) — the full `build` also
+# runs `spec:gen`, which shells out to `mix` and isn't available in this stage.
+RUN pnpm --filter @atomic-fi/sdk sdk:gen
+
 # Each vite config writes to ../../priv/static/demo/<app> (path-relative to the
 # app dir), so with the repo at /app the output lands in /app/priv/static/demo/.
 RUN pnpm --filter onboarding-flow build \

@@ -9,3 +9,6 @@ tmp
 test-results
 playwright-report
 .bench-work
+# Generated SDK artifacts — the image regenerates them from spec/openapi.yaml
+# (see Dockerfile `sdk:gen`), so never ship stale local copies into the build.
+packages/sdk/generated
