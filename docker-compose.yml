@@ -78,10 +78,12 @@ services:
   # Loads JDM files from /home/nonroot/data/<project>/<decision>.json, populated
   # by the `hydrate` service from zen_rules/.
   zenrule:
+    # No `image:` tag — this is built locally from the vendored subtree, never
+    # pulled. Declaring `image: gorules/agent:local` makes `docker compose up`
+    # try to pull that (nonexistent) registry ref on a fresh machine and fail.
     build:
       context: ./external-deps
       dockerfile: zenrule.Dockerfile
-    image: gorules/agent:local
     depends_on:
       hydrate:
         condition: service_completed_successfully
@@ -104,10 +106,10 @@ services:
     command: ["-d", "/data/atomic-fi.json", "-p", "3000"]
 
   copilot-runtime:
+    # Built locally (vendored source); no `image:` tag so compose builds rather
+    # than attempting a registry pull on a fresh machine.
     build:
       context: ./external-deps/copilot-runtime
-    image: atomic-fi/copilot-runtime:local
-    pull_policy: never
     ports:
       - "4242:4111"
     env_file:
