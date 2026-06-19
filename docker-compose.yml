@@ -1,3 +1,13 @@
+# Single-command full stack: `docker compose up` builds every app and serves
+# the whole product at http://localhost:4100 — backend, Phoenix assets, the
+# three demo SPAs, sanctions screening (watchman) and the rules engine
+# (zenrule). This coexists with the native/local workflow driven by
+# `local-dependencies.yaml` + the Makefile, which is left untouched.
+#
+# Reset to a clean, reproducible state (drops named volumes + build cache):
+#   docker compose down -v --remove-orphans
+#   docker compose build --no-cache
+#   docker compose up
 services:
   postgres:
     image: postgres:17
@@ -15,32 +25,74 @@ services:
       timeout: 3s
       retries: 5
 
+  # One-shot hydrator: copies the committed source-of-truth rule/watchlist data
+  # into named volumes the zenrule + watchman containers mount. This removes the
+  # fresh-clone dependency on `make hydrate-*` having run first (priv/zenrule and
+  # priv/watchman-data are gitignored). Runs once and exits; zenrule/watchman
+  # wait for it via `service_completed_successfully`.
+  hydrate:
+    image: busybox:1.37
+    restart: "no"
+    volumes:
+      - ./zen_rules:/src/zen_rules:ro
+      - ./watchlists:/src/watchlists:ro
+      - ./custom-watchlist.jsonl:/src/custom-watchlist.jsonl:ro
+      - zenrule-data:/zenrule-data
+      - watchman-data:/watchman-data
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        mkdir -p /zenrule-data/onboarding /zenrule-data/transaction-screening
+        cp /src/zen_rules/onboarding/*.json /zenrule-data/onboarding/
+        cp /src/zen_rules/transaction-screening/*.json /zenrule-data/transaction-screening/
+        for f in /src/watchlists/*/*.senzing.json; do
+          cp "$$f" "/watchman-data/$$(basename "$$f" .senzing.json)"
+        done
+        cp /src/custom-watchlist.jsonl /watchman-data/custom_watchlist.jsonl
+        echo "✓ hydrated zenrule-data + watchman-data"
+
   watchman:
     image: moov/watchman:v0.62.0
     depends_on:
-      postgres:
-        condition: service_healthy
+      hydrate:
+        condition: service_completed_successfully
     ports:
       - "8084:8084"
       - "9094:9094"
     volumes:
-      - ./config.all-lists.yml:/app/config.yml:ro
-      - ./custom-watchlist.jsonl:/data/custom_watchlist.jsonl:ro
-      - ./priv/watchman-data/id_dttot:/data/id_dttot:ro
+      # No-Database config (see watchman.compose.yml): Watchman uses its built-in
+      # default storage, so it needs no Postgres — just the lists below.
+      - ./watchman.compose.yml:/app/config.yml:ro
+      # Sanctions lists + custom watchlist, populated by the `hydrate` service.
+      # Mounted at the InitialDataDirectory so Watchman loads them into the
+      # in-memory search index at startup.
+      - watchman-data:/data
     environment:
       APP_CONFIG: /app/config.yml
 
+  # ZenRule — GoRules Agent (open source, MIT): headless rules engine over REST.
+  # Built from the vendored subtree at external-deps/zenrule (GoRules publishes
+  # amd64-only images; building locally gives a native image on arm64).
+  # Loads JDM files from /home/nonroot/data/<project>/<decision>.json, populated
+  # by the `hydrate` service from zen_rules/.
   zenrule:
     build:
       context: ./external-deps
       dockerfile: zenrule.Dockerfile
     image: gorules/agent:local
+    depends_on:
+      hydrate:
+        condition: service_completed_successfully
     ports:
       - "8090:8080"
     volumes:
-      - ./priv/zenrule:/home/nonroot/data:ro
+      - zenrule-data:/home/nonroot/data:ro
     environment:
       PROVIDER__TYPE: Filesystem
+      # Permissive CORS so the editor (served by Phoenix at :4100) can POST
+      # evaluate requests directly to ZenRule from the browser.
       CORS_PERMISSIVE: "true"
 
   mock-external-deps:
@@ -72,10 +124,16 @@ services:
     volumes:
       - ./external-deps/copilot-telemetry/vector.yaml:/etc/vector/vector.yaml:ro
 
+  # The full product, built ahead of time (3 Vite SPAs + Phoenix assets) and
+  # run in MIX_ENV=prod so the runtime needs no Node/watchers and binds 0.0.0.0.
+  # The Dockerfile CMD runs `mix ecto.setup` (create + enhanced migrate, which
+  # seeds the system tenant/admin from the env vars below) then phx.server.
+  #
+  # Secrets here are throwaway LOCAL-DEMO defaults — do not reuse in production.
   app:
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     depends_on:
       postgres:
         condition: service_healthy
@@ -87,22 +145,30 @@ services:
         condition: service_started
     ports:
       - "4100:4100"
-    volumes:
-      - ./.env:/app/.env:ro
     environment:
-      MIX_ENV: dev
-      DATABASE_HOST: postgres
-      WATCHMAN_BASE_URL: http://watchman:8084
-      ZENRULE_BASE_URL: http://zenrule:8080
-      MOCKOON_BASE_URL: http://mock-external-deps:3000
+      DATABASE_URL: ecto://postgres:postgres@postgres/atomic_fi_dev
+      WATCHMAN_URL: http://watchman:8084
+      ZEN_RULE_URL: http://zenrule:8080
+      PHX_HOST: localhost
+      PORT: "4100"
+      PHX_SERVER: "true"
+      URL_SCHEME: http
+      URL_PORT: "4100"
+      SECRET_KEY_BASE: TTkA96eBOeLgMyGWdJ1DN8fJUb8jq8LpuCEBArjnSMuJQ4ajSmZHfQTlCcZZq8/s
+      CLOAK_KEY: 3wFfgYkQ5LThSEN3B5/KU4TyriVcPZpHFqvlDRaPLds=
+      # Match the native dev defaults (config/dev.exs) so the documented
+      # credentials in INSTALLATION.md are valid for both run paths.
+      ROOT_API_KEY: alvera_root_api_key_dev
+      TENANT_NAME: atomic-fi-tenant
+      ADMIN_USER: admin@atomic-fi.local
+      ADMIN_PASS: admin-password-dev
+      BOT_USER: bot@atomic-fi.local
+    # Optional LLM keys for cloud-model AI features; boots fine without it.
     env_file:
       - path: .env
         required: false
-    command: >
-      sh -c "
-        mix ecto.setup &&
-        mix phx.server
-      "
 
 volumes:
   pgdata:
+  zenrule-data:
+  watchman-data:

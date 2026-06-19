@@ -2,6 +2,12 @@
 
 This guide will help you set up your development environment and get AtomicFi running locally.
 
+> **Just want it running?** `docker compose up` builds and starts the entire
+> stack (backend + all demo apps + backing services) at
+> http://localhost:4100 — no local Elixir/Node toolchain required. See
+> [INSTALLATION.md](../INSTALLATION.md). The rest of this guide covers the
+> **native** workflow for active development.
+
 ## Prerequisites
 
 ### Required Software
@@ -70,12 +76,17 @@ GOOGLE_API_KEY=your-api-key-here
 make run-backing-services
 ```
 
-This runs `docker compose up` for:
-- **PostgreSQL 17** on `:5432`
+This runs `docker compose -f local-dependencies.yaml up` for:
 - **Moov Watchman** (sanctions screening) on `:8084`
 - **ZenRule / gorules agent** (decision rules engine) on `:8090`
 - **Mockoon** (external API mock) on `:8085`
 - **CopilotKit runtime** (JDM editor AI sidecar) on `:4242`
+- **Vector** (CopilotKit telemetry sink) on `:8686`
+
+> **Postgres** is *not* part of `local-dependencies.yaml`. The native flow
+> expects Postgres on `localhost:5432` (`config/dev.exs`). Run one locally, or
+> start just the bundled one with `docker compose up -d postgres` (from the
+> full-stack `docker-compose.yml`).
 
 ### 4. Create the database and seed
 

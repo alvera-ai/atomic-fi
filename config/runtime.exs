@@ -134,6 +134,16 @@ if config_env() == :prod do
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     socket_options: maybe_ipv6
 
+  # LotusRepo — same database as AtomicFi.Repo but unscoped (no RLS); Lotus
+  # needs raw schema access for ad-hoc SQL. Mirrors config/dev.exs, including
+  # the search_path after_connect (atomic_fi_corpus is optional — Postgres
+  # ignores absent schemas in search_path).
+  config :atomic_fi, AtomicFi.LotusRepo,
+    url: database_url,
+    pool_size: String.to_integer(System.get_env("LOTUS_POOL_SIZE") || "5"),
+    socket_options: maybe_ipv6,
+    after_connect: {Postgrex, :query!, ["SET search_path TO public, atomic_fi_corpus", []]}
+
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
   # want to use a different value for prod and you most likely don't want
@@ -149,8 +159,14 @@ if config_env() == :prod do
   host = System.get_env("PHX_HOST") || "example.com"
   port = String.to_integer(System.get_env("PORT") || "4000")
 
+  # Public URL scheme/port for generated links. Defaults to https:443 (real
+  # prod fronted by TLS); a local single-container demo overrides these to
+  # http and its published port so links/redirects resolve on localhost.
+  url_scheme = System.get_env("URL_SCHEME") || "https"
+  url_port = String.to_integer(System.get_env("URL_PORT") || "443")
+
   config :atomic_fi, AtomicFiWeb.Endpoint,
-    url: [host: host, port: 443, scheme: "https"],
+    url: [host: host, port: url_port, scheme: url_scheme],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.

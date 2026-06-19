@@ -65,15 +65,62 @@ cp .env.example .env
 docker compose up
 ```
 
-The `app` service runs `mix ecto.setup && mix phx.server` on first boot. All other services (Postgres, Watchman, ZenRule, Mockoon, CopilotKit) start automatically.
+This is the single command — it builds **everything**: the three Vite demo
+SPAs and Phoenix assets are compiled into the `app` image (`MIX_ENV=prod`), and
+a one-shot `hydrate` service seeds the sanctions list + decision rules into the
+Watchman/ZenRule containers. No `make` prep steps. The first build takes a few
+minutes (Node + Elixir compile); subsequent boots are fast.
 
-Visit **http://localhost:4100** — API docs at `/api/docs`.
+On boot the `app` container runs `mix ecto.setup` (creates the DB, migrates, and
+seeds the system tenant/admin) then starts Phoenix. All other services
+(Postgres, Watchman, ZenRule, Mockoon, CopilotKit) start automatically and in
+the correct order.
+
+Visit **http://localhost:4100** — API docs at `/api/docs`, demo apps under
+`/demo/{onboarding-flow,atomic-fi-jdm-editor,lotus-embed}/`.
 
 To stop:
 
 ```bash
 docker compose down
 ```
+
+### Reset to a clean state
+
+If a teammate hits cache-induced drift (stale image, leftover volume), reset to
+a reproducible state — this drops the named volumes (`pgdata`, `zenrule-data`,
+`watchman-data`) and rebuilds every image from scratch:
+
+```bash
+docker compose down -v --remove-orphans   # stop + drop volumes
+docker compose build --no-cache           # rebuild images fresh
+docker compose up                          # clean boot
+```
+
+For a deeper clean of dangling build layers: `docker builder prune -f`.
+
+### Troubleshooting: build times out fetching deps
+
+If `docker compose build` hangs or fails while fetching JS/Rust deps — e.g.
+`pnpm install` → corepack `ETIMEDOUT`, or cargo unable to reach crates.io —
+while your host browser/CLI can reach those sites fine, the Docker **build
+network** can't egress (common behind a corporate VPN or proxy: image *pulls*
+work via the daemon, but `RUN` steps use the build bridge, which lacks the
+route). Fixes, in order of preference:
+
+1. **Docker Desktop proxy** — Settings → Resources → Proxies → enter your
+   HTTP/HTTPS proxy. Docker injects it into builds. The clean fix on a
+   proxied/VPN network.
+2. **VPN** — disconnect, or split-tunnel so the Docker subnet has egress.
+3. **One-off host network** — build with the host's network (which has the
+   route), then bring the stack up normally:
+   ```bash
+   docker build --network=host -t atomic-fi-app .   # app image
+   docker compose up                                 # uses the built image
+   ```
+   (Or add `build: { network: host }` per service in a local
+   `docker-compose.override.yml` — not committed, so the base compose stays
+   portable for teammates without the VPN.)
 
 ### LLM configuration (Docker Compose)
 

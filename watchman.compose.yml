@@ -1,0 +1,66 @@
+# Watchman config for the single-command `docker compose up` stack.
+#
+# Mirrors config.all-lists.yml (the native/local-dependencies flow), but with
+# NO `Database:` block. moov/watchman v0.62.0 only requires PostgreSQL when a
+# `Database.Postgres` block is present; omitting it makes Watchman use its
+# built-in default storage and load every list into the in-memory search index
+# at startup — no external DB, no `watchman` database to provision. The
+# Download/Senzing/Ingest sections below are unchanged from config.all-lists.yml.
+#
+# Keep this in sync with config.all-lists.yml's list sources (the only
+# intentional difference is the dropped Database block).
+Watchman:
+  Servers:
+    BindAddress: ":8084"
+    AdminAddress: ":9094"
+
+  Telemetry:
+    ServiceName: "watchman"
+
+  Webui:
+    BasePath: "/"
+
+  Download:
+    RefreshInterval: "12h"
+    InitialDataDirectory: "/data"
+
+    IncludedLists:
+      - us_ofac
+      # us_csl disabled — data.trade.gov DNS is dead (decommissioned May 2026)
+      # - us_csl
+      - us_non_sdn
+      - us_fincen_311
+      - un_csl
+
+    # Country-specific OpenSanctions datasets in Senzing format. Loaded into the
+    # in-memory search index at startup. The file is provided locally at
+    # InitialDataDirectory/<SourceList> (/data/id_dttot, populated by the
+    # `hydrate` service), so Watchman matches it by name and never downloads.
+    Senzing:
+      - SourceList: id_dttot
+
+  Search:
+    Goroutines:
+      Default: 10
+      Min: 1
+      Max: 25
+
+  Ingest:
+    Files:
+      custom_watchlist:
+        Format: "senzing-jsonl"
+
+  Geocoding:
+    Enabled: false
+    Provider:
+      Name: "opencage"
+      APIKey: ""
+      BaseURL: ""
+      Timeout: "10s"
+    RateLimit:
+      RequestsPerSecond: 1
+      Burst: 5
+    Cache:
+      L1MaxSize: 10000
+      L1TTL: "24h"
+      L2Enabled: false
