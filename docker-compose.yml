@@ -53,12 +53,11 @@ services:
         cp /src/custom-watchlist.jsonl /watchman-data/custom_watchlist.jsonl
         echo "✓ hydrated zenrule-data + watchman-data"
 
-  # Bundled Watchman is OPT-IN via the `bundled-watchman` profile. By default the
-  # app screens against an external Watchman (set WATCHMAN_URL); run
-  # `docker compose --profile bundled-watchman up` to use this in-stack one instead.
+  # Bundled Watchman runs by DEFAULT (opt-out). To screen against an external
+  # Watchman instead, set WATCHMAN_URL and don't start this service, e.g.
+  # `docker compose up --scale watchman=0`.
   watchman:
     image: moov/watchman:v0.62.0
-    profiles: ["bundled-watchman"]
     depends_on:
       hydrate:
         condition: service_completed_successfully
@@ -140,8 +139,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # No watchman edge: Watchman is external by default (profile-gated bundled
-    # service). The app reaches it at WATCHMAN_URL at request time, not boot.
+    # No watchman edge here so the bundled Watchman can be skipped (--scale
+    # watchman=0) for external mode without breaking app startup; the app reaches
+    # Watchman at WATCHMAN_URL at request time, not boot.
     depends_on:
       postgres:
         condition: service_healthy
