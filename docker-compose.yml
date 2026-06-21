@@ -53,8 +53,12 @@ services:
         cp /src/custom-watchlist.jsonl /watchman-data/custom_watchlist.jsonl
         echo "✓ hydrated zenrule-data + watchman-data"
 
+  # Bundled Watchman is OPT-IN via the `bundled-watchman` profile. By default the
+  # app screens against an external Watchman (set WATCHMAN_URL); run
+  # `docker compose --profile bundled-watchman up` to use this in-stack one instead.
   watchman:
     image: moov/watchman:v0.62.0
+    profiles: ["bundled-watchman"]
     depends_on:
       hydrate:
         condition: service_completed_successfully
@@ -136,20 +140,25 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # No watchman edge: Watchman is external by default (profile-gated bundled
+    # service). The app reaches it at WATCHMAN_URL at request time, not boot.
     depends_on:
       postgres:
         condition: service_healthy
-      watchman:
-        condition: service_started
       zenrule:
         condition: service_started
       mock-external-deps:
         condition: service_started
     ports:
       - "4100:4100"
+    # Lets WATCHMAN_URL=http://host.docker.internal:... reach a Watchman on the host.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       DATABASE_URL: ecto://postgres:postgres@postgres/atomic_fi_dev
-      WATCHMAN_URL: http://watchman:8084
+      # External by default; falls back to the bundled service for the
+      # `--profile bundled-watchman` path. Set WATCHMAN_URL in .env to override.
+      WATCHMAN_URL: ${WATCHMAN_URL:-http://watchman:8084}
       ZEN_RULE_URL: http://zenrule:8080
       PHX_HOST: localhost
       PORT: "4100"
