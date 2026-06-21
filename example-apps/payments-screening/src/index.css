@@ -1,0 +1,131 @@
+@import 'tailwindcss';
+
+/* ── Payments Screening — instrument-panel design tokens ──────────────────
+   Warm-charcoal canvas (hue ~165, deliberately not navy), bone ink, a single
+   restrained teal accent, and the semantic status triad (green/amber/red)
+   reserved strictly for screening verdicts. Distinctive type: Bricolage
+   Grotesque (display), Hanken Grotesk (UI), JetBrains Mono (scores/IDs). */
+@theme {
+  --font-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Hanken Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  --color-canvas: oklch(0.165 0.008 165);
+  --color-panel: oklch(0.198 0.008 165);
+  --color-raised: oklch(0.236 0.009 165);
+  --color-line: oklch(0.3 0.01 165);
+  --color-line-strong: oklch(0.42 0.012 165);
+
+  --color-ink: oklch(0.965 0.005 150);
+  --color-ink-muted: oklch(0.74 0.01 150);
+  --color-ink-faint: oklch(0.55 0.01 150);
+
+  --color-accent: oklch(0.82 0.085 195);
+  --color-accent-dim: oklch(0.5 0.05 195);
+
+  --color-ok: oklch(0.76 0.145 150);
+  --color-warn: oklch(0.82 0.135 78);
+  --color-bad: oklch(0.66 0.205 25);
+  --color-pending: oklch(0.7 0.025 200);
+
+  --animate-rise: rise 0.46s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade: fade 0.4s ease both;
+  --animate-scan: scan 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes scan {
+  0% {
+    transform: translateY(-120%);
+  }
+  100% {
+    transform: translateY(2200%);
+  }
+}
+
+@layer base {
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-line);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100svh;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: 'cv05', 'ss03';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Ambient instrument glow, fixed behind everything. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(118% 78% at 10% -12%, oklch(0.27 0.03 195 / 0.4), transparent 58%),
+      radial-gradient(96% 62% at 102% -4%, oklch(0.24 0.02 150 / 0.28), transparent 54%);
+  }
+
+  ::selection {
+    background: oklch(0.82 0.085 195 / 0.28);
+    color: var(--color-ink);
+  }
+
+  ::-webkit-scrollbar {
+    width: 11px;
+    height: 11px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-line-strong);
+    border-radius: 99px;
+    border: 3px solid var(--color-canvas);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-ink-faint);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+}
+
+/* Hairline dot-grid texture, applied to the main work surface. */
+@utility grid-texture {
+  background-image: radial-gradient(oklch(0.4 0.012 165 / 0.4) 1px, transparent 1px);
+  background-size: 26px 26px;
+  background-position: -1px -1px;
+}
