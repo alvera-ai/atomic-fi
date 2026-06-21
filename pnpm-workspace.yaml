@@ -5,3 +5,4 @@ packages:
   - 'example-apps/atomic-fi-jdm-editor'
   - 'example-apps/onboarding-flow'
   - 'example-apps/lotus-embed'
+  - 'example-apps/payments-screening'
