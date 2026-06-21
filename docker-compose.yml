@@ -100,7 +100,9 @@ services:
       # evaluate requests directly to ZenRule from the browser.
       CORS_PERMISSIVE: "true"
 
+  # Optional (non-prod). Test-env mock for LLM calls; not used by screening.
   mock-external-deps:
+    profiles: ["dev"]
     image: mockoon/cli:9.3.0
     ports:
       - "8085:3000"
@@ -108,7 +110,11 @@ services:
       - ./priv/mockoon:/data:ro
     command: ["-d", "/data/atomic-fi.json", "-p", "3000"]
 
+  # Optional. AI sidebar for the JDM editor; not used by screening. Has its own
+  # `copilot` profile so it can be enabled on its own (`--profile copilot`), and
+  # is also part of the full `dev` set.
   copilot-runtime:
+    profiles: ["dev", "copilot"]
     # Built locally (vendored source); no `image:` tag so compose builds rather
     # than attempting a registry pull on a fresh machine.
     build:
@@ -122,7 +128,10 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  # Optional. Telemetry sink for copilot-runtime, so it shares the `copilot`
+  # profile (and the full `dev` set); not used by screening.
   copilot-telemetry:
+    profiles: ["dev", "copilot"]
     image: timberio/vector:0.55.0-alpine
     ports:
       - "8686:8686"
@@ -139,15 +148,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # No watchman edge here so the bundled Watchman can be skipped (--scale
-    # watchman=0) for external mode without breaking app startup; the app reaches
-    # Watchman at WATCHMAN_URL at request time, not boot.
+    # Only hard deps here, so profiled/optional services (watchman via --scale 0,
+    # mock-external-deps + copilot behind profiles) can be skipped without breaking
+    # app startup. Watchman is reached at WATCHMAN_URL at request time, not boot.
     depends_on:
       postgres:
         condition: service_healthy
       zenrule:
-        condition: service_started
-      mock-external-deps:
         condition: service_started
     ports:
       - "4100:4100"
