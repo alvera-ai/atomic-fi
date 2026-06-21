@@ -1,341 +1,253 @@
 # Getting Started
 
-This guide will help you set up your development environment and get the Payments Compliance Platform running.
+This guide will help you set up your development environment and get AtomicFi running locally.
+
+> **Just want it running?** `docker compose up` builds and starts the entire
+> stack (backend + all demo apps + backing services) at
+> http://localhost:4100 — no local Elixir/Node toolchain required. See
+> [INSTALLATION.md](../INSTALLATION.md). The rest of this guide covers the
+> **native** workflow for active development.
 
 ## Prerequisites
 
 ### Required Software
 
-- **Elixir**: 1.18.3+ (with Erlang/OTP 27.3.3+)
-- **PostgreSQL**: 15+
-- **Node.js**: 20+ (for assets)
-- **Git**: 2.0+
+- **Elixir**: 1.18.3-otp-27 / **Erlang**: 27.3.3 (see `.tool-versions`)
+- **PostgreSQL**: 17.2 — managed via Docker (see below; no local install needed)
+- **Docker**: for all backing services (Postgres, Watchman, ZenRule, Mockoon)
+- **pnpm**: for JS example apps — `corepack enable` or `brew install pnpm`
 
-### Installation
-
-#### Using asdf (Recommended)
+### Recommended: asdf for Elixir/Erlang
 
 ```bash
-# Install asdf plugins
 asdf plugin add elixir
 asdf plugin add erlang
-asdf plugin add nodejs
-asdf plugin add postgres
-
-# Install versions from .tool-versions
-asdf install
+asdf install  # reads .tool-versions automatically
 ```
 
-#### Manual Installation
+### Optional: AI features
 
-See official documentation:
-- Elixir: https://elixir-lang.org/install.html
-- PostgreSQL: https://www.postgresql.org/download/
-- Node.js: https://nodejs.org/
+- **Ollama** — local LLM for the JDM rule editor copilot and document parser
+  ```bash
+  brew install ollama && ollama serve
+  ollama pull llama3.2-vision:11b   # document parser (/api/parse)
+  ollama pull qwen2.5:7b            # JDM copilot (/api/copilotkit)
+  ```
+- **poppler** — PDF rasterization for the document parser
+  ```bash
+  brew install poppler   # macOS
+  ```
 
-## Project Setup
+---
 
-### 1. Clone or Use Template
+## Setup
 
-```bash
-# Use as GitHub template (recommended)
-# Click "Use this template" on GitHub
-
-# Or clone directly
-git clone https://github.com/alvera-ai/phoenix-template-server.git my-app
-cd my-app
-```
-
-### 2. Rename Project (Optional)
-
-If you want to rename from `AtomicFi` to your app name:
+### 1. Install dependencies
 
 ```bash
-# Install dependencies first
 mix deps.get
-
-# Rename project
-mix rename AtomicFi MyApp atomic_fi my_app
+pnpm install
 ```
 
-### 3. Configure Environment
+### 2. Configure environment (optional)
+
+Copy `.env.example` to `.env` and fill in your API key if you want cloud-model AI features. Without it, Ollama-backed defaults are used.
 
 ```bash
-# Copy example environment file
 cp .env.example .env
-
-# Edit .env with your settings
-vim .env
 ```
 
-**Required variables:**
+The `.env.example` contains:
 
 ```bash
-# Database
-DATABASE_URL=ecto://postgres:postgres@localhost/my_app_dev
-TEST_DATABASE_URL=ecto://postgres:postgres@localhost/my_app_test
+# Lotus SQL copilot
+LOTUS_AI_MODEL=google:gemini-2.5-flash
+LOTUS_AI_API_KEY=your-api-key-here
 
-# Phoenix
-SECRET_KEY_BASE=<generate with: mix phx.gen.secret>
-PHX_HOST=localhost
-PORT=4000
-
-# Optional: Default admin user for seeds
-TENANT_NAME=default-tenant
-ADMIN_EMAIL=admin@example.com
-ADMIN_PASSWORD=changeme123!
-
-# Optional: OAuth (if using)
-# OIDC_CLIENT_ID=your_client_id
-# OIDC_CLIENT_SECRET=your_client_secret
-# OIDC_ISSUER=https://your-keycloak.com/realms/your-realm
+# JDM rule editor copilot (overrides Ollama default)
+LLM_PROVIDER=google
+LLM_MODEL=gemini-2.5-flash
+GOOGLE_API_KEY=your-api-key-here
 ```
 
-### 4. Install Dependencies
+### 3. Start backing services
 
 ```bash
-# Fetch Elixir dependencies
-mix deps.get
-
-# Install Node.js dependencies for assets
-cd assets && npm install && cd ..
-
-# Or use the setup alias
-mix setup
+make run-backing-services
 ```
 
-This runs:
-- `mix deps.get`
-- `mix ecto.setup` (create DB, run migrations, seeds)
-- `mix assets.setup` (install Tailwind, esbuild)
-- `mix assets.build` (compile assets)
+This runs `docker compose -f local-dependencies.yaml up` for:
+- **Moov Watchman** (sanctions screening) on `:8084`
+- **ZenRule / gorules agent** (decision rules engine) on `:8090`
+- **Mockoon** (external API mock) on `:8085`
+- **CopilotKit runtime** (JDM editor AI sidecar) on `:4242`
+- **Vector** (CopilotKit telemetry sink) on `:8686`
 
-### 5. Database Setup
+> **Postgres** is *not* part of `local-dependencies.yaml`. The native flow
+> expects Postgres on `localhost:5432` (`config/dev.exs`). Run one locally, or
+> start just the bundled one with `docker compose up -d postgres` (from the
+> full-stack `docker-compose.yml`).
+
+### 4. Create the database and seed
 
 ```bash
-# Create database
-mix ecto.create
-
-# Run migrations
-mix ecto.migrate
-
-# Run seeds (creates default tenant + admin user)
-mix run priv/repo/seeds.exs
-
-# Or all at once
-mix ecto.setup
+mix ecto.setup   # creates DB, runs migrations
+make seed        # runs mix corpus.validate --reset (populates test corpus)
 ```
 
-### 6. Start the Server
+### 5. Start the server
 
 ```bash
-# Start Phoenix server
-mix phx.server
-
-# Or with IEx console
-iex -S mix phx.server
+make server
 ```
 
-Visit:
-- **App**: http://localhost:4000
-- **LiveDashboard**: http://localhost:4000/dev/dashboard (dev only)
-- **Storybook**: http://localhost:4000/ux-dev/storybook (dev only, requires auth)
-- **OpenAPI Spec**: http://localhost:4000/api/openapi
+This starts `iex --sname phoenix@localhost -S mix phx.server` and auto-loads `.env` if present.
 
-## Verify Installation
+**Visit:**
+- **Home / demos**: http://localhost:4100/
+- **API Docs (Scalar)**: http://localhost:4100/api/docs
+- **OpenAPI spec**: http://localhost:4100/api/openapi
 
-### Run Tests
+---
+
+## One-liner (first-time or full reset)
 
 ```bash
-# Run all tests
+make run
+```
+
+Equivalent to `make up` (backing services + DB setup + seed) followed by `make server`.
+
+---
+
+## Makefile reference
+
+| Command | What it does |
+|---|---|
+| `make run-backing-services` | `docker compose up` — all backing services |
+| `make stop-backing-services` | `docker compose down` |
+| `make up` | backing services + `mix ecto.setup` + seed |
+| `make down` | stop backing services |
+| `make server` | start Phoenix with a named IEx node |
+| `make console` | attach a remote IEx console to the running server |
+| `make run` | `make up` then `make server` (everything) |
+| `make seed` | re-seed corpus data (`mix corpus.validate --reset`) |
+| `make deps.logs` | follow Docker Compose logs |
+| `make deps.status` | show running Docker Compose services |
+
+---
+
+## Verify installation
+
+### Run tests
+
+```bash
 mix test
-
-# Run with coverage
-mix coveralls
-
-# Run specific test file
-mix test test/atomic_fi/accounts_test.exs
 ```
 
-### Run Quality Checks
+### Run quality checks
 
 ```bash
-# Run all quality checks
-mix quality
-
-# Or individually
 mix format --check-formatted
 mix credo --strict
-mix sobelow --config
 ```
 
-### Compile Assets
+### Verify Watchman (sanctions screening)
 
 ```bash
-# Build assets
-mix assets.build
-
-# Build for production
-mix assets.deploy
+curl -s "http://localhost:8084/v2/search?name=Nicolas+Maduro&type=person&limit=3"
 ```
 
-## Development Workflow
+---
 
-### Daily Development
+## Development workflow
+
+### Daily workflow
 
 ```bash
-# Start server with live reload
-mix phx.server
+make run-backing-services   # once per boot
+make server                 # start Phoenix
+make console                # attach IEx in another terminal
+```
 
-# In another terminal, watch tests
-mix test.watch  # (if you add fswatch)
+### Before committing
 
-# Format code before committing
+```bash
 mix format
-
-# Run quality checks
-mix quality
+mix credo --strict
+mix test
+git commit -S -m "feat: ..."   # GPG-signed, conventional commit
 ```
 
-### Database Changes
+See [CLAUDE.md](../CLAUDE.md) for the full pre-commit checklist.
+
+### Database changes
 
 ```bash
-# Generate migration
 mix ecto.gen.migration create_posts
-
-# Run migrations
 mix ecto.migrate
-
-# Rollback last migration
-mix ecto.rollback
-
-# Reset database (drops, creates, migrates, seeds)
-mix ecto.reset
+mix ecto.rollback     # undo last migration
+mix ecto.reset        # drop + create + migrate + seed
 ```
 
-### Code Generation
+### Generate OpenAPI spec
 
 ```bash
-# Generate context + schema
-mix alvera.gen.context Blog Post posts title:string content:text
-
-# Generate LiveView UI
-mix alvera.gen.live Blog Post posts --data_table
-
-# Generate REST API
-mix alvera.gen.api Blog Post posts
+mix openapi.spec.yaml --spec AtomicFiApi.ApiSpec
+# Committed snapshot lives at packages/sdk/spec/openapi.yaml
 ```
 
-See [Generators Guide](generators.md) for details.
+---
 
 ## Troubleshooting
 
-### Port Already in Use
+### Port already in use
 
 ```bash
-# Find process using port 4000
-lsof -i :4000
-
-# Kill process
+lsof -i :4100   # find the process
 kill -9 <PID>
 ```
 
-### Database Connection Errors
+### Database connection errors
 
 ```bash
-# Verify PostgreSQL is running
-psql -U postgres -c "SELECT version();"
-
+# Verify the Postgres container is healthy
+make deps.status
 # Check DATABASE_URL in config/dev.exs or .env
 ```
 
-### Asset Compilation Errors
+### Backing services not starting
 
 ```bash
-# Reinstall Node dependencies
-cd assets
-rm -rf node_modules package-lock.json
-npm install
-cd ..
-
-# Rebuild assets
-mix assets.build
+make deps.logs   # inspect Docker Compose output
 ```
 
-### Dependency Conflicts
+### Dependency conflicts
 
 ```bash
-# Clean and reinstall
 mix deps.clean --all
 mix deps.get
 mix deps.compile
 ```
 
+---
+
 ## IDE Setup
 
 ### VSCode
 
-Recommended extensions:
-- ElixirLS
-- Tailwind CSS IntelliSense
-- Phoenix Framework
+Recommended extensions: **ElixirLS**, **Tailwind CSS IntelliSense**
 
-### Claude Code
+### Claude Code (Tidewave MCP)
 
-Tidewave MCP is pre-configured in `.claude/settings.json`:
+Tidewave MCP is pre-configured in `.claude/settings.json`. Start the server with `make server` and Claude Code will connect automatically at `http://localhost:4100/tidewave/mcp`.
 
-```json
-{
-  "mcpServers": {
-    "tidewave": {
-      "transport": "sse",
-      "url": "http://localhost:4000/tidewave/mcp"
-    }
-  }
-}
-```
-
-Start the server with `mix phx.server` and Claude Code will automatically connect.
+---
 
 ## Next Steps
 
-- [Architecture Guide](architecture.md) - Understand the system design
-- [Multi-Tenancy Guide](multi-tenancy.md) - Learn about tenant scoping
-- [Generators Guide](generators.md) - Master code generation
-- [Testing Guide](testing.md) - Write effective tests
-
-## Common Tasks
-
-### Create New Context
-
-```bash
-mix alvera.gen.context Accounts User users email:string name:string
-```
-
-### Add LiveView UI
-
-```bash
-mix alvera.gen.live Accounts User users --data_table --route_root "/admin"
-```
-
-### Generate OpenAPI Spec
-
-```bash
-mix openapi.spec.yaml
-# View at http://localhost:4000/api/openapi
-```
-
-### Run All Checks (Pre-Commit)
-
-```bash
-mix format && mix quality && mix test
-```
-
-### Deploy with Docker
-
-```bash
-docker build -t my-app .
-docker run -p 4000:4000 my-app
-```
-
-See [Deployment Guide](deployment.md) for production setup.
+- [Architecture Guide](architecture.md) — system design and domain model
+- [Multi-Tenancy Guide](multi-tenancy.md) — RLS and tenant scoping
+- [Generators Guide](generators.md) — code generation
+- [Testing Guide](testing.md) — writing effective tests
+- [Use Cases](use-cases.md) — compliance scenario catalog

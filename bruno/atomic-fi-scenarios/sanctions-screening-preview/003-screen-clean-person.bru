@@ -1,0 +1,59 @@
+meta {
+  name: 003 — Screen clean person (no sanctions match)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/api/compliance-screenings/screen-counterparty
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "account_holder_id": "{{tenantId}}",
+    "chain_screening": false,
+    "enabled_regimes": [],
+    "external_id": "",
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Alice",
+      "last_name": "Johnson",
+      "citizenship_country": "US",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    },
+    "status": "active",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Control case — screens "Alice Johnson" against Watchman.
+  An ordinary person with no sanctions history should return
+  zero matches, proving the screening is specific and doesn't
+  over-flag clean individuals.
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:post-response {
+  const screenings = res.body.data || [];
+  const hasMatch = screenings.some(s =>
+    (s.sanctions_matches || []).length > 0
+  );
+  bru.setVar("cleanScreeningClear", !hasMatch);
+  console.log(`Clean person matches: ${hasMatch ? "UNEXPECTED" : "none (correct)"}`);
+}

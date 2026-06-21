@@ -281,12 +281,9 @@ run: up server
 down: stop-backing-services
 
 seed:
-	@echo "🌱 Seeding atomic-fi from compliance corpus..."
-	@if [ ! -d priv/corpus/out ] || [ -z "$$(ls -A priv/corpus/out 2>/dev/null)" ]; then \
-		echo "  → no corpus found, generating default (--shards 100 --pass-rate 90)"; \
-		mix alvera.gen.compliance_corpus --shards 100 --pass-rate 90; \
-	fi
-	@mix bench.seed
+	@echo "🌱 Seeding corpus data..."
+	@mix corpus.validate --reset
+	@echo "✓ Corpus seeded."
 
 test-integration:
 	@echo "🧪 Running vitest integration suite..."

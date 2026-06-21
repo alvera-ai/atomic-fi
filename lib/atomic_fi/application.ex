@@ -52,7 +52,14 @@ defmodule AtomicFi.Application do
     # See https://hexdocs.pm/elixir/Supervisor.html
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: AtomicFi.Supervisor]
-    Supervisor.start_link(children, opts)
+    result = Supervisor.start_link(children, opts)
+
+    # Warm BlocklistCache for all tenants on boot — Repo is now up.
+    # Quantum refreshes hourly after this, but the first boot needs
+    # an immediate warm so screening doesn't crash on the first request.
+    Task.start(fn -> AtomicFi.BlocklistContext.BlocklistCache.refresh_all_caches() end)
+
+    result
   end
 
   # Tell Phoenix to update the endpoint configuration

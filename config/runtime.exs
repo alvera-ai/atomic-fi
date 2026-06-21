@@ -61,7 +61,19 @@ if config_env() == :prod do
     System.get_env("ZEN_RULE_URL") ||
       raise "environment variable ZEN_RULE_URL is missing."
 
-  config :atomic_fi, AtomicFi.RuleEngine.ZenRule, base_url: zen_rule_url
+  # NOTE: the engine reads `Application.fetch_env!(:atomic_fi, RuleEngine)`
+  # (see lib/atomic_fi/rule_engine/default.ex) — the key is AtomicFi.RuleEngine,
+  # NOT AtomicFi.RuleEngine.ZenRule. Matches config/config.exs:139 + dev.exs.
+  config :atomic_fi, AtomicFi.RuleEngine, base_url: zen_rule_url
+
+  # Lotus SQL copilot — the embedded dashboard's natural-language SQL helper.
+  # In dev this is wired by config/dev.secret.exs; prod reads the same env vars
+  # (LOTUS_AI_MODEL / LOTUS_AI_API_KEY) so the keys in .env take effect under
+  # `docker compose up`. Empty api_key => disabled-but-harmless default model.
+  config :lotus, :ai,
+    enabled: true,
+    model: System.get_env("LOTUS_AI_MODEL", "google:gemini-2.5-flash"),
+    api_key: System.get_env("LOTUS_AI_API_KEY", "")
 
   # Cloak encryption key for sensitive fields (API keys, tokens, etc.)
   cloak_key = System.get_env("CLOAK_KEY") || raise("CLOAK_KEY is missing")
@@ -134,6 +146,16 @@ if config_env() == :prod do
     pool_size: String.to_integer(System.get_env("POOL_SIZE") || "10"),
     socket_options: maybe_ipv6
 
+  # LotusRepo — same database as AtomicFi.Repo but unscoped (no RLS); Lotus
+  # needs raw schema access for ad-hoc SQL. Mirrors config/dev.exs, including
+  # the search_path after_connect (atomic_fi_corpus is optional — Postgres
+  # ignores absent schemas in search_path).
+  config :atomic_fi, AtomicFi.LotusRepo,
+    url: database_url,
+    pool_size: String.to_integer(System.get_env("LOTUS_POOL_SIZE") || "5"),
+    socket_options: maybe_ipv6,
+    after_connect: {Postgrex, :query!, ["SET search_path TO public, atomic_fi_corpus", []]}
+
   # The secret key base is used to sign/encrypt cookies and other secrets.
   # A default value is used in config/dev.exs and config/test.exs but you
   # want to use a different value for prod and you most likely don't want
@@ -149,8 +171,14 @@ if config_env() == :prod do
   host = System.get_env("PHX_HOST") || "example.com"
   port = String.to_integer(System.get_env("PORT") || "4000")
 
+  # Public URL scheme/port for generated links. Defaults to https:443 (real
+  # prod fronted by TLS); a local single-container demo overrides these to
+  # http and its published port so links/redirects resolve on localhost.
+  url_scheme = System.get_env("URL_SCHEME") || "https"
+  url_port = String.to_integer(System.get_env("URL_PORT") || "443")
+
   config :atomic_fi, AtomicFiWeb.Endpoint,
-    url: [host: host, port: 443, scheme: "https"],
+    url: [host: host, port: url_port, scheme: url_scheme],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.

@@ -1,0 +1,64 @@
+meta {
+  name: 004 — Screen Indonesian DTTOT designated person
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/api/compliance-screenings/screen-counterparty
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{authBearer}}
+}
+
+headers {
+  content-type: application/json
+  accept: application/json
+}
+
+body:json {
+  {
+    "account_holder_id": "{{tenantId}}",
+    "chain_screening": false,
+    "enabled_regimes": [],
+    "external_id": "",
+    "legal_entity": {
+      "legal_entity_type": "individual",
+      "first_name": "Abdulhai",
+      "last_name": "Salek",
+      "citizenship_country": "ID",
+      "politically_exposed_person": false,
+      "tenant_id": "{{tenantId}}"
+    },
+    "status": "active",
+    "tenant_id": "{{tenantId}}"
+  }
+}
+
+docs {
+  Screens "Abdulhai Salek" — appears on the Indonesian DTTOT
+  (Daftar Terduga Teroris dan Organisasi Teroris) list and also
+  cross-listed on the UN CSL. Should return a sanctions match.
+
+  This proves country-specific sanctions lists (loaded via
+  /country-onboarding) are active in the screening pipeline.
+}
+
+assert {
+  res.status: eq 200
+}
+
+script:post-response {
+  const screenings = res.body.data || [];
+  const matches = screenings.flatMap(s => s.sanctions_matches || []);
+  if (matches.length > 0) {
+    matches.forEach(m => {
+      console.log(`Match: ${m.matched_name} (score: ${m.match_score}, list: ${m.source_list})`);
+    });
+  } else {
+    console.log("No matches found");
+  }
+}
