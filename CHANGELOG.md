@@ -1,5 +1,42 @@
 # Changelog
 
+## [1.8.0](https://github.com/alvera-ai/atomic-fi/compare/v1.7.0...v1.8.0) (2026-06-21)
+
+
+### Features
+
+* add .env support for dev secrets ([d1830c4](https://github.com/alvera-ai/atomic-fi/commit/d1830c44712786b4f8ac4e7aa522cb2be6ad4b29))
+* add .env support for dev secrets ([1bc391b](https://github.com/alvera-ai/atomic-fi/commit/1bc391bde49d12716b7a72a8011cf332b9a60c4b))
+* add docker-compose.yml for full local stack ([1417974](https://github.com/alvera-ai/atomic-fi/commit/14179748bff0b9ed3904f0b06bd14656fd262555))
+* add docker-compose.yml for full local stack + fix copilot-runtime ([2b4f22e](https://github.com/alvera-ai/atomic-fi/commit/2b4f22e6cb1d04ccf17ebee87ecbe10fb0b276f7))
+* add GitHub Codespaces devcontainer ([aa29561](https://github.com/alvera-ai/atomic-fi/commit/aa2956156103757fdc51d6e284ffcb8d8fc72a91))
+* **config:** wire Lotus AI from env in prod so .env keys work in Docker ([6679b02](https://github.com/alvera-ai/atomic-fi/commit/6679b02caaa5f3e2be72600652484551bbfbddc6))
+* copilot-runtime reads .env for LLM provider override ([b058184](https://github.com/alvera-ai/atomic-fi/commit/b058184fae2a6293c57236a73823068bbaa59048))
+* docker-compose + fix copilot-runtime (Bun → Node) ([71d1611](https://github.com/alvera-ai/atomic-fi/commit/71d16119a932f79c0fe677c68b941cccff29a99d))
+* **docker:** single-command full stack via `docker compose up` ([fc148e2](https://github.com/alvera-ai/atomic-fi/commit/fc148e24ab46d8d704a8f703a8c9f303abeb0c13))
+* **docker:** surface ROOT_API_KEY + admin creds as overridable .env defaults ([6421073](https://github.com/alvera-ai/atomic-fi/commit/6421073954a87f7af0ad8828f7122ca2d8bd9110))
+* **gh-53:** add sanctions screening block onboarding rule ([9861dd3](https://github.com/alvera-ai/atomic-fi/commit/9861dd36f57ecdf969a8e271abe727dfd062caeb))
+* **gh-53:** add sanctions screening preview Bruno collection + onboarding rule ([618ee08](https://github.com/alvera-ai/atomic-fi/commit/618ee08a86867c212d175909b30fdfacb5361a4f))
+* **gh-53:** add sanctions screening preview Bruno collection + onboarding rule ([d35a77f](https://github.com/alvera-ai/atomic-fi/commit/d35a77f44e785d55a894a4c991e3babcff94ebb3))
+* make seed runs corpus.validate to populate DB ([0d6f91c](https://github.com/alvera-ai/atomic-fi/commit/0d6f91ca9c032cd93b33360ac80736aa40cb1b51))
+
+
+### Bug Fixes
+
+* **config:** point prod RuleEngine base_url at the key the engine reads ([edeb82e](https://github.com/alvera-ai/atomic-fi/commit/edeb82e6de35fafb80d8c2bec1289367777416fd))
+* devcontainer uses image + features instead of custom Dockerfile ([16d2502](https://github.com/alvera-ai/atomic-fi/commit/16d25023b25051fb58aed14220fb934f13058fa1))
+* **docker:** build zenrule/copilot-runtime instead of pulling on fresh `up` ([847e40f](https://github.com/alvera-ai/atomic-fi/commit/847e40f9257c04176db9d9c9a030bdcd905275a1))
+* **docker:** generate the TS SDK from the committed spec during the build ([940c23f](https://github.com/alvera-ai/atomic-fi/commit/940c23f4989bbba51de01e195d7244b9ff1d5755))
+* **gh-53:** lotus iframe min 720px, warm BlocklistCache on boot, remove dead seed tasks ([5c3a628](https://github.com/alvera-ai/atomic-fi/commit/5c3a6287865443de4d330b9c071075d3452153ae))
+* lotus embed takes full viewport height and width ([c27c741](https://github.com/alvera-ai/atomic-fi/commit/c27c74197807486765e98b9fea00848ab9c00bcf))
+* remove dead seed tasks (alvera.gen.compliance_corpus, bench.seed) ([aa1683e](https://github.com/alvera-ai/atomic-fi/commit/aa1683e70f206adc2f0ff5eb1bd44d1c08ba54d9))
+* warm BlocklistCache on application startup ([1a9bab3](https://github.com/alvera-ai/atomic-fi/commit/1a9bab3c27cd998076fec116c7f8dcbad97d7430))
+
+
+### Reverts
+
+* remove sanctions_screening_block onboarding rule ([fe0dbba](https://github.com/alvera-ai/atomic-fi/commit/fe0dbba97723406c9ca7c50d7b8ec9aacd40ba05))
+
 ## [1.7.0](https://github.com/alvera-ai/atomic-fi/compare/v1.6.0...v1.7.0) (2026-05-31)
 
 
