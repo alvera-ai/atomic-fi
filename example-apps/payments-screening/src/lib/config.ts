@@ -6,19 +6,32 @@ export interface ApiConfig {
   apiKey: string
 }
 
-export const DEFAULT_CONFIG: ApiConfig = { baseUrl: '', apiKey: 'alvera_root_api_key_dev' }
 export const STORAGE_KEY = 'payments-screening.config'
+const DEFAULT_API_KEY = 'alvera_root_api_key_dev'
+
+/** This app's own origin. Requests to it are proxied to the API in dev. */
+function originBaseUrl(): string {
+  return typeof window === 'undefined' ? '' : window.location.origin
+}
 
 export function loadConfig(): ApiConfig {
+  const fallback: ApiConfig = { baseUrl: originBaseUrl(), apiKey: DEFAULT_API_KEY }
   // Persisted config is untrusted input: a corrupt blob falls back to defaults
-  // rather than wedging the whole app on boot.
+  // rather than wedging the whole app on boot. An empty stored base URL also
+  // falls back to the origin so the field is always populated.
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw) return { ...DEFAULT_CONFIG, ...(JSON.parse(raw) as Partial<ApiConfig>) }
+    if (raw) {
+      const stored = JSON.parse(raw) as Partial<ApiConfig>
+      return {
+        baseUrl: stored.baseUrl?.trim() ? stored.baseUrl : fallback.baseUrl,
+        apiKey: stored.apiKey ?? fallback.apiKey,
+      }
+    }
   } catch {
-    /* corrupt storage — use defaults */
+    /* corrupt storage — use fallback */
   }
-  return DEFAULT_CONFIG
+  return fallback
 }
 
 export type TenantState = 'resolving' | 'ready' | 'error'

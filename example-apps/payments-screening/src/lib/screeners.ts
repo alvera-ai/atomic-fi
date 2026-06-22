@@ -140,30 +140,32 @@ export interface Preset<F> {
   form: F
 }
 
+// Shared reference parties: a sanctioned and a clean example of each identity
+// type, reused across the entity screeners so every combination has a preset.
 const putin = newParty({ firstName: 'Vladimir', lastName: 'Putin', dob: '1952-10-07', country: 'RU', pep: true })
 const federer = newParty({ firstName: 'Roger', lastName: 'Federer', dob: '1981-08-08', country: 'CH' })
+const bankRossiya = newParty({ kind: 'business', businessName: 'Bank Rossiya', country: 'RU' })
+const cleanCo = newParty({ kind: 'business', businessName: 'Northwind Trading', country: 'US' })
 
 export const ACCOUNT_HOLDER_PRESETS: Preset<AccountHolderForm>[] = [
-  { name: 'Sanctions hit', tone: 'bad', form: { party: putin, accountHolderType: 'individual', riskLevel: 'high' } },
-  { name: 'Clean pass', tone: 'ok', form: { party: federer, accountHolderType: 'individual', riskLevel: 'low' } },
-]
-
-export const COUNTERPARTY_PRESETS: Preset<CounterpartyForm>[] = [
-  {
-    name: 'Sanctioned entity',
-    tone: 'bad',
-    form: { party: newParty({ kind: 'business', businessName: 'Bank Rossiya', country: 'RU' }), status: 'active', accountHolderId: PLACEHOLDER_AH_ID },
-  },
-  {
-    name: 'Clean vendor',
-    tone: 'ok',
-    form: { party: newParty({ kind: 'business', businessName: 'Acme Logistics', country: 'US' }), status: 'active', accountHolderId: PLACEHOLDER_AH_ID },
-  },
+  { name: 'Sanctioned person', tone: 'bad', form: { party: putin, accountHolderType: 'individual', riskLevel: 'high' } },
+  { name: 'Clean person', tone: 'ok', form: { party: federer, accountHolderType: 'individual', riskLevel: 'low' } },
+  { name: 'Sanctioned business', tone: 'bad', form: { party: bankRossiya, accountHolderType: 'business', riskLevel: 'high' } },
+  { name: 'Clean business', tone: 'ok', form: { party: cleanCo, accountHolderType: 'business', riskLevel: 'low' } },
 ]
 
 export const BENEFICIAL_OWNER_PRESETS: Preset<BeneficialOwnerForm>[] = [
-  { name: 'Sanctioned UBO', tone: 'bad', form: { party: putin, ownershipPct: '30', controlType: 'shareholder', accountHolderId: PLACEHOLDER_AH_ID } },
-  { name: 'Clean UBO', tone: 'ok', form: { party: federer, ownershipPct: '25', controlType: 'director', accountHolderId: PLACEHOLDER_AH_ID } },
+  { name: 'Sanctioned person', tone: 'bad', form: { party: putin, ownershipPct: '30', controlType: 'shareholder', accountHolderId: PLACEHOLDER_AH_ID } },
+  { name: 'Clean person', tone: 'ok', form: { party: federer, ownershipPct: '25', controlType: 'director', accountHolderId: PLACEHOLDER_AH_ID } },
+  { name: 'Sanctioned business', tone: 'bad', form: { party: bankRossiya, ownershipPct: '51', controlType: 'shareholder', accountHolderId: PLACEHOLDER_AH_ID } },
+  { name: 'Clean business', tone: 'ok', form: { party: cleanCo, ownershipPct: '40', controlType: 'shareholder', accountHolderId: PLACEHOLDER_AH_ID } },
+]
+
+export const COUNTERPARTY_PRESETS: Preset<CounterpartyForm>[] = [
+  { name: 'Sanctioned person', tone: 'bad', form: { party: putin, status: 'active', accountHolderId: PLACEHOLDER_AH_ID } },
+  { name: 'Clean person', tone: 'ok', form: { party: federer, status: 'active', accountHolderId: PLACEHOLDER_AH_ID } },
+  { name: 'Sanctioned business', tone: 'bad', form: { party: bankRossiya, status: 'active', accountHolderId: PLACEHOLDER_AH_ID } },
+  { name: 'Clean business', tone: 'ok', form: { party: cleanCo, status: 'active', accountHolderId: PLACEHOLDER_AH_ID } },
 ]
 
 export const PAYMENT_ACCOUNT_PRESETS: Preset<PaymentAccountForm>[] = [
@@ -173,9 +175,14 @@ export const PAYMENT_ACCOUNT_PRESETS: Preset<PaymentAccountForm>[] = [
     form: { accountType: 'crypto_wallet', walletAddress: '0x742d35cc6634c0532925a3b844bc454e4438f44e', walletChain: 'ETH', currency: 'USD', country: '' },
   },
   {
-    name: 'Bank account (no on-chain screen)',
+    name: 'Bank account',
     tone: 'pending',
     form: { accountType: 'bank_account', walletAddress: '', walletChain: '', currency: 'USD', country: 'US' },
+  },
+  {
+    name: 'Card',
+    tone: 'pending',
+    form: { accountType: 'card', walletAddress: '', walletChain: '', currency: 'USD', country: 'US' },
   },
 ]
 

@@ -48,12 +48,12 @@ export function SettingsPanel() {
       <div className="flex flex-col gap-5 rounded-xl border border-line bg-panel/40 p-6">
         <Field
           label="Base URL"
-          hint="Blank routes through the dev proxy to the API. Set an absolute URL to call a deployment directly (requires CORS)."
+          hint="Defaults to this app's origin (proxied to the API). Change it to call a different deployment (that origin must allow CORS)."
         >
           <TextInput
             value={baseUrl}
             onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder="https://api.example.com  (blank = proxy → localhost:4100)"
+            placeholder="https://api.example.com"
             className="font-mono text-xs"
             spellCheck={false}
           />
@@ -105,9 +105,7 @@ export function SettingsPanel() {
       </div>
 
       <p className="text-xs text-ink-faint">
-        Local dev defaults: key <span className="font-mono text-ink-muted">alvera_root_api_key_dev</span>, proxy target
-        <span className="font-mono text-ink-muted"> http://localhost:4100</span> (override with{' '}
-        <span className="font-mono text-ink-muted">VITE_API_PROXY</span>).
+        Local dev default key: <span className="font-mono text-ink-muted">alvera_root_api_key_dev</span>.
       </p>
     </div>
   )

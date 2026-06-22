@@ -1,7 +1,6 @@
 import { Building2, ScanSearch, Settings, UserRound, Users, Wallet, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/cn'
 import { SCREENER_META, type ScreenerId } from '@/lib/screeners'
-import { useConfig } from '@/lib/config'
 
 export type View = ScreenerId | 'settings'
 
@@ -32,9 +31,6 @@ function NavItem({ icon: Icon, label, active, onClick }: { icon: LucideIcon; lab
 }
 
 export function Sidebar({ view, onSelect }: { view: View; onSelect: (v: View) => void }) {
-  const { config } = useConfig()
-  const target = config.baseUrl.trim() || 'localhost:4100 · proxy'
-
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-line bg-canvas/80">
       <div className="flex items-center gap-2.5 px-5 py-5">
@@ -56,9 +52,6 @@ export function Sidebar({ view, onSelect }: { view: View; onSelect: (v: View) =>
 
       <div className="px-3 pb-4">
         <NavItem icon={Settings} label="Settings" active={view === 'settings'} onClick={() => onSelect('settings')} />
-        <div className="mt-3 truncate px-3 font-mono text-[0.7rem] text-ink-faint" title={target}>
-          → {target}
-        </div>
       </div>
     </aside>
   )
