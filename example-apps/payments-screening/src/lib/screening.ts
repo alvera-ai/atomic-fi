@@ -9,28 +9,32 @@ export function rowTone(r: ComplianceScreening): Tone {
   const status = lower(r.screening_status)
   const sanctions = lower(r.sanctions_screening_status)
   const matches = typeof r.match_count === 'number' ? r.match_count : 0
+  const escalation = typeof r.escalation_level === 'number' ? r.escalation_level : 0
 
+  // A confirmed hit blocks. (screening_status is "pending" on every preview —
+  // it is the un-finalized default, not a signal — so it is NOT used here.)
   if (
     sanctions === 'match' ||
     sanctions === 'failed' ||
     matches > 0 ||
-    ['flagged', 'hit', 'failed', 'rejected', 'blocked'].includes(status)
+    ['flagged', 'hit', 'rejected', 'blocked'].includes(status)
   ) {
     return 'bad'
   }
+  // A real review signal: PEP, manual review, AML control, geo risk, escalation,
+  // or sanctions explicitly left pending.
   if (
     r.manual_review_required === true ||
     r.pep_indicator === true ||
     r.aml_control_flag === true ||
-    sanctions === 'pending' ||
-    ['pending', 'in_progress', 'review', 'escalated'].includes(status)
+    r.aml_geographic_risk_flag === true ||
+    escalation > 0 ||
+    sanctions === 'pending'
   ) {
     return 'warn'
   }
-  if (sanctions === 'cleared' || ['cleared', 'clear', 'passed', 'completed', 'approved'].includes(status)) {
-    return 'ok'
-  }
-  return 'pending'
+  // No hit, no flag: cleared.
+  return 'ok'
 }
 
 export interface Verdict {

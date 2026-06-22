@@ -14,25 +14,16 @@ const inputBase =
   'focus:border-accent/70 focus:bg-panel focus-visible:outline-none'
 
 /* ── Field wrapper ─────────────────────────────────────────────────────── */
-export function Field({
-  label,
-  hint,
-  htmlFor,
-  children,
-}: {
-  label: string
-  hint?: string
-  htmlFor?: string
-  children: ReactNode
-}) {
+// A plain container, NOT a <label>: wrapping grouped controls (segmented,
+// toggle, select) in a <label> makes a click on empty space activate the first
+// control inside it.
+export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
-    <label htmlFor={htmlFor} className="flex flex-col gap-1.5">
-      <span className="text-[0.7rem] font-medium uppercase tracking-[0.08em] text-ink-faint">
-        {label}
-      </span>
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[0.7rem] font-medium uppercase tracking-[0.08em] text-ink-faint">{label}</span>
       {children}
       {hint ? <span className="text-xs text-ink-faint">{hint}</span> : null}
-    </label>
+    </div>
   )
 }
 
@@ -108,7 +99,7 @@ export function Segmented({
   options: Option[]
 }) {
   return (
-    <div className="inline-flex rounded-md border border-line bg-panel/60 p-0.5">
+    <div className="inline-flex w-fit self-start rounded-md border border-line bg-panel/60 p-0.5">
       {options.map((opt) => {
         const active = opt.value === value
         return (
