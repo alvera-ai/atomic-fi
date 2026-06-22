@@ -269,5 +269,24 @@ defmodule AtomicFi.ScreeningEngineTest do
       assert result.screened_entity_type == :crypto_address
       assert result.screening_status == :pending
     end
+
+    test "sanctioned crypto wallet (OFAC Lazarus) yields a match", %{session: session} do
+      # Watchman indexes this OFAC SDN wallet, but only matches the empty
+      # currency-prefix query form (":address"); a bare address returns nothing.
+      # Guards the cryptoAddress param format in screen_crypto_address/4.
+      pa = %PaymentAccount{
+        account_type: :crypto_wallet,
+        wallet_address: "0x098B716B8Aaf21512996dC57EB0615e2383E2f96",
+        wallet_chain: "ETH",
+        tenant_id: session.tenant_id
+      }
+
+      assert {:ok, %ComplianceScreening{} = result} =
+               ScreeningEngine.screen_payment_account(session, pa)
+
+      assert result.screened_entity_type == :crypto_address
+      assert result.match_count > 0
+      assert Enum.any?(result.sanctions_matches, fn m -> is_binary(m.source_list) end)
+    end
   end
 end

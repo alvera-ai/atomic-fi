@@ -222,7 +222,11 @@ defmodule AtomicFi.ScreeningEngine.Default do
     # name=<chain> only adds noise (wallet entities are named after the address), and
     # filtering on chain (currency == chain) would drop every hit. Re-introduce chain
     # precision once zavod/OpenSanctions exports currency.
-    params = [cryptoAddress: wallet_address, minMatch: 0.7]
+    # Watchman parses cryptoAddress as "CURRENCY:address" and a bare value (no
+    # colon) fails the split and matches nothing. The corpus indexes these
+    # wallets with empty currency, so query with an empty currency prefix —
+    # ":address" — which matches regardless of the indexed currency.
+    params = [cryptoAddress: ":" <> wallet_address, minMatch: 0.7]
 
     case Client.v2_search_get(params) do
       {:ok, %{entities: entities}} ->
@@ -476,6 +480,9 @@ defmodule AtomicFi.ScreeningEngine.Default do
 
   # Raw max match score scaled to a 0..100 Decimal — a fact, not a verdict.
   defp score_to_decimal(nil), do: nil
+  # Exact matches (e.g. a cryptoAddress hit) come back as the integer 1, not 1.0;
+  # Decimal.from_float/1 only accepts floats, so handle integers separately.
+  defp score_to_decimal(int) when is_integer(int), do: Decimal.new(int * 100)
   defp score_to_decimal(float) when is_float(float), do: Decimal.from_float(float * 100)
 
   defp to_sanctions_match_struct(attrs, list_info) do
