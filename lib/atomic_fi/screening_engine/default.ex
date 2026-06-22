@@ -215,16 +215,20 @@ defmodule AtomicFi.ScreeningEngine.Default do
 
   defp screen_pa(_session, %PaymentAccount{}), do: {:ok, no_screen_pa()}
 
-  defp screen_crypto_address(wallet_address, wallet_chain, suppressed_source_ids, list_info) do
-    params =
-      [cryptoAddress: wallet_address, minMatch: 0.7]
-      |> maybe_add(:name, wallet_chain)
+  defp screen_crypto_address(wallet_address, _wallet_chain, suppressed_source_ids, list_info) do
+    # Interim: screen on the wallet address alone, ignoring wallet_chain. The
+    # OpenSanctions corpus (its Senzing export) carries a wallet's publicKey but not
+    # its chain/currency, so the indexed CryptoAddress.currency is empty. Sending
+    # name=<chain> only adds noise (wallet entities are named after the address), and
+    # filtering on chain (currency == chain) would drop every hit. Re-introduce chain
+    # precision once zavod/OpenSanctions exports currency.
+    params = [cryptoAddress: wallet_address, minMatch: 0.7]
 
     case Client.v2_search_get(params) do
       {:ok, %{entities: entities}} ->
         all_match_attrs =
           (entities || [])
-          |> filter_crypto_entities(wallet_address, wallet_chain)
+          |> filter_crypto_entities(wallet_address, nil)
           |> build_sanctions_match_attrs(suppressed_source_ids)
 
         active = Enum.reject(all_match_attrs, & &1.suppressed)
