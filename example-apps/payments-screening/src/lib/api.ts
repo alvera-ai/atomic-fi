@@ -61,7 +61,7 @@ export async function screen(
   }
 
   const raw = await res.text()
-  let json: unknown = null
+  let json: unknown
   try {
     json = raw ? JSON.parse(raw) : null
   } catch {
