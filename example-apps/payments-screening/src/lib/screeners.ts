@@ -67,6 +67,10 @@ export interface PaymentAccountForm {
   accountType: string
   walletAddress: string
   walletChain: string
+  bankName: string
+  accountNumber: string
+  routingNumber: string
+  cardPan: string
   currency: string
   country: string
 }
@@ -99,6 +103,10 @@ export const buildPaymentAccount = (f: PaymentAccountForm, tenantId: string | nu
   account_holder_id: PLACEHOLDER_AH_ID,
   wallet_address: blank(f.walletAddress),
   wallet_chain: blank(f.walletChain),
+  bank_name: blank(f.bankName),
+  account_number: blank(f.accountNumber),
+  routing_number: blank(f.routingNumber),
+  card_pan: blank(f.cardPan),
   currency: blank(f.currency),
   country: blank(f.country),
 })
@@ -168,21 +176,23 @@ export const COUNTERPARTY_PRESETS: Preset<CounterpartyForm>[] = [
   { name: 'Clean business', tone: 'ok', form: { party: cleanCo, status: 'active', accountHolderId: PLACEHOLDER_AH_ID } },
 ]
 
+const emptyRails = { walletAddress: '', walletChain: '', bankName: '', accountNumber: '', routingNumber: '', cardPan: '' }
+
 export const PAYMENT_ACCOUNT_PRESETS: Preset<PaymentAccountForm>[] = [
   {
     name: 'Crypto wallet',
     tone: 'ok',
-    form: { accountType: 'crypto_wallet', walletAddress: '0x742d35cc6634c0532925a3b844bc454e4438f44e', walletChain: 'ETH', currency: 'USD', country: '' },
+    form: { ...emptyRails, accountType: 'crypto_wallet', walletAddress: '0x742d35cc6634c0532925a3b844bc454e4438f44e', walletChain: 'ETH', currency: 'USD', country: '' },
   },
   {
     name: 'Bank account',
     tone: 'pending',
-    form: { accountType: 'bank_account', walletAddress: '', walletChain: '', currency: 'USD', country: 'US' },
+    form: { ...emptyRails, accountType: 'bank_account', bankName: 'First National Bank', accountNumber: '000123456789', routingNumber: '021000021', currency: 'USD', country: 'US' },
   },
   {
     name: 'Card',
     tone: 'pending',
-    form: { accountType: 'card', walletAddress: '', walletChain: '', currency: 'USD', country: 'US' },
+    form: { ...emptyRails, accountType: 'card', cardPan: '4111111111111111', currency: 'USD', country: 'US' },
   },
 ]
 

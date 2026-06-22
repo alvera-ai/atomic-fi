@@ -240,6 +240,8 @@ export function PaymentAccountForm({ onSubmit, busy }: FormProps) {
   const [f, setF] = useState<PaymentAccountForm>(() => structuredClone(PAYMENT_ACCOUNT_PRESETS[0].form))
   const payload = buildPaymentAccount(f, tenantId)
   const isCrypto = f.accountType === 'crypto_wallet' || f.accountType === 'wallet'
+  const isBank = f.accountType === 'bank_account'
+  const isCard = f.accountType === 'card'
   return (
     <FormLayout presets={PAYMENT_ACCOUNT_PRESETS} onApply={setF} payload={payload} busy={busy} blockedReason={blockedReason} onSubmit={() => onSubmit(payload)}>
       <Field label="Account type">
@@ -248,23 +250,44 @@ export function PaymentAccountForm({ onSubmit, busy }: FormProps) {
       <Field label="Currency">
         <TextInput list="currency-codes" value={f.currency} onChange={(e) => setF({ ...f, currency: e.target.value.toUpperCase() })} placeholder="USD" />
       </Field>
-      <div className="sm:col-span-2">
-        <Field
-          label="Wallet address"
-          hint={isCrypto ? 'On-chain OFAC SDN address screen' : 'No on-chain screen for this rail — returns pending'}
-        >
-          <TextInput
-            value={f.walletAddress}
-            onChange={(e) => setF({ ...f, walletAddress: e.target.value })}
-            placeholder="0x…"
-            className="font-mono text-xs"
-            disabled={!isCrypto}
-          />
-        </Field>
-      </div>
-      <Field label="Wallet chain">
-        <TextInput list="chain-codes" value={f.walletChain} onChange={(e) => setF({ ...f, walletChain: e.target.value.toUpperCase() })} placeholder="ETH" disabled={!isCrypto} />
-      </Field>
+
+      {isCrypto ? (
+        <>
+          <div className="sm:col-span-2">
+            <Field label="Wallet address" hint="On-chain OFAC SDN address screen">
+              <TextInput value={f.walletAddress} onChange={(e) => setF({ ...f, walletAddress: e.target.value })} placeholder="0x…" className="font-mono text-xs" />
+            </Field>
+          </div>
+          <Field label="Wallet chain">
+            <TextInput list="chain-codes" value={f.walletChain} onChange={(e) => setF({ ...f, walletChain: e.target.value.toUpperCase() })} placeholder="ETH" />
+          </Field>
+        </>
+      ) : null}
+
+      {isBank ? (
+        <>
+          <div className="sm:col-span-2">
+            <Field label="Bank name" hint="No on-chain screen for this rail — returns pending">
+              <TextInput value={f.bankName} onChange={(e) => setF({ ...f, bankName: e.target.value })} placeholder="First National Bank" />
+            </Field>
+          </div>
+          <Field label="Account number">
+            <TextInput value={f.accountNumber} onChange={(e) => setF({ ...f, accountNumber: e.target.value })} placeholder="000123456789" className="font-mono text-xs" />
+          </Field>
+          <Field label="Routing number">
+            <TextInput value={f.routingNumber} onChange={(e) => setF({ ...f, routingNumber: e.target.value })} placeholder="021000021" className="font-mono text-xs" />
+          </Field>
+        </>
+      ) : null}
+
+      {isCard ? (
+        <div className="sm:col-span-2">
+          <Field label="Card number" hint="No on-chain screen for this rail — returns pending">
+            <TextInput value={f.cardPan} onChange={(e) => setF({ ...f, cardPan: e.target.value })} placeholder="4111 1111 1111 1111" className="font-mono text-xs" />
+          </Field>
+        </div>
+      ) : null}
+
       <Field label="Country" hint="ISO 3166-1 alpha-2">
         <TextInput list="country-codes" value={f.country} onChange={(e) => setF({ ...f, country: e.target.value.toUpperCase().slice(0, 2) })} placeholder="US" />
       </Field>
