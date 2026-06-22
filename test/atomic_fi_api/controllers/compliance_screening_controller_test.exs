@@ -685,7 +685,20 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
       assert screening["screened_entity_name"] == "non-crypto-payment-account-bypass"
     end
 
-    test "crypto PA with wallet_address triggers Watchman crypto screen", %{
+    # A crypto wallet MUST route to the on-chain Watchman screen, not the
+    # "non-crypto" no-screen bypass. Root cause this guards against: the request
+    # schema declares `account_type` as a plain string enum (payment_account.ex:85),
+    # so OpenApiSpex casts the body to the STRING "crypto_wallet" and
+    # `payment_account_from_request/2` copies it verbatim into the struct — but the
+    # engine guard (default.ex:204) pattern-matches the ATOM `:crypto_wallet`. The
+    # string never matches, so every crypto wallet falls through to the bypass and
+    # is never screened.
+    #
+    # The previous version of this test only asserted scope + screening_status,
+    # both of which the bypass ALSO returns — so it stayed green while silently
+    # letting sanctioned wallets through. These last two assertions are what
+    # actually prove the crypto path ran.
+    test "crypto PA runs the on-chain screen (not the non-crypto bypass)", %{
       conn: conn,
       account_holder: account_holder
     } do
@@ -704,6 +717,9 @@ defmodule AtomicFiApi.ComplianceScreeningControllerTest do
 
       assert screening["scope"] == "payment_account"
       assert screening["screening_status"] == "pending"
+
+      refute screening["screened_entity_name"] == "non-crypto-payment-account-bypass"
+      assert screening["screened_entity_type"] == "crypto_address"
     end
 
     test "returns 401 without API key", %{account_holder: account_holder} do

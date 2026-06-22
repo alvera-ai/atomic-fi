@@ -543,9 +543,16 @@ defmodule AtomicFi.ComplianceScreeningContext do
   end
 
   defp payment_account_from_request(%PaymentAccountRequest{} = req, tenant_id) do
+    # The request schema casts `account_type` as a plain string ("crypto_wallet"),
+    # but the screening engine pattern-matches the Ecto.Enum atom (:crypto_wallet).
+    # A struct literal does no coercion, so run the value through the field's own
+    # enum casting. account_type is required by the request schema, so anything but
+    # {:ok, _} here is an impossible state we fail loudly on, never silently bypass.
+    {:ok, account_type} = Ecto.Enum.cast_value(PaymentAccount, :account_type, req.account_type)
+
     %PaymentAccount{
       tenant_id: tenant_id,
-      account_type: req.account_type,
+      account_type: account_type,
       currency: req.currency,
       wallet_address: Map.get(req, :wallet_address),
       wallet_chain: Map.get(req, :wallet_chain),
