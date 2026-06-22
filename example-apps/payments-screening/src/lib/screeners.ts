@@ -28,12 +28,15 @@ export const newParty = (over: Partial<Party> = {}): Party => ({
 
 const blank = (v: string): string | undefined => (v.trim() === '' ? undefined : v.trim())
 
-function legalEntity(p: Party): Record<string, unknown> {
+function legalEntity(p: Party, tenantId: string | null): Record<string, unknown> {
+  // The nested legal_entity requires tenant_id even on a stateless preview.
+  const tenant = tenantId ?? undefined
   if (p.kind === 'business') {
-    return { legal_entity_type: 'business', business_name: blank(p.businessName) }
+    return { legal_entity_type: 'business', tenant_id: tenant, business_name: blank(p.businessName) }
   }
   return {
     legal_entity_type: 'individual',
+    tenant_id: tenant,
     first_name: blank(p.firstName),
     middle_name: blank(p.middleName),
     last_name: blank(p.lastName),
@@ -71,27 +74,29 @@ export interface PaymentAccountForm {
 /** Stateless preview only screens the inline entity; any well-formed UUID works. */
 export const PLACEHOLDER_AH_ID = '00000000-0000-0000-0000-000000000000'
 
-export const buildAccountHolder = (f: AccountHolderForm) => ({
+export const buildAccountHolder = (f: AccountHolderForm, tenantId: string | null) => ({
   account_holder_type: f.accountHolderType,
   risk_level: f.riskLevel,
-  legal_entity: legalEntity(f.party),
+  legal_entity: legalEntity(f.party, tenantId),
 })
 
-export const buildBeneficialOwner = (f: BeneficialOwnerForm) => ({
+export const buildBeneficialOwner = (f: BeneficialOwnerForm, tenantId: string | null) => ({
   account_holder_id: blank(f.accountHolderId) ?? PLACEHOLDER_AH_ID,
   control_type: f.controlType,
   ownership_pct: f.ownershipPct.trim() === '' ? undefined : Number(f.ownershipPct),
-  legal_entity: legalEntity(f.party),
+  legal_entity: legalEntity(f.party, tenantId),
 })
 
-export const buildCounterparty = (f: CounterpartyForm) => ({
+export const buildCounterparty = (f: CounterpartyForm, tenantId: string | null) => ({
   account_holder_id: blank(f.accountHolderId) ?? PLACEHOLDER_AH_ID,
   status: f.status,
-  legal_entity: legalEntity(f.party),
+  legal_entity: legalEntity(f.party, tenantId),
 })
 
-export const buildPaymentAccount = (f: PaymentAccountForm) => ({
+export const buildPaymentAccount = (f: PaymentAccountForm, tenantId: string | null) => ({
   account_type: f.accountType,
+  tenant_id: tenantId ?? undefined,
+  account_holder_id: PLACEHOLDER_AH_ID,
   wallet_address: blank(f.walletAddress),
   wallet_chain: blank(f.walletChain),
   currency: blank(f.currency),
@@ -137,12 +142,10 @@ export interface Preset<F> {
 
 const putin = newParty({ firstName: 'Vladimir', lastName: 'Putin', dob: '1952-10-07', country: 'RU', pep: true })
 const federer = newParty({ firstName: 'Roger', lastName: 'Federer', dob: '1981-08-08', country: 'CH' })
-const merkel = newParty({ firstName: 'Angela', lastName: 'Merkel', dob: '1954-07-17', country: 'DE', pep: true })
 
 export const ACCOUNT_HOLDER_PRESETS: Preset<AccountHolderForm>[] = [
   { name: 'Sanctions hit', tone: 'bad', form: { party: putin, accountHolderType: 'individual', riskLevel: 'high' } },
   { name: 'Clean pass', tone: 'ok', form: { party: federer, accountHolderType: 'individual', riskLevel: 'low' } },
-  { name: 'PEP', tone: 'warn', form: { party: merkel, accountHolderType: 'individual', riskLevel: 'medium' } },
 ]
 
 export const COUNTERPARTY_PRESETS: Preset<CounterpartyForm>[] = [
@@ -156,7 +159,6 @@ export const COUNTERPARTY_PRESETS: Preset<CounterpartyForm>[] = [
     tone: 'ok',
     form: { party: newParty({ kind: 'business', businessName: 'Acme Logistics', country: 'US' }), status: 'active', accountHolderId: PLACEHOLDER_AH_ID },
   },
-  { name: 'PEP', tone: 'warn', form: { party: merkel, status: 'active', accountHolderId: PLACEHOLDER_AH_ID } },
 ]
 
 export const BENEFICIAL_OWNER_PRESETS: Preset<BeneficialOwnerForm>[] = [
@@ -166,12 +168,7 @@ export const BENEFICIAL_OWNER_PRESETS: Preset<BeneficialOwnerForm>[] = [
 
 export const PAYMENT_ACCOUNT_PRESETS: Preset<PaymentAccountForm>[] = [
   {
-    name: 'OFAC mixer wallet',
-    tone: 'bad',
-    form: { accountType: 'crypto_wallet', walletAddress: '0x47ce0c6ed5b0ce3d3a51fdb1c52dc66a7c3c2936', walletChain: 'ETH', currency: 'USD', country: '' },
-  },
-  {
-    name: 'Clean wallet',
+    name: 'Crypto wallet',
     tone: 'ok',
     form: { accountType: 'crypto_wallet', walletAddress: '0x742d35cc6634c0532925a3b844bc454e4438f44e', walletChain: 'ETH', currency: 'USD', country: '' },
   },

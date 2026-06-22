@@ -3,20 +3,13 @@ import { Check, Eye, EyeOff, Loader2, Plug } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button, Field, TextInput } from './ui'
 import { useConfig } from '@/lib/config'
-import { screen } from '@/lib/api'
-import { SCREENER_META } from '@/lib/screeners'
+import { fetchTenants } from '@/lib/api'
 import { cn } from '@/lib/cn'
 
 type TestState = { kind: 'idle' } | { kind: 'testing' } | { kind: 'ok'; msg: string } | { kind: 'fail'; msg: string }
 
-const PING_BODY = {
-  account_holder_type: 'individual',
-  risk_level: 'low',
-  legal_entity: { legal_entity_type: 'individual', first_name: 'Connection', last_name: 'Test' },
-}
-
 export function SettingsPanel() {
-  const { config, setConfig } = useConfig()
+  const { config, setConfig, tenantSlug, tenantState } = useConfig()
   const [baseUrl, setBaseUrl] = useState(config.baseUrl)
   const [apiKey, setApiKey] = useState(config.apiKey)
   const [reveal, setReveal] = useState(false)
@@ -31,12 +24,11 @@ export function SettingsPanel() {
 
   async function testConnection() {
     setTest({ kind: 'testing' })
-    const res = await screen(SCREENER_META['account-holder'].endpoint, PING_BODY, {
-      baseUrl: baseUrl.trim(),
-      apiKey: apiKey.trim(),
-    })
+    const res = await fetchTenants({ baseUrl: baseUrl.trim(), apiKey: apiKey.trim() })
     if (res.ok) {
-      setTest({ kind: 'ok', msg: 'Connected — API key accepted.' })
+      const count = res.tenants.length
+      const slug = res.tenants[0]?.slug
+      setTest({ kind: 'ok', msg: `Connected — ${count} tenant${count === 1 ? '' : 's'}${slug ? ` (${slug})` : ''}.` })
     } else if (res.status === 401 || res.status === 403) {
       setTest({ kind: 'fail', msg: 'Reachable, but the API key was rejected.' })
     } else {
@@ -67,7 +59,7 @@ export function SettingsPanel() {
           />
         </Field>
 
-        <Field label="API key" hint="Sent as Authorization: Bearer <key>.">
+        <Field label="API key" hint="Sent as the X-API-Key header. The tenant is resolved from this key.">
           <div className="relative">
             <TextInput
               type={reveal ? 'text' : 'password'}
@@ -102,6 +94,13 @@ export function SettingsPanel() {
               {test.msg}
             </span>
           ) : null}
+        </div>
+
+        <div className="flex items-center justify-between border-t border-line pt-4 text-sm">
+          <span className="text-ink-faint">Resolved tenant</span>
+          <span className="font-mono text-ink-muted">
+            {tenantState === 'resolving' ? 'resolving…' : tenantState === 'error' ? 'unresolved' : (tenantSlug ?? '—')}
+          </span>
         </div>
       </div>
 

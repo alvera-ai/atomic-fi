@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { ArrowRight, Loader2 } from 'lucide-react'
 import { Button, Disclosure, Field, JsonBlock, Segmented, Select, TextInput, Toggle, type Option } from '@/components/ui'
 import { ToneDot } from '@/components/status'
+import { useConfig } from '@/lib/config'
 import { titleCase } from '@/lib/screening'
 import {
   ACCOUNT_HOLDER_PRESETS,
@@ -29,6 +30,18 @@ import type { FormProps } from './types'
 
 const opts = (values: string[]): Option[] => values.map((v) => ({ value: v, label: titleCase(v) }))
 
+/** Tenant id (injected into every payload) plus a reason to block submit. */
+function useScreenerGate() {
+  const { tenantId, tenantState } = useConfig()
+  const blockedReason =
+    tenantState === 'resolving'
+      ? 'Resolving tenant…'
+      : tenantState === 'error'
+        ? 'No tenant resolved — set a valid API key in Settings'
+        : undefined
+  return { tenantId, blockedReason }
+}
+
 /* ── Shared scaffolding ────────────────────────────────────────────────── */
 function PresetBar<F>({ presets, onApply }: { presets: Preset<F>[]; onApply: (f: F) => void }) {
   return (
@@ -55,6 +68,7 @@ function FormLayout<F>({
   payload,
   onSubmit,
   busy,
+  blockedReason,
   children,
 }: {
   presets: Preset<F>[]
@@ -62,13 +76,14 @@ function FormLayout<F>({
   payload: unknown
   onSubmit: () => void
   busy: boolean
+  blockedReason?: string
   children: ReactNode
 }) {
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault()
-        onSubmit()
+        if (!blockedReason) onSubmit()
       }}
       className="flex flex-col gap-6"
     >
@@ -77,8 +92,9 @@ function FormLayout<F>({
       <Disclosure summary="Advanced — request payload">
         <JsonBlock value={payload} />
       </Disclosure>
-      <div className="flex justify-end">
-        <Button type="submit" disabled={busy} className="min-w-44">
+      <div className="flex items-center justify-end gap-3">
+        {blockedReason ? <span className="text-xs text-ink-faint">{blockedReason}</span> : null}
+        <Button type="submit" disabled={busy || !!blockedReason} className="min-w-44">
           {busy ? (
             <>
               <Loader2 className="size-4 animate-spin" /> Screening…
@@ -170,10 +186,11 @@ function AccountHolderIdField({ value, onChange }: { value: string; onChange: (v
 
 /* ── The four screener forms ───────────────────────────────────────────── */
 export function AccountHolderForm({ onSubmit, busy }: FormProps) {
+  const { tenantId, blockedReason } = useScreenerGate()
   const [f, setF] = useState<AccountHolderForm>(() => structuredClone(ACCOUNT_HOLDER_PRESETS[0].form))
-  const payload = buildAccountHolder(f)
+  const payload = buildAccountHolder(f, tenantId)
   return (
-    <FormLayout presets={ACCOUNT_HOLDER_PRESETS} onApply={setF} payload={payload} busy={busy} onSubmit={() => onSubmit(payload)}>
+    <FormLayout presets={ACCOUNT_HOLDER_PRESETS} onApply={setF} payload={payload} busy={busy} blockedReason={blockedReason} onSubmit={() => onSubmit(payload)}>
       <PartyFields value={f.party} onChange={(party) => setF({ ...f, party })} />
       <Field label="Account holder type">
         <Select value={f.accountHolderType} onValueChange={(v) => setF({ ...f, accountHolderType: v })} options={opts(ACCOUNT_HOLDER_TYPES)} />
@@ -186,10 +203,11 @@ export function AccountHolderForm({ onSubmit, busy }: FormProps) {
 }
 
 export function BeneficialOwnerForm({ onSubmit, busy }: FormProps) {
+  const { tenantId, blockedReason } = useScreenerGate()
   const [f, setF] = useState<BeneficialOwnerForm>(() => structuredClone(BENEFICIAL_OWNER_PRESETS[0].form))
-  const payload = buildBeneficialOwner(f)
+  const payload = buildBeneficialOwner(f, tenantId)
   return (
-    <FormLayout presets={BENEFICIAL_OWNER_PRESETS} onApply={setF} payload={payload} busy={busy} onSubmit={() => onSubmit(payload)}>
+    <FormLayout presets={BENEFICIAL_OWNER_PRESETS} onApply={setF} payload={payload} busy={busy} blockedReason={blockedReason} onSubmit={() => onSubmit(payload)}>
       <PartyFields value={f.party} onChange={(party) => setF({ ...f, party })} />
       <Field label="Ownership %">
         <TextInput type="number" min={0} max={100} value={f.ownershipPct} onChange={(e) => setF({ ...f, ownershipPct: e.target.value })} placeholder="25" />
@@ -203,10 +221,11 @@ export function BeneficialOwnerForm({ onSubmit, busy }: FormProps) {
 }
 
 export function CounterpartyForm({ onSubmit, busy }: FormProps) {
+  const { tenantId, blockedReason } = useScreenerGate()
   const [f, setF] = useState<CounterpartyForm>(() => structuredClone(COUNTERPARTY_PRESETS[0].form))
-  const payload = buildCounterparty(f)
+  const payload = buildCounterparty(f, tenantId)
   return (
-    <FormLayout presets={COUNTERPARTY_PRESETS} onApply={setF} payload={payload} busy={busy} onSubmit={() => onSubmit(payload)}>
+    <FormLayout presets={COUNTERPARTY_PRESETS} onApply={setF} payload={payload} busy={busy} blockedReason={blockedReason} onSubmit={() => onSubmit(payload)}>
       <PartyFields value={f.party} onChange={(party) => setF({ ...f, party })} />
       <Field label="Status">
         <Select value={f.status} onValueChange={(v) => setF({ ...f, status: v })} options={opts(COUNTERPARTY_STATUSES)} />
@@ -217,11 +236,12 @@ export function CounterpartyForm({ onSubmit, busy }: FormProps) {
 }
 
 export function PaymentAccountForm({ onSubmit, busy }: FormProps) {
+  const { tenantId, blockedReason } = useScreenerGate()
   const [f, setF] = useState<PaymentAccountForm>(() => structuredClone(PAYMENT_ACCOUNT_PRESETS[0].form))
-  const payload = buildPaymentAccount(f)
+  const payload = buildPaymentAccount(f, tenantId)
   const isCrypto = f.accountType === 'crypto_wallet' || f.accountType === 'wallet'
   return (
-    <FormLayout presets={PAYMENT_ACCOUNT_PRESETS} onApply={setF} payload={payload} busy={busy} onSubmit={() => onSubmit(payload)}>
+    <FormLayout presets={PAYMENT_ACCOUNT_PRESETS} onApply={setF} payload={payload} busy={busy} blockedReason={blockedReason} onSubmit={() => onSubmit(payload)}>
       <Field label="Account type">
         <Select value={f.accountType} onValueChange={(v) => setF({ ...f, accountType: v })} options={opts(ACCOUNT_TYPES)} />
       </Field>

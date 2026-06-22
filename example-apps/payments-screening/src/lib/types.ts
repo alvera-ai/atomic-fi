@@ -4,16 +4,23 @@
 
 export type ScreeningType = 'sanctions' | 'pep' | 'aml' | 'adverse_media' | (string & {})
 
-export interface SanctionsMatch {
-  name?: string | null
-  given_name?: string | null
-  family_name?: string | null
-  type?: string | null
-  country?: string | null
+export interface SanctionsMatchAddress {
   city?: string | null
+  country?: string | null
   region?: string | null
-  dob?: string | null
-  registration_number?: string | null
+  postal_code?: string | null
+}
+
+export interface SanctionsMatch {
+  matched_name?: string | null
+  matched_entity_type?: string | null // 'person' | 'business'
+  match_score?: number | null // 0..1
+  source_list?: string | null // e.g. 'us_ofac'
+  source_id?: string | null
+  false_positive_qualifier?: string | null
+  addresses?: SanctionsMatchAddress[] | null
+  person_data?: { dob?: string | null; given_name?: string | null; family_name?: string | null } | null
+  source_data?: { title?: string | null; program?: string[] | null; remarks?: string | null } | null
   [key: string]: unknown
 }
 

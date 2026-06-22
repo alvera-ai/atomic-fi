@@ -21,9 +21,15 @@ export function loadConfig(): ApiConfig {
   return DEFAULT_CONFIG
 }
 
+export type TenantState = 'resolving' | 'ready' | 'error'
+
 export interface ConfigContextValue {
   config: ApiConfig
   setConfig: (next: ApiConfig) => void
+  /** Tenant resolved from the API key — required on every screening request. */
+  tenantId: string | null
+  tenantSlug: string | null
+  tenantState: TenantState
 }
 
 export const ConfigContext = createContext<ConfigContextValue | null>(null)

@@ -38,17 +38,18 @@ function SectionTitle({ children }: { children: string }) {
 }
 
 function matchName(m: SanctionsMatch): string {
-  if (m.name) return m.name
-  const joined = [m.given_name, m.family_name].filter(Boolean).join(' ')
+  if (m.matched_name) return m.matched_name
+  const joined = [m.person_data?.given_name, m.person_data?.family_name].filter(Boolean).join(' ')
   return joined || '—'
 }
 
 function rowDetail(r: ComplianceScreening): string {
   const type = String(r.screening_type ?? '').toLowerCase()
   if (type === 'sanctions') {
-    const base = titleCase(String(r.sanctions_screening_status ?? r.screening_status ?? 'unknown'))
     const n = typeof r.match_count === 'number' ? r.match_count : 0
-    return n > 0 ? `${base} · ${n} ${n === 1 ? 'match' : 'matches'}` : base
+    if (n > 0) return `${n} ${n === 1 ? 'match' : 'matches'}`
+    const sanc = r.sanctions_screening_status
+    return sanc ? titleCase(String(sanc)) : 'No sanctions match'
   }
   if (type === 'pep') {
     return r.pep_indicator ? `Flagged${r.pep_list_name ? ` · ${r.pep_list_name}` : ''}` : 'No PEP match'
@@ -171,19 +172,24 @@ function Done({ rows, status }: { rows: ComplianceScreening[]; status: number })
                 <tr className="text-left text-[0.65rem] uppercase tracking-[0.08em] text-ink-faint">
                   <th className="px-4 py-2.5 font-medium">Name</th>
                   <th className="px-4 py-2.5 font-medium">Type</th>
+                  <th className="px-4 py-2.5 font-medium">Score</th>
+                  <th className="px-4 py-2.5 font-medium">List</th>
                   <th className="px-4 py-2.5 font-medium">Country</th>
-                  <th className="px-4 py-2.5 font-medium">DOB</th>
-                  <th className="px-4 py-2.5 font-medium">Reg. no.</th>
                 </tr>
               </thead>
               <tbody>
                 {matches.map((m, i) => (
                   <tr key={i} className="border-t border-line">
-                    <td className="px-4 py-2.5 font-medium text-ink">{matchName(m)}</td>
-                    <td className="px-4 py-2.5 text-ink-muted">{m.type ?? '—'}</td>
-                    <td className="px-4 py-2.5 font-mono text-ink-muted">{m.country ?? '—'}</td>
-                    <td className="px-4 py-2.5 font-mono text-ink-muted">{m.dob ?? '—'}</td>
-                    <td className="px-4 py-2.5 font-mono text-ink-muted">{m.registration_number ?? '—'}</td>
+                    <td className="px-4 py-2.5 font-medium text-ink">
+                      {matchName(m)}
+                      {m.source_data?.title ? (
+                        <span className="block text-xs font-normal text-ink-faint">{m.source_data.title}</span>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-2.5 text-ink-muted">{m.matched_entity_type ?? '—'}</td>
+                    <td className="px-4 py-2.5 font-mono text-ink">{formatScore(m.match_score)}</td>
+                    <td className="px-4 py-2.5 font-mono text-ink-muted">{m.source_list ?? '—'}</td>
+                    <td className="px-4 py-2.5 font-mono text-ink-muted">{m.addresses?.[0]?.country ?? '—'}</td>
                   </tr>
                 ))}
               </tbody>
