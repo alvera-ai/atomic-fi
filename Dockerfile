@@ -44,7 +44,8 @@ RUN pnpm --filter @atomic-fi/sdk sdk:gen
 # app dir), so with the repo at /app the output lands in /app/priv/static/demo/.
 RUN pnpm --filter onboarding-flow build \
  && pnpm --filter @atomic-fi/jdm-editor build \
- && pnpm --filter lotus-embed build
+ && pnpm --filter lotus-embed build \
+ && pnpm --filter payments-screening build
 
 # ─── Stage 2: compile Elixir + Phoenix assets, run in prod ────────────
 FROM hexpm/elixir:1.18.3-erlang-27.3.3-debian-bookworm-20250428-slim AS app

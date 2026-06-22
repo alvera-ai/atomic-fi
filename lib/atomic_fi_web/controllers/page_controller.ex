@@ -22,6 +22,11 @@ defmodule AtomicFiWeb.PageController do
       slug: "lotus-embed",
       label: "Lotus dashboard embed",
       description: "Embedded Lotus SQL editor + dashboard"
+    },
+    %{
+      slug: "payments-screening",
+      label: "Payments screening",
+      description: "Sanctions preview screening (POST /api/compliance-screenings/*)"
     }
   ]
 

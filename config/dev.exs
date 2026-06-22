@@ -79,6 +79,15 @@ config :atomic_fi, AtomicFiWeb.Endpoint,
       "build",
       "--watch",
       cd: Path.expand("..", __DIR__)
+    ],
+    pnpm: [
+      "--filter",
+      "payments-screening",
+      "exec",
+      "vite",
+      "build",
+      "--watch",
+      cd: Path.expand("..", __DIR__)
     ]
   ]
 

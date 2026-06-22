@@ -83,6 +83,7 @@ node_modules/
 /priv/static/demo/onboarding-flow/
 /priv/static/demo/atomic-fi-jdm-editor/
 /priv/static/demo/lotus-embed/
+/priv/static/demo/payments-screening/
 
 # ZenRule runtime rules — demo subdirs only. Source of truth lives at
 # /zen_rules/ at the repo root; `make run-backing-services` copies them
