@@ -39,14 +39,18 @@ VITE_API_PROXY=http://localhost:4100 pnpm --filter payments-screening dev
 
 - **Base URL** — blank routes through the dev proxy. Set an absolute URL to
   call a deployment directly (that origin must allow CORS).
-- **API key** — sent as `Authorization: Bearer <key>`. Local dev default:
-  `alvera_root_api_key_dev`.
+- **API key** — sent as the `X-API-Key` header (M2M auth). Local dev default:
+  `alvera_root_api_key_dev`. The tenant is resolved from this key via
+  `GET /api/tenants` and injected into every screening request.
 
 ## Presets
 
-Each screener ships demo payloads: a sanctions hit (Vladimir Putin), a clean
-pass (Roger Federer), a PEP, and for Payment Account an OFAC-listed mixer
-wallet. Click one, then **Run screening**.
+Each screener ships demo payloads: a sanctions hit (Vladimir Putin) and a clean
+pass (Roger Federer). Click one, then **Run screening**.
+
+> The demo dataset loads sanctions lists only (OFAC, UN, FinCEN). PEP/AML flags
+> and crypto-address matches are not produced by these lists, so those verdicts
+> won't appear without additional data on the server.
 
 ## Scripts
 
