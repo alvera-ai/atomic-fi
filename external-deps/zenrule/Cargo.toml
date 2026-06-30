@@ -52,7 +52,7 @@ zip = { version = "8.2", default-features = false, features = [
 
 opentelemetry = { version = "0.31" }
 opentelemetry-otlp = { version = "0.31", features = ["grpc-tonic", "reqwest-client"] }
-opentelemetry_sdk = { version = "0.31", features = ["rt-tokio"] }
+opentelemetry_sdk = { version = "0.32", features = ["rt-tokio"] }
 opentelemetry-appender-tracing = { version = "0.31" }
 opentelemetry-semantic-conventions = "0.31"
 axum-tracing-opentelemetry = { version = "0.33", features = ["tracing_level_info"] }
