@@ -19,7 +19,7 @@
     "check": "pnpm version:check && tsc --noEmit"
   },
   "devDependencies": {
-    "@hey-api/openapi-ts": "^0.97.0",
+    "@hey-api/openapi-ts": "^0.97.3",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
