@@ -70,6 +70,18 @@ defmodule AtomicFi.Watchman.ClientTest do
       assert entity.sourceData["entityID"] == "35096"
     end
 
+    test "matches a US subsidiary named on the DoD 1260H list" do
+      {:ok, %SearchResponse{} = response} =
+        Client.v2_search_get(
+          name: "COSCO SHIPPING (North America) Inc.",
+          type: "business",
+          minMatch: 0.7,
+          limit: 1
+        )
+
+      assert [%Entity{sourceList: "us_dod_1260h"}] = response.entities
+    end
+
     test "drops query keys not in the whitelist" do
       assert {:ok, %SearchResponse{}} =
                Client.v2_search_get(name: "Probe", not_a_real_key: "ignored")
@@ -84,6 +96,15 @@ defmodule AtomicFi.Watchman.ClientTest do
       assert info.lists["us_ofac"] > 0
       assert info.lists["us_csl"] > 0
       assert info.lists["us_fincen_311"] > 0
+    end
+
+    test "loads the trade.gov CSL and the US restricted-party lists" do
+      {:ok, %ListInfoResponse{} = info} = Client.v2_listinfo_get()
+
+      for list <-
+            ~w(us_csl us_dod_1260h us_dhs_uflpa us_fcc_covered us_far_889 us_restricted_affiliates) do
+        assert is_integer(info.lists[list]) and info.lists[list] > 0, "#{list} is not loaded"
+      end
     end
 
     test "returns version information" do
