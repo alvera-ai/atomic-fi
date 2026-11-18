@@ -15,8 +15,7 @@ Watchman:
 
     IncludedLists:
       - us_ofac
-      # us_csl disabled — data.trade.gov DNS is dead (decommissioned May 2026)
-      # - us_csl
+      - us_csl
       - us_non_sdn
       - us_fincen_311
       - un_csl
@@ -28,6 +27,28 @@ Watchman:
     # needs a download Location.
     Senzing:
       - SourceList: id_dttot
+      # US restricted-party lists that the lists above do not carry, rebuilt daily
+      # from the official sources (DoD Federal Register notice, DHS, FCC, eCFR) by
+      # https://github.com/Mattbusel/us-restricted-parties. Watchman downloads them
+      # from Location and refreshes them on RefreshInterval like the lists above.
+      # A file named after the SourceList in InitialDataDirectory overrides the URL.
+      # DoD 1260H Chinese military companies, each named subsidiary as its own record
+      - SourceList: us_dod_1260h
+        Location: "https://github.com/Mattbusel/us-restricted-parties/releases/latest/download/us_dod_1260h.jsonl"
+      # DHS UFLPA Entity List (forced-labor import ban)
+      - SourceList: us_dhs_uflpa
+        Location: "https://github.com/Mattbusel/us-restricted-parties/releases/latest/download/us_dhs_uflpa.jsonl"
+      # FCC Covered List, named companies
+      - SourceList: us_fcc_covered
+        Location: "https://github.com/Mattbusel/us-restricted-parties/releases/latest/download/us_fcc_covered.jsonl"
+      # Section 889 covered telecom and video surveillance companies (48 CFR 52.204-25)
+      - SourceList: us_far_889
+        Location: "https://github.com/Mattbusel/us-restricted-parties/releases/latest/download/us_far_889.jsonl"
+      # Companies that listed parties (SDN, Entity List, the lists above) own 50% or
+      # more, or possibly so, under the OFAC 50 Percent Rule and BIS Affiliates Rule,
+      # from GLEIF ownership data. Evidence for review, not an agency listing.
+      - SourceList: us_restricted_affiliates
+        Location: "https://github.com/Mattbusel/us-restricted-parties/releases/latest/download/affiliates.covered.senzing.jsonl"
 
   Search:
     Goroutines:
